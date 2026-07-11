@@ -118,7 +118,7 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
           <Input
             label="Nickname"
             placeholder="e.g. Acme"
-            helper="Optional shorthand for fast lookup. Used by search and the PO Inbox parser."
+            helper="Optional shorthand for fast lookup. Used by search and the Customer orders parser."
             {...field('nickname')}
           />
           <Select

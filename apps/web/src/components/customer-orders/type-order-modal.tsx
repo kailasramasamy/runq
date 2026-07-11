@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Button, Textarea, useToast } from '@/components/ui';
-import { useUploadPoText } from '@/hooks/queries/use-po-inbox';
+import { useUploadOrderText } from '@/hooks/queries/use-customer-orders';
 
 interface Props {
   open: boolean;
@@ -8,15 +8,15 @@ interface Props {
 }
 
 /**
- * Explicit "type or paste a PO" modal — surfaces the same paste-text path
+ * Explicit "type or paste an order" modal — surfaces the same paste-text path
  * that's already accessible via Cmd+V on the upload zone, but discoverable
  * for accountants who don't know about the keyboard shortcut. Common use:
  * a customer says the order on a phone call, and the accountant types it
  * out as free text.
  */
-export function TypePoModal({ open, onClose }: Props) {
+export function TypeOrderModal({ open, onClose }: Props) {
   const [text, setText] = useState('');
-  const upload = useUploadPoText();
+  const upload = useUploadOrderText();
   const { toast } = useToast();
 
   const reset = () => setText('');
@@ -28,12 +28,12 @@ export function TypePoModal({ open, onClose }: Props) {
   const handleSubmit = async () => {
     const trimmed = text.trim();
     if (trimmed.length < 3) {
-      toast('Enter the PO content', 'error');
+      toast('Enter the order content', 'error');
       return;
     }
     try {
       await upload.mutateAsync({ text: trimmed, sourceMetadata: { typedManually: true } });
-      toast('PO captured', 'success');
+      toast('Order captured', 'success');
       handleClose();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Upload failed', 'error');
@@ -41,10 +41,10 @@ export function TypePoModal({ open, onClose }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Type or paste a PO">
+    <Modal open={open} onClose={handleClose} title="Type or paste an order">
       <div className="space-y-3">
         <Textarea
-          label="PO content"
+          label="Order content"
           rows={8}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -65,7 +65,7 @@ export function TypePoModal({ open, onClose }: Props) {
             onClick={handleSubmit}
             disabled={upload.isPending || text.trim().length < 3}
           >
-            {upload.isPending ? 'Uploading…' : 'Capture PO'}
+            {upload.isPending ? 'Uploading…' : 'Capture order'}
           </Button>
         </div>
       </div>

@@ -105,6 +105,15 @@ Renamed the whole feature to **"Customer orders"** and housed it under Sales. Th
 
 **Deliberately kept:** the customer's literal PO-**number** data fields (`PO #<n>`, `PO number (optional)`) — that's the number printed on the customer's own document, not the feature name. Backend endpoints (`/ar/po-drafts/...`) and the entire `lib/screens/purchase/` module untouched. Full-project `flutter analyze` clean (0 errors).
 
+**Web parity — ✅ DONE (2026-07-11).** Applied the same rename to the web app (`apps/web`), matching mobile depth:
+- **Route** → `/finance/ar/customer-orders` (+ `/$uploadId`), was `/finance/ar/po-inbox`; added `<Navigate>` legacy-redirect routes from the old `/po-inbox` paths so notification/bookmark links keep working.
+- **Files** (git mv) → `hooks/queries/use-customer-orders.ts`, `routes/ar/customer-orders/`, `components/customer-orders/` (incl. `order-upload-zone.tsx`, `type-order-modal.tsx`).
+- **Code** → `PoInboxPage`→`CustomerOrdersPage`, `usePoInbox`→`useCustomerOrders`, `PoInboxRow/PoInboxDetail`→`CustomerOrder*`, all `use*PoDraft/PoUpload` hooks → `*OrderDraft/OrderUpload`, `PO_INBOX_KEYS`→`CUSTOMER_ORDER_KEYS`, etc.
+- **Copy** → "Customer orders" title/breadcrumb, "Generate from order" (New-invoice menu), "Type an order", upload-zone/first-run/install-nudge/reject copy.
+- **Kept:** `/ar/po-drafts` + `/ar/po-uploads` APIs, the `PO number`/`PO date` data fields, and the `/purchase/pos` procurement module — all untouched. `tsc --noEmit` clean (0 errors). Nav placement unchanged (still reached via the "New invoice" menu; no sidebar entry, per decision).
+
+**Items 8 & 9 web parity:** #8 (invoice-create flow) is already fine on web — single 2-option "New invoice" menu, no stacked sheets; only the "Generate from order" label rode along with #10. #9 (quick payments naming) has no web counterpart — web has no "payment made / quick payments" capture flow, so there's nothing to rename (its Expenses / AP Payments / Banking "Pending payments" surfaces are already clearly named).
+
 ### 11. Cash hero taps to the wrong place
 `cash_hero_card.dart:34` — the whole card goes to `/money/analytics`. "To collect" / "To pay" mini-stats aren't individually tappable. Owner tapping "To collect ₹4.2L" expects the debtor list.
 **Fix:** per-stat taps → collections / bills; card body → banking.

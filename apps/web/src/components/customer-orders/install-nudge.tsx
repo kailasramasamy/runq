@@ -11,7 +11,7 @@ import {
 const DISMISSED_KEY = 'runq:install-nudge-dismissed';
 
 /**
- * Inline card on the PO Inbox page that prompts the accountant to install
+ * Inline card on the Customer orders page that prompts the accountant to install
  * the PWA. Two modes:
  *
  *   1. Android (or any browser supporting beforeinstallprompt): one-tap
@@ -81,7 +81,7 @@ function AndroidBody({ onInstall }: { onInstall: () => void }) {
         Install runq on this phone
       </p>
       <p className="mt-0.5 text-xs text-indigo-700 dark:text-indigo-300">
-        After install, you can share POs straight from WhatsApp → runq in one tap.
+        After install, you can share orders straight from WhatsApp → runq in one tap.
       </p>
       <button
         onClick={onInstall}
@@ -101,7 +101,7 @@ function IosBody() {
       </p>
       <p className="mt-0.5 text-xs text-indigo-700 dark:text-indigo-300">
         In Safari: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>.
-        Then to send a PO from WhatsApp: tap the PDF → <strong>Save to Files</strong> → open runq → drop here.
+        Then to send an order from WhatsApp: tap the PDF → <strong>Save to Files</strong> → open runq → drop here.
       </p>
     </div>
   );

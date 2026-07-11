@@ -36,16 +36,16 @@ import {
 import { useCustomers } from '@/hooks/queries/use-customers';
 import { useItems } from '@/hooks/queries/use-items';
 import {
-  usePoInboxItem,
-  useUpdatePoDraft,
-  useUpdatePoDraftLine,
-  useApprovePoDraft,
-  useRejectPoDraft,
-  useReparsePoUpload,
-  useDiscardPoUpload,
-  type PoInboxDetail,
-  type PoInboxLineRaw,
-} from '@/hooks/queries/use-po-inbox';
+  useCustomerOrder,
+  useUpdateOrderDraft,
+  useUpdateOrderDraftLine,
+  useApproveOrderDraft,
+  useRejectOrderDraft,
+  useReparseOrderUpload,
+  useDiscardOrderUpload,
+  type CustomerOrderDetail,
+  type CustomerOrderLineRaw,
+} from '@/hooks/queries/use-customer-orders';
 import { formatINR } from '@/lib/utils';
 
 interface Props {
@@ -76,8 +76,8 @@ function readQueue(currentId: string): ReviewQueue | null {
   return { ids, index, next };
 }
 
-export function PoDraftReviewPage({ uploadId }: Props) {
-  const { data, isLoading } = usePoInboxItem(uploadId);
+export function CustomerOrderReviewPage({ uploadId }: Props) {
+  const { data, isLoading } = useCustomerOrder(uploadId);
   const draft = data?.data ?? null;
   const queue = useMemo(() => readQueue(uploadId), [uploadId]);
 
@@ -86,7 +86,7 @@ export function PoDraftReviewPage({ uploadId }: Props) {
     return (
       <EmptyState
         icon={AlertCircle}
-        title="PO not found"
+        title="Order not found"
         description="It may have been deleted or you may not have access."
       />
     );
@@ -94,7 +94,7 @@ export function PoDraftReviewPage({ uploadId }: Props) {
   return <ReviewView draft={draft} queue={queue} />;
 }
 
-function ReviewView({ draft, queue }: { draft: PoInboxDetail; queue: ReviewQueue | null }) {
+function ReviewView({ draft, queue }: { draft: CustomerOrderDetail; queue: ReviewQueue | null }) {
   const isLocked =
     draft.uploadStatus === 'parsing' ||
     draft.reviewStatus === 'approved' ||
@@ -104,7 +104,7 @@ function ReviewView({ draft, queue }: { draft: PoInboxDetail; queue: ReviewQueue
     draft.customerName ??
     draft.buyerNameRaw ??
     draft.fileName ??
-    (draft.hasRawText ? 'Pasted text PO' : 'PO Review');
+    (draft.hasRawText ? 'Pasted text order' : 'Order review');
 
   return (
     <div>
@@ -112,7 +112,7 @@ function ReviewView({ draft, queue }: { draft: PoInboxDetail; queue: ReviewQueue
         title={title}
         breadcrumbs={[
           { label: 'AR', href: '/ar' },
-          { label: 'PO Inbox', href: '/ar/po-inbox' },
+          { label: 'Customer orders', href: '/ar/customer-orders' },
           { label: 'Review' },
         ]}
         actions={<ReviewActions draft={draft} queue={queue} />}
@@ -135,7 +135,7 @@ function ReviewView({ draft, queue }: { draft: PoInboxDetail; queue: ReviewQueue
   );
 }
 
-function ApprovedBanner({ draft }: { draft: PoInboxDetail }) {
+function ApprovedBanner({ draft }: { draft: CustomerOrderDetail }) {
   const navigate = useNavigate();
   const approvedAt = draft.approvedAt
     ? new Date(draft.approvedAt).toLocaleString('en-IN', {
@@ -152,8 +152,8 @@ function ApprovedBanner({ draft }: { draft: PoInboxDetail }) {
             Invoice {draft.approvedInvoiceNumber ?? 'created'} from this PO
           </p>
           <p className="mt-0.5 text-emerald-800/90 dark:text-emerald-100/80">
-            This PO has been converted to an invoice
-            {approvedAt ? ` on ${approvedAt}` : ''}. The PO is kept here for audit and to
+            This order has been converted to an invoice
+            {approvedAt ? ` on ${approvedAt}` : ''}. The order is kept here for audit and to
             block accidental re-uploads of the same file.
           </p>
         </div>
@@ -173,7 +173,7 @@ function ApprovedBanner({ draft }: { draft: PoInboxDetail }) {
   );
 }
 
-function RejectedBanner({ draft }: { draft: PoInboxDetail }) {
+function RejectedBanner({ draft }: { draft: CustomerOrderDetail }) {
   const rejectedAt = draft.rejectedAt
     ? new Date(draft.rejectedAt).toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
@@ -184,7 +184,7 @@ function RejectedBanner({ draft }: { draft: PoInboxDetail }) {
     <div className="mb-3 flex items-start gap-3 rounded-md border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/40">
       <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-zinc-500 dark:text-zinc-400" />
       <div className="text-[13px] text-zinc-700 dark:text-zinc-200">
-        <p className="font-semibold">PO rejected{rejectedAt ? ` on ${rejectedAt}` : ''}</p>
+        <p className="font-semibold">Order rejected{rejectedAt ? ` on ${rejectedAt}` : ''}</p>
         {draft.rejectedReason && (
           <p className="mt-0.5 text-zinc-600 dark:text-zinc-300">{draft.rejectedReason}</p>
         )}
@@ -208,19 +208,19 @@ function ReviewActions({
   draft,
   queue,
 }: {
-  draft: PoInboxDetail;
+  draft: CustomerOrderDetail;
   queue: ReviewQueue | null;
 }) {
   const navigate = useNavigate();
   const router = useRouter();
   function goBack(): void {
     if (router.history.canGoBack()) router.history.back();
-    else navigate({ to: '/finance/ar/po-inbox' });
+    else navigate({ to: '/finance/ar/customer-orders' });
   }
   const { toast } = useToast();
-  const approve = useApprovePoDraft();
-  const reparse = useReparsePoUpload();
-  const discard = useDiscardPoUpload();
+  const approve = useApproveOrderDraft();
+  const reparse = useReparseOrderUpload();
+  const discard = useDiscardOrderUpload();
   const [rejectOpen, setRejectOpen] = useState(false);
 
   const isApprovable = !blockingFlags(draft);
@@ -232,7 +232,7 @@ function ReviewActions({
   const advanceAfterAction = (fallback: () => void) => {
     if (queue && queue.next) {
       void navigate({
-        to: '/finance/ar/po-inbox/$uploadId' as never,
+        to: '/finance/ar/customer-orders/$uploadId' as never,
         params: { uploadId: queue.next } as never,
         search: { queue: queue.ids.join(',') } as never,
       });
@@ -240,7 +240,7 @@ function ReviewActions({
     }
     if (queue && !queue.next) {
       // End of queue — back to inbox
-      void navigate({ to: '/finance/ar/po-inbox' as never });
+      void navigate({ to: '/finance/ar/customer-orders' as never });
       return;
     }
     fallback();
@@ -273,8 +273,8 @@ function ReviewActions({
   const handleDiscard = async () => {
     try {
       await discard.mutateAsync(draft.id);
-      toast('PO deleted', 'success');
-      void navigate({ to: '/finance/ar/po-inbox' });
+      toast('Order deleted', 'success');
+      void navigate({ to: '/finance/ar/customer-orders' });
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Delete failed', 'error');
     }
@@ -284,12 +284,12 @@ function ReviewActions({
     if (!queue) return;
     if (queue.next) {
       void navigate({
-        to: '/finance/ar/po-inbox/$uploadId' as never,
+        to: '/finance/ar/customer-orders/$uploadId' as never,
         params: { uploadId: queue.next } as never,
         search: { queue: queue.ids.join(',') } as never,
       });
     } else {
-      void navigate({ to: '/finance/ar/po-inbox' as never });
+      void navigate({ to: '/finance/ar/customer-orders' as never });
     }
   };
 
@@ -338,7 +338,7 @@ function ReviewActions({
   );
 }
 
-function StatusBadge({ draft }: { draft: PoInboxDetail }) {
+function StatusBadge({ draft }: { draft: CustomerOrderDetail }) {
   if (draft.uploadStatus === 'parse_error') {
     return <Badge variant="danger">Parse error</Badge>;
   }
@@ -352,7 +352,7 @@ function StatusBadge({ draft }: { draft: PoInboxDetail }) {
   return <Badge variant="default">{draft.reviewStatus ?? 'unknown'}</Badge>;
 }
 
-function blockingFlags(draft: PoInboxDetail): string | null {
+function blockingFlags(draft: CustomerOrderDetail): string | null {
   if (!draft.customerId) return 'no_customer';
   if (draft.lines.length === 0) return 'no_lines';
   for (const l of draft.lines) {
@@ -369,11 +369,11 @@ function DraftHeaderCard({
   draft,
   disabled,
 }: {
-  draft: PoInboxDetail;
+  draft: CustomerOrderDetail;
   disabled: boolean;
 }) {
   const { data: customersData } = useCustomers({ limit: 200 });
-  const update = useUpdatePoDraft(draft.id);
+  const update = useUpdateOrderDraft(draft.id);
   const { toast } = useToast();
 
   const customerOptions = useMemo(
@@ -407,7 +407,7 @@ function DraftHeaderCard({
           />
           {draft.buyerNameRaw && draft.buyerNameRaw !== draft.customerName && (
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              PO says: <span className="font-medium">{draft.buyerNameRaw}</span>
+              Order says: <span className="font-medium">{draft.buyerNameRaw}</span>
               {draft.buyerGstinRaw && <> · GSTIN {draft.buyerGstinRaw}</>}
             </p>
           )}
@@ -438,7 +438,7 @@ function DraftHeaderCard({
 
 // ─── Source preview (file or pasted text) ────────────────────────────────
 
-function SourcePreviewCard({ draft }: { draft: PoInboxDetail }) {
+function SourcePreviewCard({ draft }: { draft: CustomerOrderDetail }) {
   const [open, setOpen] = useState(false);
   const hasFile = draft.fileName != null;
 
@@ -481,7 +481,7 @@ function SourcePreviewCard({ draft }: { draft: PoInboxDetail }) {
  * &lt;img&gt; for images, &lt;embed&gt; for PDFs, &lt;pre&gt; for text. Cleans up
  * the blob URL on unmount to avoid leaks.
  */
-function FilePreview({ draft }: { draft: PoInboxDetail }) {
+function FilePreview({ draft }: { draft: CustomerOrderDetail }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -563,7 +563,7 @@ function LineItemsCard({
   draft,
   disabled,
 }: {
-  draft: PoInboxDetail;
+  draft: CustomerOrderDetail;
   disabled: boolean;
 }) {
   const { data: itemsData } = useItems({ status: 'active', limit: 100 });
@@ -585,7 +585,7 @@ function LineItemsCard({
           <EmptyState
             icon={AlertCircle}
             title="No line items"
-            description="The parser didn't find any line items in this PO. Re-parse or reject."
+            description="The parser didn't find any line items in this order. Re-parse or reject."
           />
         </CardContent>
       </Card>
@@ -641,7 +641,7 @@ function LineItemsCard({
 }
 
 interface LineItemRowProps {
-  line: PoInboxLineRaw;
+  line: CustomerOrderLineRaw;
   draftId: string;
   customerId: string | null;
   itemOptions: Array<{ value: string; label: string }>;
@@ -654,16 +654,16 @@ interface LineItemRowProps {
  * mutation per keystroke; commits on blur.
  */
 /**
- * The PO inbox displays rates inclusive of GST so they match the PDF the
+ * The customer orders displays rates inclusive of GST so they match the PDF the
  * customer sent. Internally `resolvedRate` is the base rate (excl. GST)
  * because that's what the invoice math expects on conversion. This
  * helper round-trips between the two views: gross = base × (1 + gst/100).
  */
-function gstFactor(line: PoInboxLineRaw): number {
+function gstFactor(line: CustomerOrderLineRaw): number {
   const gst = line.matchedItemGstRate != null ? Number(line.matchedItemGstRate) : 0;
   return 1 + (Number.isFinite(gst) ? gst : 0) / 100;
 }
-function toGrossRate(line: PoInboxLineRaw): string {
+function toGrossRate(line: CustomerOrderLineRaw): string {
   if (!line.resolvedRate) return '';
   const gross = Number(line.resolvedRate) * gstFactor(line);
   return (Math.round(gross * 100) / 100).toString();
@@ -676,8 +676,8 @@ function formatQty(raw: string | null): string {
   return Number.isFinite(n) ? n.toString() : raw;
 }
 
-function useLineItemEdit(line: PoInboxLineRaw, draftId: string) {
-  const update = useUpdatePoDraftLine(draftId);
+function useLineItemEdit(line: CustomerOrderLineRaw, draftId: string) {
+  const update = useUpdateOrderDraftLine(draftId);
   const { toast } = useToast();
   const [qtyDraft, setQtyDraft] = useState(formatQty(line.rawQty));
   const [rateDraft, setRateDraft] = useState(toGrossRate(line));
@@ -838,7 +838,7 @@ function LineItemCard({
 
 // ─── Totals card ─────────────────────────────────────────────────────────
 
-function TotalsCard({ draft }: { draft: PoInboxDetail }) {
+function TotalsCard({ draft }: { draft: CustomerOrderDetail }) {
   // Sum gross (incl GST) per line so the total matches the PO PDF the
   // customer sent — that's the figure the user is reconciling against.
   const grossTotal = draft.lines.reduce((sum, l) => {
@@ -881,11 +881,11 @@ function RejectModal({
   onClose,
 }: {
   open: boolean;
-  draft: PoInboxDetail;
+  draft: CustomerOrderDetail;
   queue: ReviewQueue | null;
   onClose: () => void;
 }) {
-  const reject = useRejectPoDraft();
+  const reject = useRejectOrderDraft();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [reason, setReason] = useState('');
@@ -897,18 +897,18 @@ function RejectModal({
     }
     try {
       await reject.mutateAsync({ uploadId: draft.id, reason: reason.trim() });
-      toast('PO rejected', 'success');
+      toast('Order rejected', 'success');
       onClose();
       // In queue mode, advance to the next item
       if (queue) {
         if (queue.next) {
           void navigate({
-            to: '/finance/ar/po-inbox/$uploadId' as never,
+            to: '/finance/ar/customer-orders/$uploadId' as never,
             params: { uploadId: queue.next } as never,
             search: { queue: queue.ids.join(',') } as never,
           });
         } else {
-          void navigate({ to: '/finance/ar/po-inbox' as never });
+          void navigate({ to: '/finance/ar/customer-orders' as never });
         }
       }
     } catch (err) {
@@ -917,7 +917,7 @@ function RejectModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Reject this PO?">
+    <Modal open={open} onClose={onClose} title="Reject this order?">
       <div className="space-y-3">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           The upload + draft are kept for audit, but the workflow stops here.

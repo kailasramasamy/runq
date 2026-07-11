@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type { ApiSuccess } from '@runq/types';
 
-const PO_INBOX_KEYS = {
-  all: ['po-inbox'] as const,
-  list: (filters?: Record<string, unknown>) => ['po-inbox', 'list', filters] as const,
-  detail: (id: string) => ['po-inbox', 'detail', id] as const,
+const CUSTOMER_ORDER_KEYS = {
+  all: ['customer-orders'] as const,
+  list: (filters?: Record<string, unknown>) => ['customer-orders', 'list', filters] as const,
+  detail: (id: string) => ['customer-orders', 'detail', id] as const,
 };
 
-export type PoSourceChannel =
+export type CustomerOrderSourceChannel =
   | 'share_sheet'
   | 'web_drop'
   | 'web_upload'
@@ -16,14 +16,14 @@ export type PoSourceChannel =
   | 'paste_text'
   | 'email_forward';
 
-export type PoUploadStatus =
+export type CustomerOrderUploadStatus =
   | 'pending'
   | 'parsing'
   | 'parsed'
   | 'parse_error'
   | 'discarded';
 
-export type PoDraftReviewStatus =
+export type CustomerOrderReviewStatus =
   | 'parsing'
   | 'ready'
   | 'needs_review'
@@ -31,7 +31,7 @@ export type PoDraftReviewStatus =
   | 'approved'
   | 'rejected';
 
-export type PoInboxFilterStatus =
+export type CustomerOrderFilterStatus =
   | 'all'
   | 'pending'
   | 'ready'
@@ -40,12 +40,12 @@ export type PoInboxFilterStatus =
   | 'approved'
   | 'rejected';
 
-export interface PoInboxRow {
+export interface CustomerOrderRow {
   id: string;
   draftId: string | null;
-  source: PoSourceChannel;
-  uploadStatus: PoUploadStatus;
-  reviewStatus: PoDraftReviewStatus | null;
+  source: CustomerOrderSourceChannel;
+  uploadStatus: CustomerOrderUploadStatus;
+  reviewStatus: CustomerOrderReviewStatus | null;
   fileName: string | null;
   fileMime: string | null;
   fileSize: number | null;
@@ -61,21 +61,21 @@ export interface PoInboxRow {
   updatedAt: string;
 }
 
-export interface PoInboxListResponse {
-  data: PoInboxRow[];
+export interface CustomerOrderListResponse {
+  data: CustomerOrderRow[];
   meta: { page: number; limit: number; total: number; totalPages: number };
 }
 
-interface PoInboxFilters {
-  status?: PoInboxFilterStatus;
+interface CustomerOrderFilters {
+  status?: CustomerOrderFilterStatus;
   customerId?: string;
-  source?: PoSourceChannel;
+  source?: CustomerOrderSourceChannel;
   page?: number;
   limit?: number;
   [key: string]: unknown;
 }
 
-export function usePoInbox(filters?: PoInboxFilters) {
+export function useCustomerOrders(filters?: CustomerOrderFilters) {
   const params = new URLSearchParams();
   if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
   if (filters?.customerId) params.set('customerId', filters.customerId);
@@ -85,14 +85,14 @@ export function usePoInbox(filters?: PoInboxFilters) {
   const qs = params.toString();
 
   return useQuery({
-    queryKey: PO_INBOX_KEYS.list(filters),
-    queryFn: () => api.get<PoInboxListResponse>(`/ar/po-drafts${qs ? `?${qs}` : ''}`),
+    queryKey: CUSTOMER_ORDER_KEYS.list(filters),
+    queryFn: () => api.get<CustomerOrderListResponse>(`/ar/po-drafts${qs ? `?${qs}` : ''}`),
     // Auto-refresh every 5s while parsing rows are present (Phase 2 will use this).
     refetchInterval: 5000,
   });
 }
 
-export interface PoInboxLineRaw {
+export interface CustomerOrderLineRaw {
   id: string;
   lineIndex: number;
   rawDescription: string;
@@ -112,7 +112,7 @@ export interface PoInboxLineRaw {
   matchedItemGstRate: string | null;
 }
 
-export interface PoInboxDetail extends PoInboxRow {
+export interface CustomerOrderDetail extends CustomerOrderRow {
   sourceMetadata: unknown;
   customerMatchSource: string | null;
   customerMatchConfidence: string | null;
@@ -128,26 +128,26 @@ export interface PoInboxDetail extends PoInboxRow {
   rejectedAt: string | null;
   llmModel: string | null;
   rawText: string | null;
-  lines: PoInboxLineRaw[];
+  lines: CustomerOrderLineRaw[];
 }
 
-export function usePoInboxItem(id: string | null) {
+export function useCustomerOrder(id: string | null) {
   return useQuery({
-    queryKey: PO_INBOX_KEYS.detail(id ?? ''),
-    queryFn: () => api.get<ApiSuccess<PoInboxDetail>>(`/ar/po-drafts/${id}`),
+    queryKey: CUSTOMER_ORDER_KEYS.detail(id ?? ''),
+    queryFn: () => api.get<ApiSuccess<CustomerOrderDetail>>(`/ar/po-drafts/${id}`),
     enabled: !!id,
   });
 }
 
 interface UploadFileVars {
   file: File;
-  source: PoSourceChannel;
+  source: CustomerOrderSourceChannel;
   sourceMetadata?: Record<string, unknown>;
 }
 
 interface UploadResultRow {
   id: string;
-  status: PoUploadStatus;
+  status: CustomerOrderUploadStatus;
 }
 
 /**
@@ -156,30 +156,30 @@ interface UploadResultRow {
  * server rejects a duplicate (409) — so the caller can render an actionable
  * dialog instead of a bare toast.
  */
-export class PoUploadError extends Error {
+export class CustomerOrderUploadError extends Error {
   status: number;
   errorCode?: string;
   details?: Record<string, unknown>;
   constructor(message: string, status: number, errorCode?: string, details?: Record<string, unknown>) {
     super(message);
-    this.name = 'PoUploadError';
+    this.name = 'CustomerOrderUploadError';
     this.status = status;
     this.errorCode = errorCode;
     this.details = details;
   }
 }
 
-export function isPoDuplicateError(err: unknown): err is PoUploadError & {
-  details: { duplicateOfUploadId: string; status: PoUploadStatus };
+export function isCustomerOrderDuplicateError(err: unknown): err is CustomerOrderUploadError & {
+  details: { duplicateOfUploadId: string; status: CustomerOrderUploadStatus };
 } {
   return (
-    err instanceof PoUploadError &&
+    err instanceof CustomerOrderUploadError &&
     err.status === 409 &&
     typeof err.details?.duplicateOfUploadId === 'string'
   );
 }
 
-export function useUploadPoFile() {
+export function useUploadOrderFile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (vars: UploadFileVars) => {
@@ -197,7 +197,7 @@ export function useUploadPoFile() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new PoUploadError(
+        throw new CustomerOrderUploadError(
           body.message || `Upload failed (${res.status})`,
           res.status,
           body.error,
@@ -206,7 +206,7 @@ export function useUploadPoFile() {
       }
       return (await res.json()) as ApiSuccess<UploadResultRow>;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all }),
   });
 }
 
@@ -215,7 +215,7 @@ interface UploadTextVars {
   sourceMetadata?: Record<string, unknown>;
 }
 
-export function useUploadPoText() {
+export function useUploadOrderText() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: UploadTextVars) =>
@@ -224,16 +224,16 @@ export function useUploadPoText() {
         source: 'paste_text',
         sourceMetadata: vars.sourceMetadata,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all }),
   });
 }
 
-export function useReparsePoUpload() {
+export function useReparseOrderUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (uploadId: string) =>
       api.post<ApiSuccess<UploadResultRow>>(`/ar/po-uploads/${uploadId}/reparse`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all }),
   });
 }
 
@@ -246,14 +246,14 @@ export interface UpdatePoDraftInput {
   deliveryDate?: string | null;
 }
 
-export function useUpdatePoDraft(uploadId: string) {
+export function useUpdateOrderDraft(uploadId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: UpdatePoDraftInput) =>
-      api.patch<ApiSuccess<PoInboxDetail>>(`/ar/po-drafts/${uploadId}`, data),
+      api.patch<ApiSuccess<CustomerOrderDetail>>(`/ar/po-drafts/${uploadId}`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.detail(uploadId) });
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.detail(uploadId) });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all });
     },
   });
 }
@@ -265,19 +265,19 @@ export interface UpdatePoDraftLineInput {
   recordAlias?: boolean;
 }
 
-export function useUpdatePoDraftLine(uploadId: string) {
+export function useUpdateOrderDraftLine(uploadId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { lineId: string; data: UpdatePoDraftLineInput }) =>
-      api.patch<ApiSuccess<PoInboxDetail>>(`/ar/po-drafts/${uploadId}/lines/${vars.lineId}`, vars.data),
+      api.patch<ApiSuccess<CustomerOrderDetail>>(`/ar/po-drafts/${uploadId}/lines/${vars.lineId}`, vars.data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.detail(uploadId) });
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.detail(uploadId) });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all });
     },
   });
 }
 
-export function useApprovePoDraft() {
+export function useApproveOrderDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (uploadId: string) =>
@@ -285,23 +285,23 @@ export function useApprovePoDraft() {
         `/ar/po-drafts/${uploadId}/approve`,
       ),
     onSuccess: (_res, uploadId) => {
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.detail(uploadId) });
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.detail(uploadId) });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all });
       qc.invalidateQueries({ queryKey: ['invoices'] });
     },
   });
 }
 
-export function useRejectPoDraft() {
+export function useRejectOrderDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { uploadId: string; reason: string }) =>
-      api.post<ApiSuccess<PoInboxDetail>>(`/ar/po-drafts/${vars.uploadId}/reject`, {
+      api.post<ApiSuccess<CustomerOrderDetail>>(`/ar/po-drafts/${vars.uploadId}/reject`, {
         reason: vars.reason,
       }),
     onSuccess: (_res, vars) => {
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.detail(vars.uploadId) });
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.detail(vars.uploadId) });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all });
     },
   });
 }
@@ -311,21 +311,21 @@ export interface BulkApproveResult {
   failed: Array<{ uploadId: string; reason: string }>;
 }
 
-export function useDiscardPoUpload() {
+export function useDiscardOrderUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<ApiSuccess<null>>(`/ar/po-uploads/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all }),
   });
 }
 
-export function useBulkApprovePoDrafts() {
+export function useBulkApproveOrderDrafts() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (uploadIds: string[]) =>
       api.post<ApiSuccess<BulkApproveResult>>('/ar/po-drafts/bulk-approve', { uploadIds }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PO_INBOX_KEYS.all });
+      qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all });
       qc.invalidateQueries({ queryKey: ['invoices'] });
     },
   });

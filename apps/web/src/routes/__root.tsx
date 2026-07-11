@@ -72,8 +72,8 @@ import { CustomerDebitNoteListPage } from './ar/customer-debit-notes/index';
 import { NewCustomerDebitNotePage } from './ar/customer-debit-notes/new';
 import { CustomerDebitNoteDetailPage } from './ar/customer-debit-notes/detail';
 import { PaymentClaimListPage } from './ar/payment-claims/index';
-import { PoInboxPage } from './ar/po-inbox/index';
-import { PoDraftReviewPage } from './ar/po-inbox/detail';
+import { CustomerOrdersPage } from './ar/customer-orders/index';
+import { CustomerOrderReviewPage } from './ar/customer-orders/detail';
 import { DunningPage } from './ar/dunning/index';
 import { CollectionsPage } from './ar/collections/index';
 import { BankingHubPage } from './banking/index';
@@ -967,18 +967,34 @@ const customerDebitNoteDetailRoute = createRoute({
   },
 });
 
-const poInboxRoute = createRoute({
+const customerOrdersRoute = createRoute({
   getParentRoute: () => arRoute,
-  path: '/po-inbox',
-  component: PoInboxPage,
+  path: '/customer-orders',
+  component: CustomerOrdersPage,
 });
 
-const poInboxDetailRoute = createRoute({
+const customerOrderDetailRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/customer-orders/$uploadId',
+  component: () => {
+    const { uploadId } = customerOrderDetailRoute.useParams();
+    return <CustomerOrderReviewPage uploadId={uploadId} />;
+  },
+});
+
+// Legacy redirect — old /po-inbox links (incl. notifications) keep working
+const poInboxRedirectRoute = createRoute({
+  getParentRoute: () => arRoute,
+  path: '/po-inbox',
+  component: () => <Navigate to="/finance/ar/customer-orders" />,
+});
+
+const poInboxDetailRedirectRoute = createRoute({
   getParentRoute: () => arRoute,
   path: '/po-inbox/$uploadId',
   component: () => {
-    const { uploadId } = poInboxDetailRoute.useParams();
-    return <PoDraftReviewPage uploadId={uploadId} />;
+    const { uploadId } = poInboxDetailRedirectRoute.useParams();
+    return <Navigate to="/finance/ar/customer-orders/$uploadId" params={{ uploadId }} />;
   },
 });
 
@@ -2732,8 +2748,10 @@ export const routeTree = rootRoute.addChildren([
         customerDebitNotesRoute,
         customerDebitNoteNewRoute,
         customerDebitNoteDetailRoute,
-        poInboxRoute,
-        poInboxDetailRoute,
+        customerOrdersRoute,
+        customerOrderDetailRoute,
+        poInboxRedirectRoute,
+        poInboxDetailRedirectRoute,
         dunningRoute,
         quotesRoute,
         quoteNewRoute,

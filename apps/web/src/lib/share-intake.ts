@@ -4,7 +4,7 @@
 //
 // The SW cannot make authenticated API calls itself (it doesn't have access
 // to localStorage), so the hand-off pattern is:
-//   SW → IndexedDB → main-thread reads → existing useUploadPoFile mutation.
+//   SW → IndexedDB → main-thread reads → existing useUploadOrderFile mutation.
 
 const DB_NAME = 'runq-share';
 const DB_STORE = 'pending';

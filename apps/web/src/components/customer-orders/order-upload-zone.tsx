@@ -4,19 +4,19 @@ import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import { Button, Modal, useToast } from '@/components/ui';
 import {
-  useUploadPoFile,
-  useUploadPoText,
-  useDiscardPoUpload,
-  isPoDuplicateError,
-  type PoSourceChannel,
-  type PoUploadStatus,
-} from '@/hooks/queries/use-po-inbox';
+  useUploadOrderFile,
+  useUploadOrderText,
+  useDiscardOrderUpload,
+  isCustomerOrderDuplicateError,
+  type CustomerOrderSourceChannel,
+  type CustomerOrderUploadStatus,
+} from '@/hooks/queries/use-customer-orders';
 import { isIos } from '@/lib/pwa-install';
 
 interface DuplicateState {
   fileName: string;
   duplicateOfUploadId: string;
-  status: PoUploadStatus;
+  status: CustomerOrderUploadStatus;
   retry: () => Promise<void>;
 }
 
@@ -45,30 +45,30 @@ interface Props {
 }
 
 /**
- * The single upload surface used by the PO Inbox. Handles:
+ * The single upload surface used by the Customer orders. Handles:
  *   - drag-and-drop of files (downloaded PDFs, native WhatsApp Desktop drag, etc.)
  *   - click-to-browse (universal fallback)
  *   - clipboard paste — type-detects:
  *       • image blob       → image upload
- *       • text/plain       → "quick text PO" via /po-uploads/text
+ *       • text/plain       → "quick text order" via /po-uploads/text
  *       • file (rare)      → file upload
  *
  * All routes feed the same backend pipeline so the parser doesn't care
  * which entry point was used.
  */
-export function PoUploadZone({ capturePaste = true }: Props) {
+export function CustomerOrderUploadZone({ capturePaste = true }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const uploadFile = useUploadPoFile();
-  const uploadText = useUploadPoText();
-  const discardUpload = useDiscardPoUpload();
+  const uploadFile = useUploadOrderFile();
+  const uploadText = useUploadOrderText();
+  const discardUpload = useDiscardOrderUpload();
   const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);
 
   const isUploading = uploadFile.isPending || uploadText.isPending;
 
   const sendFile = useCallback(
-    async (file: File, source: PoSourceChannel) => {
+    async (file: File, source: CustomerOrderSourceChannel) => {
       const validation = validateFile(file);
       if (validation) {
         toast(validation, 'error');
@@ -81,7 +81,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
         // Duplicate hash → open the resolver dialog with the existing upload's
         // id and a retry closure. Keeps the user out of toast-and-guess loops
         // and gives them the two viable next steps in one place.
-        if (isPoDuplicateError(err)) {
+        if (isCustomerOrderDuplicateError(err)) {
           setDuplicate({
             fileName: file.name,
             duplicateOfUploadId: err.details.duplicateOfUploadId,
@@ -100,12 +100,12 @@ export function PoUploadZone({ capturePaste = true }: Props) {
     async (text: string) => {
       const trimmed = text.trim();
       if (trimmed.length < 3) {
-        toast('Pasted text is too short to be a PO', 'error');
+        toast('Pasted text is too short to be an order', 'error');
         return;
       }
       try {
         await uploadText.mutateAsync({ text: trimmed });
-        toast('Quick text PO captured', 'success');
+        toast('Quick text order captured', 'success');
       } catch (err) {
         toast(err instanceof Error ? err.message : 'Upload failed', 'error');
       }
@@ -114,7 +114,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
   );
 
   const handleFiles = useCallback(
-    (fileList: FileList | File[] | null, source: PoSourceChannel) => {
+    (fileList: FileList | File[] | null, source: CustomerOrderSourceChannel) => {
       if (!fileList) return;
       const files = Array.from(fileList);
       for (const file of files) {
@@ -159,7 +159,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
         e.preventDefault();
         const file = cd.files[0]!;
         // Heuristic: an image file from clipboard is almost always a paste_image
-        const source: PoSourceChannel = file.type.startsWith('image/') ? 'paste_image' : 'web_drop';
+        const source: CustomerOrderSourceChannel = file.type.startsWith('image/') ? 'paste_image' : 'web_drop';
         void sendFile(file, source);
         return;
       }
@@ -201,7 +201,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
     if (!duplicate) return;
     const id = duplicate.duplicateOfUploadId;
     setDuplicate(null);
-    navigate({ to: '/finance/ar/po-inbox/$uploadId' as never, params: { uploadId: id } as never });
+    navigate({ to: '/finance/ar/customer-orders/$uploadId' as never, params: { uploadId: id } as never });
   }, [duplicate, navigate]);
 
   const handleDiscardAndRetry = useCallback(async () => {
@@ -212,7 +212,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
       setDuplicate(null);
       await retry();
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not discard the existing PO', 'error');
+      toast(err instanceof Error ? err.message : 'Could not discard the existing order', 'error');
     }
   }, [duplicate, discardUpload, toast]);
 
@@ -242,7 +242,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
         <Upload className="h-7 w-7 text-zinc-400" />
       )}
       <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-        {isUploading ? 'Uploading…' : 'Drop a PO, paste an image, or click to browse'}
+        {isUploading ? 'Uploading…' : 'Drop an order, paste an image, or click to browse'}
       </p>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
         PDF · PNG · JPG · CSV · XLS · text — up to 10 MB
@@ -277,7 +277,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
     <Modal
       open={duplicate !== null}
       onClose={() => setDuplicate(null)}
-      title="This PO is already in your inbox"
+      title="This order is already in your inbox"
       size="sm"
     >
       {duplicate && (
@@ -287,9 +287,9 @@ export function PoUploadZone({ capturePaste = true }: Props) {
             <div className="text-[13px] text-amber-900 dark:text-amber-100">
               <p className="font-medium">{duplicate.fileName}</p>
               <p className="mt-1 text-amber-800/90 dark:text-amber-100/80">
-                The exact same file (byte-for-byte) is already in your PO inbox with status{' '}
+                The exact same file (byte-for-byte) is already in your customer orders with status{' '}
                 <span className="font-mono text-[12px]">{duplicate.status}</span>.
-                We block duplicates so you don't accidentally create two invoices for one PO.
+                We block duplicates so you don't accidentally create two invoices for one order.
               </p>
             </div>
           </div>
@@ -300,7 +300,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
               <li className="flex gap-2">
                 <span className="text-zinc-400">1.</span>
                 <span>
-                  <strong>Open the existing PO</strong> — review the draft that was already created.
+                  <strong>Open the existing order</strong> — review the draft that was already created.
                   This is the right choice if your customer simply re-sent the same file.
                 </span>
               </li>
@@ -327,7 +327,7 @@ export function PoUploadZone({ capturePaste = true }: Props) {
               <Trash2 size={14} /> Discard old &amp; re-upload
             </Button>
             <Button size="sm" onClick={handleOpenExisting}>
-              <ExternalLink size={14} /> Open existing PO
+              <ExternalLink size={14} /> Open existing order
             </Button>
           </div>
         </div>

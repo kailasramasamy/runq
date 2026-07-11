@@ -12,27 +12,27 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { PageHeader, Card, CardContent, Badge, EmptyState, Pagination } from '@/components/ui';
-import { PoUploadZone } from '@/components/po-inbox/po-upload-zone';
-import { InstallNudge } from '@/components/po-inbox/install-nudge';
-import { TypePoModal } from '@/components/po-inbox/type-po-modal';
-import { FirstRunEmpty } from '@/components/po-inbox/first-run-empty';
+import { CustomerOrderUploadZone } from '@/components/customer-orders/order-upload-zone';
+import { InstallNudge } from '@/components/customer-orders/install-nudge';
+import { TypeOrderModal } from '@/components/customer-orders/type-order-modal';
+import { FirstRunEmpty } from '@/components/customer-orders/first-run-empty';
 import {
-  usePoInbox,
-  useReparsePoUpload,
-  useUploadPoFile,
-  useUploadPoText,
-  useBulkApprovePoDrafts,
-  type PoInboxRow,
-  type PoInboxFilterStatus,
-  type PoSourceChannel,
-} from '@/hooks/queries/use-po-inbox';
+  useCustomerOrders,
+  useReparseOrderUpload,
+  useUploadOrderFile,
+  useUploadOrderText,
+  useBulkApproveOrderDrafts,
+  type CustomerOrderRow,
+  type CustomerOrderFilterStatus,
+  type CustomerOrderSourceChannel,
+} from '@/hooks/queries/use-customer-orders';
 import { useToast, Button, Modal } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import { RefreshCw, Zap, ListChecks, Pencil } from 'lucide-react';
 import { consumePendingShares, sharedBlobToFile } from '@/lib/share-intake';
 import { useNavigate } from '@tanstack/react-router';
 
-const FILTER_TABS: Array<{ key: PoInboxFilterStatus; label: string }> = [
+const FILTER_TABS: Array<{ key: CustomerOrderFilterStatus; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
   { key: 'needs_review', label: 'Needs review' },
@@ -41,18 +41,18 @@ const FILTER_TABS: Array<{ key: PoInboxFilterStatus; label: string }> = [
   { key: 'approved', label: 'Approved' },
 ];
 
-export function PoInboxPage() {
-  const [status, setStatus] = useState<PoInboxFilterStatus>('all');
+export function CustomerOrdersPage() {
+  const [status, setStatus] = useState<CustomerOrderFilterStatus>('all');
   const [page, setPage] = useState(1);
   const [typeOpen, setTypeOpen] = useState(false);
   const limit = 20;
 
-  const { data, isLoading } = usePoInbox({ status, page, limit });
+  const { data, isLoading } = useCustomerOrders({ status, page, limit });
   // Separate queries that always pull the full "ready" / "needs_review" sets
   // so the bottom action bar can show real counts + start a complete review
   // queue, regardless of which filter chip the user is looking at.
-  const { data: readyData } = usePoInbox({ status: 'ready', limit: 100 });
-  const { data: needsReviewData } = usePoInbox({ status: 'needs_review', limit: 100 });
+  const { data: readyData } = useCustomerOrders({ status: 'ready', limit: 100 });
+  const { data: needsReviewData } = useCustomerOrders({ status: 'needs_review', limit: 100 });
   const rows = data?.data ?? [];
   const readyRows = readyData?.data ?? [];
   const needsReviewRows = needsReviewData?.data ?? [];
@@ -63,11 +63,11 @@ export function PoInboxPage() {
   // states (e.g., after they reject everything) get the plain version.
   const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem('runq:po-inbox-onboarded') === '1';
+    return window.localStorage.getItem('runq:customer-orders-onboarded') === '1';
   });
   useEffect(() => {
     if (rows.length > 0 && !hasOnboarded) {
-      window.localStorage.setItem('runq:po-inbox-onboarded', '1');
+      window.localStorage.setItem('runq:customer-orders-onboarded', '1');
       setHasOnboarded(true);
     }
   }, [rows.length, hasOnboarded]);
@@ -78,12 +78,12 @@ export function PoInboxPage() {
   return (
     <div>
       <PageHeader fullWidth
-        title="PO Inbox"
-        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'PO Inbox' }]}
+        title="Customer orders"
+        breadcrumbs={[{ label: 'AR', href: '/ar' }, { label: 'Customer orders' }]}
         actions={
           <Button variant="outline" size="sm" onClick={() => setTypeOpen(true)}>
             <Pencil className="h-4 w-4" />
-            Type a PO
+            Type an order
           </Button>
         }
       />
@@ -92,11 +92,11 @@ export function PoInboxPage() {
 
       <Card className="mb-4">
         <CardContent className="p-3">
-          <PoUploadZone capturePaste />
+          <CustomerOrderUploadZone capturePaste />
         </CardContent>
       </Card>
 
-      <TypePoModal open={typeOpen} onClose={() => setTypeOpen(false)} />
+      <TypeOrderModal open={typeOpen} onClose={() => setTypeOpen(false)} />
 
       <FilterChips
         active={status}
@@ -113,7 +113,7 @@ export function PoInboxPage() {
           <EmptyState
             icon={Inbox}
             title="No POs in the inbox"
-            description="Drop a file above, paste an image or text, or share a PO from WhatsApp. Once a row appears here, click into it to review and approve."
+            description="Drop a file above, paste an image or text, or share an order from WhatsApp. Once a row appears here, click into it to review and approve."
           />
         ) : (
           <FirstRunEmpty onTypeClick={() => setTypeOpen(true)} />
@@ -121,7 +121,7 @@ export function PoInboxPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((row) => (
-            <PoInboxRowCard key={row.id} row={row} />
+            <CustomerOrderRowCard key={row.id} row={row} />
           ))}
         </div>
       )}
@@ -156,8 +156,8 @@ function BulkActionsBar({
   readyRows,
   needsReviewRows,
 }: {
-  readyRows: PoInboxRow[];
-  needsReviewRows: PoInboxRow[];
+  readyRows: CustomerOrderRow[];
+  needsReviewRows: CustomerOrderRow[];
 }) {
   const navigate = useNavigate();
   const hasReady = readyRows.length > 0;
@@ -169,7 +169,7 @@ function BulkActionsBar({
     const ids = needsReviewRows.map((r) => r.id);
     const queue = ids.join(',');
     void navigate({
-      to: '/finance/ar/po-inbox/$uploadId' as never,
+      to: '/finance/ar/customer-orders/$uploadId' as never,
       params: { uploadId: ids[0]! } as never,
       search: { queue } as never,
     });
@@ -191,10 +191,10 @@ function BulkActionsBar({
   );
 }
 
-function BulkApproveButton({ readyRows }: { readyRows: PoInboxRow[] }) {
+function BulkApproveButton({ readyRows }: { readyRows: CustomerOrderRow[] }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState<BulkApproveResultUI | null>(null);
-  const bulk = useBulkApprovePoDrafts();
+  const bulk = useBulkApproveOrderDrafts();
   const { toast } = useToast();
 
   if (readyRows.length === 0) return null;
@@ -330,8 +330,8 @@ function FilterChips({
   active,
   onChange,
 }: {
-  active: PoInboxFilterStatus;
-  onChange: (s: PoInboxFilterStatus) => void;
+  active: CustomerOrderFilterStatus;
+  onChange: (s: CustomerOrderFilterStatus) => void;
 }) {
   return (
     <div className="mb-3 flex flex-wrap gap-1.5">
@@ -353,16 +353,16 @@ function FilterChips({
   );
 }
 
-function PoInboxRowCard({ row }: { row: PoInboxRow }) {
+function CustomerOrderRowCard({ row }: { row: CustomerOrderRow }) {
   const status = derivedStatus(row);
   const SourceIcon = sourceIcon(row.source);
-  const reparse = useReparsePoUpload();
+  const reparse = useReparseOrderUpload();
   const { toast } = useToast();
   const title =
     row.customerName ??
     row.buyerNameRaw ??
     row.fileName ??
-    (row.hasRawText ? 'Pasted text PO' : 'Untitled PO');
+    (row.hasRawText ? 'Pasted text order' : 'Untitled order');
 
   // Rows that are still parsing have no draft yet, so the review screen
   // would 404 — make them non-navigable until the parser flips status.
@@ -426,7 +426,7 @@ function PoInboxRowCard({ row }: { row: PoInboxRow }) {
 
   return (
     <Link
-      to="/finance/ar/po-inbox/$uploadId"
+      to="/finance/ar/customer-orders/$uploadId"
       params={{ uploadId: row.id }}
       className={`${cardClass} cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}
     >
@@ -456,7 +456,7 @@ type DerivedStatus =
   | 'approved'
   | 'rejected';
 
-function derivedStatus(row: PoInboxRow): DerivedStatus {
+function derivedStatus(row: CustomerOrderRow): DerivedStatus {
   if (row.uploadStatus === 'parse_error') return 'error';
   if (row.uploadStatus === 'pending' || row.uploadStatus === 'parsing') return 'parsing';
   if (row.reviewStatus === 'ready') return 'ready';
@@ -504,7 +504,7 @@ function StatusBadge({ status }: { status: DerivedStatus }) {
   }
 }
 
-function sourceIcon(source: PoSourceChannel) {
+function sourceIcon(source: CustomerOrderSourceChannel) {
   switch (source) {
     case 'paste_image':
       return ImageIcon;
@@ -539,8 +539,8 @@ function relativeTime(iso: string): string {
  * via the existing JWT-authenticated mutations. Cleans the URL after.
  */
 function useShareIntake(): void {
-  const uploadFile = useUploadPoFile();
-  const uploadText = useUploadPoText();
+  const uploadFile = useUploadOrderFile();
+  const uploadText = useUploadOrderText();
   const { toast } = useToast();
   // Guard against React.StrictMode double-invocation in dev
   const ranRef = useRef(false);
@@ -583,7 +583,7 @@ function useShareIntake(): void {
         }
         if (uploaded > 0) {
           toast(
-            uploaded === 1 ? 'Shared PO uploaded' : `${uploaded} shared POs uploaded`,
+            uploaded === 1 ? 'Shared order uploaded' : `${uploaded} shared orders uploaded`,
             'success',
           );
         }

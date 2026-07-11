@@ -1,7 +1,7 @@
 import { MousePointerClick, Share2, ClipboardPaste, Inbox } from 'lucide-react';
 
 /**
- * First-run empty state for the PO Inbox. Shown only the very first time
+ * First-run empty state for the Customer orders. Shown only the very first time
  * the inbox loads with zero rows AND the user has never uploaded a PO
  * before. After the first successful upload, the inbox flips to the plain
  * "no POs in the inbox" empty state on subsequent empty loads.
@@ -17,10 +17,10 @@ export function FirstRunEmpty({ onTypeClick }: { onTypeClick: () => void }) {
     <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center dark:border-zinc-700 dark:bg-zinc-900">
       <Inbox className="mx-auto h-10 w-10 text-zinc-300 dark:text-zinc-600" />
       <h2 className="mt-3 text-base font-semibold text-zinc-800 dark:text-zinc-100">
-        Welcome to the PO Inbox
+        Welcome to Customer orders
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
-        Drop a customer purchase order, share it from WhatsApp, or paste a chat
+        Drop a customer order, share it from WhatsApp, or paste a chat
         message — runq parses it and drafts the invoice for you.
       </p>
 
@@ -33,13 +33,13 @@ export function FirstRunEmpty({ onTypeClick }: { onTypeClick: () => void }) {
         <Card
           icon={Share2}
           title="Share from WhatsApp"
-          body="On Android, install runq from the prompt above. Then tap any PO in WhatsApp → Share → runq."
+          body="On Android, install runq from the prompt above. Then tap any order in WhatsApp → Share → runq."
         />
         <Card
           icon={ClipboardPaste}
           title="Paste or type"
-          body="Cmd+V works for images, screenshots, and chat text. Or click 'Type a PO' to enter one manually."
-          actionLabel="Type a PO"
+          body="Cmd+V works for images, screenshots, and chat text. Or click 'Type an order' to enter one manually."
+          actionLabel="Type an order"
           onAction={onTypeClick}
         />
       </div>

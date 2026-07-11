@@ -6,15 +6,15 @@ interface MenuItem {
   icon: ReactNode;
   label: string;
   description: string;
-  to: '/finance/ar/invoices/new' | '/finance/ar/po-inbox';
+  to: '/finance/ar/invoices/new' | '/finance/ar/customer-orders';
 }
 
 const ITEMS: MenuItem[] = [
   {
     icon: <Inbox size={16} />,
-    label: 'Generate from PO',
-    description: 'Create an invoice from an inbound purchase order in PO Inbox.',
-    to: '/finance/ar/po-inbox',
+    label: 'Generate from order',
+    description: 'Create an invoice from an inbound customer order.',
+    to: '/finance/ar/customer-orders',
   },
   {
     icon: <FilePlus2 size={16} />,
@@ -26,7 +26,7 @@ const ITEMS: MenuItem[] = [
 
 /**
  * Wraps a custom trigger and pops a 2-option chooser:
- *   1. Generate from PO (PO Inbox)
+ *   1. Generate from order (Customer orders)
  *   2. Blank invoice (new invoice form)
  *
  * Usage:
