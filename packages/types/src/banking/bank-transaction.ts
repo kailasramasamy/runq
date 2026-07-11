@@ -1,6 +1,25 @@
 export type BankTxnType = 'credit' | 'debit';
 export type ReconStatus = 'unreconciled' | 'matched' | 'manually_matched' | 'excluded';
 
+/** A single category slice of a bank account's spend or income. */
+export interface ReportCategoryAmount {
+  accountId: string | null;
+  code: string | null;
+  name: string;
+  amount: number;
+  percentage: number;
+}
+
+/** Per-account financial report: cash in/out on one bank account, by category. */
+export interface BankAccountReport {
+  accountId: string;
+  period: { dateFrom: string; dateTo: string };
+  summary: { moneyIn: number; moneyOut: number; net: number; txnCount: number };
+  spendByCategory: ReportCategoryAmount[];
+  incomeByCategory: ReportCategoryAmount[];
+  byMonth: { month: string; moneyIn: number; moneyOut: number }[];
+}
+
 export interface BankTransaction {
   id: string;
   tenantId: string;

@@ -12,3 +12,15 @@ export const transactionFilterSchema = z.object({
 });
 
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
+
+export const bankAccountReportQuerySchema = z
+  .object({
+    dateFrom: z.string().date(),
+    dateTo: z.string().date(),
+  })
+  .refine((v) => v.dateTo >= v.dateFrom, {
+    message: 'dateTo must be on or after dateFrom',
+    path: ['dateTo'],
+  });
+
+export type BankAccountReportQuery = z.infer<typeof bankAccountReportQuerySchema>;

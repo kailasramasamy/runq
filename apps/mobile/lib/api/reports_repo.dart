@@ -41,6 +41,13 @@ class ReportsRepo {
         .get('/reports/expense-analytics?dateFrom=${_iso(from)}&dateTo=${_iso(to)}');
     return ExpenseAnalytics.fromJson(_data(res));
   }
+
+  Future<BankAccountReport> bankAccountReport(
+      String accountId, DateTime from, DateTime to) async {
+    final res = await apiClient.get(
+        '/banking/accounts/$accountId/report?dateFrom=${_iso(from)}&dateTo=${_iso(to)}');
+    return BankAccountReport.fromJson(_data(res));
+  }
 }
 
 final reportsRepo = ReportsRepo();

@@ -80,6 +80,7 @@ import { BankingHubPage } from './banking/index';
 import { BankAccountListPage } from './banking/accounts/index';
 import { NewBankAccountPage } from './banking/accounts/new';
 import { BankAccountDetailPage } from './banking/accounts/detail';
+import { BankAccountReportPage } from './banking/accounts/report';
 import { TransactionsPage } from './banking/transactions/index';
 import { ImportTransactionsPage } from './banking/transactions/import';
 import { ReconciliationPage } from './banking/reconciliation/index';
@@ -1096,6 +1097,15 @@ const bankAccountDetailRoute = createRoute({
   component: () => {
     const { accountId } = bankAccountDetailRoute.useParams();
     return <BankAccountDetailPage accountId={accountId} />;
+  },
+});
+
+const bankAccountReportRoute = createRoute({
+  getParentRoute: () => bankingRoute,
+  path: '/accounts/$accountId/report',
+  component: () => {
+    const { accountId } = bankAccountReportRoute.useParams();
+    return <BankAccountReportPage accountId={accountId} />;
   },
 });
 
@@ -2768,6 +2778,7 @@ export const routeTree = rootRoute.addChildren([
         bankAccountsRoute,
         bankAccountNewRoute,
         bankAccountDetailRoute,
+        bankAccountReportRoute,
         bankTransactionsRoute,
         bankPendingPaymentsRoute,
         bankTransactionsImportRoute,

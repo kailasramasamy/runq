@@ -37,4 +37,6 @@ export const bankTransactions = pgTable('bank_transactions', {
 }, (t) => [
   index('idx_bt_tenant_account_date').on(t.tenantId, t.bankAccountId, t.transactionDate),
   index('idx_bt_tenant_recon_status').on(t.tenantId, t.reconStatus),
+  // Backs the per-account report's category grouping.
+  index('idx_bt_tenant_account_gl').on(t.tenantId, t.bankAccountId, t.glAccountId),
 ]);

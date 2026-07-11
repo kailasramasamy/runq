@@ -1,8 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
-import { transactionFilterSchema, paginationSchema } from '@runq/validators';
+import { transactionFilterSchema, paginationSchema, bankAccountReportQuerySchema } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { TransactionService } from './transaction.service';
+import { BankAccountReportService } from './bank-account-report.service';
 import { CategorizeService } from './categorize.service';
 import { BankChargesService } from './bank-charges.service';
 import { AutoBillPayService } from './auto-bill-pay.service';
@@ -39,6 +40,18 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         limit: pagination.limit,
         filters,
       });
+    },
+  );
+
+  app.get(
+    '/:accountId/report',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { accountId } = accountParamSchema.parse(request.params);
+      const { dateFrom, dateTo } = bankAccountReportQuerySchema.parse(request.query);
+      const service = new BankAccountReportService(request.server.db, request.tenantId);
+      const data = await service.getReport(accountId, dateFrom, dateTo);
+      return { data };
     },
   );
 

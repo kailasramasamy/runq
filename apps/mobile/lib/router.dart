@@ -31,6 +31,7 @@ import 'screens/purchase/purchase_more_screen.dart';
 import 'screens/purchase/po_match_screen.dart';
 import 'screens/purchase/po_edit_screen.dart';
 import 'screens/banking_screen.dart';
+import 'screens/banking/bank_account_report_screen.dart';
 import 'screens/sales_hub_screen.dart';
 import 'screens/purchases_hub_screen.dart';
 import 'screens/money_hub_screen.dart';
@@ -872,6 +873,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/money/banking',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const BankingScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/banking/:accountId/report',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            BankAccountReportScreen(accountId: state.pathParameters['accountId']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/money/cash-flow',

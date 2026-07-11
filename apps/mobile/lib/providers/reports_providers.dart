@@ -74,3 +74,15 @@ final expenseAnalyticsProvider =
     FutureProvider.family<ExpenseAnalytics, DateRange>((ref, r) async {
   return _watchAuth(ref, () => reportsRepo.expenseAnalytics(r.from, r.to));
 });
+
+DateRange last6MonthsRange([DateTime? now]) {
+  final n = now ?? DateTime.now();
+  return DateRange(DateTime(n.year, n.month - 5, 1), DateTime(n.year, n.month + 1, 0));
+}
+
+/// Per-bank-account report, keyed by (accountId, dateRange).
+final bankAccountReportProvider =
+    FutureProvider.family<BankAccountReport, (String, DateRange)>((ref, key) async {
+  return _watchAuth(
+      ref, () => reportsRepo.bankAccountReport(key.$1, key.$2.from, key.$2.to));
+});

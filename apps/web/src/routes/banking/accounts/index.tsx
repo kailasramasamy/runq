@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Landmark, ChevronRight } from 'lucide-react';
+import { Plus, Landmark, ChevronRight, BarChart3 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import type { BankAccount } from '@runq/types';
 import { formatINR, formatINRShort } from '@/lib/utils';
@@ -27,12 +27,22 @@ function maskAccountNumber(num: string): string {
   return `****${num.slice(-4)}`;
 }
 
-function AccountCard({ account, onClick }: { account: BankAccount; onClick: (id: string) => void }) {
+function AccountCard({
+  account, onView, onReport,
+}: {
+  account: BankAccount;
+  onView: (id: string) => void;
+  onReport: (id: string) => void;
+}) {
   return (
-    <button
-      type="button"
-      onClick={() => onClick(account.id)}
-      className="w-full rounded-xl border p-5 text-left transition-all hover:shadow-sm"
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onView(account.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onView(account.id); }
+      }}
+      className="w-full cursor-pointer rounded-xl border p-5 text-left transition-all hover:shadow-sm"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
       <div className="flex items-start justify-between">
@@ -48,9 +58,20 @@ function AccountCard({ account, onClick }: { account: BankAccount; onClick: (id:
             <div className="truncate text-[11px]" style={{ color: 'var(--text-3)' }}>{account.bankName}</div>
           </div>
         </div>
-        <Badge variant={ACCOUNT_TYPE_VARIANT[account.accountType] ?? 'default'}>
-          {ACCOUNT_TYPE_LABELS[account.accountType] ?? account.accountType}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={ACCOUNT_TYPE_VARIANT[account.accountType] ?? 'default'}>
+            {ACCOUNT_TYPE_LABELS[account.accountType] ?? account.accountType}
+          </Badge>
+          <button
+            type="button"
+            title="View report"
+            onClick={(e) => { e.stopPropagation(); onReport(account.id); }}
+            className="rounded-lg p-1.5 transition-opacity hover:opacity-80"
+            style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
+          >
+            <BarChart3 size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -76,7 +97,7 @@ function AccountCard({ account, onClick }: { account: BankAccount; onClick: (id:
         </div>
         <ChevronRight size={14} style={{ color: 'var(--text-3)' }} />
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -88,6 +109,10 @@ export function BankAccountListPage() {
 
   function handleView(id: string) {
     navigate({ to: '/finance/banking/accounts/$accountId', params: { accountId: id } });
+  }
+
+  function handleReport(id: string) {
+    navigate({ to: '/finance/banking/accounts/$accountId/report', params: { accountId: id } });
   }
 
   const totalBalance = accounts.reduce((a, b) => a + Number(b.currentBalance ?? 0), 0);
@@ -142,7 +167,7 @@ export function BankAccountListPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} onClick={handleView} />
+            <AccountCard key={account.id} account={account} onView={handleView} onReport={handleReport} />
           ))}
         </div>
       )}

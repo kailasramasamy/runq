@@ -226,6 +226,62 @@ class MonthAmount {
       );
 }
 
+class MonthInOut {
+  final String month;
+  final double moneyIn, moneyOut;
+  MonthInOut({required this.month, required this.moneyIn, required this.moneyOut});
+
+  factory MonthInOut.fromJson(Map<String, dynamic> j) => MonthInOut(
+        month: strAt(j['month']) ?? '',
+        moneyIn: numAt(j['moneyIn']),
+        moneyOut: numAt(j['moneyOut']),
+      );
+}
+
+/// Per-bank-account report: cash in/out on one account, broken down by category.
+class BankAccountReport {
+  final double moneyIn, moneyOut, net;
+  final int txnCount;
+  final List<CategoryAmount> spendByCategory;
+  final List<CategoryAmount> incomeByCategory;
+  final List<MonthInOut> byMonth;
+
+  BankAccountReport({
+    required this.moneyIn,
+    required this.moneyOut,
+    required this.net,
+    required this.txnCount,
+    required this.spendByCategory,
+    required this.incomeByCategory,
+    required this.byMonth,
+  });
+
+  static List<CategoryAmount> _cats(Object? raw) => ((raw as List?) ?? const [])
+      .whereType<Map<String, dynamic>>()
+      .map((c) => CategoryAmount(
+            label: strAt(c['name']) ?? '—',
+            amount: numAt(c['amount']),
+            percentage: numAt(c['percentage']),
+          ))
+      .toList();
+
+  factory BankAccountReport.fromJson(Map<String, dynamic> j) {
+    final s = (j['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+    return BankAccountReport(
+      moneyIn: numAt(s['moneyIn']),
+      moneyOut: numAt(s['moneyOut']),
+      net: numAt(s['net']),
+      txnCount: intAt(s['txnCount']),
+      spendByCategory: _cats(j['spendByCategory']),
+      incomeByCategory: _cats(j['incomeByCategory']),
+      byMonth: ((j['byMonth'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(MonthInOut.fromJson)
+          .toList(),
+    );
+  }
+}
+
 class RevenueAnalytics {
   final ReportPeriod period;
   final double total;

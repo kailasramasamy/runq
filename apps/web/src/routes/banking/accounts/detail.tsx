@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { ArrowUpDown, Landmark, Pencil, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { ArrowUpDown, Landmark, Pencil, ArrowLeft, ShieldCheck, BarChart3 } from 'lucide-react';
 import { useBankAccount, useUpdateBankAccount } from '@/hooks/queries/use-bank-accounts';
 import { useBankTransactions } from '@/hooks/queries/use-transactions';
 import { formatINR, formatINRShort } from '@/lib/utils';
@@ -96,6 +96,9 @@ export function BankAccountDetailPage({ accountId }: Props) {
             <Button variant="outline" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEdit(true)}>Edit</Button>
             <Button variant="outline" size="sm" icon={<ArrowUpDown size={13} />} onClick={() => navigate({ to: '/finance/banking/transactions', search: { accountId } as never })}>
               Transactions
+            </Button>
+            <Button variant="outline" size="sm" icon={<BarChart3 size={13} />} onClick={() => navigate({ to: '/finance/banking/accounts/$accountId/report', params: { accountId } })}>
+              Report
             </Button>
           </>
         }

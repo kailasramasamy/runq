@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
@@ -365,7 +366,7 @@ class _AccountCardStrip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: accounts.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) {
+        itemBuilder: (ctx, i) {
           final a = accounts[i];
           final isSelected = a.id == selectedId;
           return _AccountCard(
@@ -373,6 +374,7 @@ class _AccountCardStrip extends StatelessWidget {
             selected: isSelected,
             matchCount: a.unreconciledCount,
             onTap: () => onSelect(a.id),
+            onReport: () => ctx.push('/money/banking/${a.id}/report'),
           );
         },
       ),
@@ -385,11 +387,13 @@ class _AccountCard extends StatelessWidget {
   final bool selected;
   final int matchCount;
   final VoidCallback onTap;
+  final VoidCallback onReport;
   const _AccountCard({
     required this.account,
     required this.selected,
     required this.matchCount,
     required this.onTap,
+    required this.onReport,
   });
 
   @override
@@ -437,6 +441,8 @@ class _AccountCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  const SizedBox(width: 6),
+                  _ReportButton(onTap: onReport),
                 ],
               ),
               const SizedBox(height: 10),
@@ -471,6 +477,33 @@ class _AccountCard extends StatelessWidget {
         'cash_credit' => 'Cash credit',
         _ => t,
       };
+}
+
+/// Small chart-icon button on an account card that opens its report. Its own
+/// InkWell wins the tap over the card body, so the card still selects normally.
+class _ReportButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ReportButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: t.bgWarmer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.bar_chart_rounded, size: 18, color: t.brand),
+        ),
+      ),
+    );
+  }
 }
 
 /// "Synced till <date>" stamp under the account strip. Mirrors the web
