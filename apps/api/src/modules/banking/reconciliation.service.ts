@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, isNull, inArray, ilike, or } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull, inArray, ilike, or, desc } from 'drizzle-orm';
 import {
   bankTransactions,
   bankAccounts,
@@ -79,7 +79,7 @@ export class ReconciliationService {
           eq(bankTransactions.tenantId, this.tenantId),
           eq(bankTransactions.reconStatus, 'unreconciled'),
         ),
-      ),
+      ).orderBy(desc(bankTransactions.transactionDate), desc(bankTransactions.createdAt)),
       this.db.select().from(payments).where(
         and(
           eq(payments.bankAccountId, bankAccountId),

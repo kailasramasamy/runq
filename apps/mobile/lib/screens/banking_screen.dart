@@ -243,7 +243,13 @@ class _Body extends ConsumerWidget {
     final widgets = <Widget>[];
     final today = DateTime.now();
     for (final k in sortedKeys) {
-      final list = byDate[k]!;
+      // transaction_date is date-only, so order within a day by createdAt
+      // (import/insert time) to keep the latest transaction on top.
+      final list = byDate[k]!..sort((a, b) {
+        final ca = a.createdAt, cb = b.createdAt;
+        if (ca != null && cb != null) return cb.compareTo(ca);
+        return 0;
+      });
       final d = list.first.transactionDate;
       const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       final isToday = d.year == today.year && d.month == today.month && d.day == today.day;

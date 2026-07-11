@@ -996,6 +996,7 @@ class BankTxn {
   final double? glConfidence;
   final double amount;
   final DateTime transactionDate;
+  final DateTime? createdAt;
 
   BankTxn({
     required this.id,
@@ -1013,6 +1014,7 @@ class BankTxn {
     this.glConfidence,
     required this.amount,
     required this.transactionDate,
+    this.createdAt,
   });
 
   factory BankTxn.fromJson(Map<String, dynamic> j) => BankTxn(
@@ -1031,6 +1033,7 @@ class BankTxn {
         glConfidence: j['glConfidence'] == null ? null : _num(j['glConfidence']),
         amount: _num(j['amount']),
         transactionDate: _dt(j['transactionDate']) ?? DateTime.now(),
+        createdAt: _dt(j['createdAt']),
       );
 
   bool get isCredit => type == 'credit';
