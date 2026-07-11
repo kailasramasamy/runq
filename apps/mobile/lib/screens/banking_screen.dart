@@ -131,6 +131,10 @@ class _Body extends ConsumerWidget {
           ),
         ),
         SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          sliver: SliverToBoxAdapter(child: _ReportStrip(account: selected)),
+        ),
+        SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           sliver: SliverToBoxAdapter(child: _SyncedTillChip(accountId: selected.id)),
         ),
@@ -366,7 +370,7 @@ class _AccountCardStrip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: accounts.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (ctx, i) {
+        itemBuilder: (_, i) {
           final a = accounts[i];
           final isSelected = a.id == selectedId;
           return _AccountCard(
@@ -374,7 +378,6 @@ class _AccountCardStrip extends StatelessWidget {
             selected: isSelected,
             matchCount: a.unreconciledCount,
             onTap: () => onSelect(a.id),
-            onReport: () => ctx.push('/money/banking/${a.id}/report'),
           );
         },
       ),
@@ -387,13 +390,11 @@ class _AccountCard extends StatelessWidget {
   final bool selected;
   final int matchCount;
   final VoidCallback onTap;
-  final VoidCallback onReport;
   const _AccountCard({
     required this.account,
     required this.selected,
     required this.matchCount,
     required this.onTap,
-    required this.onReport,
   });
 
   @override
@@ -441,8 +442,6 @@ class _AccountCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  const SizedBox(width: 6),
-                  _ReportButton(onTap: onReport),
                 ],
               ),
               const SizedBox(height: 10),
@@ -479,28 +478,50 @@ class _AccountCard extends StatelessWidget {
       };
 }
 
-/// Small chart-icon button on an account card that opens its report. Its own
-/// InkWell wins the tap over the card body, so the card still selects normally.
-class _ReportButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _ReportButton({required this.onTap});
+/// Prominent full-width strip under the account cards that opens the spending
+/// report for the currently-selected account. Replaces the easy-to-miss icon
+/// that used to sit on the card.
+class _ReportStrip extends StatelessWidget {
+  final BankAccount account;
+  const _ReportStrip({required this.account});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: t.bgWarmer,
-            borderRadius: BorderRadius.circular(8),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final name = account.bankName.isEmpty ? account.name : account.bankName;
+    return RunqCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: () => context.push('/money/banking/${account.id}/report'),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: isDark ? RunqColors.purpleInk.withValues(alpha: 0.20) : RunqColors.purpleBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.insights_rounded,
+                size: 20, color: isDark ? const Color(0xFFC4B5FD) : RunqColors.purpleInk),
           ),
-          child: Icon(Icons.bar_chart_rounded, size: 18, color: t.brand),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Spending report',
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                const SizedBox(height: 2),
+                Text('See where money goes for $name',
+                    style: RunqText.caption.copyWith(color: t.muted2),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right_rounded, size: 22, color: t.muted2),
+        ],
       ),
     );
   }
