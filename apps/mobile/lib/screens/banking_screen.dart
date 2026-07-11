@@ -17,9 +17,9 @@ final _selectedAccountProvider = StateProvider<String?>((_) => null);
 
 enum _ReconFilter { all, unmatched, matched }
 
-// Default to `unmatched` — this screen is reached from the home Reconcile
-// quick action, so landing on pending rows is what the user expects.
-final _reconFilterProvider = StateProvider<_ReconFilter>((_) => _ReconFilter.unmatched);
+// Default to `all` — the pills carry live counts, so the pending work is
+// visible at a glance without hiding the rest of the ledger behind a filter.
+final _reconFilterProvider = StateProvider<_ReconFilter>((_) => _ReconFilter.all);
 
 /// Party filter — a vendor or customer the user picks to narrow the txn
 /// list to rows tied to (or suggested for) that party. `null` = all parties.
@@ -90,12 +90,15 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(_reconFilterProvider);
-    // The Unmatched filter fetches unreconciled txns server-side — all of
-    // them, not just those inside bankTxnsProvider's recent-50 window — so
-    // old stragglers can't hide and make the account look fully reconciled.
-    final txns = filter == _ReconFilter.unmatched
-        ? ref.watch(bankUnreconciledTxnsProvider(selected.id))
-        : ref.watch(bankTxnsProvider(selected.id));
+    // Watch both sources: the recent-window ledger and the full unreconciled
+    // set (fetched server-side so old stragglers can't hide behind the recent
+    // window). Their `.total` counts feed the filter pills, and the active
+    // filter picks which one drives the list below.
+    final allTxns = ref.watch(bankTxnsProvider(selected.id));
+    final unreconTxns = ref.watch(bankUnreconciledTxnsProvider(selected.id));
+    final txns = filter == _ReconFilter.unmatched ? unreconTxns : allTxns;
+    final allCount = allTxns.asData?.value.total;
+    final unmatchedCount = unreconTxns.asData?.value.total;
     final party = ref.watch(_partyFilterProvider);
     final total = accounts.fold<double>(0, (s, a) => s + a.currentBalance);
 
@@ -142,6 +145,8 @@ class _Body extends ConsumerWidget {
           sliver: SliverToBoxAdapter(
             child: _FilterPills(
               active: filter,
+              allCount: allCount,
+              unmatchedCount: unmatchedCount,
               onChange: (f) => ref.read(_reconFilterProvider.notifier).state = f,
             ),
           ),
@@ -583,19 +588,30 @@ class _AiReconcileBannerState extends ConsumerState<_AiReconcileBanner> {
 class _FilterPills extends StatelessWidget {
   final _ReconFilter active;
   final ValueChanged<_ReconFilter> onChange;
-  const _FilterPills({required this.active, required this.onChange});
+  final int? allCount, unmatchedCount;
+  const _FilterPills({
+    required this.active,
+    required this.onChange,
+    this.allCount,
+    this.unmatchedCount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final pills = const [
-      (_ReconFilter.all, 'All'),
-      (_ReconFilter.unmatched, 'Uncategorized'),
-      (_ReconFilter.matched, 'Matched'),
+    final pills = <(_ReconFilter, String, int?)>[
+      (_ReconFilter.all, 'All', allCount),
+      (_ReconFilter.unmatched, 'Uncategorized', unmatchedCount),
+      (_ReconFilter.matched, 'Matched', null),
     ];
     return Row(
       children: [
         for (var i = 0; i < pills.length; i++) ...[
-          _FilterPill(label: pills[i].$2, active: pills[i].$1 == active, onTap: () => onChange(pills[i].$1)),
+          _FilterPill(
+            label: pills[i].$2,
+            count: pills[i].$3,
+            active: pills[i].$1 == active,
+            onTap: () => onChange(pills[i].$1),
+          ),
           if (i < pills.length - 1) const SizedBox(width: 6),
         ],
       ],
@@ -605,9 +621,10 @@ class _FilterPills extends StatelessWidget {
 
 class _FilterPill extends StatelessWidget {
   final String label;
+  final int? count;
   final bool active;
   final VoidCallback onTap;
-  const _FilterPill({required this.label, required this.active, required this.onTap});
+  const _FilterPill({required this.label, this.count, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -627,12 +644,34 @@ class _FilterPill extends StatelessWidget {
               width: active ? 1.0 : 0.5,
             ),
           ),
-          child: Text(
-            label,
-            style: RunqText.caption.copyWith(
-              fontWeight: FontWeight.w600,
-              color: active ? Colors.white : t.muted,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: RunqText.caption.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: active ? Colors.white : t.muted,
+                ),
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: active ? Colors.white.withValues(alpha: 0.22) : t.bgWarm,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: RunqText.micro.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: active ? Colors.white : t.muted2,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -871,14 +910,22 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
-class _TxnRow extends StatelessWidget {
+class _TxnRow extends StatefulWidget {
   final BankTxn txn;
   const _TxnRow({required this.txn});
+
+  @override
+  State<_TxnRow> createState() => _TxnRowState();
+}
+
+class _TxnRowState extends State<_TxnRow> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final txn = widget.txn;
     final isIn = txn.isCredit;
 
     final dirBg = isIn
@@ -888,41 +935,179 @@ class _TxnRow extends StatelessWidget {
         ? (isDark ? const Color(0xFF6EE7B7) : RunqColors.greenInk)
         : (isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk);
 
+    // Lead with the vendor/customer; the description sits underneath. When
+    // there's no matched party yet, the description is promoted to the title
+    // and the recon suggestion takes the secondary line.
+    final party = txn.vendorName ?? txn.customerName;
+    final desc = txn.narration ?? txn.reference;
+    final matched = txn.reconStatus == 'matched' || txn.reconStatus == 'manually_matched';
+    final title = party ?? desc ?? 'Transaction';
+
     return RunqCard(
       padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(color: dirBg, shape: BoxShape.circle),
-            child: Icon(
-              isIn ? Icons.south_rounded : Icons.north_rounded,
-              size: 18,
-              color: dirInk,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  txn.narration ?? txn.reference ?? 'Transaction',
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: dirBg, shape: BoxShape.circle),
+                  child: Icon(
+                    isIn ? Icons.south_rounded : Icons.north_rounded,
+                    size: 18,
+                    color: dirInk,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                _ReconChip(txn: txn),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: RunqText.bodyStrong.copyWith(color: t.ink),
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (matched) ...[
+                            const SizedBox(width: 4),
+                            Icon(Icons.check_circle_rounded,
+                                size: 13,
+                                color: isDark ? const Color(0xFF6EE7B7) : RunqColors.greenInk),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      if (party != null)
+                        Text(
+                          desc ?? 'No description',
+                          style: RunqText.caption.copyWith(color: t.muted2),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        )
+                      else
+                        _ReconChip(txn: txn),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${isIn ? '+' : '−'}${formatINR(txn.amount.abs())}',
+                      style: RunqText.tabular(
+                        size: 15,
+                        w: FontWeight.w700,
+                        color: isIn ? dirInk : t.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 18, color: t.muted2),
+                    ),
+                  ],
+                ),
               ],
             ),
+            if (_expanded) _TxnDetail(txn: txn),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TxnDetail extends StatelessWidget {
+  final BankTxn txn;
+  const _TxnDetail({required this.txn});
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+
+  String _statusLabel(String s) {
+    switch (s) {
+      case 'matched':
+        return 'Matched';
+      case 'manually_matched':
+        return 'Matched (manual)';
+      case 'excluded':
+        return 'Excluded';
+      default:
+        return 'Unreconciled';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final party = txn.vendorName ?? txn.customerName;
+    final partyLabel = txn.vendorName != null ? 'Vendor' : (txn.customerName != null ? 'Customer' : null);
+    final conf = txn.glConfidence;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        children: [
+          Divider(height: 1, thickness: 0.5, color: t.hairline),
+          const SizedBox(height: 8),
+          _DetailRow(label: 'Type', value: txn.isCredit ? 'Money in' : 'Money out'),
+          _DetailRow(label: 'Date', value: _fmtDate(txn.transactionDate)),
+          _DetailRow(
+            label: 'Amount',
+            value: '${txn.isCredit ? '+' : '−'}${formatINR(txn.amount.abs())}',
+          ),
+          if (txn.reference != null) _DetailRow(label: 'Reference', value: txn.reference!),
+          if (txn.narration != null) _DetailRow(label: 'Description', value: txn.narration!),
+          if (party != null && partyLabel != null) _DetailRow(label: partyLabel, value: party),
+          if (txn.glAccountName != null)
+            _DetailRow(
+              label: 'Category',
+              value: conf != null
+                  ? '${txn.glAccountName} · ${(conf * 100).round()}%'
+                  : txn.glAccountName!,
+            ),
+          _DetailRow(label: 'Status', value: _statusLabel(txn.reconStatus)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label, value;
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(label, style: RunqText.caption.copyWith(color: t.muted2)),
           ),
           const SizedBox(width: 8),
-          Text(
-            '${isIn ? '+' : '−'}${formatINR(txn.amount.abs())}',
-            style: RunqText.tabular(
-              size: 15,
-              w: FontWeight.w700,
-              color: isIn ? dirInk : t.ink,
+          Expanded(
+            child: Text(
+              value,
+              style: RunqText.caption.copyWith(color: t.ink),
+              textAlign: TextAlign.right,
             ),
           ),
         ],

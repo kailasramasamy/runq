@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, sql, asc, desc, inArray } from 'drizzle-orm';
 import { bankAccounts, bankTransactions } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { BankAccount } from '@runq/types';
@@ -37,7 +37,13 @@ export class BankAccountService {
     const tenantWhere = eq(bankAccounts.tenantId, this.tenantId);
 
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(bankAccounts).where(tenantWhere).limit(limit).offset(offset),
+      this.db
+        .select()
+        .from(bankAccounts)
+        .where(tenantWhere)
+        .orderBy(asc(bankAccounts.createdAt))
+        .limit(limit)
+        .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(bankAccounts).where(tenantWhere),
     ]);
 
