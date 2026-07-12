@@ -135,8 +135,9 @@ Renamed the whole feature to **"Customer orders"** and housed it under Sales. Th
 - ⬜ **Deferred — `bill_extract_screen.dart` tax-field regroup:** the tax fields (GSTIN/PAN, TDS section, HSN/SAC) currently sit inside their entity sections (Vendor / Invoice / line-item). Lumping them into one "Tax details (optional)" group is a layout refactor that fights the per-entity grouping — needs its own pass, not a copy swap.
 - ⬜ **Deferred — "Gross profit" inline gloss:** would need a subtitle slot on the `_PnlRow` widget; skipped in the copy pass.
 
-### 13. Analytics "Books health" section is accountant-internal
+### 13. Analytics "Books health" section is accountant-internal — ✅ DONE (2026-07-12)
 `section_books.dart` — Trial balance, Debits/Credits, Suspense/clearing, Unreconciled. Move to a collapsed "For your accountant" section (also solves dead drills, P0 #4).
+**Done:** renamed "Books health" → "For your accountant", made `_Section` optionally collapsible (chevron header), and set this section `collapsible + initiallyExpanded: false`. Moved it below GST compliance so owner-facing metrics stay above the fold. `analytics_screen.dart`.
 
 ---
 

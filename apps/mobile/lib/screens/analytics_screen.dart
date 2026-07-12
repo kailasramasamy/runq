@@ -40,8 +40,15 @@ class AnalyticsScreen extends ConsumerWidget {
               _Section(title: 'Receivables & payables', child: ArApSection()),
               _Section(title: 'Activity', child: ActivitySection()),
               _Section(title: 'Performance', subtitle: 'Last 12 months', child: PerformanceSection()),
-              _Section(title: 'Books health', child: BooksSection()),
               _Section(title: 'GST compliance', subtitle: 'Previous filing period', child: GstSection()),
+              // Trial balance, debits/credits, suspense — accountant territory,
+              // collapsed by default and parked below the owner-facing metrics.
+              _Section(
+                title: 'For your accountant',
+                collapsible: true,
+                initiallyExpanded: false,
+                child: BooksSection(),
+              ),
               SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
@@ -83,40 +90,71 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _Section extends StatelessWidget {
+class _Section extends StatefulWidget {
   final String title;
   final String? subtitle;
   final Widget child;
-  const _Section({required this.title, required this.child, this.subtitle});
+  final bool collapsible;
+  final bool initiallyExpanded;
+  const _Section({
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
+  });
+
+  @override
+  State<_Section> createState() => _SectionState();
+}
+
+class _SectionState extends State<_Section> {
+  late bool _expanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final collapsible = widget.collapsible;
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
+      child: Row(
+        // A chevron has no text baseline, so center-align when collapsible;
+        // keep baseline alignment for the subtitle'd sections.
+        crossAxisAlignment: collapsible ? CrossAxisAlignment.center : CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text(widget.title, style: RunqText.h4.copyWith(color: t.ink)),
+          if (widget.subtitle != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(widget.subtitle!,
+                  style: RunqText.caption.copyWith(color: t.muted2)),
+            ),
+          ] else if (collapsible)
+            const Spacer(),
+          if (collapsible)
+            AnimatedRotation(
+              turns: _expanded ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Icon(Icons.keyboard_arrow_down_rounded, color: t.muted2),
+            ),
+        ],
+      ),
+    );
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
       sliver: SliverToBoxAdapter(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, 0, 2, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(title,
-                      style: RunqText.h4.copyWith(color: t.ink)),
-                  if (subtitle != null) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(subtitle!,
-                          style: RunqText.caption.copyWith(color: t.muted2)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            child,
+            collapsible
+                ? GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    child: header,
+                  )
+                : header,
+            if (!collapsible || _expanded) widget.child,
           ],
         ),
       ),
