@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
 import '../api/payrun_models.dart';
 import '../api/payrun_repo.dart';
 import '../providers/payrun_providers.dart';
@@ -255,9 +256,12 @@ class _ScheduleSectionState extends ConsumerState<_ScheduleSection> {
       ref.invalidate(payRunListProvider);
       ref.invalidate(payRunQueueProvider);
       navigator.push('/purchases/pay-runs/${run.id}');
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
-      showRunqSnack(context, "Couldn't create pay run: $e",
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (!mounted) return;
+      showRunqSnack(context, "Couldn't create the pay run. Please try again.",
           kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);

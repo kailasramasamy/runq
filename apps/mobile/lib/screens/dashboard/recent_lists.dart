@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/data_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../widgets/async_slot.dart';
 import '../../widgets/runq_card.dart';
 import '../../widgets/section_head.dart';
 import '../bills_screen.dart' show BillRow;
@@ -17,13 +18,15 @@ class RecentInvoicesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invoices = ref.watch(invoicesProvider(const InvoiceFilter()));
+    const filter = InvoiceFilter();
+    final invoices = ref.watch(invoicesProvider(filter));
     return _Section(
       title: 'Recent invoices',
       seeAllPath: '/sales/invoices',
-      child: invoices.when(
-        loading: () => const _Skeleton(),
-        error: (_, __) => const _ErrorRow(message: 'Could not load invoices'),
+      child: AsyncSlot(
+        value: invoices,
+        loading: const _Skeleton(),
+        onRetry: () => ref.invalidate(invoicesProvider(filter)),
         data: (page) {
           final items = page.data.take(3).toList();
           if (items.isEmpty) {
@@ -63,13 +66,15 @@ class RecentBillsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bills = ref.watch(billsProvider(const BillFilter()));
+    const filter = BillFilter();
+    final bills = ref.watch(billsProvider(filter));
     return _Section(
       title: 'Recent bills',
       seeAllPath: '/purchases/bills',
-      child: bills.when(
-        loading: () => const _Skeleton(),
-        error: (_, __) => const _ErrorRow(message: 'Could not load bills'),
+      child: AsyncSlot(
+        value: bills,
+        loading: const _Skeleton(),
+        onRetry: () => ref.invalidate(billsProvider(filter)),
         data: (page) {
           final items = page.data.take(3).toList();
           if (items.isEmpty) {
@@ -154,31 +159,6 @@ class _Skeleton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorRow extends StatelessWidget {
-  final String message;
-  const _ErrorRow({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline_rounded, size: 16, color: RunqColors.redInk),
-          const SizedBox(width: 8),
-          Expanded(child: Text(message, style: RunqText.caption.copyWith(color: t.muted))),
-        ],
       ),
     );
   }

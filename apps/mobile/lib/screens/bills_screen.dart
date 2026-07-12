@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
 import '../api/models.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_tokens.dart';
@@ -888,9 +889,13 @@ class BillRow extends ConsumerWidget {
       if (!context.mounted) return;
       showRunqSnack(context, 'Approved ${bill.invoiceNumber}',
           kind: SnackKind.success);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!context.mounted) return;
-      showRunqSnack(context, "Couldn't approve: $e", kind: SnackKind.error);
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't approve the bill. Please try again.",
+          kind: SnackKind.error);
     }
   }
 
@@ -922,9 +927,13 @@ class BillRow extends ConsumerWidget {
       await _refreshAll(ref);
       if (!context.mounted) return;
       showRunqSnack(context, 'Bill removed', kind: SnackKind.success);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!context.mounted) return;
-      showRunqSnack(context, "Couldn't delete: $e", kind: SnackKind.error);
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't delete the bill. Please try again.",
+          kind: SnackKind.error);
     }
   }
 
@@ -962,9 +971,13 @@ class BillRow extends ConsumerWidget {
       showRunqSnack(context,
           'Marked ${formatINR(amount, compact: true)} paid · ${bill.invoiceNumber}',
           kind: SnackKind.success);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!context.mounted) return;
-      showRunqSnack(context, "Couldn't mark paid: $e", kind: SnackKind.error);
+      showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (!context.mounted) return;
+      showRunqSnack(context, "Couldn't mark the bill as paid. Please try again.",
+          kind: SnackKind.error);
     }
   }
 }

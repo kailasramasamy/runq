@@ -6,6 +6,7 @@ import '../../providers/data_providers.dart';
 import '../../theme/runq_tokens.dart';
 import '../../theme/runq_theme.dart';
 import '../../utils/format_inr.dart';
+import '../../widgets/async_slot.dart';
 
 /// Urgency level used to colour the pill inside an attention card.
 /// Card backgrounds stay neutral (surface) for visual consistency —
@@ -20,12 +21,13 @@ class SpotlightCards extends ConsumerWidget {
     final summary = ref.watch(dashboardSummaryProvider);
     return SizedBox(
       height: 168,
-      child: summary.when(
-        data: (s) => _buildList(context, ref, s),
-        loading: () => Center(
+      child: AsyncSlot<DashboardSummary>(
+        value: summary,
+        onRetry: () => ref.invalidate(dashboardSummaryProvider),
+        loading: Center(
           child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: RT(context).brand)),
         ),
-        error: (_, __) => const SizedBox(),
+        data: (s) => _buildList(context, ref, s),
       ),
     );
   }
