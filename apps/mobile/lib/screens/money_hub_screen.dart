@@ -6,7 +6,6 @@ import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/hub_header.dart';
-import '../widgets/hub_quick_chip.dart';
 import '../widgets/hub_section_tile.dart';
 import '../widgets/section_head.dart';
 import '../widgets/sparkline.dart';
@@ -38,34 +37,8 @@ class MoneyHubScreen extends ConsumerWidget {
               padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               sliver: SliverToBoxAdapter(child: _MoneyHero()),
             ),
-            SliverToBoxAdapter(
-              child: HubQuickChipRow(
-                chips: [
-                  HubQuickChip(
-                    icon: Icons.show_chart_rounded,
-                    label: 'Cash flow',
-                    onTap: () => context.push('/money/cash-flow'),
-                  ),
-                  HubQuickChip(
-                    icon: Icons.insights_rounded,
-                    label: 'Analytics',
-                    onTap: () => context.push('/money/analytics'),
-                  ),
-                  HubQuickChip(
-                    icon: Icons.bar_chart_rounded,
-                    label: 'P&L reports',
-                    onTap: () => context.push('/money/reports'),
-                  ),
-                  HubQuickChip(
-                    icon: Icons.account_balance_outlined,
-                    label: 'Banking',
-                    onTap: () => context.push('/money/banking'),
-                  ),
-                ],
-              ),
-            ),
             const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
               sliver: SliverToBoxAdapter(child: SectionHead(title: 'Insights')),
             ),
             const SliverPadding(
