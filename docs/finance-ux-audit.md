@@ -143,8 +143,10 @@ Renamed the whole feature to **"Customer orders"** and housed it under Sales. Th
 
 ## P3 — Data correctness & polish
 
-14. **Hand-typed GST default 0%** — `new_invoice_screen.dart:733,752`: free-typed invoice lines silently default to 0% GST; easy to under-charge. Fix: default to tenant's most-common rate or force an explicit pick on non-catalog lines.
-15. **Scan-review dates are raw `YYYY-MM-DD` text fields** — `bill_extract_screen.dart:813-814`. Use `showDatePicker` like everywhere else.
+14. **Hand-typed GST default 0%** — `new_invoice_screen.dart:733,752`: free-typed invoice lines silently default to 0% GST; easy to under-charge. Fix: default to tenant's most-common rate or force an explicit pick on non-catalog lines. — ✅ DONE (2026-07-12)
+    **Done:** `_LineItem.taxRate` is now nullable (unset by default); the GST dropdown shows "Select" with an amber border when unset and save is blocked until every line has a rate ("use 0% for exempt items"). "Add row" carries the previous line's chosen rate forward, so multi-line invoices pick once; catalog lines still auto-fill. Serialization coerces the (now-guaranteed) rate null-safe.
+15. **Scan-review dates are raw `YYYY-MM-DD` text fields** — `bill_extract_screen.dart:813-814`. Use `showDatePicker` like everywhere else. — ✅ DONE (2026-07-12)
+    **Done:** added a `_DateInput` tap-to-pick field (calendar icon, dd/mm/yyyy display, "Select date" when empty) that writes the ISO string back to the same controller, so `_save()`'s parse path is unchanged. Bill date + Due date now use it.
 16. **Raw exceptions in snackbars** — `bills_screen.dart:860,894,934`, `pay_runs_screen.dart:260`, `gst_returns_screen.dart:46`, etc.: `"Couldn't approve: $e"`. Map to friendly messages.
 17. **Inconsistent dashboard error handling** — SpotlightCards silently blank on error (`spotlight_cards.dart:28`); recent lists have no retry; ActivityList has full retry. Standardize on `AsyncSlot`.
 18. **Header stat chips sum only the loaded page (max 50)** — `invoices_screen.dart:124-158`; understates OUTSTANDING/COLLECTED on big books. Serve true totals from the summary endpoint.

@@ -33,15 +33,19 @@ class _LineItem {
   String uom = '';
   String quantity = '';
   String unitPrice = '';
-  double taxRate = 0;
+  // Null = no rate chosen yet. Free-typed lines start unset so the user must
+  // pick (0% for exempt items included) instead of silently defaulting to 0%
+  // and under-charging GST.
+  double? taxRate;
   _LineItem();
 
   double get amount =>
       (double.tryParse(quantity) ?? 0) * (double.tryParse(unitPrice) ?? 0);
 
   double get taxAmount {
-    if (taxRate <= 0) return 0;
-    return amount * taxRate / 100;
+    final r = taxRate;
+    if (r == null || r <= 0) return 0;
+    return amount * r / 100;
   }
 }
 
@@ -170,6 +174,11 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
           kind: SnackKind.error);
       return;
     }
+    if (validLines.any((l) => l.taxRate == null)) {
+      showRunqSnack(context, 'Choose a GST rate for every line — use 0% for exempt items.',
+          kind: SnackKind.error);
+      return;
+    }
 
     final body = <String, dynamic>{
       'customerId': _customer!.id,
@@ -188,8 +197,8 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
             'quantity': double.tryParse(l.quantity) ?? 0,
             'unitPrice': double.tryParse(l.unitPrice) ?? 0,
             'amount': l.amount,
-            'taxCategory': l.taxRate > 0 ? 'taxable' : 'exempt',
-            'taxRate': l.taxRate,
+            'taxCategory': (l.taxRate ?? 0) > 0 ? 'taxable' : 'exempt',
+            'taxRate': l.taxRate ?? 0,
           }).toList(),
     };
 
@@ -322,6 +331,10 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
                     child: TextButton.icon(
                       onPressed: () {
                         final newLine = _LineItem();
+                        // Carry the last line's chosen GST rate forward so a
+                        // multi-line invoice only picks once; still null (must
+                        // pick) when no prior line has set a rate.
+                        if (_lines.isNotEmpty) newLine.taxRate = _lines.last.taxRate;
                         setState(() => _lines.add(newLine));
                         if (_isEdit) _openEditLineSheet(_lines.length - 1);
                       },
@@ -726,7 +739,7 @@ class _UomDisplay extends StatelessWidget {
 }
 
 class _GstSelector extends StatelessWidget {
-  final double rate;
+  final double? rate;
   final ValueChanged<double> onChanged;
   const _GstSelector({required this.rate, required this.onChanged});
 
@@ -735,6 +748,7 @@ class _GstSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final unset = rate == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -745,12 +759,16 @@ class _GstSelector extends StatelessWidget {
           decoration: BoxDecoration(
             color: t.inputFill,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: t.hairline, width: 0.5),
+            // Flag an unset rate so it can't be missed and shipped as 0%.
+            border: Border.all(
+                color: unset ? RunqColors.amberInk : t.hairline,
+                width: unset ? 1 : 0.5),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<double>(
-              value: _options.contains(rate) ? rate : 0,
+              value: rate != null && _options.contains(rate) ? rate : null,
               isExpanded: true,
+              hint: Text('Select', style: RunqText.body.copyWith(color: t.muted)),
               icon: Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
               style: RunqText.body.copyWith(color: t.ink),
               items: _options
@@ -958,7 +976,10 @@ class _LineSummaryRow extends StatelessWidget {
     final metaParts = <String>[
       if (line.uom.isNotEmpty) line.uom,
       '$qty × ₹$price',
-      if (line.taxRate > 0) 'GST ${line.taxRate.toStringAsFixed(0)}%',
+      if (line.taxRate == null)
+        'GST —'
+      else if (line.taxRate! > 0)
+        'GST ${line.taxRate!.toStringAsFixed(0)}%',
     ];
     return InkWell(
       onTap: onEdit,

@@ -810,8 +810,8 @@ class _InvoiceSection extends StatelessWidget {
           Text('INVOICE', style: RunqText.label),
           const SizedBox(height: 8),
           _Input(controller: edited.invoiceNumber, label: 'Bill #', required: true, mono: true, onChange: onChange),
-          _Input(controller: edited.invoiceDate, label: 'Bill date (YYYY-MM-DD)', required: true, onChange: onChange),
-          _Input(controller: edited.dueDate, label: 'Due date (YYYY-MM-DD)', onChange: onChange),
+          _DateInput(controller: edited.invoiceDate, label: 'Bill date', required: true, onChange: onChange),
+          _DateInput(controller: edited.dueDate, label: 'Due date', onChange: onChange),
           _Input(controller: edited.tdsSection, label: 'TDS section', onChange: onChange),
         ],
       ),
@@ -1196,6 +1196,80 @@ class _Input extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Tap-to-pick date field. Backs the same YYYY-MM-DD controller as [_Input]
+/// so the save path is unchanged, but avoids hand-typed / malformed dates.
+class _DateInput extends StatefulWidget {
+  final TextEditingController controller; // holds YYYY-MM-DD
+  final String label;
+  final bool required;
+  final VoidCallback? onChange;
+  const _DateInput({
+    required this.controller,
+    required this.label,
+    this.required = false,
+    this.onChange,
+  });
+
+  @override
+  State<_DateInput> createState() => _DateInputState();
+}
+
+class _DateInputState extends State<_DateInput> {
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final parsed = DateTime.tryParse(widget.controller.text.trim());
+    final display = parsed == null
+        ? 'Select date'
+        : '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Text(widget.label.toUpperCase(), style: RunqText.micro),
+            if (widget.required) Text(' *', style: RunqText.micro.copyWith(color: RunqColors.redInk)),
+          ]),
+          const SizedBox(height: 2),
+          InkWell(
+            onTap: _pick,
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: t.hairline),
+              ),
+              child: Row(children: [
+                Icon(Icons.calendar_today_rounded, size: 14, color: t.muted),
+                const SizedBox(width: 8),
+                Text(display,
+                    style: RunqText.body.copyWith(color: parsed == null ? t.muted : t.ink)),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pick() async {
+    final current = DateTime.tryParse(widget.controller.text.trim());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    widget.controller.text =
+        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    widget.onChange?.call();
+    setState(() {});
   }
 }
 
