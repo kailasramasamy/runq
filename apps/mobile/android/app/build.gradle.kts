@@ -50,6 +50,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // R8 runs for release (via the Flutter Gradle plugin); add our
+            // keep/dontwarn rules so it doesn't fail on ML Kit's unbundled
+            // optional-language text recognizers.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
