@@ -273,18 +273,18 @@ class _GroupCard extends StatelessWidget {
 
 // ─── Item row ───────────────────────────────────────────────────────────────
 
-class _ItemRow extends StatelessWidget {
+class _ItemRow extends ConsumerWidget {
   final InboxItem item;
   const _ItemRow({required this.item});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final needsReview = item.status == 'needs_review';
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _open(context),
+        onTap: () => _open(context, ref),
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           color: needsReview ? const Color(0x14F59E0B) : null,
@@ -346,9 +346,15 @@ class _ItemRow extends StatelessWidget {
     );
   }
 
-  void _open(BuildContext context) {
+  void _open(BuildContext context, WidgetRef ref) {
     final route = _toMobileRoute(item.href);
-    if (route != null) context.push(route);
+    if (route == null) return;
+    // The resolution screen may approve/send/review this item, so refetch the
+    // inbox (and the dashboard badge) on return instead of showing it stale.
+    context.push(route).then((_) {
+      ref.invalidate(inboxProvider);
+      ref.invalidate(inboxCountProvider);
+    });
   }
 }
 

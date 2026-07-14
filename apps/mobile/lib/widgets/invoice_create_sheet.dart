@@ -39,8 +39,8 @@ class _InvoiceCreateSheet extends StatelessWidget {
             _Tile(
               icon: Icons.inbox_outlined,
               tint: RunqColors.indigo,
-              title: 'Create invoice from order',
-              subtitle: 'Pick a customer order — AI extracts and drafts the invoice',
+              title: 'Create invoice from customer PO',
+              subtitle: 'Pick a customer PO — AI extracts and drafts the invoice',
               onTap: () {
                 Navigator.pop(context);
                 WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -205,8 +205,11 @@ final inboxCountProvider = FutureProvider<int>((ref) async {
   return _watchAuth(ref, () => inboxRepo.count());
 });
 
-/// Full grouped payload for the inbox screen.
-final inboxProvider = FutureProvider<InboxPayload>((ref) async {
+/// Full grouped payload for the inbox screen. autoDispose so re-opening the
+/// inbox after resolving work elsewhere always refetches instead of showing
+/// the cached list; the screen also invalidates it on return from a row's
+/// resolution screen for the still-mounted case.
+final inboxProvider = FutureProvider.autoDispose<InboxPayload>((ref) async {
   return _watchAuth(ref, () => inboxRepo.list());
 });
 

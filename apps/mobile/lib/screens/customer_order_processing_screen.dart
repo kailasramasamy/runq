@@ -127,7 +127,7 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
             children: [
               _Header(onCancel: () => context.pop()),
               const SizedBox(height: 20),
-              Text('Generating invoice from order', style: RunqText.h2.copyWith(color: t.ink)),
+              Text('Generating invoice from customer PO', style: RunqText.h2.copyWith(color: t.ink)),
               const SizedBox(height: 6),
               Text(widget.file.path.split(Platform.pathSeparator).last,
                   maxLines: 1, overflow: TextOverflow.ellipsis,

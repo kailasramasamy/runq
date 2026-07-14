@@ -65,6 +65,12 @@ export const poUploadRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
+      // On-device OCR text for photo POs — lets the parser read the layout
+      // locally and skip the AI vision call. The original image is still
+      // stored for audit and as the AI fallback source.
+      const ocrField = file.fields.ocrText as { value?: string } | undefined;
+      const rawText = ocrField?.value?.trim() || null;
+
       const service = new PoUploadService(
         request.server.db,
         request.tenantId,
@@ -77,6 +83,7 @@ export const poUploadRoutes: FastifyPluginAsync = async (app) => {
         mimeType,
         source: sourceValue as 'share_sheet' | 'web_drop' | 'web_upload' | 'paste_image',
         sourceMetadata,
+        rawText,
         uploadedBy: request.user!.userId,
       });
 

@@ -266,7 +266,10 @@ export class PoParserService {
   }
 
   private async loadContent(upload: PoUploadRow): Promise<LoadedContent> {
-    if (upload.rawText) {
+    // Prefer the original file for the AI fallback — vision/PDF extraction is
+    // more accurate than re-parsing on-device OCR text. rawText only becomes
+    // the AI source for genuine text-only uploads (pasted POs with no file).
+    if (upload.rawText && (!upload.storageKey || !upload.fileMime)) {
       return { kind: 'text', data: upload.rawText };
     }
 

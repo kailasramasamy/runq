@@ -92,10 +92,18 @@ class _SheetState extends State<_Sheet> {
                 onTap: () => Navigator.pop(context, ShareDestination.vendorBill),
               ),
               const SizedBox(height: 4),
+              _Tile(
+                icon: Icons.assignment_outlined,
+                tint: const Color(0xFF06B6D4),
+                title: 'Customer PO',
+                subtitle: 'A purchase order from a customer — generates a sales invoice',
+                onTap: () => Navigator.pop(context, ShareDestination.customerPo),
+              ),
+              const SizedBox(height: 4),
               if (!_showMore)
                 TextButton(
                   onPressed: () => setState(() => _showMore = true),
-                  child: const Text('Not a vendor bill?'),
+                  child: const Text('Something else?'),
                 )
               else
                 ..._moreOptions(context),
@@ -113,13 +121,6 @@ class _SheetState extends State<_Sheet> {
 
   List<Widget> _moreOptions(BuildContext context) {
     return [
-      _Tile(
-        icon: Icons.assignment_outlined,
-        tint: const Color(0xFF06B6D4),
-        title: 'Customer order',
-        subtitle: 'An order from a customer — generates a sales invoice',
-        onTap: () => Navigator.pop(context, ShareDestination.customerPo),
-      ),
       _Tile(
         icon: Icons.local_shipping_outlined,
         tint: const Color(0xFF7C3AED),

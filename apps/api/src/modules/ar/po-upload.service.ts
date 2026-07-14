@@ -26,6 +26,9 @@ interface CreateFromFileParams {
   mimeType: string;
   source: PoSourceChannel;
   sourceMetadata?: Record<string, unknown> | null;
+  // Optional on-device OCR text for photo POs. Stored alongside the file so
+  // the parser reads the layout locally and skips the AI vision fallback.
+  rawText?: string | null;
   uploadedBy?: string | null;
 }
 
@@ -86,6 +89,7 @@ export class PoUploadService {
         fileSize: params.buffer.length,
         fileMime: params.mimeType,
         fileHash,
+        rawText: params.rawText ?? null,
         status: 'pending',
       })
       .returning();

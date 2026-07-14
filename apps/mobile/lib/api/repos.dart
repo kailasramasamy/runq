@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'api_client.dart';
 import 'api_config.dart';
 import 'models.dart';
+import '../services/po_ocr.dart';
 
 // Sentinel for "field not provided" in PATCH bodies — lets a caller pass
 // `null` to mean "clear this field" without colliding with "leave alone".
@@ -679,13 +680,21 @@ Map<String, dynamic>? _safeJson(String s) {
 
 class OrderRepo {
   Future<PoUpload> upload(File file, {String source = 'share_sheet', Map<String, dynamic>? sourceMetadata}) async {
+    final mime = _guessMime(file.path);
     final fields = <String, String>{'source': source};
     if (sourceMetadata != null) fields['sourceMetadata'] = jsonEncode(sourceMetadata);
+    // Photos of a PO can be read on-device (Apple Vision / ML Kit) and sent as
+    // text so the server parses them locally — the AI vision fallback only runs
+    // when OCR is too sparse. PDFs/spreadsheets already parse server-side.
+    if (mime != null && mime.startsWith('image/')) {
+      final ocrText = await PoOcr.tryExtract(file);
+      if (ocrText != null) fields['ocrText'] = ocrText;
+    }
     final res = await apiClient.upload(
       '/ar/po-uploads/',
       file,
       fields: fields,
-      mimeType: _guessMime(file.path),
+      mimeType: mime,
     );
     return PoUpload.fromJson(_data(res));
   }

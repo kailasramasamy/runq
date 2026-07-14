@@ -56,6 +56,10 @@ class HrAvatar extends StatelessWidget {
   /// shows instead.
   final String? employeeId;
   final bool showOnlineDot;
+  /// Border colour for the online dot — match the surface it sits on (defaults
+  /// to the theme surface). Lets a photo avatar's dot read the same as the
+  /// initials fallback when both sit on a tinted hero background.
+  final Color? onlineDotBorderColor;
   /// When true the tile renders as a teal gradient with white initials
   /// — the "self" treatment used in the home header + More profile card.
   /// When false (default), uses the name-hashed pastel palette so list
@@ -68,6 +72,7 @@ class HrAvatar extends StatelessWidget {
     this.photoUrl,
     this.employeeId,
     this.showOnlineDot = false,
+    this.onlineDotBorderColor,
     this.useGradient = false,
   });
 
@@ -211,7 +216,7 @@ class HrAvatar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFF16A34A),
                   shape: BoxShape.circle,
-                  border: Border.all(color: RT(context).surface, width: 2),
+                  border: Border.all(color: onlineDotBorderColor ?? RT(context).surface, width: 2),
                 ),
               ),
             ),

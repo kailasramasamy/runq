@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
-import 'gradient_avatar.dart';
+import 'profile_avatar_button.dart';
 
 /// Shared header used across all section hubs (Sales, Purchases, Money).
 ///
@@ -20,7 +19,6 @@ class HubHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final user = ref.watch(authProvider).user;
     final approvals = ref.watch(pendingApprovalsProvider);
     final hasNotifications =
         approvals.maybeWhen(data: (l) => l.isNotEmpty, orElse: () => false);
@@ -54,11 +52,7 @@ class HubHeader extends ConsumerWidget {
             onTap: () => context.push('/approvals'),
           ),
           const SizedBox(width: 8),
-          InkWell(
-            onTap: () => context.push('/profile'),
-            borderRadius: BorderRadius.circular(12),
-            child: GradientAvatar(name: user?.name ?? user?.email ?? '?', size: 36),
-          ),
+          ProfileAvatarButton(onTap: () => context.push('/profile'), size: 36),
         ],
       ),
     );

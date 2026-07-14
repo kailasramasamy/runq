@@ -8,7 +8,7 @@ import '../providers/theme_mode_provider.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/app_info.dart';
-import '../widgets/gradient_avatar.dart';
+import '../widgets/profile_avatar_button.dart';
 import '../widgets/runq_snack.dart';
 
 /// Reach via avatar tap on the dashboard. Pushed at the root navigator so
@@ -351,7 +351,7 @@ class _IdentityHero extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                GradientAvatar(
+                ProfileAvatarButton(
                   name: displayName,
                   size: 64,
                   showOnlineDot: true,

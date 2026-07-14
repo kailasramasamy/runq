@@ -52,8 +52,8 @@ List<FabAction> financeFabActions() => [
       FabAction(
         section: 'Money in',
         icon: Icons.inbox_outlined,
-        title: 'Invoice from order',
-        sub: 'Pick a customer order — AI extracts and drafts the invoice',
+        title: 'Invoice from customer PO',
+        sub: 'Pick a customer PO — AI extracts and drafts the invoice',
         tint: RunqColors.indigo,
         onTap: (ctx) => startOrderIntake(ctx),
       ),
