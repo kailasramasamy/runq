@@ -293,6 +293,53 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeReports => 'ವರದಿಗಳು';
 
   @override
+  String get errorOffline =>
+      'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ — ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get errorTimeout => 'ವಿನಂತಿ ಸಮಯ ಮೀರಿದೆ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get errorGeneric => 'ಏನೋ ತಪ್ಪಾಗಿದೆ — ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get syncSheetTitle => 'ಈ ಸಾಧನದಲ್ಲಿನ ನಮೂದುಗಳು';
+
+  @override
+  String syncSheetCounts(Object pending, Object failed) {
+    return '$pending ಕಾಯುತ್ತಿವೆ · $failed ವಿಫಲ';
+  }
+
+  @override
+  String get syncSheetAllClear => 'ಎಲ್ಲವೂ ಸಿಂಕ್ ಆಗಿದೆ.';
+
+  @override
+  String get syncRetry => 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ';
+
+  @override
+  String get syncDelete => 'ಅಳಿಸಿ';
+
+  @override
+  String get syncDeleteConfirmTitle => 'ಈ ನಮೂದನ್ನು ಅಳಿಸಬೇಕೇ?';
+
+  @override
+  String get syncDeleteConfirmBody =>
+      'ಈ ಹಾಲು ನಮೂದು ಸರ್ವರ್‌ಗೆ ಕಳುಹಿಸಲಾಗಿಲ್ಲ. ಅಳಿಸಿದರೆ ಶಾಶ್ವತವಾಗಿ ಹೋಗುತ್ತದೆ — ರೈತರಿಗೆ ಇದಕ್ಕೆ ಪಾವತಿ ಆಗುವುದಿಲ್ಲ.';
+
+  @override
+  String get syncSyncNow => 'ಈಗ ಸಿಂಕ್ ಮಾಡಿ';
+
+  @override
+  String get pendingSavingPill => 'ಉಳಿಸಲಾಗುತ್ತಿದೆ…';
+
+  @override
+  String get pendingFailedPill => 'ವಿಫಲ';
+
+  @override
+  String get collectCorrectionNeedsConnection =>
+      'ತಿದ್ದುಪಡಿಗಳಿಗೆ ಸಂಪರ್ಕ ಬೇಕು — ಆನ್‌ಲೈನ್ ಆದಾಗ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
   String get collectPendingDupTitle => 'ಈ ಸಾಧನದಲ್ಲಿ ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ';
 
   @override

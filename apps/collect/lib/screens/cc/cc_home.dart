@@ -11,8 +11,10 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/sync_queue_sheet.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
+import '../../utils/friendly_error.dart';
 import 'cc_qc_report.dart';
 import 'cc_receive_history.dart';
 import 'cc_report_tab.dart';
@@ -100,10 +102,10 @@ class CcHome extends ConsumerWidget {
           DhenuSectionHeader(node.name, trailing: SyncStatus(
             state: sync.state, pendingCount: sync.pendingCount,
             failedCount: sync.failedCount,
-            onTap: () => ref.read(syncProvider.notifier).forceSync(),
+            onTap: () => showSyncQueueSheet(context, ref, node.id),
           )),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, vmccsAsync, flow, inTransit, overnight),
+          _hero(context, t, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
@@ -135,7 +137,7 @@ class CcHome extends ConsumerWidget {
             ]),
           ],
           const SizedBox(height: DhenuSpacing.sm),
-          _vmccList(t, vmccsAsync, flow, receiptQc, overnight),
+          _vmccList(context, t, vmccsAsync, flow, receiptQc, overnight),
         ],
       ),
     );
@@ -203,12 +205,12 @@ class CcHome extends ConsumerWidget {
   ShiftQc _resolveQc(ShiftQc pour, ShiftQc? receipt) =>
       (receipt != null && receipt.fat > 0) ? receipt : pour;
 
-  Widget _hero(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
+  Widget _hero(BuildContext context, DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
       Map<String, _Flow> flow, double inTransit, bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(label: 'ACROSS VMCCs', primaryValue: '—',
-          footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
+          footer: Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC))),
       data: (rows) {
         // Sum the per-VMCC shown qty (in-app pour, else received, else transit)
         // so manually-received milk counts even when no pour was logged.
@@ -295,13 +297,13 @@ class CcHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _vmccList(DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
+  Widget _vmccList(BuildContext context, DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
       Map<String, _Flow> flow, Map<String, ({ShiftQc am, ShiftQc pm})> receiptQc,
       bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => DhenuEmptyState(
-          icon: DhenuIcons.cloudOff, title: 'Could not load VMCCs', subtitle: '$e'),
+          icon: DhenuIcons.cloudOff, title: 'Could not load VMCCs', subtitle: friendlyError(context, e)),
       data: (rows) {
         if (rows.isEmpty) {
           return const DhenuEmptyState(

@@ -86,6 +86,11 @@ class PourQueue {
     try {
       await mpRepo.recordPour(jsonDecode(entry.bodyJson) as Map<String, dynamic>);
       return true;
+    } on NetworkException {
+      // Offline / timed out — queue and retry on reconnect.
+      await box.put(entry.key, entry.toBox());
+      _bump();
+      return false;
     } on ApiException catch (e) {
       // A 4xx (bad data / no rate chart / not permitted) will never succeed on
       // retry — surface it so the operator can fix it, instead of silently
@@ -123,10 +128,27 @@ class PourQueue {
   int get failedCount =>
       _box?.values.where((m) => m['failed'] == true).length ?? 0;
 
-  /// Remove a queued pour (operator chose "replace" on a pending duplicate).
+  /// Remove a queued pour (operator chose "replace" on a pending duplicate,
+  /// or deleted a failed entry from the sync sheet).
   Future<void> removePending(String key) async {
     await _box?.delete(key);
     _bump();
+  }
+
+  /// Operator-initiated retry of a failed entry: clear the failed flag and
+  /// retry budget, then drain. No-op for entries that aren't failed.
+  Future<void> retryFailed(String key) async {
+    final box = _box;
+    final raw = box?.get(key);
+    if (box == null || raw == null) return;
+    final entry = _PendingPour.fromBox(Map<String, dynamic>.from(raw));
+    if (!entry.failed) return;
+    await box.put(key, _PendingPour(
+      key: entry.key, nodeId: entry.nodeId, bodyJson: entry.bodyJson,
+      attempts: 0, lastError: null,
+    ).toBox());
+    _bump();
+    unawaited(drain());
   }
 
   /// Drain the queue FIFO. A poison entry (4xx / retries exhausted) is marked
@@ -146,6 +168,11 @@ class PourQueue {
           await mpRepo.recordPour(jsonDecode(entry.bodyJson) as Map<String, dynamic>);
           await box.delete(key);
           _bump();
+        } on NetworkException catch (e) {
+          // Connectivity failure — nothing behind this will succeed either.
+          await box.put(key, entry.withError(e.message).toBox());
+          _bump();
+          break;
         } on ApiException catch (e) {
           // Server responded: 4xx never succeeds on retry; a 5xx gets
           // _maxAttempts tries. Either way the next entry still gets its turn.
@@ -155,7 +182,7 @@ class PourQueue {
           await box.put(key, poison ? entry.markFailed(e.message).toBox() : next.toBox());
           _bump();
         } catch (e) {
-          // Connectivity failure — nothing behind this will succeed either.
+          // Unknown transport failure — treat like connectivity.
           await box.put(key, entry.withError(e.toString()).toBox());
           _bump();
           break;
@@ -186,6 +213,8 @@ class PendingPour {
   final String key, nodeId, farmerId, shift, milkType, collectionDate;
   final double qtyLitres;
   final bool hasFailed;
+  final int attempts;
+  final String? lastError;
   PendingPour({
     required this.key,
     required this.nodeId,
@@ -195,6 +224,8 @@ class PendingPour {
     required this.collectionDate,
     required this.qtyLitres,
     required this.hasFailed,
+    required this.attempts,
+    required this.lastError,
   });
 }
 
@@ -249,6 +280,8 @@ class _PendingPour {
       collectionDate: (body['collectionDate'] ?? '').toString(),
       qtyLitres: (body['qtyLitres'] is num) ? (body['qtyLitres'] as num).toDouble() : 0,
       hasFailed: failed,
+      attempts: attempts,
+      lastError: lastError,
     );
   }
 }

@@ -9,6 +9,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/node_picker.dart';
+import '../../utils/friendly_error.dart';
 import 'qc_report_view.dart';
 import 'qc_vmcc_ranking.dart';
 
@@ -66,7 +67,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
             error: (e, _) => ListView(children: [
               const SizedBox(height: 72),
               DhenuEmptyState(
-                  icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+                  icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: friendlyError(context, e)),
             ]),
             data: (rows) {
               final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;

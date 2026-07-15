@@ -297,6 +297,54 @@ class AppLocalizationsTa extends AppLocalizations {
   String get homeReports => 'அறிக்கைகள்';
 
   @override
+  String get errorOffline =>
+      'இணையம் இல்லை — இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get errorTimeout =>
+      'கோரிக்கை நேரம் முடிந்தது — மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get errorGeneric => 'ஏதோ தவறு நடந்தது — மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get syncSheetTitle => 'இந்த சாதனத்தில் உள்ள பதிவுகள்';
+
+  @override
+  String syncSheetCounts(Object pending, Object failed) {
+    return '$pending காத்திருக்கிறது · $failed தோல்வி';
+  }
+
+  @override
+  String get syncSheetAllClear => 'அனைத்தும் ஒத்திசைக்கப்பட்டது.';
+
+  @override
+  String get syncRetry => 'மீண்டும் முயற்சி';
+
+  @override
+  String get syncDelete => 'அழி';
+
+  @override
+  String get syncDeleteConfirmTitle => 'இந்த பதிவை அழிக்கவா?';
+
+  @override
+  String get syncDeleteConfirmBody =>
+      'இந்த பால் பதிவு சர்வருக்கு அனுப்பப்படவில்லை. அழித்தால் நிரந்தரமாக நீங்கும் — விவசாயிக்கு இதற்கு பணம் கிடைக்காது.';
+
+  @override
+  String get syncSyncNow => 'இப்போது ஒத்திசை';
+
+  @override
+  String get pendingSavingPill => 'சேமிக்கப்படுகிறது…';
+
+  @override
+  String get pendingFailedPill => 'தோல்வி';
+
+  @override
+  String get collectCorrectionNeedsConnection =>
+      'திருத்தங்களுக்கு இணைப்பு தேவை — ஆன்லைனில் வந்ததும் மீண்டும் முயற்சிக்கவும்.';
+
+  @override
   String get collectPendingDupTitle =>
       'இந்த சாதனத்தில் ஏற்கனவே சேமிக்கப்பட்டுள்ளது';
 

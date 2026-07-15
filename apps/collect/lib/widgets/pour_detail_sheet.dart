@@ -6,9 +6,11 @@ import '../api/mp_repo.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../providers/mp_context_provider.dart';
+import '../services/pour_queue.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../utils/format.dart';
+import '../utils/friendly_error.dart';
 import 'dhenu_toast.dart';
 import 'quality_badge.dart';
 import 'sheet_grabber.dart';
@@ -40,6 +42,11 @@ class _PourDetailSheet extends ConsumerWidget {
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
+    // Deleting reverses a server row — impossible offline (audit B6).
+    if (!PourQueue.instance.isOnline) {
+      showDhenuToast(context, l.collectCorrectionNeedsConnection, type: DhenuToastType.info);
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -62,7 +69,7 @@ class _PourDetailSheet extends ConsumerWidget {
       ref.invalidate(farmerHistoryPoursProvider);
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
-      if (context.mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+      if (context.mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     }
   }
 

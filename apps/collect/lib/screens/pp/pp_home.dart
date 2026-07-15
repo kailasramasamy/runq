@@ -13,8 +13,10 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/sync_queue_sheet.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
+import '../../utils/friendly_error.dart';
 
 /// Per-CC inbound-to-this-PP tally derived from today's tankers.
 typedef _Flow = ({double transit, double received, int tankers});
@@ -55,7 +57,7 @@ class PpHome extends ConsumerWidget {
         children: [
           _header(context, ref, t, sync),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, consAsync, bands, milkType),
+          _hero(context, t, consAsync, bands, milkType),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
@@ -97,18 +99,18 @@ class PpHome extends ConsumerWidget {
         state: sync.state,
         pendingCount: sync.pendingCount,
         failedCount: sync.failedCount,
-        onTap: () => ref.read(syncProvider.notifier).forceSync(),
+        onTap: () => showSyncQueueSheet(context, ref, node.id),
       ),
     );
   }
 
-  Widget _hero(DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
+  Widget _hero(BuildContext context, DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
     return consAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (e, _) => HeroNumberCard(
         label: 'TODAY',
         primaryValue: '—',
-        footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC)),
+        footer: Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
       ),
       data: (all) {
         final received = all.where((c) => c.kind == 'cc_to_pp' && c.received).toList();

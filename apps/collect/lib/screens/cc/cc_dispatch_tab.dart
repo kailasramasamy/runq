@@ -15,6 +15,7 @@ import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
+import '../../utils/friendly_error.dart';
 import '../dispatch_history.dart';
 
 /// CC Dispatch tab — availability summary + dispatch form + today's outbound.
@@ -84,7 +85,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(shiftStatusProvider(widget.node.id));
     } catch (e) {
-      if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+      if (mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     } finally {
       if (mounted) setState(() => _closingBusy = false);
     }
@@ -210,7 +211,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
     } catch (e) {
-      setState(() { _saving = false; _error = '$e'; });
+      setState(() { _saving = false; _error = friendlyError(context, e); });
     }
   }
 

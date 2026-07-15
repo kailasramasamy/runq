@@ -8,6 +8,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../utils/friendly_error.dart';
 import '../cc/receive_consignment_screen.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
@@ -42,7 +43,7 @@ class PpReceiveTab extends ConsumerWidget {
           error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff,
             title: 'Could not load tankers',
-            subtitle: '$e',
+            subtitle: friendlyError(context, e),
           ),
           data: (all) {
             final inTransit =

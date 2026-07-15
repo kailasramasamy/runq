@@ -622,6 +622,90 @@ abstract class AppLocalizations {
   /// **'Reports'**
   String get homeReports;
 
+  /// No description provided for @errorOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'No internet — check your connection and try again.'**
+  String get errorOffline;
+
+  /// No description provided for @errorTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Request timed out — try again.'**
+  String get errorTimeout;
+
+  /// No description provided for @errorGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong — try again.'**
+  String get errorGeneric;
+
+  /// No description provided for @syncSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Entries on this device'**
+  String get syncSheetTitle;
+
+  /// No description provided for @syncSheetCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{pending} waiting · {failed} failed'**
+  String syncSheetCounts(Object pending, Object failed);
+
+  /// No description provided for @syncSheetAllClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything is synced.'**
+  String get syncSheetAllClear;
+
+  /// No description provided for @syncRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get syncRetry;
+
+  /// No description provided for @syncDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get syncDelete;
+
+  /// No description provided for @syncDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this entry?'**
+  String get syncDeleteConfirmTitle;
+
+  /// No description provided for @syncDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This pour was never sent to the server. Deleting it removes it permanently — the farmer will not be paid for it.'**
+  String get syncDeleteConfirmBody;
+
+  /// No description provided for @syncSyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get syncSyncNow;
+
+  /// No description provided for @pendingSavingPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get pendingSavingPill;
+
+  /// No description provided for @pendingFailedPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get pendingFailedPill;
+
+  /// No description provided for @collectCorrectionNeedsConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Corrections need a connection — try again when online.'**
+  String get collectCorrectionNeedsConnection;
+
   /// No description provided for @collectPendingDupTitle.
   ///
   /// In en, this message translates to:

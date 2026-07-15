@@ -295,6 +295,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeReports => 'Reports';
 
   @override
+  String get errorOffline =>
+      'No internet — check your connection and try again.';
+
+  @override
+  String get errorTimeout => 'Request timed out — try again.';
+
+  @override
+  String get errorGeneric => 'Something went wrong — try again.';
+
+  @override
+  String get syncSheetTitle => 'Entries on this device';
+
+  @override
+  String syncSheetCounts(Object pending, Object failed) {
+    return '$pending waiting · $failed failed';
+  }
+
+  @override
+  String get syncSheetAllClear => 'Everything is synced.';
+
+  @override
+  String get syncRetry => 'Retry';
+
+  @override
+  String get syncDelete => 'Delete';
+
+  @override
+  String get syncDeleteConfirmTitle => 'Delete this entry?';
+
+  @override
+  String get syncDeleteConfirmBody =>
+      'This pour was never sent to the server. Deleting it removes it permanently — the farmer will not be paid for it.';
+
+  @override
+  String get syncSyncNow => 'Sync now';
+
+  @override
+  String get pendingSavingPill => 'Saving…';
+
+  @override
+  String get pendingFailedPill => 'Failed';
+
+  @override
+  String get collectCorrectionNeedsConnection =>
+      'Corrections need a connection — try again when online.';
+
+  @override
   String get collectPendingDupTitle => 'Already saved on this device';
 
   @override

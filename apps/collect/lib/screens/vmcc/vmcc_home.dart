@@ -12,12 +12,16 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
+import '../../services/pour_queue.dart';
+import '../../widgets/pending_pours_strip.dart';
 import '../../widgets/pour_detail_sheet.dart';
+import '../../widgets/sync_queue_sheet.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
+import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
 import 'vmcc_collection_history.dart';
 import 'vmcc_farmers_tab.dart';
@@ -58,7 +62,7 @@ class VmccHome extends ConsumerWidget {
         children: [
           _header(context, ref, t, l, sync),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(t, l, summary, bands),
+          _hero(context, t, l, summary, bands),
           const SizedBox(height: DhenuSpacing.md),
           _statsRow(ref, t, l, summary),
           const SizedBox(height: DhenuSpacing.lg),
@@ -77,7 +81,7 @@ class VmccHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.xl),
           Text(l.homeYesterday, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _yesterday(ref, t, l),
+          _yesterday(context, ref, t, l),
           const SizedBox(height: DhenuSpacing.md),
           _historyLink(context, t, l),
         ],
@@ -129,15 +133,15 @@ class VmccHome extends ConsumerWidget {
             pendingCount: sync.pendingCount,
             failedCount: sync.failedCount,
             agoLabel: l.homeJustNow,
-            onTap: () => ref.read(syncProvider.notifier).forceSync(),
+            onTap: () => showSyncQueueSheet(context, ref, node.id),
           ),
         ],
       );
 
-  Widget _hero(DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary, QualityBands? bands) {
+  Widget _hero(BuildContext context, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary, QualityBands? bands) {
     return summary.when(
       loading: () => const DhenuLoadingList(rows: 2),
-      error: (e, _) => HeroNumberCard(label: l.homeHeroToday, primaryValue: '—', footer: Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC))),
+      error: (e, _) => HeroNumberCard(label: l.homeHeroToday, primaryValue: '—', footer: Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC))),
       data: (s) {
         final isAm = shiftFrom(currentShift()) == Shift.am;
         final qty = s == null ? 0.0 : (isAm ? s.amQty : s.pmQty);
@@ -236,11 +240,11 @@ class VmccHome extends ConsumerWidget {
   /// Compact rollup of yesterday's collection: litres headline, farmer count,
   /// AM/PM split, and qty-weighted FAT/SNF. Quietly collapses to a one-line
   /// caption when yesterday had no milk.
-  Widget _yesterday(WidgetRef ref, DhenuTokens t, AppLocalizations l) {
+  Widget _yesterday(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
     final summary = ref.watch(nodeSummaryForDateProvider(_yesterdayKey));
     return summary.when(
       loading: () => const DhenuLoadingList(rows: 1),
-      error: (e, _) => Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC)),
+      error: (e, _) => Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
       data: (s) {
         if (s == null || s.totalQty <= 0.05) {
           return Text(l.homeNoCollectionYesterday,
@@ -291,32 +295,49 @@ class VmccHome extends ConsumerWidget {
     final poursAsync = ref.watch(nodeTodayPoursProvider(node.id));
     final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
-    return poursAsync.when(
-      loading: () => const DhenuLoadingList(),
-      error: (e, _) => DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.homeLoadError, subtitle: '$e'),
-      data: (pours) {
-        if (pours.isEmpty) {
-          return DhenuEmptyState(
-            icon: DhenuIcons.drop,
-            title: l.homeNoCollectionToday,
-            subtitle: l.homeNoCollectionSubtitle,
-          );
-        }
-        return ShiftGroupedPours(
-          pours: pours,
-          farmersById: byId,
-          bands: ref.watch(qualityBandsProvider(node.id)).valueOrNull,
-          showDate: true,
-          showAvatar: false,
-          onTapPour: (p, farmer) => showPourDetailSheet(
-            context,
-            pour: p,
-            node: node,
-            farmer: farmer,
-            onModify: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => RecordCollectionScreen(node: node, seedPour: p, seedFarmer: farmer),
-            )),
-          ),
+    // StreamBuilder (not a stateful conversion): queue mutations re-read the
+    // pending list so offline saves appear here the moment they're captured.
+    return StreamBuilder<int>(
+      stream: PourQueue.instance.changes,
+      builder: (context, _) {
+        final today = todayIso();
+        final pending = PourQueue.instance
+            .pendingFor(node.id)
+            .where((p) => p.collectionDate == today)
+            .toList();
+        return poursAsync.when(
+          loading: () => const DhenuLoadingList(),
+          error: (e, _) => DhenuEmptyState(
+              icon: DhenuIcons.cloudOff, title: l.homeLoadError, subtitle: friendlyError(context, e)),
+          data: (pours) {
+            if (pours.isEmpty && pending.isEmpty) {
+              return DhenuEmptyState(
+                icon: DhenuIcons.drop,
+                title: l.homeNoCollectionToday,
+                subtitle: l.homeNoCollectionSubtitle,
+              );
+            }
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              PendingPoursStrip(pending: pending, farmersById: byId),
+              if (pours.isNotEmpty)
+                ShiftGroupedPours(
+                  pours: pours,
+                  farmersById: byId,
+                  bands: ref.watch(qualityBandsProvider(node.id)).valueOrNull,
+                  showDate: true,
+                  showAvatar: false,
+                  onTapPour: (p, farmer) => showPourDetailSheet(
+                    context,
+                    pour: p,
+                    node: node,
+                    farmer: farmer,
+                    onModify: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => RecordCollectionScreen(node: node, seedPour: p, seedFarmer: farmer),
+                    )),
+                  ),
+                ),
+            ]);
+          },
         );
       },
     );

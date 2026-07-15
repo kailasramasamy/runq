@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
+import '../../utils/friendly_error.dart';
 
 /// Manual receive hub — for milk that arrived WITHOUT a dispatch entry (the VMCC
 /// operator forgot to mark dispatch, or works off a notebook). The operator
@@ -320,7 +321,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() { _saving = false; _error = '$e'; });
+      setState(() { _saving = false; _error = friendlyError(context, e); });
     }
   }
 
@@ -346,7 +347,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
       await mpRepo.deleteReceipt(widget.existing!.id);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() { _saving = false; _error = '$e'; });
+      setState(() { _saving = false; _error = friendlyError(context, e); });
     }
   }
 

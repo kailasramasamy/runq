@@ -13,8 +13,10 @@ import '../../services/pour_queue.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
+import '../../widgets/pending_pours_strip.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/primary_action.dart';
@@ -334,7 +336,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       // queued — surface it so the operator can fix it instead of losing the pour.
       if (mounted) {
         setState(() => _saving = false);
-        showDhenuToast(context, '$e', type: DhenuToastType.error);
+        showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
       }
       return;
     }
@@ -356,6 +358,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// the prior lots are reversed and the merged reading recorded. Online-only —
   /// it depends on reversing server-side rows (mirrors [_saveEdit]).
   Future<void> _saveCombined(List<MpPour> existing, String name) async {
+    if (_gateCorrectionOffline()) return;
     final totalQty = _qtyVal + existing.fold<double>(0, (s, p) => s + p.qtyLitres);
     final fat = _weightedAvg(existing, _qtyVal, _fatVal, (p) => p.fat);
     final snf = _weightedAvg(existing, _qtyVal, _snfVal, (p) => p.snf);
@@ -390,7 +393,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showDhenuToast(context, '$e', type: DhenuToastType.error);
+        showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
       }
     }
   }
@@ -398,7 +401,17 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// Edit an existing entry: reverse the original (targeted, by id) and re-record
   /// the correction on its ORIGINAL date as a lot, so siblings are untouched and
   /// past-day edits don't migrate to today. Online-only (edits are infrequent).
+  /// Corrections reverse server rows — impossible offline (deliberately not
+  /// queued; see audit B6). True = gated, caller must bail.
+  bool _gateCorrectionOffline() {
+    if (PourQueue.instance.isOnline) return false;
+    showDhenuToast(context, AppLocalizations.of(context).collectCorrectionNeedsConnection,
+        type: DhenuToastType.info);
+    return true;
+  }
+
   Future<void> _saveEdit() async {
+    if (_gateCorrectionOffline()) return;
     final seed = widget.seedPour!;
     final name = farmerName(context, _farmer!);
     final qtyLabel = litres(_qtyVal, unit: true);
@@ -427,7 +440,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showDhenuToast(context, '$e', type: DhenuToastType.error);
+        showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
       }
     }
   }
@@ -574,7 +587,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: _shift.name)));
       ref.invalidate(nodeAvailabilityProvider((nodeId: widget.node.id, shift: null)));
     } catch (e) {
-      if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+      if (mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     } finally {
       if (mounted) setState(() => _closingBusy = false);
     }
@@ -766,14 +779,22 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             .asData?.value ??
         const <MpPour>[];
     final pours = [for (final p in all) if (p.shift == _shift) p];
-    if (pours.isEmpty) return const SizedBox.shrink();
+    // Queue-saved (incl. failed) entries for this slot — shown even when
+    // nothing has synced yet, so an offline save is never invisible.
+    final pending = PourQueue.instance
+        .pendingFor(widget.node.id)
+        .where((p) => p.collectionDate == _date && p.shift == _shift.name)
+        .toList();
+    if (pours.isEmpty && pending.isEmpty) return const SizedBox.shrink();
     final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
     final bands = ref.watch(qualityBandsProvider(widget.node.id)).asData?.value;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(isToday ? l.collectTodaysEntries(pours.length) : l.collectEntries(pours.length),
+      Text(isToday ? l.collectTodaysEntries(pours.length + pending.length) : l.collectEntries(pours.length + pending.length),
           style: DhenuText.title.copyWith(color: t.ink)),
       const SizedBox(height: DhenuSpacing.sm),
+      PendingPoursStrip(pending: pending, farmersById: byId),
+      if (pours.isNotEmpty)
       ShiftGroupedPours(
         pours: pours,
         farmersById: byId,

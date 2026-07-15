@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
+import '../../utils/friendly_error.dart';
 
 /// Qty-weighted roll-up of one VMCC's receipts on a day (its AM + PM legs).
 typedef _Agg = ({double qty, double? fat, double? snf, double? water});
@@ -61,7 +62,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: async.when(
         loading: () => const DhenuLoadingList(),
         error: (e, _) => DhenuEmptyState(
-            icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: '$e'),
+            icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: friendlyError(context, e)),
         data: (days) {
           if (days.isEmpty) {
             return const DhenuEmptyState(

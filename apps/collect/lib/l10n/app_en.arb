@@ -162,6 +162,26 @@
   "homeFarmers": "Farmers",
   "homeHistory": "History",
   "homeReports": "Reports",
+  "errorOffline": "No internet — check your connection and try again.",
+  "errorTimeout": "Request timed out — try again.",
+  "errorGeneric": "Something went wrong — try again.",
+  "syncSheetTitle": "Entries on this device",
+  "syncSheetCounts": "{pending} waiting · {failed} failed",
+  "@syncSheetCounts": {
+    "placeholders": {
+      "pending": {},
+      "failed": {}
+    }
+  },
+  "syncSheetAllClear": "Everything is synced.",
+  "syncRetry": "Retry",
+  "syncDelete": "Delete",
+  "syncDeleteConfirmTitle": "Delete this entry?",
+  "syncDeleteConfirmBody": "This pour was never sent to the server. Deleting it removes it permanently — the farmer will not be paid for it.",
+  "syncSyncNow": "Sync now",
+  "pendingSavingPill": "Saving…",
+  "pendingFailedPill": "Failed",
+  "collectCorrectionNeedsConnection": "Corrections need a connection — try again when online.",
   "collectPendingDupTitle": "Already saved on this device",
   "collectPendingDupBody": "{name} already has an entry for this shift waiting to sync. Replace it, or add this as an extra container?",
   "@collectPendingDupBody": {

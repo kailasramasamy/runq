@@ -11,6 +11,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/sheet_grabber.dart';
+import '../../utils/friendly_error.dart';
 import 'cc_receive_history.dart';
 import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
@@ -55,7 +56,7 @@ class CcReceiveTab extends ConsumerWidget {
               error: (e, _) => DhenuEmptyState(
                 icon: DhenuIcons.cloudOff,
                 title: 'Could not load consignments',
-                subtitle: '$e',
+                subtitle: friendlyError(context, e),
               ),
               data: (today) {
                 final all = [...yest, ...today];
@@ -339,7 +340,7 @@ class CcReceiveTab extends ConsumerWidget {
       ref.invalidate(nodeInboundConsignmentsProvider(node.id));
       if (context.mounted) showDhenuToast(context, 'Receipt deleted', type: DhenuToastType.success);
     } catch (e) {
-      if (context.mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+      if (context.mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     }
   }
 

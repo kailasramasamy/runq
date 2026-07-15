@@ -11,6 +11,7 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/quality_badge.dart';
+import '../../utils/friendly_error.dart';
 
 /// Dedicated screen for receiving an in-transit consignment — the receiving
 /// node's most critical task. The source's *dispatched* figures are shown
@@ -119,7 +120,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() { _saving = false; _error = '$e'; });
+      setState(() { _saving = false; _error = friendlyError(context, e); });
     }
   }
 

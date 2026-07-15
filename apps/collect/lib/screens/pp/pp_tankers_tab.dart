@@ -8,6 +8,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../utils/friendly_error.dart';
 
 /// PP Tankers tab — all cc_to_pp consignments to this plant today (any status).
 class PpTankersTab extends ConsumerWidget {
@@ -38,7 +39,7 @@ class PpTankersTab extends ConsumerWidget {
           error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff,
             title: 'Could not load tankers',
-            subtitle: '$e',
+            subtitle: friendlyError(context, e),
           ),
           data: (all) {
             final tankers = all.where((c) => c.kind == 'cc_to_pp').toList();

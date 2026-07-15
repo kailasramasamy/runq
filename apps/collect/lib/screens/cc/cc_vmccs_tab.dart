@@ -6,6 +6,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/source_row.dart';
+import '../../utils/friendly_error.dart';
 
 /// CC VMCCs tab — child VMCC nodes feeding this chilling centre.
 class CcVmccsTab extends ConsumerStatefulWidget {
@@ -54,7 +55,7 @@ class _CcVmccsTabState extends ConsumerState<CcVmccsTab> {
         error: (e, _) => DhenuEmptyState(
           icon: DhenuIcons.cloudOff,
           title: 'Could not load VMCCs',
-          subtitle: '$e',
+          subtitle: friendlyError(context, e),
         ),
         data: (all) => _list(t, all),
       ),

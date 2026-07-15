@@ -23,13 +23,13 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 
 | # | Status | Finding | Where |
 |---|---|---|---|
-| B1 | ⬜ | **Offline-saved pours are invisible** — "Saved on device" toast, then the pour appears nowhere (Today's entries reads recorded providers only; count chip is the sole trace) | `record_collection.dart:718-754` |
-| B2 | ⬜ | **No failed/pending pour inspection** — `PendingPour.hasFailed`+`lastError` computed but never surfaced; tapping the sync chip just drains. No per-pour retry/delete | `pour_queue.dart:201-210`, `sync_status.dart:72-80` |
-| B3 | ⬜ | **CC/PP writes have zero offline support** — receive, dispatch, manual receive, shift close all call the API directly and throw on 2G; the pour queue pattern covers VMCC capture only | `receive_consignment_screen.dart:116`, `cc_dispatch_tab.dart:73,193`, `manual_receive_screen.dart:303` |
-| B4 | ⬜ | **Raw exceptions dumped at operators** — CC/PP screens render `'$e'` (`SocketException … errno = 61`); no central network→friendly-message mapping (no NetworkException layer like apps/mobile has) | `cc_dispatch_tab.dart:213`, `manual_receive_screen.dart:323,349`, `cc_home.dart:210,303`, `pp_home.dart:110` |
-| B5 | ⬜ | **No crash reporting, no analytics** — firebase_core already initialized; Crashlytics is a small add. Production crashes and adoption funnels are invisible today | `pubspec.yaml`, `main.dart:20-30` |
-| B6 | ⬜ | **Corrections are online-only** — edit/combine/delete call `reversePour` directly; a wrong entry can't be fixed offline | `record_collection.dart:316-391`, `pour_detail_sheet.dart:41-67` |
-| B7 | ⬜ | Timeout constants inconsistent (15s/60s/120s/8s) + stale "30s" comment; no retry/backoff in api_client | `api_client.dart:47,92,130`, `auth_provider.dart:119` |
+| B1 | ✅ | **Offline-saved pours are invisible** — "Saved on device" toast, then the pour appears nowhere (Today's entries reads recorded providers only; count chip is the sole trace) | `record_collection.dart:718-754` |
+| B2 | ✅ | **No failed/pending pour inspection** — `PendingPour.hasFailed`+`lastError` computed but never surfaced; tapping the sync chip just drains. No per-pour retry/delete | `pour_queue.dart:201-210`, `sync_status.dart:72-80` |
+| B3 | ✅ (scoped: friendly errors, no offline queue) | **CC/PP writes have zero offline support** — receive, dispatch, manual receive, shift close all call the API directly and throw on 2G; the pour queue pattern covers VMCC capture only | `receive_consignment_screen.dart:116`, `cc_dispatch_tab.dart:73,193`, `manual_receive_screen.dart:303` |
+| B4 | ✅ | **Raw exceptions dumped at operators** — CC/PP screens render `'$e'` (`SocketException … errno = 61`); no central network→friendly-message mapping (no NetworkException layer like apps/mobile has) | `cc_dispatch_tab.dart:213`, `manual_receive_screen.dart:323,349`, `cc_home.dart:210,303`, `pp_home.dart:110` |
+| B5 | ⏸ skipped per owner | **No crash reporting, no analytics** — firebase_core already initialized; Crashlytics is a small add. Production crashes and adoption funnels are invisible today | `pubspec.yaml`, `main.dart:20-30` |
+| B6 | 🔄 gated offline w/ clear message; queueing deferred | **Corrections are online-only** — edit/combine/delete call `reversePour` directly; a wrong entry can't be fixed offline | `record_collection.dart:316-391`, `pour_detail_sheet.dart:41-67` |
+| B7 | ✅ | Timeout constants inconsistent (15s/60s/120s/8s) + stale "30s" comment; no retry/backoff in api_client | `api_client.dart:47,92,130`, `auth_provider.dart:119` |
 
 ## Tier 3 — Quick wins (low effort, immediate feel)
 

@@ -12,6 +12,7 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/stat_card.dart';
+import '../../utils/friendly_error.dart';
 import 'qc_report_view.dart';
 
 /// CC daily report — milk received at the CC on a chosen date (defaults to
@@ -52,7 +53,7 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
             error: (e, _) => DhenuEmptyState(
               icon: DhenuIcons.cloudOff,
               title: 'Could not load the report',
-              subtitle: '$e',
+              subtitle: friendlyError(context, e),
             ),
             data: (rows) {
               final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
