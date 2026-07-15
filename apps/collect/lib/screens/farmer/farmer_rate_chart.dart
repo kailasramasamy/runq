@@ -125,6 +125,8 @@ class _RateChartBody extends StatelessWidget {
         ],
         if (chart.pricingMode == 'flat')
           _flatRate(t, l, chart)
+        else if (chart.pricingMode == 'clr')
+          ClrRateTable(cells: detail.cells, lastClr: lastPour?.clr)
         else ...[
           Text(l.farmerRateMatrixTitle, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
@@ -214,9 +216,20 @@ class _RateChartBody extends StatelessWidget {
 
   Widget _lastPourText(DhenuTokens t) {
     final milkType = lastPour!.milkType;
+    final base = DhenuText.body.copyWith(color: t.ink);
+    // CLR (lactometer) pours have no FAT/SNF — show the CLR reading instead.
+    if (lastPour!.fat == null && lastPour!.clr != null) {
+      final clrColor = QualityBadge.bandColor(bands, milkType, 'clr', lastPour!.clr, t) ?? t.ink;
+      return RichText(
+        text: TextSpan(style: base, children: [
+          const TextSpan(text: 'CLR '),
+          TextSpan(text: oneDp(lastPour!.clr!), style: TextStyle(color: clrColor)),
+          TextSpan(text: ' → ${rupees(lastRate!.ratePerLitre, paise: true)}/L'),
+        ]),
+      );
+    }
     final fatColor = QualityBadge.bandColor(bands, milkType, 'fat', lastPour!.fat, t) ?? t.ink;
     final snfColor = QualityBadge.bandColor(bands, milkType, 'snf', lastPour!.snf, t) ?? t.ink;
-    final base = DhenuText.body.copyWith(color: t.ink);
     return RichText(
       text: TextSpan(style: base, children: [
         const TextSpan(text: 'FAT '),
@@ -440,4 +453,74 @@ class RateMatrix extends StatelessWidget {
       return da <= db ? a : b;
     });
   }
+}
+
+/// CLR (lactometer) breakpoint table — highlights the row that priced the
+/// farmer's last pour (nearest-floor, matching the server's resolution).
+class ClrRateTable extends StatelessWidget {
+  const ClrRateTable({super.key, required this.cells, required this.lastClr});
+
+  final List<MpRateCell> cells;
+  final double? lastClr;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    final rows = cells.where((c) => c.clr != null).toList()
+      ..sort((a, b) => a.clr!.compareTo(b.clr!));
+    if (rows.isEmpty) {
+      return Text(l.farmerRateNoMatrixData, style: DhenuText.body.copyWith(color: t.inkSoft));
+    }
+    final highlighted = _floorRow(rows);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [_headerCell(t, 'CLR'), _headerCell(t, '₹ / L')]),
+        ...rows.map((c) => Row(children: [
+              _cell(t, oneDp(c.clr!), identical(c, highlighted), header: true),
+              _cell(t, rupees(c.ratePerLitre), identical(c, highlighted)),
+            ])),
+      ],
+    );
+  }
+
+  /// Largest row with clr ≤ lastClr — the server's nearest-floor pick.
+  MpRateCell? _floorRow(List<MpRateCell> rows) {
+    if (lastClr == null) return null;
+    MpRateCell? best;
+    for (final c in rows) {
+      if (c.clr! <= lastClr!) best = c;
+    }
+    return best;
+  }
+
+  Widget _headerCell(DhenuTokens t, String text) => Container(
+        width: 108,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: t.hairline,
+          border: Border.all(color: t.hairline),
+        ),
+        child: Text(text, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+      );
+
+  Widget _cell(DhenuTokens t, String text, bool highlighted, {bool header = false}) =>
+      Container(
+        width: 108,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: highlighted ? t.brandSubtle : (header ? t.hairline : t.card),
+          border: highlighted
+              ? Border.all(color: t.brand, width: 2)
+              : Border.all(color: t.hairline),
+        ),
+        child: Text(
+          text,
+          style: DhenuText.number(size: 13, color: highlighted ? t.brand : t.ink),
+        ),
+      );
 }

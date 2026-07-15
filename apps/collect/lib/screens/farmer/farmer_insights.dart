@@ -223,4 +223,23 @@ QualityNudge? detectQualityNudge({
   return best;
 }
 
+/// Quality streak: consecutive *recorded* days, counting back from the most
+/// recent pour date, where every pour that day was Grade A. Calendar gaps
+/// between recorded days don't break the chain. Single source for the Home
+/// nudge ring and the Rewards ring/badges (over farmerStreakPoursProvider).
+int computeStreak(List<MpPour> pours) {
+  if (pours.isEmpty) return 0;
+  final byDate = <String, List<MpPour>>{};
+  for (final p in pours) {
+    byDate.putIfAbsent(p.collectionDate, () => []).add(p);
+  }
+  final sortedDates = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
+  var streak = 0;
+  for (final date in sortedDates) {
+    if (!byDate[date]!.every((p) => p.qualityGrade == Grade.a)) break;
+    streak++;
+  }
+  return streak;
+}
+
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);

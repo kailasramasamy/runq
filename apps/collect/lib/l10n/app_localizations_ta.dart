@@ -297,6 +297,35 @@ class AppLocalizationsTa extends AppLocalizations {
   String get homeReports => 'அறிக்கைகள்';
 
   @override
+  String get collectPendingDupTitle =>
+      'இந்த சாதனத்தில் ஏற்கனவே சேமிக்கப்பட்டுள்ளது';
+
+  @override
+  String collectPendingDupBody(Object name) {
+    return '$nameக்கு இந்த ஷிஃப்டுக்கான பதிவு ஏற்கனவே ஒத்திசைவுக்காக காத்திருக்கிறது. அதை மாற்றவா, அல்லது இதை கூடுதல் பாத்திரமாக சேர்க்கவா?';
+  }
+
+  @override
+  String get collectPendingDupReplace => 'சேமித்த பதிவை மாற்று';
+
+  @override
+  String get collectPendingDupExtraLot => 'கூடுதல் லாட்டாக சேர்';
+
+  @override
+  String syncFailedLabel(Object count) {
+    return '$count தோல்வி — கவனம் தேவை';
+  }
+
+  @override
+  String get homeYesterday => 'நேற்று';
+
+  @override
+  String get homeNoCollectionYesterday => 'நேற்று சேகரிப்பு இல்லை';
+
+  @override
+  String get homeSeeFullHistory => 'முழு வரலாற்றைக் காண்க';
+
+  @override
   String get homeAmShiftInProgress => '☀️ காலை ஷிஃப்ட் · நடைபெறுகிறது';
 
   @override
@@ -1301,7 +1330,16 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
-  String get farmerPaymentsGrossMilk => 'மொத்த பால்';
+  String get farmerPaymentsGrossMilk => 'பால் மதிப்பு (அடிப்படை)';
+
+  @override
+  String get farmerPaymentsEstimatedDeduction => 'முன்பண வசூல் (மதிப்பீடு)';
+
+  @override
+  String get farmerPaymentsStatusPending => 'நிலுவையில்';
+
+  @override
+  String get farmerPaymentsStatusProcessing => 'செயலாக்கத்தில்';
 
   @override
   String get farmerPaymentsQualityBonus => 'தர போனஸ்';

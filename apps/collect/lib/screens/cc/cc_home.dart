@@ -99,6 +99,7 @@ class CcHome extends ConsumerWidget {
         children: [
           DhenuSectionHeader(node.name, trailing: SyncStatus(
             state: sync.state, pendingCount: sync.pendingCount,
+            failedCount: sync.failedCount,
             onTap: () => ref.read(syncProvider.notifier).forceSync(),
           )),
           const SizedBox(height: DhenuSpacing.lg),

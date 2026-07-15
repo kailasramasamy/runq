@@ -7,8 +7,10 @@ String _daysAgo(DateTime today, int n) {
   return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
-MpPour _pour(String date, double qty, double line, {double? fat, double? snf}) => MpPour(
-      id: date,
+MpPour _pour(String date, double qty, double line,
+        {double? fat, double? snf, Grade grade = Grade.a, String id = ''}) =>
+    MpPour(
+      id: id.isEmpty ? date : id,
       nodeId: 'n',
       farmerId: 'f',
       collectionDate: date,
@@ -19,6 +21,7 @@ MpPour _pour(String date, double qty, double line, {double? fat, double? snf}) =
       lineAmount: line,
       fat: fat,
       snf: snf,
+      qualityGrade: grade,
     );
 
 MpRateCell _cell(double fat, double snf, double rate) =>
@@ -168,6 +171,56 @@ void main() {
       final pours = List.generate(
           4, (i) => _pour(_daysAgo(today, i * 3 + 1), 10, 300)); // fat/snf null
       expect(detectQualityNudge(pours: pours, today: today), isNull);
+    });
+  });
+
+  group('computeStreak', () {
+    final today = DateTime(2026, 7, 10);
+
+    test('empty pours → 0', () {
+      expect(computeStreak([]), 0);
+    });
+
+    test('consecutive all-A days count from the most recent', () {
+      final pours = [for (var i = 0; i < 3; i++) _pour(_daysAgo(today, i), 10, 300)];
+      expect(computeStreak(pours), 3);
+    });
+
+    test('a non-A day breaks the chain at the right point', () {
+      final pours = [
+        _pour(_daysAgo(today, 0), 10, 300),
+        _pour(_daysAgo(today, 1), 10, 300),
+        _pour(_daysAgo(today, 2), 10, 300, grade: Grade.b),
+        _pour(_daysAgo(today, 3), 10, 300),
+      ];
+      expect(computeStreak(pours), 2);
+    });
+
+    test('one non-A pour among several on a day breaks that day', () {
+      final pours = [
+        _pour(_daysAgo(today, 0), 10, 300, id: 'am'),
+        _pour(_daysAgo(today, 0), 10, 300, grade: Grade.c, id: 'pm'),
+        _pour(_daysAgo(today, 1), 10, 300),
+      ];
+      expect(computeStreak(pours), 0);
+    });
+
+    test('calendar gaps between recorded days do not break the chain', () {
+      final pours = [
+        _pour(_daysAgo(today, 0), 10, 300),
+        _pour(_daysAgo(today, 4), 10, 300),
+        _pour(_daysAgo(today, 9), 10, 300),
+      ];
+      expect(computeStreak(pours), 3);
+    });
+
+    test('input order does not matter', () {
+      final pours = [
+        _pour(_daysAgo(today, 2), 10, 300),
+        _pour(_daysAgo(today, 0), 10, 300),
+        _pour(_daysAgo(today, 1), 10, 300),
+      ];
+      expect(computeStreak(pours), 3);
     });
   });
 }

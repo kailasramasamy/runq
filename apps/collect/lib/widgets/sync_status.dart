@@ -1,25 +1,30 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
-enum SyncState { synced, pending, offline }
+enum SyncState { synced, pending, offline, failed }
 
 /// Calm tappable chip for the header showing sync state.
 ///
 /// - synced: "● Synced 2m ago" (green dot)
 /// - pending: "⏳ 3 to send" (amber)
 /// - offline: "⚠ Offline — saved on device" (inkSoft)
+/// - failed: "⚠ 1 failed — needs attention" (gradeC) — rejected pours that
+///   will never auto-retry; they stay visible and keep blocking shift close.
 class SyncStatus extends StatelessWidget {
   const SyncStatus({
     super.key,
     required this.state,
     this.pendingCount = 0,
+    this.failedCount = 0,
     this.agoLabel,
     this.onTap,
   });
 
   final SyncState state;
   final int pendingCount;
+  final int failedCount;
 
   /// e.g. "2m ago" — used when state is synced.
   final String? agoLabel;
@@ -29,7 +34,7 @@ class SyncStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final content = _buildContent(t);
+    final content = _buildContent(t, AppLocalizations.of(context));
 
     return GestureDetector(
       onTap: onTap,
@@ -50,8 +55,18 @@ class SyncStatus extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildContent(DhenuTokens t) {
+  List<Widget> _buildContent(DhenuTokens t, AppLocalizations l) {
     switch (state) {
+      case SyncState.failed:
+        return [
+          Text('⚠', style: DhenuText.caption.copyWith(color: t.gradeC)),
+          const SizedBox(width: DhenuSpacing.xs),
+          Text(
+            l.syncFailedLabel(failedCount),
+            style: DhenuText.caption.copyWith(color: t.gradeC),
+          ),
+        ];
+
       case SyncState.synced:
         return [
           Container(

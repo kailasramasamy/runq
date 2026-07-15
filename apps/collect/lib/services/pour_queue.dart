@@ -26,6 +26,8 @@ class PourQueue {
 
   static const _boxName = 'dhenu_pour_queue_v1';
   static const _uuid = Uuid();
+  // A 5xx that persists this many drains is treated as permanent (failed).
+  static const _maxAttempts = 8;
 
   Box<Map<dynamic, dynamic>>? _box;
   final _connectivity = Connectivity();
@@ -53,7 +55,7 @@ class PourQueue {
     });
 
     WidgetsBinding.instance.addObserver(_LifecycleObserver(this));
-    if (_online && _box!.isNotEmpty) unawaited(drain());
+    if (_online && pendingCount > 0) unawaited(drain());
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -100,7 +102,8 @@ class PourQueue {
     }
   }
 
-  /// Pending (unsent) pours for a node — drives optimistic "recent entries".
+  /// Queued pours for a node (including failed ones — they still block shift
+  /// close and stay visible) — drives optimistic "recent entries".
   List<PendingPour> pendingFor(String nodeId) {
     final box = _box;
     if (box == null) return const [];
@@ -111,9 +114,24 @@ class PourQueue {
         .toList();
   }
 
-  int get pendingCount => _box?.length ?? 0;
+  /// Entries still eligible to sync (excludes permanently-failed ones).
+  int get pendingCount =>
+      _box?.values.where((m) => m['failed'] != true).length ?? 0;
 
-  /// Drain the queue FIFO. Stops on the first persistent failure (badge stays).
+  /// Entries the server rejected (4xx) or that exhausted retries — kept for
+  /// visibility and shift-close blocking, never retried automatically.
+  int get failedCount =>
+      _box?.values.where((m) => m['failed'] == true).length ?? 0;
+
+  /// Remove a queued pour (operator chose "replace" on a pending duplicate).
+  Future<void> removePending(String key) async {
+    await _box?.delete(key);
+    _bump();
+  }
+
+  /// Drain the queue FIFO. A poison entry (4xx / retries exhausted) is marked
+  /// failed and skipped so it can never block entries behind it; a connectivity
+  /// error stops the whole drain (the link is down for everyone).
   Future<void> drain() async {
     final box = _box;
     if (box == null || box.isEmpty || _draining || !_online) return;
@@ -123,11 +141,21 @@ class PourQueue {
         final raw = box.get(key);
         if (raw == null) continue;
         final entry = _PendingPour.fromBox(Map<String, dynamic>.from(raw));
+        if (entry.failed) continue;
         try {
           await mpRepo.recordPour(jsonDecode(entry.bodyJson) as Map<String, dynamic>);
           await box.delete(key);
           _bump();
+        } on ApiException catch (e) {
+          // Server responded: 4xx never succeeds on retry; a 5xx gets
+          // _maxAttempts tries. Either way the next entry still gets its turn.
+          final next = entry.withError(e.message);
+          final poison =
+              (e.statusCode >= 400 && e.statusCode < 500) || next.attempts >= _maxAttempts;
+          await box.put(key, poison ? entry.markFailed(e.message).toBox() : next.toBox());
+          _bump();
         } catch (e) {
+          // Connectivity failure — nothing behind this will succeed either.
           await box.put(key, entry.withError(e.toString()).toBox());
           _bump();
           break;
@@ -155,13 +183,16 @@ class PourQueue {
 
 /// Public read-only view of a queued pour for optimistic display.
 class PendingPour {
-  final String nodeId, farmerId, shift;
+  final String key, nodeId, farmerId, shift, milkType, collectionDate;
   final double qtyLitres;
   final bool hasFailed;
   PendingPour({
+    required this.key,
     required this.nodeId,
     required this.farmerId,
     required this.shift,
+    required this.milkType,
+    required this.collectionDate,
     required this.qtyLitres,
     required this.hasFailed,
   });
@@ -171,12 +202,15 @@ class _PendingPour {
   final String key, nodeId, bodyJson;
   final int attempts;
   final String? lastError;
+  // Permanently rejected (4xx) or retries exhausted — skipped by drain().
+  final bool failed;
   _PendingPour({
     required this.key,
     required this.nodeId,
     required this.bodyJson,
     required this.attempts,
     required this.lastError,
+    this.failed = false,
   });
 
   factory _PendingPour.fromBox(Map<String, dynamic> m) => _PendingPour(
@@ -185,6 +219,7 @@ class _PendingPour {
         bodyJson: m['bodyJson'] as String,
         attempts: (m['attempts'] as int?) ?? 0,
         lastError: m['lastError'] as String?,
+        failed: m['failed'] == true, // absent on pre-upgrade rows → false
       );
 
   Map<String, dynamic> toBox() => {
@@ -193,19 +228,27 @@ class _PendingPour {
         'bodyJson': bodyJson,
         'attempts': attempts,
         if (lastError != null) 'lastError': lastError,
+        if (failed) 'failed': true,
       };
 
-  _PendingPour withError(String e) =>
-      _PendingPour(key: key, nodeId: nodeId, bodyJson: bodyJson, attempts: attempts + 1, lastError: e);
+  _PendingPour withError(String e) => _PendingPour(
+      key: key, nodeId: nodeId, bodyJson: bodyJson, attempts: attempts + 1, lastError: e);
+
+  _PendingPour markFailed(String e) => _PendingPour(
+      key: key, nodeId: nodeId, bodyJson: bodyJson, attempts: attempts + 1,
+      lastError: e, failed: true);
 
   PendingPour toPublic() {
     final body = jsonDecode(bodyJson) as Map<String, dynamic>;
     return PendingPour(
+      key: key,
       nodeId: nodeId,
       farmerId: (body['farmerId'] ?? '').toString(),
       shift: (body['shift'] ?? 'am').toString(),
+      milkType: (body['milkType'] ?? '').toString(),
+      collectionDate: (body['collectionDate'] ?? '').toString(),
       qtyLitres: (body['qtyLitres'] is num) ? (body['qtyLitres'] as num).toDouble() : 0,
-      hasFailed: attempts > 0 && lastError != null,
+      hasFailed: failed,
     );
   }
 }

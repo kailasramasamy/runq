@@ -96,6 +96,7 @@ class PpHome extends ConsumerWidget {
       trailing: SyncStatus(
         state: sync.state,
         pendingCount: sync.pendingCount,
+        failedCount: sync.failedCount,
         onTap: () => ref.read(syncProvider.notifier).forceSync(),
       ),
     );

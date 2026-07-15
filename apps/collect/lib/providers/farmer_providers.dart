@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/api_client.dart';
 import '../api/mp_models.dart';
 import '../api/mp_repo.dart';
 import '../utils/format.dart';
@@ -31,37 +32,86 @@ final farmerRecentPoursProvider = FutureProvider<List<MpPour>>((ref) async {
       status: 'recorded', limit: 500);
 });
 
+/// Rolling 30-day pours — the single source for the quality streak so Home
+/// and Rewards always show the same number (no cycle/month window skew).
+final farmerStreakPoursProvider = FutureProvider<List<MpPour>>((ref) async {
+  return mpRepo.pours(
+      farmerId: ref.watch(_farmerScopeId), from: isoDaysAgo(29), to: todayIso(),
+      status: 'recorded', limit: 500);
+});
+
 /// Ledger for the resolved farmer (balance + all entries).
 final farmerLedgerProvider =
     FutureProvider<({double balance, List<MpLedgerEntry> entries})>((ref) async {
   return mpRepo.farmerLedger(farmerId: ref.watch(_farmerScopeId));
 });
 
-/// All active cow rate charts (farmer permission allows this).
-final activeRateChartsProvider = FutureProvider<List<MpRateChart>>((ref) async {
-  final charts = await mpRepo.rateCharts(milkType: 'cow', limit: 50);
-  return charts.where((c) => c.isActive).toList();
+/// Server payout lines for the resolved farmer — the authoritative per-cycle
+/// net amounts and paid status shown in Payments history.
+final farmerPayoutLinesProvider = FutureProvider<List<MpPayoutLine>>((ref) async {
+  return mpRepo.farmerPayoutLines(farmerId: ref.watch(_farmerScopeId));
 });
 
-/// Detail (cells + rules) for the first active cow rate chart.
+/// The farmer's most recent pour this month, or null.
+final farmerLastPourProvider = FutureProvider<MpPour?>((ref) async {
+  final pours = await ref.watch(farmerMonthPoursProvider.future);
+  if (pours.isEmpty) return null;
+  return pours.reduce((a, b) =>
+      a.collectionDate.compareTo(b.collectionDate) >= 0 ? a : b);
+});
+
+/// The chart that actually prices this farmer's milk, resolved server-side —
+/// the same chain a pour uses (farmer override → VMCC override → node-scoped →
+/// tenant-wide). Context comes from the last pour (milk type, readings, node);
+/// a farmer with no pours yet probes with their default milk type, primary
+/// VMCC, and nominal mid-range FAT/SNF. When nothing resolves (e.g. no pour
+/// yet at a lactometer VMCC, so the FAT/SNF probe misses its CLR chart), falls
+/// back to the newest active chart for the farmer's milk type.
 final activeRateChartDetailProvider = FutureProvider<MpRateChartDetail?>((ref) async {
-  final charts = await ref.watch(activeRateChartsProvider.future);
-  if (charts.isEmpty) return null;
-  return mpRepo.rateChart(charts.first.id);
+  final last = await ref.watch(farmerLastPourProvider.future);
+  final self = await ref.watch(farmerSelfProvider.future);
+  final milkType = last?.milkType ?? self?.defaultMilkType ?? MilkType.cowA1;
+  final useClr = last != null && last.fat == null && last.clr != null;
+  try {
+    final res = await mpRepo.resolveRate(
+      milkType: milkType,
+      fat: useClr ? null : (last?.fat ?? 4.0),
+      snf: useClr ? null : (last?.snf ?? 8.0),
+      clr: useClr ? last.clr : null,
+      scopeNodeId: last?.nodeId ?? self?.primaryNodeId,
+      // the pour's farmerId, else the signed-in (or viewed-as) farmer's own id
+      // — _farmerScopeId is null for real farmer logins, so don't use it here
+      farmerId: last?.farmerId ?? self?.id,
+    );
+    if (res != null) return mpRepo.rateChart(res.rateChartId);
+  } on ApiException catch (e) {
+    if (e.statusCode != 404) rethrow; // network/auth errors surface normally
+  }
+  final charts = await mpRepo.rateCharts(milkType: milkTypeToApi(milkType), limit: 50);
+  final active = charts.where((c) => c.isActive).toList();
+  return active.isEmpty ? null : mpRepo.rateChart(active.first.id);
 });
 
 /// Rate resolution for the farmer's most recent pour — null if no pour yet.
+/// Passes the pour's node and the farmer so overrides price it correctly.
 final farmerLastRateResolutionProvider = FutureProvider<MpRateResolution?>((ref) async {
-  final pours = await ref.watch(farmerMonthPoursProvider.future);
-  if (pours.isEmpty) return null;
-  final last = pours.reduce((a, b) =>
-      a.collectionDate.compareTo(b.collectionDate) >= 0 ? a : b);
-  if (last.fat == null || last.snf == null) return null;
-  return mpRepo.resolveRate(
-    milkType: last.milkType,
-    fat: last.fat!,
-    snf: last.snf!,
-  );
+  final last = await ref.watch(farmerLastPourProvider.future);
+  if (last == null) return null;
+  final useClr = last.fat == null && last.clr != null;
+  if (!useClr && (last.fat == null || last.snf == null)) return null;
+  try {
+    return await mpRepo.resolveRate(
+      milkType: last.milkType,
+      fat: useClr ? null : last.fat,
+      snf: useClr ? null : last.snf,
+      clr: useClr ? last.clr : null,
+      scopeNodeId: last.nodeId,
+      farmerId: last.farmerId,
+    );
+  } on ApiException catch (e) {
+    if (e.statusCode != 404) rethrow;
+    return null; // chart since deactivated — hide the "last rate" strip
+  }
 });
 
 /// The resolved farmer's own master row. When an admin is "viewing as" a farmer

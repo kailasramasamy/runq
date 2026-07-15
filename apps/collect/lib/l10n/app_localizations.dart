@@ -622,6 +622,54 @@ abstract class AppLocalizations {
   /// **'Reports'**
   String get homeReports;
 
+  /// No description provided for @collectPendingDupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Already saved on this device'**
+  String get collectPendingDupTitle;
+
+  /// No description provided for @collectPendingDupBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} already has an entry for this shift waiting to sync. Replace it, or add this as an extra container?'**
+  String collectPendingDupBody(Object name);
+
+  /// No description provided for @collectPendingDupReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace saved entry'**
+  String get collectPendingDupReplace;
+
+  /// No description provided for @collectPendingDupExtraLot.
+  ///
+  /// In en, this message translates to:
+  /// **'Add as extra lot'**
+  String get collectPendingDupExtraLot;
+
+  /// No description provided for @syncFailedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} failed — needs attention'**
+  String syncFailedLabel(Object count);
+
+  /// No description provided for @homeYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get homeYesterday;
+
+  /// No description provided for @homeNoCollectionYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection yesterday'**
+  String get homeNoCollectionYesterday;
+
+  /// No description provided for @homeSeeFullHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'See full history'**
+  String get homeSeeFullHistory;
+
   /// No description provided for @homeAmShiftInProgress.
   ///
   /// In en, this message translates to:
@@ -2389,8 +2437,26 @@ abstract class AppLocalizations {
   /// Payments breakdown row label for gross milk amount
   ///
   /// In en, this message translates to:
-  /// **'Gross milk'**
+  /// **'Milk value (base)'**
   String get farmerPaymentsGrossMilk;
+
+  /// No description provided for @farmerPaymentsEstimatedDeduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Advance recovery (estimated)'**
+  String get farmerPaymentsEstimatedDeduction;
+
+  /// No description provided for @farmerPaymentsStatusPending.
+  ///
+  /// In en, this message translates to:
+  /// **'PENDING'**
+  String get farmerPaymentsStatusPending;
+
+  /// No description provided for @farmerPaymentsStatusProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'PROCESSING'**
+  String get farmerPaymentsStatusProcessing;
 
   /// Payments breakdown row label for quality bonus
   ///

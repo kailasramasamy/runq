@@ -162,6 +162,24 @@
   "homeFarmers": "Farmers",
   "homeHistory": "History",
   "homeReports": "Reports",
+  "collectPendingDupTitle": "Already saved on this device",
+  "collectPendingDupBody": "{name} already has an entry for this shift waiting to sync. Replace it, or add this as an extra container?",
+  "@collectPendingDupBody": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "collectPendingDupReplace": "Replace saved entry",
+  "collectPendingDupExtraLot": "Add as extra lot",
+  "syncFailedLabel": "{count} failed — needs attention",
+  "@syncFailedLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "homeYesterday": "Yesterday",
+  "homeNoCollectionYesterday": "No collection yesterday",
+  "homeSeeFullHistory": "See full history",
   "homeAmShiftInProgress": "☀️ AM shift · in progress",
   "homePmShiftInProgress": "☾ PM shift · in progress",
   "homeJustNow": "just now",
@@ -779,7 +797,10 @@
       }
     }
   },
-  "farmerPaymentsGrossMilk": "Gross milk",
+  "farmerPaymentsGrossMilk": "Milk value (base)",
+  "farmerPaymentsEstimatedDeduction": "Advance recovery (estimated)",
+  "farmerPaymentsStatusPending": "PENDING",
+  "farmerPaymentsStatusProcessing": "PROCESSING",
   "@farmerPaymentsGrossMilk": {
     "description": "Payments breakdown row label for gross milk amount"
   },

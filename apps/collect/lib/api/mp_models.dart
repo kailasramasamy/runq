@@ -317,17 +317,21 @@ class MpRateChart {
 class MpRateCell {
   final String id;
   final double fat, snf, ratePerLitre;
+  /// Set on CLR (lactometer) chart cells; fat/snf are 0 for those.
+  final double? clr;
   MpRateCell({
     required this.id,
     required this.fat,
     required this.snf,
     required this.ratePerLitre,
+    this.clr,
   });
   factory MpRateCell.fromJson(Map<String, dynamic> j) => MpRateCell(
     id: _s(j['id']),
     fat: _d(j['fat']),
     snf: _d(j['snf']),
     ratePerLitre: _d(j['ratePerLitre']),
+    clr: _dn(j['clr']),
   );
 }
 
@@ -380,6 +384,8 @@ class MpPour {
   final Shift shift;
   final MilkType milkType;
   final double qtyLitres, ratePerLitre, lineAmount;
+  // Server splits lineAmount = baseAmount + bonusAmount (rate is base+bonus).
+  final double baseAmount, bonusAmount;
   final double? fat, snf, clr, water;
   final Grade qualityGrade;
   final String? receiptNo;
@@ -395,6 +401,8 @@ class MpPour {
     required this.qtyLitres,
     required this.ratePerLitre,
     required this.lineAmount,
+    this.baseAmount = 0,
+    this.bonusAmount = 0,
     this.fat,
     this.snf,
     this.clr,
@@ -414,6 +422,8 @@ class MpPour {
     qtyLitres: _d(j['qtyLitres']),
     ratePerLitre: _d(j['ratePerLitre']),
     lineAmount: _d(j['lineAmount']),
+    baseAmount: _d(j['baseAmount']),
+    bonusAmount: _d(j['bonusAmount']),
     fat: _dn(j['fat']),
     snf: _dn(j['snf']),
     clr: _dn(j['clr']),
@@ -781,6 +791,9 @@ class MpPayoutLine {
   final String? paymentId, settledViaNodeId, statementNo;
   final DateTime? paidAt;
   final List<MpPayoutDeduction> deductions;
+  // Set only by GET /payouts/my-lines (line joined with its cycle); null when
+  // the line arrives inside a cycle-detail payload.
+  final String? periodStart, periodEnd, cycleStatus, paymentMode, paymentDate;
   MpPayoutLine({
     required this.id,
     required this.farmerId,
@@ -794,6 +807,11 @@ class MpPayoutLine {
     this.statementNo,
     this.paidAt,
     this.deductions = const [],
+    this.periodStart,
+    this.periodEnd,
+    this.cycleStatus,
+    this.paymentMode,
+    this.paymentDate,
   });
 
   /// Operator marked this farmer disbursed (cash/UPI). See [paidAt].
@@ -816,6 +834,11 @@ class MpPayoutLine {
     deductions: ((j['deductions'] as List?) ?? [])
         .map((e) => MpPayoutDeduction.fromJson(e as Map<String, dynamic>))
         .toList(),
+    periodStart: _sn(j['periodStart']),
+    periodEnd: _sn(j['periodEnd']),
+    cycleStatus: _sn(j['cycleStatus']),
+    paymentMode: _sn(j['paymentMode']),
+    paymentDate: _sn(j['paymentDate']),
   );
 }
 

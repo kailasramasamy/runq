@@ -20,6 +20,12 @@ export const ledgerFilterSchema = z.object({
   farmerId: z.string().uuid().optional(),
 });
 
+export const farmerLinesFilterSchema = z.object({
+  // optional: a farmer persona reads their own lines (server forces the id)
+  farmerId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(24),
+});
+
 // `Payout`-prefixed to avoid clashing with HR review-cycle schemas in the barrel
 export const createPayoutCycleSchema = z.object({
   scopeNodeId: z.string().uuid().nullish(),
@@ -38,6 +44,7 @@ export const markLinePaidSchema = z.object({ paid: z.boolean() });
 
 export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
 export type LedgerFilter = z.infer<typeof ledgerFilterSchema>;
+export type FarmerLinesFilter = z.infer<typeof farmerLinesFilterSchema>;
 export type CreatePayoutCycleInput = z.infer<typeof createPayoutCycleSchema>;
 export type PayoutCycleFilter = z.infer<typeof payoutCycleFilterSchema>;
 export type MarkLinePaidInput = z.infer<typeof markLinePaidSchema>;

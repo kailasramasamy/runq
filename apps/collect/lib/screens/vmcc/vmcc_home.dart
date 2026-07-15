@@ -32,12 +32,15 @@ class VmccHome extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeTodaySummaryProvider(node.id));
     ref.invalidate(nodeTodayPoursProvider(node.id));
+    ref.invalidate(nodeSummaryForDateProvider(_yesterdayKey));
     ref.invalidate(nodeAvailabilityProvider);
     await Future.wait([
       ref.read(nodeTodaySummaryProvider(node.id).future),
       ref.read(nodeTodayPoursProvider(node.id).future),
     ]);
   }
+
+  NodeDateKey get _yesterdayKey => (nodeId: node.id, date: isoDaysAgo(1));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,6 +74,12 @@ class VmccHome extends ConsumerWidget {
           Text(l.homeRecentEntries, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
           _recent(context, t, l, ref),
+          const SizedBox(height: DhenuSpacing.xl),
+          Text(l.homeYesterday, style: DhenuText.title.copyWith(color: t.ink)),
+          const SizedBox(height: DhenuSpacing.sm),
+          _yesterday(ref, t, l),
+          const SizedBox(height: DhenuSpacing.md),
+          _historyLink(context, t, l),
         ],
       ),
     );
@@ -118,6 +127,7 @@ class VmccHome extends ConsumerWidget {
           SyncStatus(
             state: sync.state,
             pendingCount: sync.pendingCount,
+            failedCount: sync.failedCount,
             agoLabel: l.homeJustNow,
             onTap: () => ref.read(syncProvider.notifier).forceSync(),
           ),
@@ -222,6 +232,60 @@ class VmccHome extends ConsumerWidget {
         ]),
       );
 
+
+  /// Compact rollup of yesterday's collection: litres headline, farmer count,
+  /// AM/PM split, and qty-weighted FAT/SNF. Quietly collapses to a one-line
+  /// caption when yesterday had no milk.
+  Widget _yesterday(WidgetRef ref, DhenuTokens t, AppLocalizations l) {
+    final summary = ref.watch(nodeSummaryForDateProvider(_yesterdayKey));
+    return summary.when(
+      loading: () => const DhenuLoadingList(rows: 1),
+      error: (e, _) => Text('$e', style: DhenuText.caption.copyWith(color: t.gradeC)),
+      data: (s) {
+        if (s == null || s.totalQty <= 0.05) {
+          return Text(l.homeNoCollectionYesterday,
+              style: DhenuText.body.copyWith(color: t.inkSoft));
+        }
+        return DhenuCard(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(litres(s.totalQty, unit: true), style: DhenuText.title.copyWith(color: t.ink)),
+              const Spacer(),
+              Text(l.homeFarmerCount(s.farmerCount),
+                  style: DhenuText.body.copyWith(color: t.inkSoft)),
+            ]),
+            const SizedBox(height: DhenuSpacing.sm),
+            Row(children: [
+              Text('${l.shiftAm} ${litres(s.amQty, unit: true)} · ${l.shiftPm} ${litres(s.pmQty, unit: true)}',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              const Spacer(),
+              if (s.avgFat > 0)
+                Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ]),
+          ]),
+        );
+      },
+    );
+  }
+
+  /// Full-width tappable row into the collection history screen.
+  Widget _historyLink(BuildContext context, DhenuTokens t, AppLocalizations l) => DhenuCard(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(l.homeHistory, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: VmccCollectionHistory(node: node),
+          ),
+        )),
+        child: Row(children: [
+          Icon(DhenuIcons.history, color: t.brand, size: 20),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Text(l.homeSeeFullHistory, style: DhenuText.label.copyWith(color: t.ink)),
+          ),
+          Icon(DhenuIcons.chevronRight, color: t.inkSoft, size: 20),
+        ]),
+      );
 
   Widget _recent(BuildContext context, DhenuTokens t, AppLocalizations l, WidgetRef ref) {
     final poursAsync = ref.watch(nodeTodayPoursProvider(node.id));

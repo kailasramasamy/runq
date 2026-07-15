@@ -1,18 +1,16 @@
-// NOTE: Payment figures are computed from the farmer's own pours (gross milk +
-// quality bonus via lineAmount vs qty×ratePerLitre) and ledger entries
-// (deductions / advances / feed loans, identified by negative-amount entries).
-// The net-payable card and history are grouped by the tenant's payout cycle
-// (farmerCyclePeriodsProvider, cadence from /config/cycle); when no cadence is
-// configured it falls back to calendar months.
-// A farmer-scoped payout statement endpoint is not yet available; this is a
-// ledger+pours approximation.
-//
-// BONUS NOTE: MpPour carries ratePerLitre (the full blended rate, already
-// including any bonus component). There is no separate baseRatePerLitre on
-// MpPour, so bonus cannot be cleanly isolated per pour. Quality bonus is
-// approximated as (lineAmount − qty × ratePerLitre), which will be zero/near-
-// zero if the server stores the final all-in rate. BreakdownBar omits the bonus
-// segment when qualityBonus ≤ 0.01 (spec fallback noted).
+// NOTE: The current (open) cycle card is a live estimate from the farmer's own
+// pours: gross = Σ lineAmount, split into base (Σ baseAmount) and quality bonus
+// (Σ bonusAmount) — the server prices each pour as base+bonus, so lineAmount
+// already contains the bonus. The deduction shown is an ESTIMATE: the farmer's
+// outstanding ledger balance capped at gross, mirroring the server's
+// computeDeductions at cycle creation. Ledger amounts are always positive —
+// the entry type carries direction, and a positive balance means the farmer
+// owes (advance/feed loan outstanding).
+// History rows are server-authoritative where a payout line exists
+// (farmerPayoutLinesProvider → GET /payouts/my-lines): net amount + real
+// Paid/Processing/Pending status. Periods with no line show litres + gross
+// with no status chip. Cycle windows come from farmerCyclePeriodsProvider
+// (cadence via /config/cycle, calendar-month fallback).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,9 +36,11 @@ class FarmerPaymentsTab extends ConsumerWidget {
     ref.invalidate(cycleConfigProvider);
     ref.invalidate(farmerCyclePeriodsProvider);
     ref.invalidate(farmerLedgerProvider);
+    ref.invalidate(farmerPayoutLinesProvider);
     await Future.wait([
       ref.read(farmerCyclePeriodsProvider.future),
       ref.read(farmerLedgerProvider.future),
+      ref.read(farmerPayoutLinesProvider.future),
     ]);
   }
 
@@ -70,7 +70,10 @@ class FarmerPaymentsTab extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.xl),
           _historyHeader(t, l),
           const SizedBox(height: DhenuSpacing.sm),
-          _historyList(periods.skip(1).toList()),
+          _historyList(
+            periods.skip(1).toList(),
+            ref.watch(farmerPayoutLinesProvider).asData?.value ?? const [],
+          ),
         ],
       ),
     );
@@ -116,29 +119,25 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final pours = cyclePoursAsync.asData?.value ?? [];
     final ledger = ledgerAsync.asData?.value;
 
-    final grossMilk = pours.fold<double>(0, (s, p) => s + p.qtyLitres * p.ratePerLitre);
-    final qualityBonus = pours.fold<double>(
-        0, (s, p) => s + (p.lineAmount - p.qtyLitres * p.ratePerLitre));
+    // lineAmount = baseAmount + bonusAmount server-side; never add bonus on top.
+    final gross = pours.fold<double>(0, (s, p) => s + p.lineAmount);
+    final baseMilk = pours.fold<double>(0, (s, p) => s + p.baseAmount);
+    final qualityBonus = pours.fold<double>(0, (s, p) => s + p.bonusAmount);
     final hasBonus = qualityBonus > 0.01;
 
-    final deductionMap = <String, double>{};
-    if (ledger != null) {
-      for (final e in ledger.entries) {
-        if (e.amount < 0) {
-          deductionMap[e.entryType] = (deductionMap[e.entryType] ?? 0) + e.amount.abs();
-        }
-      }
-    }
-    final totalDeductions = deductionMap.values.fold<double>(0, (s, v) => s + v);
-    final netPayable = grossMilk + (hasBonus ? qualityBonus : 0) - totalDeductions;
+    // Estimated recovery this cycle: outstanding balance (positive = owed),
+    // capped at gross — mirrors the server's computeDeductions at cycle creation.
     final balance = ledger?.balance ?? 0;
+    final outstanding = balance > 0 ? balance : 0.0;
+    final estDeduction = outstanding > gross ? gross : outstanding;
+    final netPayable = gross - estDeduction;
     final cycleLabel = periodLabel.isEmpty ? l.farmerHomeThisCycle : periodLabel.toUpperCase();
 
     final proj = period == null
         ? null
         : projectCycleEarnings(
             pours: pours, windowStart: period.start, windowEnd: period.end, today: DateTime.now());
-    final projectedNet = proj == null ? 0.0 : (proj.projectedGross - totalDeductions);
+    final projectedNet = proj == null ? 0.0 : (proj.projectedGross - estDeduction);
     final showProj = proj != null && proj.isProjectable && projectedNet > netPayable + 1;
 
     return Container(
@@ -195,34 +194,24 @@ class FarmerPaymentsTab extends ConsumerWidget {
           BreakdownBar(
             height: 10,
             segments: [
-              BreakdownSegment(grossMilk.clamp(0, double.infinity), t.gradeA),
-              if (hasBonus) BreakdownSegment(qualityBonus, const Color(0xFF3DDC97)),
-              if (totalDeductions > 0) BreakdownSegment(totalDeductions, t.gradeC),
+              BreakdownSegment(baseMilk.clamp(0, double.infinity), t.gradeA),
+              if (hasBonus) BreakdownSegment(qualityBonus, t.brand),
+              if (estDeduction > 0) BreakdownSegment(estDeduction, t.gradeC),
             ],
           ),
           const SizedBox(height: DhenuSpacing.lg),
-          _itemRow(t, t.gradeA, l.farmerPaymentsGrossMilk, rupees(grossMilk), t.ink),
+          _itemRow(t, t.gradeA, l.farmerPaymentsGrossMilk, rupees(baseMilk), t.ink),
           if (hasBonus) ...[
             _hairline(t),
-            _itemRow(t, const Color(0xFF3DDC97), l.farmerPaymentsQualityBonus,
+            _itemRow(t, t.brand, l.farmerPaymentsQualityBonus,
                 '+ ${rupees(qualityBonus)}', t.gradeA),
           ],
-          if (deductionMap.isNotEmpty) ...[
+          if (estDeduction > 0) ...[
             _hairline(t),
-            ...deductionMap.entries.toList().asMap().entries.map((entry) {
-              final i = entry.key;
-              final e = entry.value;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (i > 0) _hairline(t),
-                  _itemRow(t, t.gradeC, _deductionLabel(l, e.key),
-                      '− ${rupees(e.value)}', t.gradeC),
-                ],
-              );
-            }),
+            _itemRow(t, t.gradeC, l.farmerPaymentsEstimatedDeduction,
+                '− ${rupees(estDeduction)}', t.gradeC),
           ],
-          if (balance < 0) ...[
+          if (balance > 0) ...[
             const SizedBox(height: DhenuSpacing.md),
             _advanceChip(t, l, balance),
           ],
@@ -280,34 +269,30 @@ class FarmerPaymentsTab extends ConsumerWidget {
   }
 
   // ── Payment history ─────────────────────────────────────────────────────────
-  Widget _historyList(List<MpCyclePeriod> periods) {
+  Widget _historyList(List<MpCyclePeriod> periods, List<MpPayoutLine> lines) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: periods.map((p) => _HistoryRow(period: p)).toList(),
+      children: periods.map((p) => _HistoryRow(period: p, lines: lines)).toList(),
     );
-  }
-
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  String _deductionLabel(AppLocalizations l, String type) {
-    switch (type) {
-      case 'cattle_feed_loan':
-        return l.farmerPaymentsDeductCattleFeedLoan;
-      case 'advance':
-        return l.farmerPaymentsDeductAdvance;
-      case 'medicine':
-        return l.farmerPaymentsDeductMedicine;
-      case 'insurance':
-        return l.farmerPaymentsDeductInsurance;
-      default:
-        return type.replaceAll('_', ' ');
-    }
   }
 }
 
 // ── History row widget ────────────────────────────────────────────────────────
 class _HistoryRow extends ConsumerWidget {
-  const _HistoryRow({required this.period});
+  const _HistoryRow({required this.period, required this.lines});
   final MpCyclePeriod period;
+  final List<MpPayoutLine> lines;
+
+  /// Server lines whose cycle window overlaps this client period. Client
+  /// windows are calendar-derived while server cycles are operator-chosen date
+  /// ranges, so 0..n lines can match.
+  List<MpPayoutLine> _matching() => lines
+      .where((ln) =>
+          ln.periodStart != null &&
+          ln.periodEnd != null &&
+          ln.periodStart!.compareTo(period.end) <= 0 &&
+          ln.periodEnd!.compareTo(period.start) >= 0)
+      .toList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -320,8 +305,11 @@ class _HistoryRow extends ConsumerWidget {
     if (pours.isEmpty) return const SizedBox.shrink();
 
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
-    final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
-    final label = period.label;
+    final matching = _matching();
+    // Authoritative net where a payout line exists; gross-from-pours otherwise.
+    final totalRs = matching.isNotEmpty
+        ? matching.fold<double>(0, (s, ln) => s + ln.netAmount)
+        : pours.fold<double>(0, (s, p) => s + p.lineAmount);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: DhenuSpacing.md),
@@ -333,7 +321,7 @@ class _HistoryRow extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(label,
+                  Text(period.label,
                       style:
                           DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
                   const SizedBox(height: DhenuSpacing.xs),
@@ -345,8 +333,7 @@ class _HistoryRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: DhenuSpacing.md),
-            _PaidChip(t: t, l: l),
-            const SizedBox(width: DhenuSpacing.sm),
+            ..._statusChip(t, l, matching),
             Text(
               rupees(totalRs),
               style: DhenuText.number(size: 16, w: FontWeight.w800, color: t.ink),
@@ -356,12 +343,35 @@ class _HistoryRow extends ConsumerWidget {
       ),
     );
   }
+
+  /// Paid: every line disbursed (operator mark-paid) or its cycle paid via GL.
+  /// Pending: any cycle still open. Processing: locked, awaiting payment.
+  /// No matching line → no chip (status unknown, show period + gross only).
+  List<Widget> _statusChip(DhenuTokens t, AppLocalizations l, List<MpPayoutLine> matching) {
+    if (matching.isEmpty) return const [];
+    final String label;
+    final Color color;
+    if (matching.every((ln) => ln.isPaid || ln.cycleStatus == 'paid')) {
+      label = l.farmerPaymentsPaid;
+      color = t.gradeA;
+    } else if (matching.any((ln) => ln.cycleStatus == 'open')) {
+      label = l.farmerPaymentsStatusPending;
+      color = t.inkSoft;
+    } else {
+      label = l.farmerPaymentsStatusProcessing;
+      color = t.gradeB;
+    }
+    return [
+      _StatusChip(label: label, color: color),
+      const SizedBox(width: DhenuSpacing.sm),
+    ];
+  }
 }
 
-class _PaidChip extends StatelessWidget {
-  const _PaidChip({required this.t, required this.l});
-  final DhenuTokens t;
-  final AppLocalizations l;
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.label, required this.color});
+  final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -369,13 +379,13 @@ class _PaidChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
       decoration: BoxDecoration(
-        color: t.gradeA.withValues(alpha: 0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Text(
-        l.farmerPaymentsPaid,
+        label,
         style: DhenuText.caption
-            .copyWith(color: t.gradeA, fontWeight: FontWeight.w700, letterSpacing: 0.8),
+            .copyWith(color: color, fontWeight: FontWeight.w700, letterSpacing: 0.8),
       ),
     );
   }

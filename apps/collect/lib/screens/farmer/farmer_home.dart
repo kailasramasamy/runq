@@ -33,6 +33,7 @@ class FarmerHome extends ConsumerWidget {
     ref.invalidate(farmerCyclePoursProvider);
     ref.invalidate(farmerTodayPoursProvider);
     ref.invalidate(farmerRecentPoursProvider);
+    ref.invalidate(farmerStreakPoursProvider);
     await Future.wait([
       ref.read(farmerCurrentCyclePoursProvider.future),
       ref.read(farmerTodayPoursProvider.future),
@@ -107,7 +108,8 @@ class FarmerHome extends ConsumerWidget {
       const SizedBox(height: DhenuSpacing.lg),
       _today(context, t, l, todayPours, bands, milkType),
       const SizedBox(height: DhenuSpacing.lg),
-      _streakNudge(context, t, l, pours),
+      _streakNudge(context, t, l,
+          ref.watch(farmerStreakPoursProvider).asData?.value ?? const []),
       _quickLinks(context, t, l),
     ];
   }
@@ -401,7 +403,7 @@ class FarmerHome extends ConsumerWidget {
 
   // ── Streak ────────────────────────────────────────────────────────────────
   Widget _streakNudge(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPour> pours) {
-    final streak = _computeStreak(pours);
+    final streak = computeStreak(pours);
     if (streak == 0) return const SizedBox.shrink();
     final remaining = (10 - streak).clamp(0, 10);
     return Padding(
@@ -525,21 +527,6 @@ class FarmerHome extends ConsumerWidget {
 
   String _two(int n) => n.toString().padLeft(2, '0');
 
-  /// Consecutive days ending today (or yesterday) where all pours were Grade A.
-  int _computeStreak(List<MpPour> pours) {
-    if (pours.isEmpty) return 0;
-    final byDate = <String, List<MpPour>>{};
-    for (final p in pours) {
-      byDate.putIfAbsent(p.collectionDate, () => []).add(p);
-    }
-    final sortedDates = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
-    var streak = 0;
-    for (final date in sortedDates) {
-      if (!byDate[date]!.every((p) => p.qualityGrade == Grade.a)) break;
-      streak++;
-    }
-    return streak;
-  }
 }
 
 /// Loading placeholder shaped like the real home.

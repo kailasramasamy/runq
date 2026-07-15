@@ -6,7 +6,8 @@ import '../widgets/sync_status.dart';
 class SyncSnapshot {
   final SyncState state;
   final int pendingCount;
-  const SyncSnapshot(this.state, this.pendingCount);
+  final int failedCount;
+  const SyncSnapshot(this.state, this.pendingCount, [this.failedCount = 0]);
 }
 
 /// Live view of the pour queue for the header SyncStatus chip. Recomputes on
@@ -20,8 +21,10 @@ class SyncController extends StateNotifier<SyncSnapshot> {
   static SyncSnapshot _read() {
     final q = PourQueue.instance;
     final pending = q.pendingCount;
-    if (!q.isOnline) return SyncSnapshot(SyncState.offline, pending);
-    if (pending > 0) return SyncSnapshot(SyncState.pending, pending);
+    final failed = q.failedCount;
+    if (!q.isOnline) return SyncSnapshot(SyncState.offline, pending, failed);
+    if (failed > 0) return SyncSnapshot(SyncState.failed, pending, failed);
+    if (pending > 0) return SyncSnapshot(SyncState.pending, pending, failed);
     return const SyncSnapshot(SyncState.synced, 0);
   }
 

@@ -174,10 +174,11 @@ class MpRepo {
     double? clr,
     double? cycleQtyLitres,
     String? scopeNodeId,
+    String? farmerId,
     String? onDate,
   }) async {
     final res = await _api.get(
-      '$_base/rate-charts/resolve${_qs({'milkType': milkTypeToApi(milkType), 'fat': fat, 'snf': snf, 'clr': clr, 'cycleQtyLitres': cycleQtyLitres, 'scopeNodeId': scopeNodeId, 'onDate': onDate})}',
+      '$_base/rate-charts/resolve${_qs({'milkType': milkTypeToApi(milkType), 'fat': fat, 'snf': snf, 'clr': clr, 'cycleQtyLitres': cycleQtyLitres, 'scopeNodeId': scopeNodeId, 'farmerId': farmerId, 'onDate': onDate})}',
     );
     final m = _one(res);
     return m == null ? null : MpRateResolution.fromJson(m);
@@ -366,6 +367,18 @@ class MpRepo {
         ? 0.0
         : (m['balance'] as num).toDouble();
     return (balance: balance, entries: entries);
+  }
+
+  /// The farmer's payout statements — server-authoritative lines joined with
+  /// their cycle's window and status (GET /payouts/my-lines).
+  Future<List<MpPayoutLine>> farmerPayoutLines({
+    String? farmerId,
+    int limit = 24,
+  }) async {
+    final res = await _api.get(
+      '$_base/payouts/my-lines${_qs({'farmerId': farmerId, 'limit': limit})}',
+    );
+    return _list(res).map(MpPayoutLine.fromJson).toList();
   }
 
   /// Record an advance / feed-loan / repayment / adjustment for a farmer.

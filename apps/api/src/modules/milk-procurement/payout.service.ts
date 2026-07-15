@@ -32,6 +32,14 @@ export interface CycleLineAgg {
 
 export type CycleListRow = MpPayoutCycleRow & CycleLineAgg;
 
+/** A farmer's payout line flattened with its cycle's window and status. */
+export type FarmerLineRow = MpPayoutLineRow & {
+  periodStart: string;
+  periodEnd: string;
+  cycleStatus: MpPayoutCycleRow['status'];
+  cycleNo: string;
+};
+
 /**
  * Payout — farmer ledger (advances/feed-loans), cycle generation from pours,
  * deductions, lock (posts repayment ledger entries), and pay (direct/via-VMCC).
@@ -92,6 +100,42 @@ export class PayoutService {
       .where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, effectiveFarmerId)))
       .orderBy(desc(mpFarmerLedger.occurredOn), desc(mpFarmerLedger.createdAt));
     return { balance: entries[0] ? Number(entries[0].balanceAfter) : 0, entries };
+  }
+
+  /** A farmer's own payout lines (with cycle window + status), newest first. */
+  async linesForFarmer(
+    farmerId: string | undefined,
+    principal: MpPrincipal,
+    limit: number,
+  ): Promise<FarmerLineRow[]> {
+    // a farmer can only read their own lines, whatever they ask for
+    const effectiveFarmerId = principal.kind === 'farmer' ? principal.farmerId : farmerId;
+    if (!effectiveFarmerId) throw new NotFoundError('farmerId is required');
+    if (principal.kind === 'operator') {
+      await assertFarmerAtNode(this.db, this.tenantId, principal, effectiveFarmerId);
+    }
+    const rows = await this.db.select({
+      line: mpPayoutLines,
+      periodStart: mpPayoutCycles.periodStart,
+      periodEnd: mpPayoutCycles.periodEnd,
+      cycleStatus: mpPayoutCycles.status,
+      cycleNo: mpPayoutCycles.cycleNo,
+    }).from(mpPayoutLines)
+      .innerJoin(mpPayoutCycles, eq(mpPayoutLines.payoutCycleId, mpPayoutCycles.id))
+      .where(and(
+        eq(mpPayoutLines.tenantId, this.tenantId),
+        eq(mpPayoutLines.farmerId, effectiveFarmerId),
+        ne(mpPayoutCycles.status, 'reversed'),
+      ))
+      .orderBy(desc(mpPayoutCycles.periodStart))
+      .limit(limit);
+    return rows.map((r) => ({
+      ...r.line,
+      periodStart: r.periodStart,
+      periodEnd: r.periodEnd,
+      cycleStatus: r.cycleStatus,
+      cycleNo: r.cycleNo,
+    }));
   }
 
   private async balanceTx(tx: Tx, farmerId: string): Promise<number> {

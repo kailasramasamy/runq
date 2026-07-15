@@ -10,6 +10,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_charts.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/gradient_hero_card.dart';
+import 'farmer_insights.dart';
 
 /// Rewards screen — streak card, badge grid, referral hook (spec §6.5).
 class FarmerRewards extends ConsumerWidget {
@@ -20,7 +21,8 @@ class FarmerRewards extends ConsumerWidget {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final pours = ref.watch(farmerMonthPoursProvider).asData?.value ?? [];
-    final streak = _computeStreak(pours);
+    final streak = computeStreak(
+        ref.watch(farmerStreakPoursProvider).asData?.value ?? const []);
 
     return Scaffold(
       backgroundColor: t.surface,
@@ -232,21 +234,6 @@ class FarmerRewards extends ConsumerWidget {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  int _computeStreak(List<MpPour> pours) {
-    if (pours.isEmpty) return 0;
-    final byDate = <String, List<MpPour>>{};
-    for (final p in pours) {
-      byDate.putIfAbsent(p.collectionDate, () => []).add(p);
-    }
-    final sorted = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
-    var streak = 0;
-    for (final d in sorted) {
-      if (!byDate[d]!.every((p) => p.qualityGrade == Grade.a)) break;
-      streak++;
-    }
-    return streak;
-  }
-
   bool _hasTopFat(List<MpPour> pours) =>
       pours.where((p) => (p.fat ?? 0) >= 5.0).length >= 3;
 }

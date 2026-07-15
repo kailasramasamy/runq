@@ -295,6 +295,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeReports => 'Reports';
 
   @override
+  String get collectPendingDupTitle => 'Already saved on this device';
+
+  @override
+  String collectPendingDupBody(Object name) {
+    return '$name already has an entry for this shift waiting to sync. Replace it, or add this as an extra container?';
+  }
+
+  @override
+  String get collectPendingDupReplace => 'Replace saved entry';
+
+  @override
+  String get collectPendingDupExtraLot => 'Add as extra lot';
+
+  @override
+  String syncFailedLabel(Object count) {
+    return '$count failed — needs attention';
+  }
+
+  @override
+  String get homeYesterday => 'Yesterday';
+
+  @override
+  String get homeNoCollectionYesterday => 'No collection yesterday';
+
+  @override
+  String get homeSeeFullHistory => 'See full history';
+
+  @override
   String get homeAmShiftInProgress => '☀️ AM shift · in progress';
 
   @override
@@ -1289,7 +1317,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get farmerPaymentsGrossMilk => 'Gross milk';
+  String get farmerPaymentsGrossMilk => 'Milk value (base)';
+
+  @override
+  String get farmerPaymentsEstimatedDeduction => 'Advance recovery (estimated)';
+
+  @override
+  String get farmerPaymentsStatusPending => 'PENDING';
+
+  @override
+  String get farmerPaymentsStatusProcessing => 'PROCESSING';
 
   @override
   String get farmerPaymentsQualityBonus => 'Quality bonus';

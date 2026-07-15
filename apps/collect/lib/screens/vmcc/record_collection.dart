@@ -22,6 +22,7 @@ import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/sheet_grabber.dart';
 import 'farmer_picker.dart';
+import 'pending_duplicate_sheet.dart';
 
 /// The most-used screen: record one farmer's pour fast. Manual entry (v1),
 /// live rate preview, offline-tolerant via [PourQueue]. Spec §5.2 / §8.1.
@@ -53,6 +54,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   final _clrFocus = FocusNode();
 
   Timer? _debounce;
+  StreamSubscription<int>? _queueSub;
   MpRateResolution? _rate;
   bool _resolving = false;
   bool _saving = false;
@@ -100,6 +102,11 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       _milkType = _nodeDefaultMilkType;
     }
+    // Queue mutations (offline saves, drains) shift the pending duplicate sets
+    // and the picker's "Recorded" tags — rebuild so they stay truthful.
+    _queueSub = PourQueue.instance.changes.listen((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   String _trimNum(double n) =>
@@ -108,6 +115,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   @override
   void dispose() {
     _debounce?.cancel();
+    _queueSub?.cancel();
     _qty.dispose();
     _fat.dispose();
     _snf.dispose();
@@ -181,12 +189,25 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   }
 
   /// Farmers already collected for the active (date, shift) slot — passed to the
-  /// picker so their rows read "Recorded". The entries list watches the same
-  /// date-scoped provider, so it's loaded by the time the picker opens.
+  /// picker so their rows read "Recorded". Includes queue-pending (offline)
+  /// entries so a farmer saved on-device also shows as recorded.
   Set<String> _recordedFarmerIdsForSlot() => {
         for (final p in _poursForActiveDate())
           if (p.shift == _shift) p.farmerId,
+        for (final p in _pendingForSlot()) p.farmerId,
       };
+
+  /// Queue-pending pours for the active (date, shift) slot. Failed entries are
+  /// excluded — they'll never sync, so they shouldn't gate fresh entry.
+  List<PendingPour> _pendingForSlot({bool matchMilkType = false}) =>
+      PourQueue.instance
+          .pendingFor(widget.node.id)
+          .where((p) =>
+              !p.hasFailed &&
+              p.collectionDate == _date &&
+              p.shift == _shift.name &&
+              (!matchMilkType || p.milkType == milkTypeToApi(_milkType)))
+          .toList();
 
   Future<void> _pickFarmer() async {
     final picked = await showFarmerPicker(context, ref, widget.node.id,
@@ -271,6 +292,27 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       if (choice) return _saveCombined(existing, name); // merge containers
       // else: replace prior reading (correction) — falls through as a fresh record
     }
+    // Same guard for pours saved on-device but not yet synced (offline repeat).
+    // Combine isn't possible here — nothing exists server-side to reverse.
+    var asNewLot = false;
+    final pendingDup = _pendingForSlot(matchMilkType: true)
+        .where((p) => p.farmerId == _farmer!.id)
+        .toList();
+    if (pendingDup.isNotEmpty) {
+      if (!mounted) return;
+      final action = await showPendingDuplicateSheet(context, name, pendingDup);
+      if (action == null) return; // cancelled — keep the form as-is
+      if (action == PendingDupAction.replace) {
+        // Safe: the queued entry's deviceLocalId never reached the server, and
+        // even if a drain races us, the server's last-write-wins slot reversal
+        // makes replace-after-sync equivalent.
+        for (final p in pendingDup) {
+          await PourQueue.instance.removePending(p.key);
+        }
+      } else {
+        asNewLot = true;
+      }
+    }
     final qtyLabel = litres(_qtyVal, unit: true);
     setState(() => _saving = true);
     final body = <String, dynamic>{
@@ -282,7 +324,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       'qtyLitres': _qtyVal,
       if (widget.node.isLactometer) 'clr': _clrVal
       else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
-      'asNewLot': false,
+      'asNewLot': asNewLot,
     };
     final bool sentNow;
     try {

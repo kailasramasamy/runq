@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import {
   createLedgerEntrySchema,
   ledgerFilterSchema,
+  farmerLinesFilterSchema,
   createPayoutCycleSchema,
   payoutCycleFilterSchema,
   markLinePaidSchema,
@@ -29,6 +30,14 @@ export const payoutRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new PayoutService(request.server.db, request.tenantId);
     return { data: await service.ledgerForFarmer(farmerId, principal) };
+  });
+
+  // a farmer's own payout statements (lines joined with cycle window + status)
+  app.get('/my-lines', { preHandler: [rbacHook([...LEDGER_READ_ROLES])] }, async (request) => {
+    const { farmerId, limit } = farmerLinesFilterSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new PayoutService(request.server.db, request.tenantId);
+    return { data: await service.linesForFarmer(farmerId, principal, limit) };
   });
 
   app.post('/ledger', { preHandler: [rbacHook([...CYCLE_WRITE_ROLES])] }, async (request, reply) => {

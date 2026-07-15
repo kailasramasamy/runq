@@ -293,6 +293,34 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeReports => 'ವರದಿಗಳು';
 
   @override
+  String get collectPendingDupTitle => 'ಈ ಸಾಧನದಲ್ಲಿ ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ';
+
+  @override
+  String collectPendingDupBody(Object name) {
+    return '$name ಅವರಿಗೆ ಈ ಪಾಳಿಗೆ ಸಿಂಕ್ ಆಗಬೇಕಿರುವ ನಮೂದು ಈಗಾಗಲೇ ಇದೆ. ಅದನ್ನು ಬದಲಾಯಿಸಬೇಕೇ, ಅಥವಾ ಇದನ್ನು ಹೆಚ್ಚುವರಿ ಪಾತ್ರೆಯಾಗಿ ಸೇರಿಸಬೇಕೇ?';
+  }
+
+  @override
+  String get collectPendingDupReplace => 'ಉಳಿಸಿದ ನಮೂದನ್ನು ಬದಲಾಯಿಸಿ';
+
+  @override
+  String get collectPendingDupExtraLot => 'ಹೆಚ್ಚುವರಿ ಲಾಟ್ ಆಗಿ ಸೇರಿಸಿ';
+
+  @override
+  String syncFailedLabel(Object count) {
+    return '$count ವಿಫಲವಾಗಿದೆ — ಗಮನ ಬೇಕು';
+  }
+
+  @override
+  String get homeYesterday => 'ನಿನ್ನೆ';
+
+  @override
+  String get homeNoCollectionYesterday => 'ನಿನ್ನೆ ಸಂಗ್ರಹವಿಲ್ಲ';
+
+  @override
+  String get homeSeeFullHistory => 'ಪೂರ್ಣ ಇತಿಹಾಸ ನೋಡಿ';
+
+  @override
   String get homeAmShiftInProgress => '☀️ ಬೆಳಿಗ್ಗೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
 
   @override
@@ -1291,7 +1319,16 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
-  String get farmerPaymentsGrossMilk => 'ಒಟ್ಟು ಹಾಲು';
+  String get farmerPaymentsGrossMilk => 'ಹಾಲಿನ ಮೌಲ್ಯ (ಮೂಲ)';
+
+  @override
+  String get farmerPaymentsEstimatedDeduction => 'ಮುಂಗಡ ವಸೂಲಿ (ಅಂದಾಜು)';
+
+  @override
+  String get farmerPaymentsStatusPending => 'ಬಾಕಿ ಇದೆ';
+
+  @override
+  String get farmerPaymentsStatusProcessing => 'ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿದೆ';
 
   @override
   String get farmerPaymentsQualityBonus => 'ಗುಣಮಟ್ಟ ಬೋನಸ್';
