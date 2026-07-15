@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
@@ -28,41 +29,42 @@ class _CcVmccsTabState extends ConsumerState<CcVmccsTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final vmccsAsync = ref.watch(nodesByTypeProvider('vmcc'));
     return Column(children: [
-      _searchBar(t),
-      Expanded(child: _body(t, vmccsAsync)),
+      _searchBar(t, l),
+      Expanded(child: _body(t, l, vmccsAsync)),
     ]);
   }
 
-  Widget _searchBar(DhenuTokens t) => Padding(
+  Widget _searchBar(DhenuTokens t, AppLocalizations l) => Padding(
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, 0),
         child: TextField(
           onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-          decoration: const InputDecoration(
-            hintText: 'Search VMCCs',
-            prefixIcon: Icon(DhenuIcons.search),
+          decoration: InputDecoration(
+            hintText: l.ccVmccsSearchHint,
+            prefixIcon: const Icon(DhenuIcons.search),
           ),
         ),
       );
 
-  Widget _body(DhenuTokens t, AsyncValue<List<MpNode>> vmccsAsync) {
+  Widget _body(DhenuTokens t, AppLocalizations l, AsyncValue<List<MpNode>> vmccsAsync) {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: vmccsAsync.when(
         loading: () => const DhenuLoadingList(),
         error: (e, _) => DhenuEmptyState(
           icon: DhenuIcons.cloudOff,
-          title: 'Could not load VMCCs',
+          title: l.ccVmccsLoadError,
           subtitle: friendlyError(context, e),
         ),
-        data: (all) => _list(t, all),
+        data: (all) => _list(t, l, all),
       ),
     );
   }
 
-  Widget _list(DhenuTokens t, List<MpNode> all) {
+  Widget _list(DhenuTokens t, AppLocalizations l, List<MpNode> all) {
     // Prefer child nodes (parentNodeId == this CC's id), fallback to all VMCCs
     final children = all
         .where((n) => n.parentNodeId == widget.node.id)
@@ -84,7 +86,7 @@ class _CcVmccsTabState extends ConsumerState<CcVmccsTab> {
           const SizedBox(height: DhenuSpacing.bottomGap),
           DhenuEmptyState(
             icon: DhenuIcons.store,
-            title: _query.isEmpty ? 'No VMCCs assigned' : 'No matching VMCCs',
+            title: _query.isEmpty ? l.ccVmccsNoneAssigned : l.ccVmccsNoMatch,
           ),
         ],
       );

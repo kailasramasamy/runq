@@ -5,6 +5,7 @@ import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Notification preference screen — single toggle to enable/disable push.
 /// Drives FCM registration via [NotificationPrefsController].
@@ -14,11 +15,12 @@ class NotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final pushEnabled = ref.watch(notificationPrefsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.notifScreenTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -40,11 +42,11 @@ class NotificationsScreen extends ConsumerWidget {
                 child: Icon(DhenuIcons.bell, size: 18, color: t.brand),
               ),
               title: Text(
-                'Push notifications',
+                l.notifPushTitle,
                 style: DhenuText.body.copyWith(color: t.ink),
               ),
               subtitle: Text(
-                'Get alerts for collections, dispatch and payouts',
+                l.notifPushSubtitle,
                 style: DhenuText.caption.copyWith(color: t.inkSoft),
               ),
               value: pushEnabled,
@@ -55,8 +57,7 @@ class NotificationsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: DhenuSpacing.md),
           Text(
-            'When off, this device won\'t receive any push notifications. '
-            'You can turn it back on anytime.',
+            l.notifPushFootnote,
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ],

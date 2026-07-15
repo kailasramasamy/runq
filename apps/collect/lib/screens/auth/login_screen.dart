@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../widgets/language_picker.dart';
 import '../../widgets/phone_otp_form.dart';
 
 /// Dhenu sign-in — phone number + OTP (MSG91). Phone is the account identity for
@@ -50,6 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final expired = ref.watch(authProvider.select((s) => s.sessionExpired));
     return Scaffold(
       body: SafeArea(
@@ -58,14 +63,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.xl, vertical: DhenuSpacing.x4),
           children: [
-            const SizedBox(height: DhenuSpacing.x4),
+            // Language switch must be reachable BEFORE login — a Kannada-only
+            // user can't read this screen to find a post-login picker.
+            Align(alignment: Alignment.centerRight, child: _languageButton(t)),
+            const SizedBox(height: DhenuSpacing.md),
             _logo(),
             const SizedBox(height: DhenuSpacing.md),
             Center(child: Text('dhenu', style: DhenuText.h1.copyWith(color: t.brand))),
             const SizedBox(height: DhenuSpacing.xs),
-            Center(child: Text('Milk procurement, made fair', style: DhenuText.body.copyWith(color: t.inkSoft))),
+            Center(child: Text(l.authLoginTagline, style: DhenuText.body.copyWith(color: t.inkSoft))),
             const SizedBox(height: DhenuSpacing.x4),
-            if (expired) _expiredBanner(t),
+            if (expired) _expiredBanner(t, l),
             _loginSection(t),
           ],
         ),
@@ -73,9 +81,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
     );
   }
 
+  /// Pre-login language switch: shows the current language's native label so
+  /// it's recognizable in any locale (e.g. "ಕನ್ನಡ", not "Kannada").
+  Widget _languageButton(DhenuTokens t) {
+    final current = ref.watch(localeProvider);
+    return OutlinedButton.icon(
+      onPressed: () => showLanguagePicker(context, ref),
+      icon: Icon(DhenuIcons.language, size: 16, color: t.inkSoft),
+      label: Text(
+        languageForCode(current.languageCode).nativeLabel,
+        style: DhenuText.label.copyWith(color: t.ink),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: t.hairline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.pill)),
+      ),
+    );
+  }
+
   /// Shown when a session lapsed (token expired / 401). Re-auth is the same
   /// phone + OTP flow below — this just explains why they're back at login.
-  Widget _expiredBanner(DhenuTokens t) => Container(
+  Widget _expiredBanner(DhenuTokens t, AppLocalizations l) => Container(
         key: const ValueKey('login-expired-banner'),
         margin: const EdgeInsets.only(bottom: DhenuSpacing.lg),
         padding: const EdgeInsets.all(DhenuSpacing.md),
@@ -83,7 +109,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
           color: t.brand.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(DhenuRadii.input),
         ),
-        child: Text('Your session expired. Sign in again with your phone number.',
+        child: Text(l.authLoginSessionExpired,
             style: DhenuText.body.copyWith(color: t.ink)),
       );
 

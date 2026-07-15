@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -30,13 +31,14 @@ class _FarmerQcTabState extends ConsumerState<FarmerQcTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final daysAsync = ref.watch(nodePoursDailyProvider(_key));
     final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.sm),
-        child: _rangeSelector(t),
+        child: _rangeSelector(t, l),
       ),
       Expanded(
         child: RefreshIndicator(
@@ -48,37 +50,37 @@ class _FarmerQcTabState extends ConsumerState<FarmerQcTab> {
             error: (e, _) => ListView(children: [
               const SizedBox(height: 72),
               DhenuEmptyState(
-                  icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: '$e'),
+                  icon: DhenuIcons.cloudOff, title: l.qcReportLoadError, subtitle: '$e'),
             ]),
-            data: (days) => _report(days, bands),
+            data: (days) => _report(days, bands, l),
           ),
         ),
       ),
     ]);
   }
 
-  Widget _report(List<MpPourDay> days, QualityBands? bands) => QcReportView(
+  Widget _report(List<MpPourDay> days, QualityBands? bands, AppLocalizations l) => QcReportView(
         samples: [
           for (final d in days)
             (date: d.date, qty: d.totalQty, fat: d.fat, snf: d.snf, water: d.water),
         ],
         days: _days,
-        heroLabel: 'LAST $_days DAYS',
-        heroFooter: 'Qty-weighted quality for this farmer',
-        emptyTitle: 'No readings in this window',
-        emptySubtitle: 'Record collections to see the daily QC trend',
+        heroLabel: l.qcReportHeroLabelDays(_days),
+        heroFooter: l.qcReportFooterFarmer,
+        emptyTitle: l.qcReportEmptyTitle,
+        emptySubtitle: l.qcReportEmptySubtitle,
         bands: bands,
         milkType: widget.farmer.defaultMilkType,
       );
 
-  Widget _rangeSelector(DhenuTokens t) => Row(children: [
+  Widget _rangeSelector(DhenuTokens t, AppLocalizations l) => Row(children: [
         for (final d in const [7, 14, 90]) ...[
-          Expanded(child: _rangeChip(t, d)),
+          Expanded(child: _rangeChip(t, l, d)),
           if (d != 90) const SizedBox(width: DhenuSpacing.sm),
         ],
       ]);
 
-  Widget _rangeChip(DhenuTokens t, int d) {
+  Widget _rangeChip(DhenuTokens t, AppLocalizations l, int d) {
     final on = _days == d;
     return GestureDetector(
       onTap: () => setState(() => _days = d),
@@ -90,7 +92,7 @@ class _FarmerQcTabState extends ConsumerState<FarmerQcTab> {
           borderRadius: BorderRadius.circular(DhenuRadii.input),
           border: Border.all(color: on ? t.brand : t.hairline),
         ),
-        child: Text('$d days',
+        child: Text(l.qcReportDaysChip(d),
             style: DhenuText.label.copyWith(color: on ? Colors.white : t.inkSoft)),
       ),
     );

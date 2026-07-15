@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -70,6 +71,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final accById = {for (final v in widget.vmccs) v.id: QcAcc()};
     for (final c in widget.rows) {
       accById[c.fromNodeId]?.add(c.receiptQty ?? 0, c.receiptFat, c.receiptSnf, c.receiptWater);
@@ -84,13 +86,13 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
-        _summary(t, active, widget.vmccs.length, totalQty),
+        _summary(t, l, active, widget.vmccs.length, totalQty),
         const SizedBox(height: DhenuSpacing.md),
         if (widget.vmccs.isEmpty)
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.store,
-            title: 'No VMCCs linked',
-            subtitle: 'Assign VMCCs to this CC in the web admin',
+            title: l.ccNoVmccsLinkedTitle,
+            subtitle: l.ccNoVmccsLinkedSubtitle,
           )
         else ...[
           DhenuCard(
@@ -103,11 +105,11 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
               ],
             ]),
           ),
-          _metricSection(t, 'By FAT', 'high → low', t.brand,
+          _metricSection(t, l, l.ccQcRankingByMetric('FAT'), l.ccQcRankingHighToLow, t.brand,
               _sorted(withData, (a) => a.avgFat, desc: true), (a) => a.avgFat, 'fat'),
-          _metricSection(t, 'By SNF', 'high → low', t.am,
+          _metricSection(t, l, l.ccQcRankingByMetric('SNF'), l.ccQcRankingHighToLow, t.am,
               _sorted(withData, (a) => a.avgSnf, desc: true), (a) => a.avgSnf, 'snf'),
-          _metricSection(t, 'By Water', 'low → high', t.pm,
+          _metricSection(t, l, l.ccQcRankingByMetric('Water'), l.ccQcRankingLowToHigh, t.pm,
               _sorted(withData, (a) => a.avgWater, desc: false), (a) => a.avgWater, 'water'),
         ],
       ],
@@ -124,7 +126,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
     return list;
   }
 
-  Widget _metricSection(DhenuTokens t, String title, String hint, Color accent,
+  Widget _metricSection(DhenuTokens t, AppLocalizations l, String title, String hint, Color accent,
       List<_Row> ranked, double? Function(QcAcc) metric, String metricKey) {
     if (ranked.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -176,13 +178,13 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
     );
   }
 
-  Widget _summary(DhenuTokens t, int active, int total, double qty) => DhenuCard(
+  Widget _summary(DhenuTokens t, AppLocalizations l, int active, int total, double qty) => DhenuCard(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
         child: Row(children: [
           Icon(DhenuIcons.trophy, size: 18, color: t.brand),
           const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-              child: Text('$active of $total VMCCs delivered · last ${widget.days} days',
+              child: Text(l.ccQcRankingSummary(active, total, widget.days),
                   style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600))),
           Text(litres(qty, unit: true), style: DhenuText.number(size: 16, color: t.brand)),
         ]),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/api_client.dart';
 import '../api/api_config.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
@@ -21,13 +22,14 @@ class PhoneOtpForm extends StatefulWidget {
     super.key,
     required this.onRequestOtp,
     required this.onSubmit,
-    this.submitLabel = 'Sign in',
+    this.submitLabel,
     this.onBack,
   });
 
   final PhoneOtpRequest onRequestOtp;
   final PhoneOtpSubmit onSubmit;
-  final String submitLabel;
+  /// Falls back to the localized "Sign in" when unset.
+  final String? submitLabel;
 
   /// Optional secondary action on the phone step (e.g. back to social sign-in).
   final VoidCallback? onBack;
@@ -60,6 +62,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
   /// Run [action], surfacing API and network errors the same way across steps.
   /// Returns true only when it completed without throwing.
   Future<bool> _run(Future<void> Function() action) async {
+    final l = AppLocalizations.of(context);
     setState(() {
       _busy = true;
       _error = null;
@@ -72,8 +75,8 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
       return false;
     } catch (_) {
       setState(() => _error = kDebugMode
-          ? "Can't reach the server at ${ApiConfig.baseUrl}. Is the API running and the phone on the same network?"
-          : "Can't reach the server. Check your connection and try again.");
+          ? l.authOtpNetworkErrorDebug(ApiConfig.baseUrl)
+          : l.authOtpNetworkErrorProd);
       return false;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -82,7 +85,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
 
   Future<void> _sendOtp() async {
     if (_phoneText.length < 10) {
-      setState(() => _error = 'Enter a 10-digit mobile number');
+      setState(() => _error = AppLocalizations.of(context).authOtpEnterDigits);
       return;
     }
     if (await _run(() => widget.onRequestOtp(_phoneText))) {
@@ -98,7 +101,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
 
   Future<void> _submit() async {
     if (_otp.text.length < 6) {
-      setState(() => _error = 'Enter the 6-digit code');
+      setState(() => _error = AppLocalizations.of(context).authOtpEnterCode);
       return;
     }
     await _run(() => widget.onSubmit(_phoneText, _otp.text));
@@ -150,62 +153,59 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
         child: Text(_error!, style: DhenuText.body.copyWith(color: t.gradeC)),
       );
 
-  List<Widget> _phoneStep(DhenuTokens t) => [
-        TextField(
-          controller: _phone,
-          keyboardType: TextInputType.phone,
-          autofillHints: const [AutofillHints.telephoneNumberNational],
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-          decoration: const InputDecoration(
-            labelText: 'Phone number',
-            hintText: '10-digit mobile',
-            prefixIcon: Icon(DhenuIcons.phone),
-          ),
+  List<Widget> _phoneStep(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
+    return [
+      TextField(
+        controller: _phone,
+        keyboardType: TextInputType.phone,
+        autofillHints: const [AutofillHints.telephoneNumberNational],
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+        decoration: InputDecoration(
+          labelText: l.authOtpPhoneLabel,
+          hintText: l.authOtpPhoneHint,
+          prefixIcon: const Icon(DhenuIcons.phone),
         ),
-        const SizedBox(height: DhenuSpacing.lg),
-        FilledButton(onPressed: _busy ? null : _sendOtp, child: const Text('Send OTP')),
-        if (widget.onBack != null) ...[
-          const SizedBox(height: DhenuSpacing.sm),
+      ),
+      const SizedBox(height: DhenuSpacing.lg),
+      FilledButton(onPressed: _busy ? null : _sendOtp, child: Text(l.authOtpSendButton)),
+      if (widget.onBack != null) ...[
+        const SizedBox(height: DhenuSpacing.sm),
+        TextButton(
+          onPressed: _busy ? null : widget.onBack,
+          child: Text(l.commonBack, style: DhenuText.label.copyWith(color: t.inkSoft)),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _otpStep(DhenuTokens t) {
+    final l = AppLocalizations.of(context);
+    return [
+      Text(l.authOtpCodeSentTo('+91 $_phoneText'), style: DhenuText.body.copyWith(color: t.ink)),
+      const SizedBox(height: DhenuSpacing.lg),
+      OtpField(controller: _otp, onCompleted: _busy ? null : _submit, autofocus: true),
+      const SizedBox(height: DhenuSpacing.lg),
+      FilledButton(onPressed: _busy ? null : _submit, child: Text(widget.submitLabel ?? l.authOtpSignIn)),
+      const SizedBox(height: DhenuSpacing.md),
+      Text(l.authOtpSmsDelay, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+      const SizedBox(height: DhenuSpacing.xs),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
           TextButton(
-            onPressed: _busy ? null : widget.onBack,
-            child: Text('Back', style: DhenuText.label.copyWith(color: t.inkSoft)),
+            onPressed: _busy ? null : _changeNumber,
+            child: Text(l.authOtpChangeNumber, style: DhenuText.label.copyWith(color: t.inkSoft)),
+          ),
+          TextButton(
+            onPressed: (_busy || _resendIn > 0) ? null : _resend,
+            child: Text(
+              _resendIn > 0 ? l.authOtpResendIn(_resendIn) : l.authOtpResendButton,
+              style: DhenuText.label.copyWith(color: _resendIn > 0 ? t.inkSoft : t.brand),
+            ),
           ),
         ],
-      ];
-
-  List<Widget> _otpStep(DhenuTokens t) => [
-        Text.rich(
-          TextSpan(
-            style: DhenuText.body.copyWith(color: t.inkSoft),
-            children: [
-              const TextSpan(text: 'Enter the code sent to '),
-              TextSpan(text: '+91 $_phoneText', style: DhenuText.body.copyWith(color: t.ink)),
-            ],
-          ),
-        ),
-        const SizedBox(height: DhenuSpacing.lg),
-        OtpField(controller: _otp, onCompleted: _busy ? null : _submit, autofocus: true),
-        const SizedBox(height: DhenuSpacing.lg),
-        FilledButton(onPressed: _busy ? null : _submit, child: Text(widget.submitLabel)),
-        const SizedBox(height: DhenuSpacing.md),
-        Text('The SMS can take up to a minute to arrive.',
-            style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        const SizedBox(height: DhenuSpacing.xs),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton(
-              onPressed: _busy ? null : _changeNumber,
-              child: Text('Change number', style: DhenuText.label.copyWith(color: t.inkSoft)),
-            ),
-            TextButton(
-              onPressed: (_busy || _resendIn > 0) ? null : _resend,
-              child: Text(
-                _resendIn > 0 ? 'Resend in ${_resendIn}s' : 'Resend OTP',
-                style: DhenuText.label.copyWith(color: _resendIn > 0 ? t.inkSoft : t.brand),
-              ),
-            ),
-          ],
-        ),
-      ];
+      ),
+    ];
+  }
 }

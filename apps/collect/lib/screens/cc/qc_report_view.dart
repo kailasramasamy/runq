@@ -4,6 +4,7 @@ import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -48,15 +49,19 @@ class QcReportView extends StatelessWidget {
     required this.days,
     required this.heroLabel,
     required this.heroFooter,
-    this.emptyTitle = 'No receipts in this window',
-    this.emptySubtitle = 'Receive milk from VMCCs to see the daily QC report',
+    this.emptyTitle,
+    this.emptySubtitle,
     this.bands,
     this.milkType,
   });
 
   final List<QcSample> samples;
   final int days;
-  final String heroLabel, heroFooter, emptyTitle, emptySubtitle;
+  final String heroLabel, heroFooter;
+
+  /// Empty-state copy. Null falls back to the CC (VMCC receipts) wording —
+  /// other callers (VMCC farmer QC, VMCC daily QC) always override both.
+  final String? emptyTitle, emptySubtitle;
 
   /// Bands + the node's effective milk type colour the daily FAT/SNF cells
   /// (these are qty-weighted, mixed-type aggregates). Null → no colouring.
@@ -66,6 +71,7 @@ class QcReportView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final daily = _aggregate(samples);
     final overall = QcAcc();
     for (final s in samples) {
@@ -86,18 +92,18 @@ class QcReportView extends StatelessWidget {
           const SizedBox(height: DhenuSpacing.xl),
           DhenuEmptyState(
               icon: DhenuIcons.barChart,
-              title: emptyTitle,
-              subtitle: emptySubtitle),
+              title: emptyTitle ?? l.ccQcReportEmptyTitle,
+              subtitle: emptySubtitle ?? l.ccQcReportEmptySubtitle),
         ] else ...[
           const SizedBox(height: DhenuSpacing.lg),
-          Text('Quality trends', style: DhenuText.label.copyWith(color: t.inkSoft)),
+          Text(l.ccQcReportTrendsLabel, style: DhenuText.label.copyWith(color: t.inkSoft)),
           const SizedBox(height: DhenuSpacing.sm),
-          _trendStrip(context, t, daily),
+          _trendStrip(context, t, l, daily),
           const SizedBox(height: DhenuSpacing.lg),
-          Text('Daily quality · qty-weighted',
+          Text(l.ccQcReportDailyQualityLabel,
               style: DhenuText.label.copyWith(color: t.inkSoft)),
           const SizedBox(height: DhenuSpacing.sm),
-          _dailyTable(t, daily),
+          _dailyTable(t, l, daily),
         ],
       ],
     );
@@ -116,12 +122,12 @@ class QcReportView extends StatelessWidget {
     ];
   }
 
-  Widget _dailyTable(DhenuTokens t, List<_DayQc> days) {
+  Widget _dailyTable(DhenuTokens t, AppLocalizations l, List<_DayQc> days) {
     final rows = days.where((d) => d.qty > 0).toList().reversed.toList();
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(children: [
-        _tableHeader(t),
+        _tableHeader(t, l),
         for (final r in rows) ...[
           Divider(height: 1, color: t.hairline),
           _dayRow(t, r),
@@ -130,12 +136,12 @@ class QcReportView extends StatelessWidget {
     );
   }
 
-  Widget _tableHeader(DhenuTokens t) {
+  Widget _tableHeader(DhenuTokens t, AppLocalizations l) {
     final s = DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.6);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.sm),
       child: Row(children: [
-        Expanded(flex: 4, child: Text('DATE', style: s)),
+        Expanded(flex: 4, child: Text(l.ccQcReportDateHeader, style: s)),
         Expanded(flex: 3, child: Text('L', style: s, textAlign: TextAlign.right)),
         Expanded(flex: 2, child: Text('FAT', style: s, textAlign: TextAlign.right)),
         Expanded(flex: 2, child: Text('SNF', style: s, textAlign: TextAlign.right)),
@@ -169,10 +175,10 @@ class QcReportView extends StatelessWidget {
 
   /// FAT / SNF / Water trend cards laid side-by-side in a horizontal scroller —
   /// each ~82% of the width so the next card peeks, signalling more to swipe.
-  Widget _trendStrip(BuildContext context, DhenuTokens t, List<_DayQc> daily) {
+  Widget _trendStrip(BuildContext context, DhenuTokens t, AppLocalizations l, List<_DayQc> daily) {
     final cardW = (MediaQuery.sizeOf(context).width - DhenuSpacing.screen * 2) * 0.82;
     Widget card(String title, Color color, double? Function(_DayQc) sel) =>
-        SizedBox(width: cardW, child: _chartCard(t, title, '%', color, daily, sel));
+        SizedBox(width: cardW, child: _chartCard(t, l, title, '%', color, daily, sel));
     return SizedBox(
       height: 232,
       child: ListView(
@@ -191,7 +197,7 @@ class QcReportView extends StatelessWidget {
   }
 
   /// Per-day vertical bar chart of the metric's daily qty-weighted value.
-  Widget _chartCard(DhenuTokens t, String title, String unit, Color color,
+  Widget _chartCard(DhenuTokens t, AppLocalizations l, String title, String unit, Color color,
       List<_DayQc> days, double? Function(_DayQc) sel) {
     final points = [for (final d in days) if (sel(d) != null) (_barLabel(d.date), sel(d)!)];
     return DhenuCard(
@@ -202,7 +208,7 @@ class QcReportView extends StatelessWidget {
         if (points.isEmpty)
           SizedBox(
             height: 100,
-            child: Center(child: Text('No readings in this window',
+            child: Center(child: Text(l.ccQcReportNoReadings,
                 style: DhenuText.caption.copyWith(color: t.inkSoft))),
           )
         else

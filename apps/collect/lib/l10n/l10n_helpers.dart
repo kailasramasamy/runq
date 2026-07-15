@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:intl/intl.dart';
 import 'package:dhenu/l10n/app_localizations.dart';
 import '../api/mp_models.dart';
 
@@ -23,3 +24,9 @@ String farmerName(BuildContext context, MpFarmer f) {
   }
   return f.name;
 }
+
+/// Locale-aware short month name ("Jun" / "ಜೂನ್") for the app locale — replaces
+/// the hardcoded English month arrays that leaked into kn/ta screens.
+String shortMonth(BuildContext context, int month) =>
+    DateFormat.MMM(Localizations.localeOf(context).toLanguageTag())
+        .format(DateTime(2024, month));

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 
@@ -78,6 +79,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = isDark
         ? const [DhenuColors.brandDark, DhenuColors.brandPressedDark]
@@ -146,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                     children: [
                       Text('dhenu', style: DhenuText.h1.copyWith(color: cream)),
                       const SizedBox(height: DhenuSpacing.xs),
-                      Text('Every drop counts',
+                      Text(l.splashTagline,
                           style: DhenuText.label.copyWith(
                             color: cream.withValues(alpha: 0.85),
                             fontWeight: FontWeight.w500,

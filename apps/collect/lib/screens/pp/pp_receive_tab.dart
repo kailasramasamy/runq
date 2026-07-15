@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -27,6 +28,7 @@ class PpReceiveTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
     final allCcs = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final names = {for (final n in allCcs) n.id: n.name};
@@ -34,7 +36,7 @@ class PpReceiveTab extends ConsumerWidget {
       backgroundColor: t.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Receive', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.ccReceiveTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: RefreshIndicator(
         onRefresh: () => _refresh(ref),
@@ -42,7 +44,7 @@ class PpReceiveTab extends ConsumerWidget {
           loading: () => const DhenuLoadingList(),
           error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff,
-            title: 'Could not load tankers',
+            title: l.ppReceiveLoadError,
             subtitle: friendlyError(context, e),
           ),
           data: (all) {
@@ -53,14 +55,14 @@ class PpReceiveTab extends ConsumerWidget {
                 .toList()
                 .reversed
                 .toList();
-            return _list(context, ref, t, inTransit, received, names);
+            return _list(context, ref, l, t, inTransit, received, names);
           },
         ),
       ),
     );
   }
 
-  Widget _list(BuildContext context, WidgetRef ref, DhenuTokens t,
+  Widget _list(BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t,
       List<MpConsignment> inTransit, List<MpConsignment> received,
       Map<String, String> names) {
     return ListView(
@@ -68,31 +70,31 @@ class PpReceiveTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.bottomGap),
       children: [
-        _sectionTitle(t, 'In transit', inTransit.length),
+        _sectionTitle(t, l.ccInTransitLabel, inTransit.length),
         const SizedBox(height: DhenuSpacing.sm),
         if (inTransit.isEmpty)
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.checkCircle,
-            title: 'Nothing in transit',
-            subtitle: 'Inbound tankers appear here once dispatched',
+            title: l.ccReceiveNothingInTransit,
+            subtitle: l.ppReceiveNothingInTransitSubtitle,
           )
         else
           for (final c in inTransit) ...[
-            _transitCard(context, ref, t, c, names[c.fromNodeId] ?? 'CC'),
+            _transitCard(context, ref, l, t, c, names[c.fromNodeId] ?? 'CC'),
             const SizedBox(height: DhenuSpacing.md),
           ],
         const SizedBox(height: DhenuSpacing.lg),
-        _sectionTitle(t, 'Recent receives', received.length),
+        _sectionTitle(t, l.ccReceiveRecentReceives, received.length),
         const SizedBox(height: DhenuSpacing.sm),
         if (received.isEmpty)
-          const DhenuEmptyState(
+          DhenuEmptyState(
             icon: DhenuIcons.package,
-            title: 'No receipts yet',
-            subtitle: 'Tankers you receive from CCs show here',
+            title: l.ccReceiveNoReceiptsYet,
+            subtitle: l.ppReceiveNoReceiptsSubtitle,
           )
         else
           for (var i = 0; i < received.length && i < 10; i++) ...[
-            _receivedCard(context, ref, t, received[i],
+            _receivedCard(context, ref, l, t, received[i],
                 names[received[i].fromNodeId] ?? 'CC', editable: i == 0),
             const SizedBox(height: DhenuSpacing.sm),
           ],
@@ -114,10 +116,10 @@ class PpReceiveTab extends ConsumerWidget {
           ),
       ]);
 
-  Widget _transitCard(BuildContext context, WidgetRef ref, DhenuTokens t,
+  Widget _transitCard(BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t,
       MpConsignment c, String name) {
     return DhenuCard(
-      onTap: () => _openReceive(context, ref, c, name),
+      onTap: () => _openReceive(context, ref, l, c, name),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _cardHeader(t, c, name),
         const SizedBox(height: DhenuSpacing.md),
@@ -125,23 +127,23 @@ class PpReceiveTab extends ConsumerWidget {
             style: DhenuText.number(size: 26, color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         Row(children: [
-          _pill(t, '⏳ In transit', t.gradeB),
+          _pill(t, l.ccReceivePillInTransit, t.gradeB),
           const Spacer(),
-          Text('Tap to receive', style: DhenuText.caption.copyWith(color: t.brand)),
+          Text(l.ccReceiveTapToReceive, style: DhenuText.caption.copyWith(color: t.brand)),
           Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
         ]),
       ]),
     );
   }
 
-  Widget _receivedCard(BuildContext context, WidgetRef ref, DhenuTokens t,
+  Widget _receivedCard(BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t,
       MpConsignment c, String name, {bool editable = false}) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      onTap: () => _openReceive(context, ref, c, name, editable: editable),
+      onTap: () => _openReceive(context, ref, l, c, name, editable: editable),
       child: Row(children: [
         Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
         const SizedBox(width: DhenuSpacing.md),
@@ -158,7 +160,7 @@ class PpReceiveTab extends ConsumerWidget {
           Text(litres(c.receiptQty ?? 0, unit: true),
               style: DhenuText.number(size: 16, color: t.ink)),
           const SizedBox(height: 2),
-          Text('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}% var',
+          Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
         if (editable) ...[
@@ -195,7 +197,7 @@ class PpReceiveTab extends ConsumerWidget {
       );
 
   Future<void> _openReceive(
-      BuildContext context, WidgetRef ref, MpConsignment c, String name,
+      BuildContext context, WidgetRef ref, AppLocalizations l, MpConsignment c, String name,
       {bool editable = false}) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ReceiveConsignmentScreen(
@@ -203,8 +205,8 @@ class PpReceiveTab extends ConsumerWidget {
         nodeId: node.id,
         sourceName: name,
         editable: editable,
-        sourceLabel: 'DISPATCHED BY CC',
-        measuredLabel: 'MEASURED AT PLANT',
+        sourceLabel: l.ppReceiveDispatchedByCc,
+        measuredLabel: l.ppReceiveMeasuredAtPlant,
         sourceIcon: DhenuIcons.snowflake,
       ),
     ));

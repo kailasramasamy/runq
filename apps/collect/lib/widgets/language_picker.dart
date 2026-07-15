@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/locale_provider.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
@@ -23,6 +24,7 @@ class _LanguageSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final current = ref.watch(localeProvider).languageCode;
     return Container(
       decoration: BoxDecoration(
@@ -39,7 +41,7 @@ class _LanguageSheet extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(DhenuSpacing.lg),
-              child: Text('Choose language', style: DhenuText.title.copyWith(color: t.ink)),
+              child: Text(l.langPickerTitle, style: DhenuText.title.copyWith(color: t.ink)),
             ),
             // Scroll the list so 8 languages never overflow a short sheet.
             Flexible(
@@ -64,7 +66,7 @@ class _LanguageSheet extends ConsumerWidget {
                                 style: DhenuText.body.copyWith(color: t.inkSoft.withValues(alpha: 0.5))),
                             subtitle: Text(lang.englishLabel,
                                 style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.5))),
-                            trailing: Text('Coming soon',
+                            trailing: Text(l.langPickerComingSoon,
                                 style: DhenuText.caption.copyWith(color: t.inkSoft.withValues(alpha: 0.7))),
                           ),
                 ],

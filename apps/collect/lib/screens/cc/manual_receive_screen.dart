@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -67,6 +68,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final inboundAsync =
         ref.watch(nodeInboundByDateProvider((nodeId: widget.ccNodeId, date: isoDate(_date))));
     final received = _receivedFor(inboundAsync.asData?.value ?? const []);
@@ -74,7 +76,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     final shiftVmccs = widget.vmccs.where((v) => v.collectsShift(_shift.name)).toList();
     return Scaffold(
       backgroundColor: t.surface,
-      appBar: AppBar(title: const Text('Manual receive')),
+      appBar: AppBar(title: Text(l.ccManualReceiveTitle)),
       body: SafeArea(
         child: ListView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -90,33 +92,33 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
                 Icon(DhenuIcons.info, size: 18, color: t.brand),
                 const SizedBox(width: DhenuSpacing.sm),
                 Expanded(child: Text(
-                  'Use this only when milk arrived with no dispatch entry in the app.',
+                  l.ccManualReceiveInfoBanner,
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 )),
               ]),
             ),
             const SizedBox(height: DhenuSpacing.lg),
             DhenuCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('RECEIVING FOR', style: DhenuText.label.copyWith(color: t.brand)),
+              Text(l.ccManualReceiveReceivingFor, style: DhenuText.label.copyWith(color: t.brand)),
               const SizedBox(height: DhenuSpacing.md),
-              _dateField(t),
+              _dateField(t, l),
               const SizedBox(height: DhenuSpacing.md),
               Row(children: [
-                Text('Shift', style: DhenuText.label.copyWith(color: t.inkSoft)),
+                Text(l.ccManualReceiveShiftLabel, style: DhenuText.label.copyWith(color: t.inkSoft)),
                 const Spacer(),
                 ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s)),
               ]),
             ])),
             const SizedBox(height: DhenuSpacing.lg),
-            Text('SELECT VMCC', style: DhenuText.label.copyWith(color: t.inkSoft)),
+            Text(l.ccManualReceiveSelectVmcc, style: DhenuText.label.copyWith(color: t.inkSoft)),
             const SizedBox(height: DhenuSpacing.sm),
             if (shiftVmccs.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
                 child: Text(
                     widget.vmccs.isEmpty
-                        ? 'No VMCCs linked to this CC.'
-                        : 'No VMCCs collect in the ${_shift == Shift.am ? 'AM' : 'PM'} shift.',
+                        ? l.ccManualReceiveNoVmccsLinked
+                        : l.ccManualReceiveNoVmccsShift(_shift == Shift.am ? l.shiftAm : l.shiftPm),
                     style: DhenuText.body.copyWith(color: t.inkSoft)),
               )
             else
@@ -126,7 +128,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
                 ..._byName(shiftVmccs.where((v) => !received.containsKey(v.id))),
                 ..._byName(shiftVmccs.where((v) => received.containsKey(v.id))),
               ]) ...[
-                _vmccTile(t, v, received[v.id] ?? const []),
+                _vmccTile(t, l, v, received[v.id] ?? const []),
                 const SizedBox(height: DhenuSpacing.sm),
               ],
           ],
@@ -138,7 +140,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   List<MpNode> _byName(Iterable<MpNode> vmccs) =>
       vmccs.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-  Widget _vmccTile(DhenuTokens t, MpNode v, List<MpConsignment> receipts) {
+  Widget _vmccTile(DhenuTokens t, AppLocalizations l, MpNode v, List<MpConsignment> receipts) {
     final done = receipts.isNotEmpty;
     final qty = receipts.fold<double>(0, (a, c) => a + (c.receiptQty ?? 0));
     return DhenuCard(
@@ -159,13 +161,13 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
           const SizedBox(height: 2),
           Text(v.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
-        if (done) _receivedBadge(t, qty)
+        if (done) _receivedBadge(t, l, qty)
         else Icon(DhenuIcons.chevronRight, color: t.inkSoft),
       ]),
     );
   }
 
-  Widget _receivedBadge(DhenuTokens t, double qty) => Container(
+  Widget _receivedBadge(DhenuTokens t, AppLocalizations l, double qty) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
         decoration: BoxDecoration(
           color: t.gradeA.withValues(alpha: 0.12),
@@ -174,15 +176,15 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(DhenuIcons.check, size: 13, color: t.gradeA),
           const SizedBox(width: 3),
-          Text('${litres(qty)} received', style: DhenuText.caption.copyWith(color: t.gradeA)),
+          Text(l.ccManualReceiveReceivedBadge(litres(qty)), style: DhenuText.caption.copyWith(color: t.gradeA)),
         ]),
       );
 
-  Widget _dateField(DhenuTokens t) => InkWell(
+  Widget _dateField(DhenuTokens t, AppLocalizations l) => InkWell(
         onTap: _pickDate,
         borderRadius: BorderRadius.circular(DhenuRadii.input),
         child: InputDecorator(
-          decoration: const InputDecoration(labelText: 'Collection date'),
+          decoration: InputDecoration(labelText: l.ccManualReceiveCollectionDate),
           child: Row(children: [
             Expanded(child: Text(prettyDate(isoDate(_date)), style: DhenuText.body.copyWith(color: t.ink))),
             Icon(DhenuIcons.calendar, size: 18, color: t.inkSoft),
@@ -294,7 +296,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
 
   Future<void> _save() async {
     if (!_allEntered) {
-      setState(() => _error = 'Enter quantity, FAT and SNF');
+      setState(() => _error = AppLocalizations.of(context).ccManualReceiveErrorMissingFields);
       return;
     }
     setState(() { _saving = true; _error = null; });
@@ -328,16 +330,16 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
   /// Delete this manually-entered receipt (server rejects unless it's a direct
   /// receive that isn't yet locked for dispatch).
   Future<void> _delete() async {
+    final l = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
-        title: const Text('Delete receipt?'),
-        content: Text('${widget.vmcc.name} · '
-            '${prettyDate(isoDate(widget.date))} '
-            '${widget.shift == Shift.am ? 'AM' : 'PM'} will be removed.'),
+        title: Text(l.ccReceiveDeleteConfirmTitle),
+        content: Text(l.ccManualReceiveDeleteConfirmBody(widget.vmcc.name,
+            prettyDate(isoDate(widget.date)), widget.shift == Shift.am ? l.shiftAm : l.shiftPm)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: const Text('Delete')),
+          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l.commonCancel)),
+          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l.syncDelete)),
         ],
       ),
     );
@@ -354,6 +356,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final isAm = widget.shift == Shift.am;
     return Scaffold(
       backgroundColor: t.surface,
@@ -366,19 +369,19 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
             children: [
               DhenuCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text('MEASURED AT CC', style: DhenuText.label.copyWith(color: t.brand)),
+                  Text(l.ccMeasuredAtCc, style: DhenuText.label.copyWith(color: t.brand)),
                   const Spacer(),
                   Text('${prettyDate(isoDate(widget.date))} · ',
                       style: DhenuText.caption.copyWith(color: t.inkSoft)),
                   Icon(isAm ? DhenuIcons.sun : DhenuIcons.moon, size: 12, color: t.inkSoft),
                   const SizedBox(width: 4),
-                  Text(isAm ? 'AM' : 'PM', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                  Text(isAm ? l.shiftAm : l.shiftPm, style: DhenuText.caption.copyWith(color: t.inkSoft)),
                 ]),
                 const SizedBox(height: DhenuSpacing.md),
                 // Qty / FAT / SNF on one line, Water at the same field width on
                 // the next — consistent with the VMCC record-collection layout.
                 Row(children: [
-                  Expanded(child: _field(_qty, 'Qty (L)', focusNode: _qtyFocus, next: _fatFocus,
+                  Expanded(child: _field(_qty, l.ccManualReceiveQtyHint, focusNode: _qtyFocus, next: _fatFocus,
                       autofocus: widget.existing == null)),
                   const SizedBox(width: DhenuSpacing.md),
                   Expanded(child: _field(_fat, 'FAT %', focusNode: _fatFocus, next: _snfFocus)),
@@ -404,7 +407,9 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
             padding: const EdgeInsets.all(DhenuSpacing.screen),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               PrimaryAction(
-                label: _ready ? (widget.existing != null ? 'Save changes' : 'Mark received') : 'Next',
+                label: _ready
+                    ? (widget.existing != null ? l.ccManualReceiveSaveChanges : l.ccManualReceiveMarkReceived)
+                    : l.commonNext,
                 icon: _ready ? DhenuIcons.check : DhenuIcons.chevronRight,
                 onPressed: _ready ? _save : _focusNext,
                 loading: _saving,
@@ -414,7 +419,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
                 TextButton.icon(
                   onPressed: _saving ? null : _delete,
                   icon: Icon(DhenuIcons.trash, size: 18, color: t.gradeC),
-                  label: Text('Delete receipt', style: DhenuText.label.copyWith(color: t.gradeC)),
+                  label: Text(l.ccReceiveDeleteReceipt, style: DhenuText.label.copyWith(color: t.gradeC)),
                 ),
               ],
             ]),

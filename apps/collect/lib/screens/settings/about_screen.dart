@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
@@ -30,16 +31,17 @@ class _AboutScreenState extends State<AboutScreen> {
   Future<void> _loadVersion() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
-    setState(() => _version = 'Version ${info.version} (${info.buildNumber})');
+    setState(() => _version = AppLocalizations.of(context).aboutScreenVersion(info.version, info.buildNumber));
   }
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('About', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.aboutScreenTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -47,13 +49,13 @@ class _AboutScreenState extends State<AboutScreen> {
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4,
         ),
         children: [
-          _brandBlock(t),
+          _brandBlock(t, l),
           const SizedBox(height: DhenuSpacing.xl),
-          _legalCard(context, t),
+          _legalCard(context, t, l),
           const SizedBox(height: DhenuSpacing.xl),
           Center(
             child: Text(
-              'Made with care in India 🇮🇳',
+              l.aboutScreenMadeWith,
               style: DhenuText.caption.copyWith(color: t.inkSoft),
             ),
           ),
@@ -62,7 +64,7 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _brandBlock(DhenuTokens t) {
+  Widget _brandBlock(DhenuTokens t, AppLocalizations l) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -80,7 +82,7 @@ class _AboutScreenState extends State<AboutScreen> {
         Text('Dhenu', style: DhenuText.h2.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.xs),
         Text(
-          'Milk procurement, simplified',
+          l.aboutScreenTagline,
           style: DhenuText.body.copyWith(color: t.inkSoft),
         ),
         const SizedBox(height: DhenuSpacing.xs),
@@ -92,7 +94,7 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _legalCard(BuildContext context, DhenuTokens t) {
+  Widget _legalCard(BuildContext context, DhenuTokens t, AppLocalizations l) {
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -100,7 +102,7 @@ class _AboutScreenState extends State<AboutScreen> {
         children: [
           _LegalRow(
             icon: LucideIcons.shield,
-            label: 'Privacy Policy',
+            label: l.aboutScreenPrivacyPolicy,
             onTap: (ctx) => _launch(ctx, Uri.parse(_privacyUrl)),
           ),
           Padding(
@@ -111,7 +113,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           _LegalRow(
             icon: LucideIcons.file_text,
-            label: 'Terms of Service',
+            label: l.aboutScreenTermsOfService,
             isLast: true,
             onTap: (ctx) => _launch(ctx, Uri.parse(_termsUrl)),
           ),
@@ -124,7 +126,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!context.mounted) return;
     if (!ok) {
-      showDhenuToast(context, 'Could not open', type: DhenuToastType.error);
+      showDhenuToast(context, AppLocalizations.of(context).aboutScreenCouldNotOpen, type: DhenuToastType.error);
     }
   }
 }

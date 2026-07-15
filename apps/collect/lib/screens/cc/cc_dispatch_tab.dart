@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -61,11 +62,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     return (widget.node.hasBmc || _overnight) ? st.dayClosed : st.closedFor(_shift.name);
   }
 
-  String get _closeFirstMsg => _overnight
-      ? 'Close the pool (yesterday PM + today AM) before dispatching.'
+  String _closeFirstMsg(AppLocalizations l) => _overnight
+      ? l.ccDispatchCloseFirstPool
       : widget.node.hasBmc
-          ? "Close today's receiving before dispatching."
-          : 'Close receiving for this shift before dispatching.';
+          ? l.ccDispatchCloseFirstDay
+          : l.ccDispatchCloseFirstShift;
 
   // Whole-day close for BMC nodes (shift: null), else the selected shift.
   String? get _closeArg => _perShift ? _shift.name : null;
@@ -168,12 +169,13 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   Future<void> _dispatch() async {
+    final l = AppLocalizations.of(context);
     if (_destPp == null) {
-      setState(() => _error = 'Select a destination plant');
+      setState(() => _error = l.ccDispatchErrorNoDestination);
       return;
     }
     if (!_slotClosed(ref.read(shiftStatusForDateProvider(_dateArgs)).asData?.value)) {
-      setState(() => _error = _closeFirstMsg);
+      setState(() => _error = _closeFirstMsg(l));
       return;
     }
     final qty = double.tryParse(_qtyCtrl.text);
@@ -181,12 +183,12 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     final snf = double.tryParse(_snfCtrl.text);
     final water = double.tryParse(_waterCtrl.text);
     if (qty == null || fat == null || snf == null) {
-      setState(() => _error = 'Enter valid numbers');
+      setState(() => _error = l.ccDispatchErrorInvalidNumbers);
       return;
     }
     final available = ref.read(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
     if (qty - available > 0.001) {
-      setState(() => _error = 'Only ${available.toStringAsFixed(1)} L available to dispatch');
+      setState(() => _error = l.dispatchErrorOverQty(available.toStringAsFixed(1)));
       return;
     }
     setState(() { _saving = true; _error = null; });
@@ -218,6 +220,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
     final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
     final ppNames = {
@@ -232,7 +235,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       backgroundColor: t.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Dispatch', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -242,23 +245,23 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         DateStepper(date: _date, onChanged: _onDateChanged),
         const SizedBox(height: DhenuSpacing.lg),
         Row(children: [
-          Expanded(child: Text('Availability', style: DhenuText.title.copyWith(color: t.ink))),
+          Expanded(child: Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink))),
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        _availCard(t, availAsync),
-        _closeControl(t, availAsync, closeRequired),
+        _availCard(t, l, availAsync),
+        _closeControl(t, l, availAsync, closeRequired),
         const SizedBox(height: DhenuSpacing.xl),
         if (canDispatch) ...[
-        Text('Dispatch to Plant', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.ccDispatchToPlant, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.md),
-        _destPicker(context, t),
+        _destPicker(context, t, l),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
           controller: _qtyCtrl,
           keyboardType: TextInputType.number,
           textCapitalization: TextCapitalization.none,
-          decoration: const InputDecoration(hintText: 'Dispatch Qty (L)'),
+          decoration: InputDecoration(hintText: l.dispatchQtyHint),
         ),
         const SizedBox(height: DhenuSpacing.md),
         Row(children: [
@@ -267,7 +270,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
               controller: _fatCtrl,
               keyboardType: TextInputType.number,
               textCapitalization: TextCapitalization.none,
-              decoration: const InputDecoration(hintText: 'FAT %'),
+              decoration: InputDecoration(hintText: l.dispatchFatHint),
             ),
           ),
           const SizedBox(width: DhenuSpacing.md),
@@ -276,7 +279,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
               controller: _snfCtrl,
               keyboardType: TextInputType.number,
               textCapitalization: TextCapitalization.none,
-              decoration: const InputDecoration(hintText: 'SNF %'),
+              decoration: InputDecoration(hintText: l.dispatchSnfHint),
             ),
           ),
         ]),
@@ -291,7 +294,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         TextField(
           controller: _containerCtrl,
           textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(hintText: 'Container No. (optional)'),
+          decoration: InputDecoration(hintText: l.dispatchContainerHint),
         ),
         if (_error != null) ...[
           const SizedBox(height: DhenuSpacing.sm),
@@ -299,34 +302,34 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         ],
         const SizedBox(height: DhenuSpacing.lg),
         PrimaryAction(
-          label: 'Dispatch Tanker',
+          label: l.dispatchTankerButton,
           icon: DhenuIcons.truck,
           onPressed: (_saving || closeRequired) ? null : _dispatch,
           loading: _saving,
         ),
         ] else ...[
-          _dispatchedCard(t, availAsync, outboundAsync),
+          _dispatchedCard(t, l, availAsync, outboundAsync),
         ],
         const SizedBox(height: DhenuSpacing.xl),
-        Text('Today\'s Outbound', style: DhenuText.title.copyWith(color: t.ink)),
+        Text(l.dispatchTodaysOutbound, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
-        _outboundList(t, outboundAsync, ppNames),
-        _seeDispatchHistoryLink(context, t),
+        _outboundList(t, l, outboundAsync, ppNames),
+        _seeDispatchHistoryLink(context, t, l),
       ],
       ),
     );
   }
 
-  Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t) => Center(
+  Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t, AppLocalizations l) => Center(
         child: TextButton(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: Text('Dispatch history', style: DhenuText.h2.copyWith(color: t.ink))),
+              appBar: AppBar(title: Text(l.ccDispatchHistoryTitle, style: DhenuText.h2.copyWith(color: t.ink))),
               body: DispatchHistory(node: widget.node, kind: 'cc_to_pp'),
             ),
           )),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('See full history', style: DhenuText.label.copyWith(color: t.brand)),
+            Text(l.homeSeeFullHistory, style: DhenuText.label.copyWith(color: t.brand)),
             const SizedBox(width: 4),
             Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
           ]),
@@ -337,6 +340,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   /// sent out this shift, with the container number for each leg.
   Widget _dispatchedCard(
     DhenuTokens t,
+    AppLocalizations l,
     AsyncValue<MpAvailability?> availAsync,
     AsyncValue<List<MpConsignment>> outAsync,
   ) {
@@ -351,12 +355,12 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           Icon(DhenuIcons.checkCircle, size: 20, color: t.gradeA),
           const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-            child: Text('${litres(dispatched, unit: true)} dispatched',
+            child: Text(l.dispatchAmountDispatched(litres(dispatched, unit: true)),
                 style: DhenuText.title.copyWith(color: t.ink)),
           ),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
-        Text('Nothing left to dispatch${_perShift ? ' this shift' : ''}.',
+        Text(_perShift ? l.dispatchNothingLeftThisShift : l.dispatchNothingLeft,
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
         for (final c in legs) ...[
           const SizedBox(height: DhenuSpacing.md),
@@ -369,8 +373,8 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                 const SizedBox(height: DhenuSpacing.xs),
                 Text(
                   (c.containerNo?.isNotEmpty ?? false)
-                      ? 'Container ${c.containerNo}'
-                      : 'No container no.',
+                      ? l.dispatchContainerLabel(c.containerNo!)
+                      : l.dispatchNoContainerNo,
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ]),
@@ -383,19 +387,21 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  String get _slotLabel =>
-      _overnight ? 'this pool' : (_perShift ? (_shift == Shift.am ? 'AM' : 'PM') : 'today');
+  String _slotLabel(AppLocalizations l) => _overnight
+      ? l.ccDispatchSlotPool
+      : (_perShift ? (_shift == Shift.am ? l.shiftAm : l.shiftPm) : l.ccDispatchSlotToday);
 
   /// Receiving-close control gating onward dispatch. Open → an action button
   /// that closes the slot and unlocks dispatch; closed → a confirmation with a
   /// Reopen affordance (the server rejects reopen once anything's dispatched).
-  Widget _closeControl(DhenuTokens t, AsyncValue<MpAvailability?> availAsync, bool closeRequired) {
-    if (!closeRequired) return _closedBanner(t);
+  Widget _closeControl(
+      DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync, bool closeRequired) {
+    if (!closeRequired) return _closedBanner(t, l);
     // Nothing received yet for this slot → nothing to close.
     if ((availAsync.asData?.value?.collected ?? 0) <= 0) return const SizedBox.shrink();
     final label = _overnight
-        ? 'Close pool receiving'
-        : (_perShift ? 'Close $_slotLabel receiving' : "Close today's receiving");
+        ? l.ccDispatchCloseReceivingPool
+        : (_perShift ? l.ccDispatchCloseReceivingShift(_slotLabel(l)) : l.ccDispatchCloseReceivingToday);
     return Padding(
       padding: const EdgeInsets.only(top: DhenuSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -414,14 +420,14 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           ),
         ),
         const SizedBox(height: DhenuSpacing.xs),
-        Text('Unlocks dispatch to the plant for $_slotLabel.',
+        Text(l.ccDispatchUnlocksFor(_slotLabel(l)),
             textAlign: TextAlign.center,
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
       ]),
     );
   }
 
-  Widget _closedBanner(DhenuTokens t) {
+  Widget _closedBanner(DhenuTokens t, AppLocalizations l) {
     return Padding(
       padding: const EdgeInsets.only(top: DhenuSpacing.md),
       child: Container(
@@ -435,29 +441,29 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         child: Row(children: [
           Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
           const SizedBox(width: DhenuSpacing.md),
-          Expanded(child: Text('Receiving closed for $_slotLabel · ready for dispatch',
+          Expanded(child: Text(l.ccDispatchClosedFor(_slotLabel(l)),
               style: DhenuText.label.copyWith(color: t.ink))),
           TextButton(
             onPressed: _closingBusy ? null : _reopenReceiving,
-            child: Text('Reopen', style: DhenuText.label.copyWith(color: t.brand)),
+            child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),
           ),
         ]),
       ),
     );
   }
 
-  Widget _availCard(DhenuTokens t, AsyncValue<MpAvailability?> availAsync) {
+  Widget _availCard(DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync) {
     return DhenuCard(
       child: availAsync.when(
         loading: () => const DhenuLoadingList(rows: 1),
         error: (e, _) => Text('—', style: DhenuText.body.copyWith(color: t.inkSoft)),
         data: (a) => a == null
-            ? Text('No data', style: DhenuText.body.copyWith(color: t.inkSoft))
+            ? Text(l.dispatchNoData, style: DhenuText.body.copyWith(color: t.inkSoft))
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                TankGauge(current: a.available, capacity: a.collected, label: 'Available to dispatch'),
+                TankGauge(current: a.available, capacity: a.collected, label: l.dispatchAvailableToDispatch),
                 const SizedBox(height: DhenuSpacing.sm),
                 Text(
-                  'Collected ${litres(a.collected, unit: true)} · Dispatched ${litres(a.dispatched, unit: true)}',
+                  l.dispatchCollectedDispatched(litres(a.collected, unit: true), litres(a.dispatched, unit: true)),
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ]),
@@ -465,7 +471,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  Widget _destPicker(BuildContext context, DhenuTokens t) {
+  Widget _destPicker(BuildContext context, DhenuTokens t, AppLocalizations l) {
     return GestureDetector(
       onTap: () => _pickPp(context, ref),
       child: Container(
@@ -479,7 +485,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         child: Row(children: [
           Expanded(
             child: Text(
-              _destPp?.name ?? 'Select destination plant…',
+              _destPp?.name ?? l.ccDispatchSelectDestinationPlant,
               style: DhenuText.body.copyWith(
                   color: _destPp == null ? t.inkSoft : t.ink),
             ),
@@ -491,13 +497,13 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   /// Consignment id + shift, shown small under the plant name.
-  String _outboundSubtitle(MpConsignment c) {
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · ';
+  String _outboundSubtitle(AppLocalizations l, MpConsignment c) {
+    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? l.shiftAm : l.shiftPm} · ';
     return '$shift${c.consignmentNo}';
   }
 
   Widget _outboundList(
-      DhenuTokens t, AsyncValue<List<MpConsignment>> outAsync, Map<String, String> ppNames) {
+      DhenuTokens t, AppLocalizations l, AsyncValue<List<MpConsignment>> outAsync, Map<String, String> ppNames) {
     return outAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
       error: (_, _) => const SizedBox.shrink(),
@@ -506,8 +512,8 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         if (outbound.isEmpty) {
           return DhenuEmptyState(
             icon: DhenuIcons.truck,
-            title: 'No dispatches today',
-            subtitle: 'Use the form above to dispatch a tanker',
+            title: l.dispatchNoDispatchesToday,
+            subtitle: l.dispatchNoDispatchesSubtitle,
           );
         }
         return DhenuCard(
@@ -517,10 +523,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
               if (i > 0) Divider(height: 1, color: t.hairline),
               SourceRow(
                 title: ppNames[outbound[i].toNodeId] ?? 'Plant',
-                subtitle: _outboundSubtitle(outbound[i]),
+                subtitle: _outboundSubtitle(l, outbound[i]),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
                 trailingStatus: Text(
-                  outbound[i].inTransit ? '⏳ transit' : '✓ received',
+                  outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
                   style: DhenuText.caption.copyWith(
                     color: outbound[i].inTransit ? t.gradeB : t.gradeA,
                   ),
@@ -549,6 +555,7 @@ class _PpPickerState extends State<_PpPicker> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final filtered = _query.isEmpty
         ? widget.pps
         : widget.pps
@@ -581,13 +588,13 @@ class _PpPickerState extends State<_PpPicker> {
               autofocus: true,
               onChanged: (v) => setState(() => _query = v),
               decoration:
-                  const InputDecoration(hintText: 'Search plant', prefixIcon: Icon(DhenuIcons.search)),
+                  InputDecoration(hintText: l.ccDispatchSearchPlant, prefixIcon: const Icon(DhenuIcons.search)),
             ),
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const DhenuEmptyState(
-                    icon: DhenuIcons.plant, title: 'No plants found')
+                ? DhenuEmptyState(
+                    icon: DhenuIcons.plant, title: l.ccDispatchNoPlantsFound)
                 : ListView.separated(
                     controller: ctrl,
                     keyboardDismissBehavior:

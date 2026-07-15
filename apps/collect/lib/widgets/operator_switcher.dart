@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
@@ -13,8 +14,9 @@ import 'sheet_grabber.dart';
 
 /// Tier role description for the secondary card line (CC/PP cards, where a pour
 /// "today" total isn't meaningful).
-String operatorNodeRole(MpNode n) =>
-    n.isPp ? 'Processing plant' : (n.isCc ? 'Chilling centre' : 'Village collection centre');
+String operatorNodeRole(AppLocalizations l, MpNode n) => n.isPp
+    ? l.operatorSwitchRolePp
+    : (n.isCc ? l.operatorSwitchRoleCc : l.operatorSwitchRoleVmcc);
 
 /// The directly-assigned-node list, shared by the full-screen selector and the
 /// in-shell switcher sheet. One tappable card per node; a VMCC card also shows
@@ -27,20 +29,21 @@ class OperatorNodeList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     return ref.watch(operatorAssignedNodesProvider).when(
           loading: () => const Padding(
             padding: EdgeInsets.all(DhenuSpacing.screen),
             child: DhenuLoadingList(rows: 2),
           ),
           error: (e, _) => DhenuEmptyState(
-              icon: DhenuIcons.cloudOff, title: 'Could not load your centres', subtitle: '$e'),
+              icon: DhenuIcons.cloudOff, title: l.operatorSwitchLoadError, subtitle: '$e'),
           data: (nodes) {
             final active = nodes.where((n) => n.isActive).toList();
             if (active.isEmpty) {
-              return const DhenuEmptyState(
+              return DhenuEmptyState(
                 icon: DhenuIcons.store,
-                title: 'No centres assigned',
-                subtitle: 'Ask your admin to assign you to a centre.',
+                title: l.operatorSwitchNoneTitle,
+                subtitle: l.operatorSwitchNoneSubtitle,
               );
             }
             return ListView.separated(
@@ -102,18 +105,19 @@ class _NodeCard extends ConsumerWidget {
 
   /// VMCC → today's collection snapshot (brand-tinted); CC/PP → tier role.
   Widget _subtitle(BuildContext context, WidgetRef ref, DhenuTokens t) {
+    final l = AppLocalizations.of(context);
     if (!node.isVmcc) {
-      return Text(operatorNodeRole(node), style: DhenuText.caption.copyWith(color: t.inkSoft));
+      return Text(operatorNodeRole(l, node), style: DhenuText.caption.copyWith(color: t.inkSoft));
     }
     return ref.watch(nodeTodaySummaryProvider(node.id)).when(
-          loading: () => Text('Today  …', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-          error: (_, _) => Text(operatorNodeRole(node), style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          loading: () => Text(l.operatorSwitchTodayLoading, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          error: (_, _) => Text(operatorNodeRole(l, node), style: DhenuText.caption.copyWith(color: t.inkSoft)),
           data: (s) {
             if (s == null || s.totalQty == 0) {
-              return Text('No collection yet', style: DhenuText.caption.copyWith(color: t.inkSoft));
+              return Text(l.operatorSwitchNoCollection, style: DhenuText.caption.copyWith(color: t.inkSoft));
             }
             return Text(
-              'Today  ${litres(s.totalQty, unit: true)} · ${s.farmerCount} farmers',
+              l.operatorSwitchTodaySummary(litres(s.totalQty, unit: true), s.farmerCount),
               style: DhenuText.label.copyWith(color: t.brand),
             );
           },
@@ -132,6 +136,7 @@ class OperatorSwitcherBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Material(
       color: t.brandSubtle,
       child: InkWell(
@@ -152,7 +157,7 @@ class OperatorSwitcherBar extends ConsumerWidget {
             ),
             Icon(DhenuIcons.chevronDown, size: 18, color: t.brand),
             const Spacer(),
-            Text('Switch',
+            Text(l.operatorSwitchButton,
                 style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700)),
           ]),
         ),
@@ -178,6 +183,7 @@ class _OperatorSwitcherSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final current = ref.watch(mpActiveNodeProvider);
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
@@ -192,7 +198,7 @@ class _OperatorSwitcherSheet extends ConsumerWidget {
               DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.sm),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Text('Switch centre', style: DhenuText.h2.copyWith(color: t.ink)),
+            child: Text(l.adminSwitchSheetTitle, style: DhenuText.h2.copyWith(color: t.ink)),
           ),
         ),
         Flexible(

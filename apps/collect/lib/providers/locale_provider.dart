@@ -40,11 +40,20 @@ DhenuLanguage languageForCode(String code) =>
 
 List<Locale> get supportedLocales => dhenuLanguages.map((l) => l.locale).toList();
 
-/// User-selected app language. Persists across launches; defaults to English.
+/// User-selected app language. Persists across launches; first run seeds from
+/// the device locale when it's one we support (a Kannada phone opens in
+/// Kannada — the login screen must be readable before any picker is reachable).
 /// Also keeps the TTS engine's voice in step.
 class LocaleController extends StateNotifier<Locale> {
-  LocaleController() : super(const Locale('en')) {
+  LocaleController() : super(_deviceDefault()) {
+    TtsService.instance.setLocale(languageForCode(state.languageCode).ttsTag);
     _restore();
+  }
+
+  static Locale _deviceDefault() {
+    final device = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    final match = dhenuLanguages.where((l) => l.supported && l.code == device);
+    return match.isEmpty ? const Locale('en') : match.first.locale;
   }
 
   Future<void> _restore() async {

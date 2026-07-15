@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
@@ -39,6 +40,7 @@ class _NodePickerSheetState extends State<_NodePickerSheet> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final showSearch = widget.nodes.length > 6;
     final q = _query.toLowerCase();
     final filtered = q.isEmpty
@@ -71,15 +73,15 @@ class _NodePickerSheetState extends State<_NodePickerSheet> {
               padding: const EdgeInsets.fromLTRB(DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.sm),
               child: TextField(
                 onChanged: (v) => setState(() => _query = v.trim()),
-                decoration: const InputDecoration(
-                  hintText: 'Search…',
-                  prefixIcon: Icon(DhenuIcons.search),
+                decoration: InputDecoration(
+                  hintText: l.nodePickerSearchHint,
+                  prefixIcon: const Icon(DhenuIcons.search),
                 ),
               ),
             ),
           Expanded(
             child: filtered.isEmpty
-                ? Center(child: DhenuEmptyState(icon: DhenuIcons.search, title: 'No match'))
+                ? Center(child: DhenuEmptyState(icon: DhenuIcons.search, title: l.nodePickerNoMatch))
                 : ListView.separated(
                     controller: scrollController,
                     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../providers/app_update_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -27,6 +28,7 @@ class UpdateRequiredScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -52,7 +54,7 @@ class UpdateRequiredScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: DhenuSpacing.xl),
                 Text(
-                  'Update required',
+                  l.updateRequiredTitle,
                   textAlign: TextAlign.center,
                   style: DhenuText.h1.copyWith(color: t.ink),
                 ),
@@ -64,7 +66,7 @@ class UpdateRequiredScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: DhenuSpacing.x3),
                 PrimaryAction(
-                  label: 'Update now',
+                  label: l.updateRequiredButton,
                   icon: LucideIcons.download,
                   onPressed: () => _openStore(context),
                 ),
@@ -84,7 +86,8 @@ class UpdateRequiredScreen extends StatelessWidget {
     }
     if (!context.mounted) return;
     if (!ok) {
-      showDhenuToast(context, 'Could not open the store', type: DhenuToastType.error);
+      showDhenuToast(context, AppLocalizations.of(context).updateRequiredCouldNotOpenStore,
+          type: DhenuToastType.error);
     }
   }
 }

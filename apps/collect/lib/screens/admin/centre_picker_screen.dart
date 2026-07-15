@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
@@ -45,9 +46,9 @@ const _kUnlinked = '__unlinked__';
 IconData _iconForType(String type) =>
     type == 'pp' ? DhenuIcons.tankers : (type == 'cc' ? DhenuIcons.snowflake : DhenuIcons.store);
 String _abbrForType(String type) => type == 'pp' ? 'PP' : (type == 'cc' ? 'CC' : 'VMCC');
-String _titleForType(String type) => type == 'pp'
-    ? 'Processing plants'
-    : (type == 'cc' ? 'Chilling centres' : 'Village collection centres');
+String _titleForType(AppLocalizations l, String type) => type == 'pp'
+    ? l.adminSwitchTitlePp
+    : (type == 'cc' ? l.adminSwitchTitleCc : l.adminSwitchTitleVmcc);
 int _byName(MpNode a, MpNode b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
 
 /// First screen an admin (owner/accountant/viewer) sees: pick a centre to
@@ -59,6 +60,7 @@ class CentrePickerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final active =
         ref.watch(operatorNodesProvider).valueOrNull?.where((n) => n.isActive).toList() ?? const [];
     final tiers = [
@@ -90,7 +92,7 @@ class CentrePickerScreen extends ConsumerWidget {
         items: [
           for (final ty in tiers)
             DhenuNavItem(icon: _iconForType(ty), label: _abbrForType(ty)),
-          const DhenuNavItem(icon: DhenuIcons.users, label: 'Farmers'),
+          DhenuNavItem(icon: DhenuIcons.users, label: l.adminSwitchFarmersNav),
         ],
       ),
     );
@@ -123,17 +125,18 @@ class _GreetingHeader extends StatelessWidget {
   const _GreetingHeader({required this.user});
   final AuthUser? user;
 
-  String _salutation() {
+  String _salutation(AppLocalizations l) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return l.farmerHomeGoodMorning;
+    if (hour < 17) return l.farmerHomeGoodAfternoon;
+    return l.farmerHomeGoodEvening;
   }
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
-    final name = (user?.name?.trim().isNotEmpty ?? false) ? user!.name!.trim() : 'Dhenu User';
+    final l = AppLocalizations.of(context);
+    final name = (user?.name?.trim().isNotEmpty ?? false) ? user!.name!.trim() : l.adminSwitchDefaultUserName;
     final initial = name[0].toUpperCase();
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -141,7 +144,7 @@ class _GreetingHeader extends StatelessWidget {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_salutation(), style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            Text(_salutation(l), style: DhenuText.caption.copyWith(color: t.inkSoft)),
             const SizedBox(height: 2),
             Text(name,
                 maxLines: 1,
@@ -153,7 +156,7 @@ class _GreetingHeader extends StatelessWidget {
         InkWell(
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: Text('Profile', style: DhenuText.h2.copyWith(color: t.ink))),
+              appBar: AppBar(title: Text(l.navProfile, style: DhenuText.h2.copyWith(color: t.ink))),
               body: const ProfileTab(),
             ),
           )),
@@ -190,6 +193,7 @@ class _NodeSheetState extends ConsumerState<_NodeSheet> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
       decoration: BoxDecoration(
@@ -203,14 +207,14 @@ class _NodeSheetState extends ConsumerState<_NodeSheet> {
               DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.sm),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Text(_titleForType(widget.tier), style: DhenuText.h2.copyWith(color: t.ink)),
+            child: Text(_titleForType(l, widget.tier), style: DhenuText.h2.copyWith(color: t.ink)),
           ),
         ),
         Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(
                 DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.bottomGap),
-            child: widget.tier == 'vmcc' ? _vmccDrill(t) : _tierList(t),
+            child: widget.tier == 'vmcc' ? _vmccDrill(l, t) : _tierList(t),
           ),
         ),
       ]),
@@ -232,26 +236,29 @@ class _NodeSheetState extends ConsumerState<_NodeSheet> {
   }
 
   /// VMCC drill: pick a chilling centre, then a VMCC under it.
-  Widget _vmccDrill(DhenuTokens t) {
+  Widget _vmccDrill(AppLocalizations l, DhenuTokens t) {
     final byId = {for (final n in widget.active) n.id: n};
     final groups = _vmccGroups(byId);
     final order = groups.keys.toList()
-      ..sort((a, b) => _ccName(byId, a).toLowerCase().compareTo(_ccName(byId, b).toLowerCase()));
+      ..sort((a, b) =>
+          _ccName(l, byId, a).toLowerCase().compareTo(_ccName(l, byId, b).toLowerCase()));
     final selVmccs = _ccId == null ? null : groups[_ccId];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHeader(t, 'Chilling centres'),
+      _sectionHeader(t, l.adminSwitchTitleCc),
       _ListCard(children: [
         for (final key in order)
           _OptionTile(
             icon: key == _kUnlinked ? DhenuIcons.cloudOff : DhenuIcons.snowflake,
-            title: _ccName(byId, key),
+            title: _ccName(l, byId, key),
             trailingCount: groups[key]!.length,
             selected: _ccId == key,
             onTap: () => setState(() => _ccId = _ccId == key ? null : key),
           ),
       ]),
       if (selVmccs != null) ...[
-        _sectionHeader(t, _ccId == _kUnlinked ? 'Unlinked VMCCs' : 'VMCCs in ${_ccName(byId, _ccId!)}'),
+        _sectionHeader(t, _ccId == _kUnlinked
+            ? l.adminSwitchUnlinkedVmccs
+            : l.adminSwitchVmccsInCc(_ccName(l, byId, _ccId!))),
         _ListCard(children: [
           for (final n in selVmccs)
             _OptionTile(
@@ -277,8 +284,9 @@ class _NodeSheetState extends ConsumerState<_NodeSheet> {
     return g;
   }
 
-  String _ccName(Map<String, MpNode> byId, String key) =>
-      key == _kUnlinked ? 'Not linked to a chilling centre' : (byId[key]?.name ?? 'Chilling centre');
+  String _ccName(AppLocalizations l, Map<String, MpNode> byId, String key) => key == _kUnlinked
+      ? l.adminSwitchNotLinkedToCc
+      : (byId[key]?.name ?? l.adminSwitchCcFallback);
 }
 
 /// Today's collection summary card on the admin home — total milk collected
@@ -289,28 +297,29 @@ class _TodaySummaryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.md),
       child: GradientHeroCard(
         child: ref.watch(tenantTodaySummaryProvider).when(
               loading: () => const DhenuLoadingList(rows: 2),
-              error: (e, _) => Text('Could not load today’s collection',
+              error: (e, _) => Text(l.adminSwitchLoadError,
                   style: DhenuText.caption.copyWith(color: Colors.white)),
-              data: (s) => _content(s),
+              data: (s) => _content(l, s),
             ),
       ),
     );
   }
 
-  Widget _content(MpCollectionSummary? s) {
+  Widget _content(AppLocalizations l, MpCollectionSummary? s) {
     final qty = s?.totalQty ?? 0;
     const faint = Color(0xB8FFFFFF); // white @ 72%
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const Icon(DhenuIcons.drop, size: 16, color: Colors.white),
         const SizedBox(width: DhenuSpacing.sm),
-        Text('TODAY’S COLLECTION',
+        Text(l.adminSwitchTodayCollectionLabel,
             style: DhenuText.label
                 .copyWith(color: faint, letterSpacing: 0.6, fontWeight: FontWeight.w700)),
       ]),
@@ -318,9 +327,9 @@ class _TodaySummaryCard extends ConsumerWidget {
       Text(litres(qty, unit: true), style: DhenuText.h1.copyWith(color: Colors.white)),
       const SizedBox(height: DhenuSpacing.sm),
       Row(children: [
-        _shiftPill('AM', s == null ? 0 : s.amQty),
+        _shiftPill(l.shiftAm, s == null ? 0 : s.amQty),
         const SizedBox(width: DhenuSpacing.sm),
-        _shiftPill('PM', s == null ? 0 : s.pmQty),
+        _shiftPill(l.shiftPm, s == null ? 0 : s.pmQty),
       ]),
       const SizedBox(height: DhenuSpacing.md),
       Row(children: [
@@ -382,6 +391,7 @@ class _Breakdowns extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final async = ref.watch(tenantTodaySummaryProvider);
     if (async.isLoading && !async.hasValue) {
       return const DhenuLoadingList(rows: 3);
@@ -408,19 +418,19 @@ class _Breakdowns extends ConsumerWidget {
     ]..sort((a, b) => b.qty.compareTo(a.qty));
 
     if (types.isEmpty && ccs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.lg),
         child: DhenuEmptyState(
           icon: DhenuIcons.drop,
-          title: 'No collection yet today',
-          subtitle: 'Per-centre and per-milk-type totals will appear here.',
+          title: l.adminSwitchNoCollectionTitle,
+          subtitle: l.adminSwitchNoCollectionSubtitle,
         ),
       );
     }
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      if (ccs.isNotEmpty) _card(context, 'BY CHILLING CENTRE', ccs, bands),
-      if (types.isNotEmpty) _card(context, 'BY MILK TYPE', types, bands),
+      if (ccs.isNotEmpty) _card(context, l.adminSwitchByChillingCentre, ccs, bands),
+      if (types.isNotEmpty) _card(context, l.adminSwitchByMilkType, types, bands),
     ]);
   }
 
@@ -464,6 +474,7 @@ class _EntryCardState extends State<_EntryCard> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final s = widget.slice;
     return DhenuCard(
       padding: EdgeInsets.zero,
@@ -513,12 +524,12 @@ class _EntryCardState extends State<_EntryCard> {
                     padding: const EdgeInsets.fromLTRB(
                         DhenuSpacing.lg, DhenuSpacing.md, DhenuSpacing.lg, DhenuSpacing.lg),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      _shiftBlock(t, widget.bands, s.milkType, 'AM', DhenuIcons.sun, s.am),
+                      _shiftBlock(l, t, widget.bands, s.milkType, l.shiftAm, DhenuIcons.sun, s.am),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.md),
                         child: Divider(height: 1, color: t.hairline),
                       ),
-                      _shiftBlock(t, widget.bands, s.milkType, 'PM', DhenuIcons.moon, s.pm),
+                      _shiftBlock(l, t, widget.bands, s.milkType, l.shiftPm, DhenuIcons.moon, s.pm),
                     ]),
                   ),
                 ])
@@ -532,14 +543,14 @@ class _EntryCardState extends State<_EntryCard> {
 /// One shift's full-width block: a header (☀ AM · 236.0 L) over a three-column
 /// FAT / SNF / WATER row in larger, colour-coded fonts. Reads "no collection"
 /// when that shift is empty.
-Widget _shiftBlock(
+Widget _shiftBlock(AppLocalizations l,
     DhenuTokens t, QualityBands? bands, MilkType? mt, String label, IconData icon, _ShiftQc qc) {
   final empty = qc.qty <= 0.05;
   final header = Row(children: [
     Icon(icon, size: 18, color: empty ? t.inkSoft : t.brand),
     const SizedBox(width: DhenuSpacing.sm),
     Text(label, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-    Text(empty ? ' · no collection' : ' · ${litres(qc.qty, unit: true)}',
+    Text(empty ? l.adminSwitchNoCollectionSuffix : ' · ${litres(qc.qty, unit: true)}',
         style: DhenuText.body.copyWith(color: t.inkSoft)),
   ]);
   if (empty) return header;

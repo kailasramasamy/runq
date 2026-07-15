@@ -166,6 +166,7 @@ class _VoiceFieldState extends State<VoiceField> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return TextField(
       controller: widget.controller,
       textCapitalization: widget.textCapitalization,
@@ -187,12 +188,12 @@ class _VoiceFieldState extends State<VoiceField> {
                           strokeWidth: 2, color: t.brand))
                   : Icon(Icons.mic_none, color: t.brand),
               onPressed: _busy ? null : _startVoice,
-              tooltip: 'Dictate',
+              tooltip: l.voiceFieldDictateTooltip,
             ),
             IconButton(
               icon: Icon(Icons.volume_up_outlined, color: t.inkSoft),
               onPressed: _speak,
-              tooltip: 'Read back',
+              tooltip: l.voiceFieldReadBackTooltip,
             ),
           ],
         ),

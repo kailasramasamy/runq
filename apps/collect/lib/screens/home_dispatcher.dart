@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_theme.dart';
@@ -103,17 +104,18 @@ class _OperatorError extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Scaffold(
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(DhenuSpacing.xl),
           child: DhenuEmptyState(
             icon: DhenuIcons.cloudOff,
-            title: 'Could not load your centre',
+            title: l.homeCouldNotLoadCentre,
             subtitle: message,
             action: TextButton(
               onPressed: () => ref.invalidate(operatorNodesProvider),
-              child: Text('Retry', style: DhenuText.label.copyWith(color: t.brand)),
+              child: Text(l.commonRetry, style: DhenuText.label.copyWith(color: t.brand)),
             ),
           ),
         ),

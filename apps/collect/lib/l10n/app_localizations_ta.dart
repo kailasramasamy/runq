@@ -297,6 +297,119 @@ class AppLocalizationsTa extends AppLocalizations {
   String get homeReports => 'அறிக்கைகள்';
 
   @override
+  String farmerRateSpeakCoach(Object metric, Object value, Object extra) {
+    return 'உங்கள் $metric $value ஐ அடைந்தால், ஒரு லிட்டருக்கு $extra ரூபாய் கூடுதலாக கிடைக்கும்.';
+  }
+
+  @override
+  String get helpTitle => 'உதவி & ஆதரவு';
+
+  @override
+  String get helpCallSupport => 'ஆதரவை அழைக்கவும்';
+
+  @override
+  String get helpEmailSupport => 'மின்னஞ்சல் அனுப்பவும்';
+
+  @override
+  String get helpWhatsApp => 'WhatsApp இல் பேசவும்';
+
+  @override
+  String get helpReplySoon => 'பொதுவாக சில மணி நேரங்களில் பதிலளிப்போம்.';
+
+  @override
+  String get helpNoContacts =>
+      'ஆதரவு தொடர்புகள் இன்னும் அமைக்கப்படவில்லை — உங்கள் பால் நிர்வாகியை கேட்கவும்.';
+
+  @override
+  String get helpCouldNotOpen => 'திறக்க முடியவில்லை';
+
+  @override
+  String get faqFarmerQ1 => 'என் பால் பதிவுகளை எங்கே பார்க்கலாம்?';
+
+  @override
+  String get faqFarmerA1 =>
+      'சேகரிப்புகள் தாவலில் ஒவ்வொரு நாளின் அளவும் தரமும் உள்ள எல்லா பதிவுகளும் உள்ளன.';
+
+  @override
+  String get faqFarmerQ2 => 'என் விலை எப்படி தீர்மானிக்கப்படுகிறது?';
+
+  @override
+  String get faqFarmerA2 =>
+      'முகப்பிலிருந்து விலைப் பட்டியலைத் திறக்கவும் — உங்கள் FAT மற்றும் SNF (அல்லது CLR) லிட்டர் விலையை தீர்மானிக்கிறது.';
+
+  @override
+  String get faqFarmerQ3 => 'எனக்கு எப்போது பணம் கிடைக்கும்?';
+
+  @override
+  String get faqFarmerA3 =>
+      'பணம் உங்கள் பால் நிறுவனத்தின் சுழற்சியை பின்பற்றும். பணம் தாவலில் தற்போதைய சுழற்சியும் நிலுவையும் தெரியும்.';
+
+  @override
+  String get faqOperatorQ1 => 'சேகரிப்பை எப்படி பதிவு செய்வது?';
+
+  @override
+  String get faqOperatorA1 =>
+      'கீழ் பட்டியில் சேகரிப்பு தட்டி, விவசாயியைத் தேர்ந்தெடுத்து, அளவு, FAT மற்றும் SNF உள்ளிடவும்.';
+
+  @override
+  String get faqOperatorQ2 => 'பணம் எப்போது தீர்க்கப்படும்?';
+
+  @override
+  String get faqOperatorA2 =>
+      'பணம் உங்கள் மையத்தின் சுழற்சியை பின்பற்றும். தற்போதைய சுழற்சிக்கு பணம் தாவலைப் பார்க்கவும்.';
+
+  @override
+  String get commonRetry => 'மீண்டும் முயற்சி';
+
+  @override
+  String get commonErrorTitle => 'உங்கள் தரவை ஏற்ற முடியவில்லை';
+
+  @override
+  String get commonErrorSubtitle =>
+      'இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get commonOfflineSaved => 'ஆஃப்லைன் — சேமித்த தரவு காட்டப்படுகிறது';
+
+  @override
+  String get shiftNotRecorded => 'பதிவாகவில்லை';
+
+  @override
+  String get syncSyncedLabel => 'ஒத்திசைந்தது';
+
+  @override
+  String syncSyncedAgoLabel(Object ago) {
+    return 'ஒத்திசைந்தது $ago';
+  }
+
+  @override
+  String syncToSendLabel(Object count) {
+    return '$count அனுப்ப வேண்டும்';
+  }
+
+  @override
+  String get syncOfflineLabel => 'ஆஃப்லைன் — சாதனத்தில் சேமிக்கப்பட்டது';
+
+  @override
+  String get notifScreenTitle => 'அறிவிப்புகள்';
+
+  @override
+  String get notifPushTitle => 'புஷ் அறிவிப்புகள்';
+
+  @override
+  String get notifPushSubtitle =>
+      'சேகரிப்பு, அனுப்புதல் மற்றும் பணம் பற்றிய எச்சரிக்கைகள்';
+
+  @override
+  String get notifPushFootnote =>
+      'அணைத்தால் இந்த சாதனத்திற்கு புஷ் அறிவிப்புகள் வராது. எப்போது வேண்டுமானாலும் மீண்டும் இயக்கலாம்.';
+
+  @override
+  String farmerRateEffectiveFrom(Object date) {
+    return '$date முதல்';
+  }
+
+  @override
   String get errorOffline =>
       'இணையம் இல்லை — இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.';
 
@@ -1603,4 +1716,901 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get farmerServicesLoansDesc =>
       'உங்கள் பால் வருமானத்திற்கு எதிராக உடனடி முன்பணம்.';
+
+  @override
+  String get navReceive => 'பெறுதல்';
+
+  @override
+  String get ccDispatchToPlant => 'பிளாண்டுக்கு அனுப்பு';
+
+  @override
+  String get ccDispatchSelectDestinationPlant =>
+      'இலக்கு பிளாண்டைத் தேர்ந்தெடுக்கவும்…';
+
+  @override
+  String get ccDispatchSearchPlant => 'பிளாண்ட் தேடுக';
+
+  @override
+  String get ccDispatchNoPlantsFound => 'பிளாண்ட் எதுவும் இல்லை';
+
+  @override
+  String get ccDispatchErrorNoDestination =>
+      'இலக்கு பிளாண்டைத் தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get ccDispatchErrorInvalidNumbers => 'சரியான எண்களை உள்ளிடவும்';
+
+  @override
+  String get ccDispatchCloseFirstShift =>
+      'அனுப்பும் முன் இந்த ஷிப்ட் வரவேற்பை மூடவும்.';
+
+  @override
+  String get ccDispatchCloseFirstDay =>
+      'அனுப்பும் முன் இன்றைய வரவேற்பை மூடவும்.';
+
+  @override
+  String get ccDispatchCloseFirstPool =>
+      'அனுப்பும் முன் பூலை மூடவும் (நேற்று மாலை + இன்று காலை).';
+
+  @override
+  String get ccDispatchCloseReceivingPool => 'பூல் வரவேற்பை மூடு';
+
+  @override
+  String ccDispatchCloseReceivingShift(Object slot) {
+    return '$slot வரவேற்பை மூடு';
+  }
+
+  @override
+  String get ccDispatchCloseReceivingToday => 'இன்றைய வரவேற்பை மூடு';
+
+  @override
+  String ccDispatchUnlocksFor(Object slot) {
+    return '$slotக்கு பிளாண்டுக்கு அனுப்புவதைத் திறக்கும்.';
+  }
+
+  @override
+  String ccDispatchClosedFor(Object slot) {
+    return '$slotக்கு வரவேற்பு மூடப்பட்டது · அனுப்ப தயார்';
+  }
+
+  @override
+  String get ccDispatchSlotToday => 'இன்று';
+
+  @override
+  String get ccDispatchSlotPool => 'இந்த பூல்';
+
+  @override
+  String get ccDispatchHistoryTitle => 'அனுப்பிய வரலாறு';
+
+  @override
+  String get ccHomeChillingTank => 'குளிரூட்டும் தொட்டி';
+
+  @override
+  String get ccHomeVmccsPool => 'VMCCகள் · இந்த பூல்';
+
+  @override
+  String get ccHomeVmccsToday => 'VMCCகள் · இன்று';
+
+  @override
+  String get ccHomeAcrossVmccs => 'எல்லா VMCCகளிலும்';
+
+  @override
+  String get ccHomeInPoolLabel => 'பூலில் · முந்தைய மாலை + இன்று காலை';
+
+  @override
+  String get ccHomeCollectedTodayLabel =>
+      'எல்லா VMCCகளிலிருந்தும் சேகரிப்பு · இன்று';
+
+  @override
+  String ccHomeActiveOfTotal(int active, int total, Object inTransit) {
+    return '$totalஇல் $active VMCC · $inTransit போக்குவரத்தில்';
+  }
+
+  @override
+  String ccHomeNextPoolNote(Object amount) {
+    return 'அடுத்த அனுப்புதலுக்கு $amount சேகரிக்கப்படுகிறது';
+  }
+
+  @override
+  String get ccHomeReportLink => 'அறிக்கை';
+
+  @override
+  String get ccHomeQcReportLink => 'QC அறிக்கை';
+
+  @override
+  String get ccInTransitLabel => 'போக்குவரத்தில்';
+
+  @override
+  String get ccHomePlantReadyLabel => 'பிளாண்டுக்கு தயார்';
+
+  @override
+  String get ccVmccsLoadError => 'VMCCகளை ஏற்ற முடியவில்லை';
+
+  @override
+  String get ccNoVmccsLinkedTitle => 'VMCC எதுவும் இணைக்கப்படவில்லை';
+
+  @override
+  String get ccNoVmccsLinkedSubtitle =>
+      'இந்த CCக்கு VMCCகளை வெப் நிர்வாகத்தில் ஒதுக்கவும்';
+
+  @override
+  String ccHomeFarmersCount(int count) {
+    return '$count விவசாயிகள்';
+  }
+
+  @override
+  String get ccHomeMorning => 'காலை';
+
+  @override
+  String get ccHomeEvening => 'மாலை';
+
+  @override
+  String get ccReceiveTitle => 'பெறுதல்';
+
+  @override
+  String get ccReceiveLoadError => 'அனுப்புகைகளை ஏற்ற முடியவில்லை';
+
+  @override
+  String get ccReceiveManualButton => 'கைமுறையாக பெறு';
+
+  @override
+  String get ccReceiveNothingInTransit => 'போக்குவரத்தில் எதுவும் இல்லை';
+
+  @override
+  String get ccReceiveNothingInTransitSubtitle =>
+      'வரும் அனுப்புகைகள் இங்கே தோன்றும்';
+
+  @override
+  String get ccReceiveRecentReceives => 'சமீபத்திய பெறுதல்கள்';
+
+  @override
+  String get ccReceiveNoReceiptsYet => 'இன்னும் ரசீதுகள் இல்லை';
+
+  @override
+  String get ccReceiveNoReceiptsSubtitle =>
+      'VMCCகளிடமிருந்து நீங்கள் பெறும் பால் இங்கே தோன்றும்';
+
+  @override
+  String get ccReceiveHistoryTitle => 'பெறுதல் வரலாறு';
+
+  @override
+  String get ccReceivePillInTransit => '⏳ போக்குவரத்தில்';
+
+  @override
+  String get ccReceiveTapToReceive => 'பெற தட்டவும்';
+
+  @override
+  String ccVarianceSuffix(Object value) {
+    return '$value% வேறுபாடு';
+  }
+
+  @override
+  String get ccReceiveEditReceipt => 'ரசீதைத் திருத்து';
+
+  @override
+  String get ccReceiveDeleteReceipt => 'ரசீதை நீக்கு';
+
+  @override
+  String get ccReceiveLockedForDispatch =>
+      'பூட்டப்பட்டது — அனுப்புதலுக்காக வரவேற்பு மூடப்பட்டது';
+
+  @override
+  String get ccReceiveDeleteConfirmTitle => 'ரசீதை நீக்கவா?';
+
+  @override
+  String ccReceiveDeleteConfirmBody(Object name, Object qty) {
+    return '$name · $qty அகற்றப்படும்.';
+  }
+
+  @override
+  String get ccReceiveReceiptDeletedToast => 'ரசீது நீக்கப்பட்டது';
+
+  @override
+  String get ccReceiveNoVmccsLinkedToast =>
+      'இந்த CCக்கு VMCC எதுவும் இணைக்கப்படவில்லை';
+
+  @override
+  String get ccHistoryNoReceiptsSubtitle =>
+      'கடந்த 30 நாட்களில் VMCCகளிடமிருந்து பெற்ற பால் இங்கே தோன்றும்';
+
+  @override
+  String ccHistoryVmccCount(int count) {
+    return '$count VMCC';
+  }
+
+  @override
+  String get ccHistoryDayLoadError => 'இந்த நாளை ஏற்ற முடியவில்லை';
+
+  @override
+  String get ccDayLabel => 'நாள்';
+
+  @override
+  String get ccReportLoadError => 'அறிக்கையை ஏற்ற முடியவில்லை';
+
+  @override
+  String get ccReportNoMilkReceived => 'இந்த தேதியில் பால் பெறப்படவில்லை';
+
+  @override
+  String get ccReportTotalReceived => 'மொத்தம் பெற்றது';
+
+  @override
+  String ccReportSourcesReceipts(int sources, int receipts) {
+    return '$sources VMCC · $receipts ரசீதுகள்';
+  }
+
+  @override
+  String get ccReportAvgFat => 'சராசரி FAT';
+
+  @override
+  String get ccReportAvgSnf => 'சராசரி SNF';
+
+  @override
+  String get ccReportAvgWater => 'சராசரி தண்ணீர்';
+
+  @override
+  String get ccReportSourceVmccs => 'மூல VMCCகள்';
+
+  @override
+  String get ccQcLoadError => 'QC தரவை ஏற்ற முடியவில்லை';
+
+  @override
+  String ccQcHeroLabelAll(int days) {
+    return 'பெற்றது · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get ccQcHeroFooterAll => 'எல்லா VMCC பெறுதல்களிலும் அளவு-எடை தரம்';
+
+  @override
+  String ccQcHeroLabelVmcc(Object name, int days) {
+    return '$name · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get ccQcHeroFooterVmcc => 'இந்த VMCCயிடமிருந்து பெற்ற அளவு-எடை தரம்';
+
+  @override
+  String get ccQcEmptySubtitleVmcc =>
+      'இந்த காலகட்டத்தில் இந்த VMCCயிடமிருந்து பால் பெறப்படவில்லை';
+
+  @override
+  String get ccQcScopeAll => 'அனைத்தும்';
+
+  @override
+  String get ccQcScopeByVmcc => 'VMCC வாரியாக';
+
+  @override
+  String get ccQcScopeRanking => 'தரவரிசை';
+
+  @override
+  String get ccQcSelectVmccTitle => 'VMCC தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get ccQcSelectVmccPlaceholder => 'ஒரு VMCC தேர்ந்தெடுக்கவும்';
+
+  @override
+  String ccQcRangeDays(int d) {
+    return '$d நாட்கள்';
+  }
+
+  @override
+  String get ccVmccsSearchHint => 'VMCCகளை தேடுக';
+
+  @override
+  String get ccVmccsNoneAssigned => 'VMCC எதுவும் ஒதுக்கப்படவில்லை';
+
+  @override
+  String get ccVmccsNoMatch => 'பொருந்தும் VMCC இல்லை';
+
+  @override
+  String get ccManualReceiveTitle => 'கைமுறையாக பெறு';
+
+  @override
+  String get ccManualReceiveInfoBanner =>
+      'ஆப்பில் அனுப்புதல் பதிவு இல்லாமல் பால் வந்தபோது மட்டும் இதைப் பயன்படுத்தவும்.';
+
+  @override
+  String get ccManualReceiveReceivingFor => 'இதற்காக பெறுகிறது';
+
+  @override
+  String get ccManualReceiveShiftLabel => 'ஷிப்ட்';
+
+  @override
+  String get ccManualReceiveSelectVmcc => 'VMCC தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get ccManualReceiveNoVmccsLinked =>
+      'இந்த CCக்கு VMCC எதுவும் இணைக்கப்படவில்லை.';
+
+  @override
+  String ccManualReceiveNoVmccsShift(Object shift) {
+    return '$shift ஷிப்டில் எந்த VMCCயும் சேகரிக்கவில்லை.';
+  }
+
+  @override
+  String ccManualReceiveReceivedBadge(Object qty) {
+    return '$qty பெறப்பட்டது';
+  }
+
+  @override
+  String get ccManualReceiveCollectionDate => 'சேகரிப்பு தேதி';
+
+  @override
+  String ccManualReceiveDeleteConfirmBody(
+    Object name,
+    Object date,
+    Object shift,
+  ) {
+    return '$name · $date $shift அகற்றப்படும்.';
+  }
+
+  @override
+  String get ccManualReceiveErrorMissingFields =>
+      'அளவு, FAT மற்றும் SNF உள்ளிடவும்';
+
+  @override
+  String get ccMeasuredAtCc => 'CCயில் அளக்கப்பட்டது';
+
+  @override
+  String get ccManualReceiveQtyHint => 'அளவு (L)';
+
+  @override
+  String get ccManualReceiveSaveChanges => 'மாற்றங்களை சேமி';
+
+  @override
+  String get ccManualReceiveMarkReceived => 'பெறப்பட்டதாக குறி';
+
+  @override
+  String get ccReceiveConsignmentSourceFallback => 'மூலம்';
+
+  @override
+  String get ccReceiveConsignmentReceiptTitle => 'ரசீது';
+
+  @override
+  String get ccReceiveConsignmentReceiveMilkTitle => 'பால் பெறு';
+
+  @override
+  String get ccReceiveConsignmentQuantityLabel => 'அளவு';
+
+  @override
+  String get ccReceiveConsignmentSameAsDispatched => 'அனுப்பியது போலவே';
+
+  @override
+  String get ccReceiveConsignmentReceivedQtyHint => 'பெற்ற அளவு (L)';
+
+  @override
+  String get ccReceiveConsignmentUpdateReceipt => 'ரசீதை புதுப்பி';
+
+  @override
+  String get ccReceiveConsignmentConfirmReceipt => 'ரசீதை உறுதிசெய்';
+
+  @override
+  String get ccReceiveConsignmentErrorQty => 'பெற்ற அளவை உள்ளிடவும்';
+
+  @override
+  String get ccReceiveConsignmentEnterQtyForVariance =>
+      'அனுப்பியதோடு ஒப்பிட்டு வேறுபாட்டை காண பெற்ற அளவை உள்ளிடவும்';
+
+  @override
+  String get ccReceiveConsignmentVarianceLabel => 'அனுப்பியதோடு வேறுபாடு';
+
+  @override
+  String get ccReceiveConsignmentDispatchedByVmcc => 'VMCC ஆல் அனுப்பப்பட்டது';
+
+  @override
+  String get ccQcReportEmptyTitle => 'இந்த காலகட்டத்தில் ரசீதுகள் இல்லை';
+
+  @override
+  String get ccQcReportEmptySubtitle =>
+      'தினசரி QC அறிக்கையை காண VMCCகளிடமிருந்து பால் பெறவும்';
+
+  @override
+  String get ccQcReportTrendsLabel => 'தர போக்குகள்';
+
+  @override
+  String get ccQcReportDailyQualityLabel => 'தினசரி தரம் · அளவு-எடை';
+
+  @override
+  String get ccQcReportDateHeader => 'தேதி';
+
+  @override
+  String get ccQcReportNoReadings => 'இந்த காலகட்டத்தில் அளவீடுகள் இல்லை';
+
+  @override
+  String ccQcRankingByMetric(Object metric) {
+    return '$metric வாரியாக';
+  }
+
+  @override
+  String get ccQcRankingHighToLow => 'அதிகம் → குறைவு';
+
+  @override
+  String get ccQcRankingLowToHigh => 'குறைவு → அதிகம்';
+
+  @override
+  String ccQcRankingSummary(int active, int total, int days) {
+    return '$totalஇல் $active VMCC வழங்கியது · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get navTankers => 'டேங்கர்கள்';
+
+  @override
+  String get ppHomeRawMilkTank => 'மூல பால் தொட்டி';
+
+  @override
+  String get ppHomeCcsToday => 'CCக்கள் · இன்று';
+
+  @override
+  String get ppHomeTodayLabel => 'இன்று';
+
+  @override
+  String get ppHomeTodayReceivedLabel => 'இன்று பெறப்பட்டது';
+
+  @override
+  String ppHomeTankersCount(int count) {
+    return '$count டேங்கர்';
+  }
+
+  @override
+  String ppHomeVarianceVsDispatch(Object value) {
+    return '$value% அனுப்பியதோடு ஒப்பிடும்போது';
+  }
+
+  @override
+  String get ppHomeReceivedLabel => 'பெறப்பட்டது';
+
+  @override
+  String get ppHomeInventoryNote =>
+      '→ ஏற்றுக்கொள்ளப்பட்டது runq சரக்கிற்கு பதிவாகும் (மூல பால் தொகுதி)';
+
+  @override
+  String get ppHomeNoCcsTitle => 'அனுப்பும் CCக்கள் இல்லை';
+
+  @override
+  String get ppHomeNoCcsSubtitle =>
+      'இந்த ஆலைக்கு பால் அளிக்கும் குளிரூட்டும் மையங்கள் இங்கே தோன்றும்';
+
+  @override
+  String ppHomeFlowTransit(Object amount) {
+    return '⏳ $amount போக்குவரத்தில்';
+  }
+
+  @override
+  String ppHomeFlowReceived(Object amount) {
+    return '✓ $amount பெறப்பட்டது';
+  }
+
+  @override
+  String get ppReceiveNoReceiptsSubtitle =>
+      'CCக்களிடமிருந்து நீங்கள் பெறும் டேங்கர்கள் இங்கே தோன்றும்';
+
+  @override
+  String get ppReceiveLoadError => 'டேங்கர்களை ஏற்ற முடியவில்லை';
+
+  @override
+  String get ppReceiveNothingInTransitSubtitle =>
+      'அனுப்பிய பிறகு உள்வரும் டேங்கர்கள் இங்கே தோன்றும்';
+
+  @override
+  String get ppReceiveDispatchedByCc => 'CC ஆல் அனுப்பப்பட்டது';
+
+  @override
+  String get ppReceiveMeasuredAtPlant => 'ஆலையில் அளக்கப்பட்டது';
+
+  @override
+  String get ppTankersEmptyTitle => 'இன்று டேங்கர்கள் இல்லை';
+
+  @override
+  String get ppTankersEmptySubtitle =>
+      'இந்த ஆலைக்கு அனுப்பப்பட்ட டேங்கர்கள் இங்கே தோன்றும்';
+
+  @override
+  String get adminSwitchTitlePp => 'பதப்படுத்தும் ஆலைகள்';
+
+  @override
+  String get adminSwitchTitleCc => 'குளிரூட்டும் மையங்கள்';
+
+  @override
+  String get adminSwitchTitleVmcc => 'கிராம சேகரிப்பு மையங்கள்';
+
+  @override
+  String get adminSwitchFarmersNav => 'விவசாயிகள்';
+
+  @override
+  String get adminSwitchDefaultUserName => 'Dhenu பயனர்';
+
+  @override
+  String get adminSwitchLoadError => 'இன்றைய சேகரிப்பை ஏற்ற முடியவில்லை';
+
+  @override
+  String get adminSwitchTodayCollectionLabel => 'இன்றைய சேகரிப்பு';
+
+  @override
+  String get adminSwitchByChillingCentre => 'குளிரூட்டும் மையம் வாரியாக';
+
+  @override
+  String get adminSwitchByMilkType => 'பால் வகை வாரியாக';
+
+  @override
+  String get adminSwitchNoCollectionTitle => 'இன்று இன்னும் சேகரிப்பு இல்லை';
+
+  @override
+  String get adminSwitchNoCollectionSubtitle =>
+      'ஒவ்வொரு மையம் மற்றும் பால் வகையின் மொத்தமும் இங்கே தோன்றும்.';
+
+  @override
+  String get adminSwitchNoCollectionSuffix => ' · சேகரிப்பு இல்லை';
+
+  @override
+  String get adminSwitchNotLinkedToCc =>
+      'குளிரூட்டும் மையத்துடன் இணைக்கப்படவில்லை';
+
+  @override
+  String get adminSwitchCcFallback => 'குளிரூட்டும் மையம்';
+
+  @override
+  String get adminSwitchUnlinkedVmccs => 'இணைக்கப்படாத VMCCக்கள்';
+
+  @override
+  String adminSwitchVmccsInCc(Object name) {
+    return '$name இல் உள்ள VMCCக்கள்';
+  }
+
+  @override
+  String get adminSwitchSheetTitle => 'மையத்தை மாற்று';
+
+  @override
+  String get adminSwitchLoadCentresError => 'மையங்களை ஏற்ற முடியவில்லை';
+
+  @override
+  String get adminSwitchNoCentresTitle => 'இன்னும் மையங்கள் இல்லை';
+
+  @override
+  String get adminSwitchNoCentresSubtitle =>
+      'வெப் அட்மினில் முதலில் VMCCக்கள், குளிரூட்டும் மையங்கள் அல்லது ஆலைகளை சேர்க்கவும்';
+
+  @override
+  String adminSwitchCountPp(int n) {
+    return '$n ஆலை';
+  }
+
+  @override
+  String adminSwitchCountCc(int n) {
+    return '$n குளிரூட்டும் மையம்';
+  }
+
+  @override
+  String adminSwitchCountVmcc(int n) {
+    return '$n மையம்';
+  }
+
+  @override
+  String get operatorSwitchRolePp => 'பதப்படுத்தும் ஆலை';
+
+  @override
+  String get operatorSwitchRoleCc => 'குளிரூட்டும் மையம்';
+
+  @override
+  String get operatorSwitchRoleVmcc => 'கிராம சேகரிப்பு மையம்';
+
+  @override
+  String get operatorSwitchLoadError => 'உங்கள் மையங்களை ஏற்ற முடியவில்லை';
+
+  @override
+  String get operatorSwitchNoneTitle => 'மையம் எதுவும் ஒதுக்கப்படவில்லை';
+
+  @override
+  String get operatorSwitchNoneSubtitle =>
+      'மையத்திற்கு நியமிக்க உங்கள் நிர்வாகியிடம் கேளுங்கள்.';
+
+  @override
+  String get operatorSwitchTodayLoading => 'இன்று  …';
+
+  @override
+  String get operatorSwitchNoCollection => 'இன்னும் சேகரிப்பு இல்லை';
+
+  @override
+  String operatorSwitchTodaySummary(Object qty, int count) {
+    return 'இன்று  $qty · $count விவசாயிகள்';
+  }
+
+  @override
+  String get operatorSwitchButton => 'மாற்று';
+
+  @override
+  String get operatorSelectorGreetingPlain => 'வணக்கம்';
+
+  @override
+  String operatorSelectorGreetingNamed(Object name) {
+    return 'வணக்கம், $name';
+  }
+
+  @override
+  String get operatorSelectorSubtitle => 'இயக்க ஒரு மையத்தை தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get operatorNoAccessTitle => 'இன்னும் Dhenu அணுகல் இல்லை';
+
+  @override
+  String get operatorNoAccessSubtitle =>
+      'உங்கள் கணக்கிற்கு பால் கொள்முதலை இயக்க உங்கள் டெய்ரி நிர்வாகியிடம் கேளுங்கள்.';
+
+  @override
+  String get operatorNoAccessSignOut => 'வெளியேறு';
+
+  @override
+  String get authLoginTagline => 'பால் கொள்முதல், நியாயமாக';
+
+  @override
+  String get authLoginSessionExpired =>
+      'உங்கள் அமர்வு காலாவதியானது. உங்கள் தொலைபேசி எண்ணுடன் மீண்டும் உள்நுழையவும்.';
+
+  @override
+  String get commonBack => 'பின்';
+
+  @override
+  String get authOtpPhoneLabel => 'தொலைபேசி எண்';
+
+  @override
+  String get authOtpPhoneHint => '10-இலக்க மொபைல்';
+
+  @override
+  String get authOtpSendButton => 'OTP அனுப்பு';
+
+  @override
+  String get authOtpEnterDigits => '10-இலக்க மொபைல் எண்ணை உள்ளிடவும்';
+
+  @override
+  String get authOtpEnterCode => '6-இலக்க குறியீட்டை உள்ளிடவும்';
+
+  @override
+  String authOtpCodeSentTo(Object phone) {
+    return '$phone க்கு அனுப்பப்பட்ட குறியீட்டை உள்ளிடவும்';
+  }
+
+  @override
+  String get authOtpSignIn => 'உள்நுழை';
+
+  @override
+  String get authOtpSmsDelay => 'SMS வர ஒரு நிமிடம் வரை ஆகலாம்.';
+
+  @override
+  String get authOtpChangeNumber => 'எண்ணை மாற்று';
+
+  @override
+  String authOtpResendIn(int seconds) {
+    return '$secondsவி இல் மீண்டும் அனுப்பு';
+  }
+
+  @override
+  String get authOtpResendButton => 'OTP ஐ மீண்டும் அனுப்பு';
+
+  @override
+  String authOtpNetworkErrorDebug(Object baseUrl) {
+    return '$baseUrl சேவையகத்தை அடைய முடியவில்லை. API இயங்குகிறதா, தொலைபேசி அதே நெட்வொர்க்கில் உள்ளதா?';
+  }
+
+  @override
+  String get authOtpNetworkErrorProd =>
+      'சேவையகத்தை அடைய முடியவில்லை. உங்கள் இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.';
+
+  @override
+  String get aboutScreenTitle => 'பற்றி';
+
+  @override
+  String get aboutScreenTagline => 'பால் கொள்முதல், எளிமையாக்கப்பட்டது';
+
+  @override
+  String aboutScreenVersion(Object version, Object build) {
+    return 'பதிப்பு $version ($build)';
+  }
+
+  @override
+  String get aboutScreenPrivacyPolicy => 'தனியுரிமைக் கொள்கை';
+
+  @override
+  String get aboutScreenTermsOfService => 'சேவை விதிமுறைகள்';
+
+  @override
+  String get aboutScreenMadeWith =>
+      'இந்தியாவில் அக்கறையுடன் உருவாக்கப்பட்டது 🇮🇳';
+
+  @override
+  String get aboutScreenCouldNotOpen => 'திறக்க முடியவில்லை';
+
+  @override
+  String get bankPayoutTitle => 'வங்கி & பணம் செலுத்துதல்';
+
+  @override
+  String get bankPayoutLoadError => 'பணம் செலுத்துதலை ஏற்ற முடியவில்லை';
+
+  @override
+  String get bankPayoutEmptyTitle =>
+      'இன்னும் பணம் செலுத்தும் விதிமுறைகள் இல்லை';
+
+  @override
+  String get bankPayoutEmptySubtitle =>
+      'உங்கள் ஊதியம் உங்கள் நிர்வாகியால் அமைக்கப்படும், இங்கே தோன்றும்.';
+
+  @override
+  String get bankPayoutThisMonth => 'இந்த மாதம்';
+
+  @override
+  String bankPayoutCollectedEstEarning(Object qty) {
+    return '$qty சேகரிக்கப்பட்டது · இதுவரை மதிப்பிடப்பட்ட வருமானம்';
+  }
+
+  @override
+  String get bankPayoutMethodLabel => 'பணம் செலுத்தும் முறை';
+
+  @override
+  String get bankPayoutRentLabel => 'வாடகை';
+
+  @override
+  String bankPayoutPerMonth(Object amount) {
+    return '$amount / மாதம்';
+  }
+
+  @override
+  String get bankPayoutSinceLabel => 'முதல்';
+
+  @override
+  String get bankPayoutHasAccount =>
+      'பணம் உங்கள் பதிவு செய்யப்பட்ட வங்கிக் கணக்கிற்குச் செல்லும்.';
+
+  @override
+  String get bankPayoutNoAccount =>
+      'பதிவில் வங்கிக் கணக்கு இல்லை — ஒன்றைச் சேர்க்க உங்கள் நிர்வாகியிடம் கேளுங்கள்.';
+
+  @override
+  String get bankPayoutFixedSalary => 'நிலையான சம்பளம்';
+
+  @override
+  String get bankPayoutPerLitreCommission => 'ஒரு லிட்டருக்கான கமிஷன்';
+
+  @override
+  String bankPayoutPerLitre(Object rate) {
+    return '$rate / லிட்டர்';
+  }
+
+  @override
+  String get langPickerTitle => 'மொழியைத் தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get langPickerComingSoon => 'விரைவில் வரும்';
+
+  @override
+  String get dispatchFatHint => 'FAT %';
+
+  @override
+  String get dispatchSnfHint => 'SNF %';
+
+  @override
+  String get dispatchWaterHint => 'நீர் % (விருப்பம்)';
+
+  @override
+  String get dispatchHistoryTitle => 'அனுப்புதல் வரலாறு';
+
+  @override
+  String get dispatchSeeFullHistory => 'முழு வரலாற்றைக் காண்க';
+
+  @override
+  String get dispatchHistoryLoadError => 'வரலாற்றை ஏற்ற முடியவில்லை';
+
+  @override
+  String get dispatchHistoryEmptyTitle => 'இன்னும் அனுப்புதல்கள் இல்லை';
+
+  @override
+  String get dispatchHistoryEmptySubtitle =>
+      'கடந்த 30 நாட்களில் அனுப்பப்பட்ட டேங்கர்கள் இங்கே தோன்றும்';
+
+  @override
+  String get dispatchHistoryPlantFallback => 'ஆலை';
+
+  @override
+  String get dispatchHistoryCcFallback => 'குளிரூட்டும் மையம்';
+
+  @override
+  String dispatchHistoryCount(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n அனுப்புதல்கள்',
+      one: '$n அனுப்புதல்',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchHistoryInTransit(int n) {
+    return '$n போக்குவரத்தில்';
+  }
+
+  @override
+  String get dispatchHistoryReversed => '⊘ ரத்து செய்யப்பட்டது';
+
+  @override
+  String farmerPoursGradeLabel(Object letter) {
+    return 'தரம் $letter';
+  }
+
+  @override
+  String get collectLowWord => 'குறைவு';
+
+  @override
+  String get qcReportLoadError => 'QC தரவை ஏற்ற முடியவில்லை';
+
+  @override
+  String qcReportHeroLabelFarmer(Object name, int days) {
+    return '$name · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String qcReportHeroLabelAll(int days) {
+    return 'சேகரிக்கப்பட்டது · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String qcReportHeroLabelDays(int days) {
+    return 'கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get qcReportFooterFarmer => 'இந்த விவசாயிக்கான அளவு-எடையிடப்பட்ட தரம்';
+
+  @override
+  String get qcReportFooterAll => 'அனைத்து விவசாயிகளின் அளவு-எடையிடப்பட்ட தரம்';
+
+  @override
+  String get qcReportEmptyTitle => 'இந்த காலகட்டத்தில் அளவீடுகள் இல்லை';
+
+  @override
+  String get qcReportEmptySubtitle =>
+      'தினசரி QC போக்கைக் காண சேகரிப்புகளைப் பதிவு செய்யவும்';
+
+  @override
+  String get qcReportSelectFarmerTitle => 'ஒரு விவசாயியைத் தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get qcReportSelectFarmerSubtitle =>
+      'தர போக்கைக் காண ஒரு விவசாயியைத் தேர்ந்தெடுக்கவும்';
+
+  @override
+  String get qcReportScopeAll => 'அனைத்து விவசாயிகள்';
+
+  @override
+  String get qcReportScopePerFarmer => 'ஒரு விவசாயிக்கு';
+
+  @override
+  String qcReportDaysChip(int d) {
+    return '$d நாட்கள்';
+  }
+
+  @override
+  String get homeCouldNotLoadCentre => 'உங்கள் மையத்தை ஏற்ற முடியவில்லை';
+
+  @override
+  String get updateRequiredTitle => 'புதுப்பிப்பு தேவை';
+
+  @override
+  String get updateRequiredButton => 'இப்போது புதுப்பிக்கவும்';
+
+  @override
+  String get updateRequiredCouldNotOpenStore => 'ஸ்டோரைத் திறக்க முடியவில்லை';
+
+  @override
+  String get nodePickerSearchHint => 'தேடு…';
+
+  @override
+  String get nodePickerNoMatch => 'பொருத்தம் இல்லை';
+
+  @override
+  String get voiceFieldDictateTooltip => 'வாய்மொழி உள்ளீடு';
+
+  @override
+  String get voiceFieldReadBackTooltip => 'மீண்டும் படி';
+
+  @override
+  String get splashTagline => 'ஒவ்வொரு துளியும் முக்கியம்';
 }

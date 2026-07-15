@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
@@ -38,8 +39,11 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final name = ref.watch(authProvider).user?.name?.trim();
-    final greeting = (name == null || name.isEmpty) ? 'Namaste' : 'Namaste, $name';
+    final greeting = (name == null || name.isEmpty)
+        ? l.operatorSelectorGreetingPlain
+        : l.operatorSelectorGreetingNamed(name);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.sm, DhenuSpacing.sm),
@@ -48,14 +52,14 @@ class _Header extends ConsumerWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(greeting, style: DhenuText.h1.copyWith(color: t.ink)),
             const SizedBox(height: DhenuSpacing.xs),
-            Text('Choose a centre to operate', style: DhenuText.body.copyWith(color: t.inkSoft)),
+            Text(l.operatorSelectorSubtitle, style: DhenuText.body.copyWith(color: t.inkSoft)),
           ]),
         ),
         IconButton(
           onPressed: () => ref.read(authProvider.notifier).logout(),
           icon: const Icon(DhenuIcons.logout),
           color: t.inkSoft,
-          tooltip: 'Log out',
+          tooltip: l.profileLogOut,
         ),
       ]),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -38,6 +39,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final rowsAsync = ref.watch(nodeReceivedRangeProvider((nodeId: widget.node.id, days: _days)));
     final vmccs = _children(ref.watch(nodesByTypeProvider('vmcc')).asData?.value ?? const []);
     return Column(children: [
@@ -45,12 +47,12 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.sm),
         child: Column(children: [
-          _scopeBar(t),
+          _scopeBar(t, l),
           const SizedBox(height: DhenuSpacing.sm),
-          _rangeSelector(t),
+          _rangeSelector(t, l),
           if (_scope == _Scope.vmcc) ...[
             const SizedBox(height: DhenuSpacing.sm),
-            _vmccField(t, vmccs),
+            _vmccField(t, l, vmccs),
           ],
         ]),
       ),
@@ -67,11 +69,11 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
             error: (e, _) => ListView(children: [
               const SizedBox(height: 72),
               DhenuEmptyState(
-                  icon: DhenuIcons.cloudOff, title: 'Could not load QC data', subtitle: friendlyError(context, e)),
+                  icon: DhenuIcons.cloudOff, title: l.ccQcLoadError, subtitle: friendlyError(context, e)),
             ]),
             data: (rows) {
               final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
-              return _content(rows, vmccs, bands, widget.node.effectiveMilkType);
+              return _content(l, rows, vmccs, bands, widget.node.effectiveMilkType);
             },
           ),
         ),
@@ -79,14 +81,15 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     ]);
   }
 
-  Widget _content(List<MpConsignment> rows, List<MpNode> vmccs, QualityBands bands, MilkType milkType) {
+  Widget _content(AppLocalizations l, List<MpConsignment> rows, List<MpNode> vmccs, QualityBands bands,
+      MilkType milkType) {
     switch (_scope) {
       case _Scope.all:
         return QcReportView(
           samples: _samples(rows),
           days: _days,
-          heroLabel: 'RECEIVED · LAST $_days DAYS',
-          heroFooter: 'Qty-weighted quality across all VMCC receipts',
+          heroLabel: l.ccQcHeroLabelAll(_days),
+          heroFooter: l.ccQcHeroFooterAll,
           bands: bands,
           milkType: milkType,
         );
@@ -95,19 +98,19 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
       case _Scope.vmcc:
         final id = _vmccId ?? (vmccs.isNotEmpty ? vmccs.first.id : null);
         if (id == null) {
-          return const DhenuEmptyState(
+          return DhenuEmptyState(
               icon: DhenuIcons.store,
-              title: 'No VMCCs linked',
-              subtitle: 'Assign VMCCs to this CC in the web admin');
+              title: l.ccNoVmccsLinkedTitle,
+              subtitle: l.ccNoVmccsLinkedSubtitle);
         }
         final v = vmccs.firstWhere((n) => n.id == id, orElse: () => vmccs.first);
         final filtered = rows.where((c) => c.fromNodeId == id).toList();
         return QcReportView(
           samples: _samples(filtered),
           days: _days,
-          heroLabel: '${v.name.toUpperCase()} · LAST $_days DAYS',
-          heroFooter: 'Qty-weighted quality received from this VMCC',
-          emptySubtitle: 'No milk received from this VMCC in this window',
+          heroLabel: l.ccQcHeroLabelVmcc(v.name.toUpperCase(), _days),
+          heroFooter: l.ccQcHeroFooterVmcc,
+          emptySubtitle: l.ccQcEmptySubtitleVmcc,
           bands: bands,
           milkType: milkType,
         );
@@ -121,14 +124,14 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
            fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater),
       ];
 
-  Widget _scopeBar(DhenuTokens t) => Container(
+  Widget _scopeBar(DhenuTokens t, AppLocalizations l) => Container(
         decoration: BoxDecoration(
             color: t.hairline, borderRadius: BorderRadius.circular(DhenuRadii.pill)),
         padding: const EdgeInsets.all(3),
         child: Row(children: [
-          _scopeSeg(t, _Scope.all, 'All'),
-          _scopeSeg(t, _Scope.vmcc, 'By VMCC'),
-          _scopeSeg(t, _Scope.ranking, 'Ranking'),
+          _scopeSeg(t, _Scope.all, l.ccQcScopeAll),
+          _scopeSeg(t, _Scope.vmcc, l.ccQcScopeByVmcc),
+          _scopeSeg(t, _Scope.ranking, l.ccQcScopeRanking),
         ]),
       );
 
@@ -154,7 +157,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     );
   }
 
-  Widget _vmccField(DhenuTokens t, List<MpNode> vmccs) {
+  Widget _vmccField(DhenuTokens t, AppLocalizations l, List<MpNode> vmccs) {
     final id = _vmccId ?? (vmccs.isNotEmpty ? vmccs.first.id : null);
     MpNode? sel;
     for (final n in vmccs) {
@@ -166,14 +169,14 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           ? null
           : () async {
               final picked = await showNodePicker(context,
-                  nodes: vmccs, selectedId: id, title: 'Select VMCC');
+                  nodes: vmccs, selectedId: id, title: l.ccQcSelectVmccTitle);
               if (picked != null) setState(() => _vmccId = picked.id);
             },
       child: Row(children: [
         Icon(DhenuIcons.store, size: 18, color: t.brand),
         const SizedBox(width: DhenuSpacing.sm),
         Expanded(
-            child: Text(sel?.name ?? 'Select a VMCC',
+            child: Text(sel?.name ?? l.ccQcSelectVmccPlaceholder,
                 style: DhenuText.body.copyWith(
                     color: sel == null ? t.inkSoft : t.ink, fontWeight: FontWeight.w600))),
         Icon(DhenuIcons.chevronDown, size: 18, color: t.inkSoft),
@@ -181,14 +184,14 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     );
   }
 
-  Widget _rangeSelector(DhenuTokens t) => Row(children: [
+  Widget _rangeSelector(DhenuTokens t, AppLocalizations l) => Row(children: [
         for (final d in const [7, 14, 30]) ...[
-          Expanded(child: _rangeChip(t, d)),
+          Expanded(child: _rangeChip(t, l, d)),
           if (d != 30) const SizedBox(width: DhenuSpacing.sm),
         ],
       ]);
 
-  Widget _rangeChip(DhenuTokens t, int d) {
+  Widget _rangeChip(DhenuTokens t, AppLocalizations l, int d) {
     final on = _days == d;
     return GestureDetector(
       onTap: () => setState(() => _days = d),
@@ -200,7 +203,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           borderRadius: BorderRadius.circular(DhenuRadii.input),
           border: Border.all(color: on ? t.brand : t.hairline),
         ),
-        child: Text('$d days',
+        child: Text(l.ccQcRangeDays(d),
             style: DhenuText.label.copyWith(color: on ? Colors.white : t.inkSoft)),
       ),
     );

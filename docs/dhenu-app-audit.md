@@ -49,11 +49,11 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 
 | # | Status | Finding | Where |
 |---|---|---|---|
-| D1 | ⬜ | **CC/PP/settings/auth/admin surfaces are 100% hardcoded English** (68 literals in cc/ alone) while ARB kn/ta parity is perfect (439/439 keys) — a Kannada user gets a half-translated app | `cc/*`, `pp/*`, `auth/*`, `settings/*`, `admin/*` |
-| D2 | ⬜ | **Language unreachable before login + no device-locale default** — locale defaults `en`, picker only in post-login Profile; a Kannada-only user can't read the login screen | `locale_provider.dart:46`, `login_screen.dart` |
-| D3 | ⬜ | **English leaks inside localized farmer screens** — error/offline states, ShiftAccentCard AM/PM/"Not recorded", notifications & help screens, month-name arrays (duplicated 4×), sync chip labels | `dhenu_states.dart:74-92`, `shift_accent_card.dart:60,70`, `sync_status.dart:67-87`, `notifications_screen.dart:42-59` |
-| D4 | ⬜ | **Farmer FAQ is operator-oriented and wrong** ("How do I record a collection? Tap Collect…") — farmers don't collect | `help_support_screen.dart:102-118` |
-| D5 | ⬜ | Rate matrix under-uses the literacy toolkit — one Listen button reading only the last rate; no spoken "your rate is X, +Y if SNF reaches Z" despite `computeRateCoaching` already computing it | `farmer_rate_chart.dart:361-456` |
+| D1 | ✅ | **CC/PP/settings/auth/admin surfaces are 100% hardcoded English** (68 literals in cc/ alone) while ARB kn/ta parity is perfect (439/439 keys) — a Kannada user gets a half-translated app | `cc/*`, `pp/*`, `auth/*`, `settings/*`, `admin/*` |
+| D2 | ✅ | **Language unreachable before login + no device-locale default** — locale defaults `en`, picker only in post-login Profile; a Kannada-only user can't read the login screen | `locale_provider.dart:46`, `login_screen.dart` |
+| D3 | ✅ | **English leaks inside localized farmer screens** — error/offline states, ShiftAccentCard AM/PM/"Not recorded", notifications & help screens, month-name arrays (duplicated 4×), sync chip labels | `dhenu_states.dart:74-92`, `shift_accent_card.dart:60,70`, `sync_status.dart:67-87`, `notifications_screen.dart:42-59` |
+| D4 | ✅ | **Farmer FAQ is operator-oriented and wrong** ("How do I record a collection? Tap Collect…") — farmers don't collect | `help_support_screen.dart:102-118` |
+| D5 | ✅ | Rate matrix under-uses the literacy toolkit — one Listen button reading only the last rate; no spoken "your rate is X, +Y if SNF reaches Z" despite `computeRateCoaching` already computing it | `farmer_rate_chart.dart:361-456` |
 
 ## Tier 5 — Missing capabilities (not on the roadmap, real value)
 

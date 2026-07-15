@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// Centered empty state — a 96px rounded chip in [color] (brand by default),
 /// title, optional subtitle + action (CTA).
@@ -71,26 +72,28 @@ class DhenuEmptyState extends StatelessWidget {
 class DhenuErrorState extends StatelessWidget {
   const DhenuErrorState({
     super.key,
-    this.title = "Couldn't load your data",
-    this.subtitle = 'Please check your connection and try again.',
+    this.title,
+    this.subtitle,
     required this.onRetry,
   });
 
-  final String title;
-  final String subtitle;
+  /// Localized defaults apply when null.
+  final String? title;
+  final String? subtitle;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return DhenuEmptyState(
       icon: DhenuIcons.warning,
       color: DT(context).gradeC,
-      title: title,
-      subtitle: subtitle,
+      title: title ?? l.commonErrorTitle,
+      subtitle: subtitle ?? l.commonErrorSubtitle,
       action: FilledButton.icon(
         onPressed: onRetry,
         icon: const Icon(DhenuIcons.refresh, size: 18),
-        label: const Text('Retry'),
+        label: Text(l.commonRetry),
       ),
     );
   }
@@ -220,7 +223,7 @@ class DhenuOfflineBanner extends StatelessWidget {
           const SizedBox(width: DhenuSpacing.sm),
           Expanded(
             child: Text(
-              'Offline — showing saved data',
+              AppLocalizations.of(context).commonOfflineSaved,
               style: DhenuText.body.copyWith(color: t.inkSoft),
             ),
           ),
@@ -232,7 +235,7 @@ class DhenuOfflineBanner extends StatelessWidget {
                 minimumSize: const Size(44, 44),
                 padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md),
               ),
-              child: Text('Retry', style: DhenuText.label.copyWith(color: t.brand)),
+              child: Text(AppLocalizations.of(context).commonRetry, style: DhenuText.label.copyWith(color: t.brand)),
             ),
         ],
       ),

@@ -295,6 +295,119 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeReports => 'Reports';
 
   @override
+  String farmerRateSpeakCoach(Object metric, Object value, Object extra) {
+    return 'If your $metric reaches $value, you earn $extra rupees more per litre.';
+  }
+
+  @override
+  String get helpTitle => 'Help & support';
+
+  @override
+  String get helpCallSupport => 'Call support';
+
+  @override
+  String get helpEmailSupport => 'Email support';
+
+  @override
+  String get helpWhatsApp => 'Chat on WhatsApp';
+
+  @override
+  String get helpReplySoon => 'We usually reply within a few hours.';
+
+  @override
+  String get helpNoContacts =>
+      'Support contacts have not been set up yet — please ask your dairy administrator.';
+
+  @override
+  String get helpCouldNotOpen => 'Could not open';
+
+  @override
+  String get faqFarmerQ1 => 'Where do I see my milk entries?';
+
+  @override
+  String get faqFarmerA1 =>
+      'The Collections tab lists every pour with its quantity and quality readings, day by day.';
+
+  @override
+  String get faqFarmerQ2 => 'How is my rate decided?';
+
+  @override
+  String get faqFarmerA2 =>
+      'Open Rate chart from Home — your FAT and SNF (or CLR) readings decide the price per litre.';
+
+  @override
+  String get faqFarmerQ3 => 'When will I be paid?';
+
+  @override
+  String get faqFarmerA3 =>
+      'Payments follow your dairy\'s payout cycle. The Payments tab shows the current cycle and what\'s payable.';
+
+  @override
+  String get faqOperatorQ1 => 'How do I record a collection?';
+
+  @override
+  String get faqOperatorA1 =>
+      'Tap Collect in the bottom bar, pick the farmer, then enter quantity, FAT and SNF.';
+
+  @override
+  String get faqOperatorQ2 => 'When are payouts settled?';
+
+  @override
+  String get faqOperatorA2 =>
+      'Payouts follow your centre\'s cycle. Check the Payments tab for the current cycle window.';
+
+  @override
+  String get commonRetry => 'Retry';
+
+  @override
+  String get commonErrorTitle => 'Couldn\'t load your data';
+
+  @override
+  String get commonErrorSubtitle =>
+      'Please check your connection and try again.';
+
+  @override
+  String get commonOfflineSaved => 'Offline — showing saved data';
+
+  @override
+  String get shiftNotRecorded => 'Not recorded';
+
+  @override
+  String get syncSyncedLabel => 'Synced';
+
+  @override
+  String syncSyncedAgoLabel(Object ago) {
+    return 'Synced $ago';
+  }
+
+  @override
+  String syncToSendLabel(Object count) {
+    return '$count to send';
+  }
+
+  @override
+  String get syncOfflineLabel => 'Offline — saved on device';
+
+  @override
+  String get notifScreenTitle => 'Notifications';
+
+  @override
+  String get notifPushTitle => 'Push notifications';
+
+  @override
+  String get notifPushSubtitle =>
+      'Get alerts for collections, dispatch and payouts';
+
+  @override
+  String get notifPushFootnote =>
+      'When off, this device won\'t receive any push notifications. You can turn it back on anytime.';
+
+  @override
+  String farmerRateEffectiveFrom(Object date) {
+    return 'From $date';
+  }
+
+  @override
   String get errorOffline =>
       'No internet — check your connection and try again.';
 
@@ -1586,4 +1699,924 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get farmerServicesLoansDesc =>
       'Instant advances against your milk supply earnings.';
+
+  @override
+  String get navReceive => 'Receive';
+
+  @override
+  String get ccDispatchToPlant => 'Dispatch to Plant';
+
+  @override
+  String get ccDispatchSelectDestinationPlant => 'Select destination plant…';
+
+  @override
+  String get ccDispatchSearchPlant => 'Search plant';
+
+  @override
+  String get ccDispatchNoPlantsFound => 'No plants found';
+
+  @override
+  String get ccDispatchErrorNoDestination => 'Select a destination plant';
+
+  @override
+  String get ccDispatchErrorInvalidNumbers => 'Enter valid numbers';
+
+  @override
+  String get ccDispatchCloseFirstShift =>
+      'Close receiving for this shift before dispatching.';
+
+  @override
+  String get ccDispatchCloseFirstDay =>
+      'Close today\'s receiving before dispatching.';
+
+  @override
+  String get ccDispatchCloseFirstPool =>
+      'Close the pool (yesterday PM + today AM) before dispatching.';
+
+  @override
+  String get ccDispatchCloseReceivingPool => 'Close pool receiving';
+
+  @override
+  String ccDispatchCloseReceivingShift(Object slot) {
+    return 'Close $slot receiving';
+  }
+
+  @override
+  String get ccDispatchCloseReceivingToday => 'Close today\'s receiving';
+
+  @override
+  String ccDispatchUnlocksFor(Object slot) {
+    return 'Unlocks dispatch to the plant for $slot.';
+  }
+
+  @override
+  String ccDispatchClosedFor(Object slot) {
+    return 'Receiving closed for $slot · ready for dispatch';
+  }
+
+  @override
+  String get ccDispatchSlotToday => 'today';
+
+  @override
+  String get ccDispatchSlotPool => 'this pool';
+
+  @override
+  String get ccDispatchHistoryTitle => 'Dispatch history';
+
+  @override
+  String get ccHomeChillingTank => 'Chilling tank';
+
+  @override
+  String get ccHomeVmccsPool => 'VMCCs · this pool';
+
+  @override
+  String get ccHomeVmccsToday => 'VMCCs · today';
+
+  @override
+  String get ccHomeAcrossVmccs => 'ACROSS VMCCs';
+
+  @override
+  String get ccHomeInPoolLabel => 'IN POOL · PREV PM + TODAY AM';
+
+  @override
+  String get ccHomeCollectedTodayLabel => 'COLLECTED ACROSS VMCCs · TODAY';
+
+  @override
+  String ccHomeActiveOfTotal(int active, int total, Object inTransit) {
+    return '$active of $total VMCCs · $inTransit in transit';
+  }
+
+  @override
+  String ccHomeNextPoolNote(Object amount) {
+    return '$amount collecting for next dispatch';
+  }
+
+  @override
+  String get ccHomeReportLink => 'Report';
+
+  @override
+  String get ccHomeQcReportLink => 'QC report';
+
+  @override
+  String get ccInTransitLabel => 'In transit';
+
+  @override
+  String get ccHomePlantReadyLabel => 'Plant-ready';
+
+  @override
+  String get ccVmccsLoadError => 'Could not load VMCCs';
+
+  @override
+  String get ccNoVmccsLinkedTitle => 'No VMCCs linked';
+
+  @override
+  String get ccNoVmccsLinkedSubtitle =>
+      'Assign VMCCs to this CC in the web admin';
+
+  @override
+  String ccHomeFarmersCount(int count) {
+    return '$count farmers';
+  }
+
+  @override
+  String get ccHomeMorning => 'Morning';
+
+  @override
+  String get ccHomeEvening => 'Evening';
+
+  @override
+  String get ccReceiveTitle => 'Receive';
+
+  @override
+  String get ccReceiveLoadError => 'Could not load consignments';
+
+  @override
+  String get ccReceiveManualButton => 'Manual receive';
+
+  @override
+  String get ccReceiveNothingInTransit => 'Nothing in transit';
+
+  @override
+  String get ccReceiveNothingInTransitSubtitle =>
+      'Incoming consignments appear here';
+
+  @override
+  String get ccReceiveRecentReceives => 'Recent receives';
+
+  @override
+  String get ccReceiveNoReceiptsYet => 'No receipts yet';
+
+  @override
+  String get ccReceiveNoReceiptsSubtitle =>
+      'Milk you receive from VMCCs shows here';
+
+  @override
+  String get ccReceiveHistoryTitle => 'Receive history';
+
+  @override
+  String get ccReceivePillInTransit => '⏳ In transit';
+
+  @override
+  String get ccReceiveTapToReceive => 'Tap to receive';
+
+  @override
+  String ccVarianceSuffix(Object value) {
+    return '$value% var';
+  }
+
+  @override
+  String get ccReceiveEditReceipt => 'Edit receipt';
+
+  @override
+  String get ccReceiveDeleteReceipt => 'Delete receipt';
+
+  @override
+  String get ccReceiveLockedForDispatch =>
+      'Locked — receiving closed for dispatch';
+
+  @override
+  String get ccReceiveDeleteConfirmTitle => 'Delete receipt?';
+
+  @override
+  String ccReceiveDeleteConfirmBody(Object name, Object qty) {
+    return '$name · $qty will be removed.';
+  }
+
+  @override
+  String get ccReceiveReceiptDeletedToast => 'Receipt deleted';
+
+  @override
+  String get ccReceiveNoVmccsLinkedToast => 'No VMCCs linked to this CC';
+
+  @override
+  String get ccHistoryNoReceiptsSubtitle =>
+      'Milk received from VMCCs over the last 30 days shows here';
+
+  @override
+  String ccHistoryVmccCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count VMCCs',
+      one: '$count VMCC',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ccHistoryDayLoadError => 'Could not load this day';
+
+  @override
+  String get ccDayLabel => 'Day';
+
+  @override
+  String get ccReportLoadError => 'Could not load the report';
+
+  @override
+  String get ccReportNoMilkReceived => 'No milk received on this date';
+
+  @override
+  String get ccReportTotalReceived => 'Total received';
+
+  @override
+  String ccReportSourcesReceipts(int sources, int receipts) {
+    return '$sources VMCCs · $receipts receipts';
+  }
+
+  @override
+  String get ccReportAvgFat => 'AVG FAT';
+
+  @override
+  String get ccReportAvgSnf => 'AVG SNF';
+
+  @override
+  String get ccReportAvgWater => 'AVG WATER';
+
+  @override
+  String get ccReportSourceVmccs => 'SOURCE VMCCS';
+
+  @override
+  String get ccQcLoadError => 'Could not load QC data';
+
+  @override
+  String ccQcHeroLabelAll(int days) {
+    return 'RECEIVED · LAST $days DAYS';
+  }
+
+  @override
+  String get ccQcHeroFooterAll =>
+      'Qty-weighted quality across all VMCC receipts';
+
+  @override
+  String ccQcHeroLabelVmcc(Object name, int days) {
+    return '$name · LAST $days DAYS';
+  }
+
+  @override
+  String get ccQcHeroFooterVmcc =>
+      'Qty-weighted quality received from this VMCC';
+
+  @override
+  String get ccQcEmptySubtitleVmcc =>
+      'No milk received from this VMCC in this window';
+
+  @override
+  String get ccQcScopeAll => 'All';
+
+  @override
+  String get ccQcScopeByVmcc => 'By VMCC';
+
+  @override
+  String get ccQcScopeRanking => 'Ranking';
+
+  @override
+  String get ccQcSelectVmccTitle => 'Select VMCC';
+
+  @override
+  String get ccQcSelectVmccPlaceholder => 'Select a VMCC';
+
+  @override
+  String ccQcRangeDays(int d) {
+    return '$d days';
+  }
+
+  @override
+  String get ccVmccsSearchHint => 'Search VMCCs';
+
+  @override
+  String get ccVmccsNoneAssigned => 'No VMCCs assigned';
+
+  @override
+  String get ccVmccsNoMatch => 'No matching VMCCs';
+
+  @override
+  String get ccManualReceiveTitle => 'Manual receive';
+
+  @override
+  String get ccManualReceiveInfoBanner =>
+      'Use this only when milk arrived with no dispatch entry in the app.';
+
+  @override
+  String get ccManualReceiveReceivingFor => 'RECEIVING FOR';
+
+  @override
+  String get ccManualReceiveShiftLabel => 'Shift';
+
+  @override
+  String get ccManualReceiveSelectVmcc => 'SELECT VMCC';
+
+  @override
+  String get ccManualReceiveNoVmccsLinked => 'No VMCCs linked to this CC.';
+
+  @override
+  String ccManualReceiveNoVmccsShift(Object shift) {
+    return 'No VMCCs collect in the $shift shift.';
+  }
+
+  @override
+  String ccManualReceiveReceivedBadge(Object qty) {
+    return '$qty received';
+  }
+
+  @override
+  String get ccManualReceiveCollectionDate => 'Collection date';
+
+  @override
+  String ccManualReceiveDeleteConfirmBody(
+    Object name,
+    Object date,
+    Object shift,
+  ) {
+    return '$name · $date $shift will be removed.';
+  }
+
+  @override
+  String get ccManualReceiveErrorMissingFields => 'Enter quantity, FAT and SNF';
+
+  @override
+  String get ccMeasuredAtCc => 'MEASURED AT CC';
+
+  @override
+  String get ccManualReceiveQtyHint => 'Qty (L)';
+
+  @override
+  String get ccManualReceiveSaveChanges => 'Save changes';
+
+  @override
+  String get ccManualReceiveMarkReceived => 'Mark received';
+
+  @override
+  String get ccReceiveConsignmentSourceFallback => 'Source';
+
+  @override
+  String get ccReceiveConsignmentReceiptTitle => 'Receipt';
+
+  @override
+  String get ccReceiveConsignmentReceiveMilkTitle => 'Receive milk';
+
+  @override
+  String get ccReceiveConsignmentQuantityLabel => 'Quantity';
+
+  @override
+  String get ccReceiveConsignmentSameAsDispatched => 'Same as dispatched';
+
+  @override
+  String get ccReceiveConsignmentReceivedQtyHint => 'Received quantity (L)';
+
+  @override
+  String get ccReceiveConsignmentUpdateReceipt => 'Update receipt';
+
+  @override
+  String get ccReceiveConsignmentConfirmReceipt => 'Confirm receipt';
+
+  @override
+  String get ccReceiveConsignmentErrorQty => 'Enter the received quantity';
+
+  @override
+  String get ccReceiveConsignmentEnterQtyForVariance =>
+      'Enter received qty to see variance vs dispatch';
+
+  @override
+  String get ccReceiveConsignmentVarianceLabel => 'Variance vs dispatch';
+
+  @override
+  String get ccReceiveConsignmentDispatchedByVmcc => 'DISPATCHED BY VMCC';
+
+  @override
+  String get ccQcReportEmptyTitle => 'No receipts in this window';
+
+  @override
+  String get ccQcReportEmptySubtitle =>
+      'Receive milk from VMCCs to see the daily QC report';
+
+  @override
+  String get ccQcReportTrendsLabel => 'Quality trends';
+
+  @override
+  String get ccQcReportDailyQualityLabel => 'Daily quality · qty-weighted';
+
+  @override
+  String get ccQcReportDateHeader => 'DATE';
+
+  @override
+  String get ccQcReportNoReadings => 'No readings in this window';
+
+  @override
+  String ccQcRankingByMetric(Object metric) {
+    return 'By $metric';
+  }
+
+  @override
+  String get ccQcRankingHighToLow => 'high → low';
+
+  @override
+  String get ccQcRankingLowToHigh => 'low → high';
+
+  @override
+  String ccQcRankingSummary(int active, int total, int days) {
+    return '$active of $total VMCCs delivered · last $days days';
+  }
+
+  @override
+  String get navTankers => 'Tankers';
+
+  @override
+  String get ppHomeRawMilkTank => 'Raw-milk tank';
+
+  @override
+  String get ppHomeCcsToday => 'CCs · today';
+
+  @override
+  String get ppHomeTodayLabel => 'TODAY';
+
+  @override
+  String get ppHomeTodayReceivedLabel => 'TODAY RECEIVED';
+
+  @override
+  String ppHomeTankersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tankers',
+      one: '$count tanker',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ppHomeVarianceVsDispatch(Object value) {
+    return '$value% vs disp.';
+  }
+
+  @override
+  String get ppHomeReceivedLabel => 'Received';
+
+  @override
+  String get ppHomeInventoryNote =>
+      '→ Accepted posts to runq Inventory (raw-milk batch)';
+
+  @override
+  String get ppHomeNoCcsTitle => 'No CCs dispatching';
+
+  @override
+  String get ppHomeNoCcsSubtitle =>
+      'Chilling centres feeding this plant appear here';
+
+  @override
+  String ppHomeFlowTransit(Object amount) {
+    return '⏳ $amount transit';
+  }
+
+  @override
+  String ppHomeFlowReceived(Object amount) {
+    return '✓ $amount received';
+  }
+
+  @override
+  String get ppReceiveNoReceiptsSubtitle =>
+      'Tankers you receive from CCs show here';
+
+  @override
+  String get ppReceiveLoadError => 'Could not load tankers';
+
+  @override
+  String get ppReceiveNothingInTransitSubtitle =>
+      'Inbound tankers appear here once dispatched';
+
+  @override
+  String get ppReceiveDispatchedByCc => 'DISPATCHED BY CC';
+
+  @override
+  String get ppReceiveMeasuredAtPlant => 'MEASURED AT PLANT';
+
+  @override
+  String get ppTankersEmptyTitle => 'No tankers today';
+
+  @override
+  String get ppTankersEmptySubtitle =>
+      'Tankers dispatched to this plant appear here';
+
+  @override
+  String get adminSwitchTitlePp => 'Processing plants';
+
+  @override
+  String get adminSwitchTitleCc => 'Chilling centres';
+
+  @override
+  String get adminSwitchTitleVmcc => 'Village collection centres';
+
+  @override
+  String get adminSwitchFarmersNav => 'Farmers';
+
+  @override
+  String get adminSwitchDefaultUserName => 'Dhenu User';
+
+  @override
+  String get adminSwitchLoadError => 'Could not load today’s collection';
+
+  @override
+  String get adminSwitchTodayCollectionLabel => 'TODAY’S COLLECTION';
+
+  @override
+  String get adminSwitchByChillingCentre => 'BY CHILLING CENTRE';
+
+  @override
+  String get adminSwitchByMilkType => 'BY MILK TYPE';
+
+  @override
+  String get adminSwitchNoCollectionTitle => 'No collection yet today';
+
+  @override
+  String get adminSwitchNoCollectionSubtitle =>
+      'Per-centre and per-milk-type totals will appear here.';
+
+  @override
+  String get adminSwitchNoCollectionSuffix => ' · no collection';
+
+  @override
+  String get adminSwitchNotLinkedToCc => 'Not linked to a chilling centre';
+
+  @override
+  String get adminSwitchCcFallback => 'Chilling centre';
+
+  @override
+  String get adminSwitchUnlinkedVmccs => 'Unlinked VMCCs';
+
+  @override
+  String adminSwitchVmccsInCc(Object name) {
+    return 'VMCCs in $name';
+  }
+
+  @override
+  String get adminSwitchSheetTitle => 'Switch centre';
+
+  @override
+  String get adminSwitchLoadCentresError => 'Could not load centres';
+
+  @override
+  String get adminSwitchNoCentresTitle => 'No centres yet';
+
+  @override
+  String get adminSwitchNoCentresSubtitle =>
+      'Add VMCCs, chilling centres or plants in the web admin first';
+
+  @override
+  String adminSwitchCountPp(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n plants',
+      one: '$n plant',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String adminSwitchCountCc(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n chilling centres',
+      one: '$n chilling centre',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String adminSwitchCountVmcc(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n centres',
+      one: '$n centre',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get operatorSwitchRolePp => 'Processing plant';
+
+  @override
+  String get operatorSwitchRoleCc => 'Chilling centre';
+
+  @override
+  String get operatorSwitchRoleVmcc => 'Village collection centre';
+
+  @override
+  String get operatorSwitchLoadError => 'Could not load your centres';
+
+  @override
+  String get operatorSwitchNoneTitle => 'No centres assigned';
+
+  @override
+  String get operatorSwitchNoneSubtitle =>
+      'Ask your admin to assign you to a centre.';
+
+  @override
+  String get operatorSwitchTodayLoading => 'Today  …';
+
+  @override
+  String get operatorSwitchNoCollection => 'No collection yet';
+
+  @override
+  String operatorSwitchTodaySummary(Object qty, int count) {
+    return 'Today  $qty · $count farmers';
+  }
+
+  @override
+  String get operatorSwitchButton => 'Switch';
+
+  @override
+  String get operatorSelectorGreetingPlain => 'Namaste';
+
+  @override
+  String operatorSelectorGreetingNamed(Object name) {
+    return 'Namaste, $name';
+  }
+
+  @override
+  String get operatorSelectorSubtitle => 'Choose a centre to operate';
+
+  @override
+  String get operatorNoAccessTitle => 'No Dhenu access yet';
+
+  @override
+  String get operatorNoAccessSubtitle =>
+      'Ask your dairy administrator to enable milk procurement for your account.';
+
+  @override
+  String get operatorNoAccessSignOut => 'Sign out';
+
+  @override
+  String get authLoginTagline => 'Milk procurement, made fair';
+
+  @override
+  String get authLoginSessionExpired =>
+      'Your session expired. Sign in again with your phone number.';
+
+  @override
+  String get commonBack => 'Back';
+
+  @override
+  String get authOtpPhoneLabel => 'Phone number';
+
+  @override
+  String get authOtpPhoneHint => '10-digit mobile';
+
+  @override
+  String get authOtpSendButton => 'Send OTP';
+
+  @override
+  String get authOtpEnterDigits => 'Enter a 10-digit mobile number';
+
+  @override
+  String get authOtpEnterCode => 'Enter the 6-digit code';
+
+  @override
+  String authOtpCodeSentTo(Object phone) {
+    return 'Enter the code sent to $phone';
+  }
+
+  @override
+  String get authOtpSignIn => 'Sign in';
+
+  @override
+  String get authOtpSmsDelay => 'The SMS can take up to a minute to arrive.';
+
+  @override
+  String get authOtpChangeNumber => 'Change number';
+
+  @override
+  String authOtpResendIn(int seconds) {
+    return 'Resend in ${seconds}s';
+  }
+
+  @override
+  String get authOtpResendButton => 'Resend OTP';
+
+  @override
+  String authOtpNetworkErrorDebug(Object baseUrl) {
+    return 'Can\'t reach the server at $baseUrl. Is the API running and the phone on the same network?';
+  }
+
+  @override
+  String get authOtpNetworkErrorProd =>
+      'Can\'t reach the server. Check your connection and try again.';
+
+  @override
+  String get aboutScreenTitle => 'About';
+
+  @override
+  String get aboutScreenTagline => 'Milk procurement, simplified';
+
+  @override
+  String aboutScreenVersion(Object version, Object build) {
+    return 'Version $version ($build)';
+  }
+
+  @override
+  String get aboutScreenPrivacyPolicy => 'Privacy Policy';
+
+  @override
+  String get aboutScreenTermsOfService => 'Terms of Service';
+
+  @override
+  String get aboutScreenMadeWith => 'Made with care in India 🇮🇳';
+
+  @override
+  String get aboutScreenCouldNotOpen => 'Could not open';
+
+  @override
+  String get bankPayoutTitle => 'Bank & payout';
+
+  @override
+  String get bankPayoutLoadError => 'Could not load payout';
+
+  @override
+  String get bankPayoutEmptyTitle => 'No payout terms yet';
+
+  @override
+  String get bankPayoutEmptySubtitle =>
+      'Your compensation is set up by your admin and will appear here.';
+
+  @override
+  String get bankPayoutThisMonth => 'THIS MONTH';
+
+  @override
+  String bankPayoutCollectedEstEarning(Object qty) {
+    return '$qty collected · est. earning so far';
+  }
+
+  @override
+  String get bankPayoutMethodLabel => 'Payout method';
+
+  @override
+  String get bankPayoutRentLabel => 'Rent';
+
+  @override
+  String bankPayoutPerMonth(Object amount) {
+    return '$amount / month';
+  }
+
+  @override
+  String get bankPayoutSinceLabel => 'Since';
+
+  @override
+  String get bankPayoutHasAccount =>
+      'Payouts go to your registered bank account.';
+
+  @override
+  String get bankPayoutNoAccount =>
+      'No bank account on file — ask your admin to add one.';
+
+  @override
+  String get bankPayoutFixedSalary => 'Fixed salary';
+
+  @override
+  String get bankPayoutPerLitreCommission => 'Per-litre commission';
+
+  @override
+  String bankPayoutPerLitre(Object rate) {
+    return '$rate / litre';
+  }
+
+  @override
+  String get langPickerTitle => 'Choose language';
+
+  @override
+  String get langPickerComingSoon => 'Coming soon';
+
+  @override
+  String get dispatchFatHint => 'FAT %';
+
+  @override
+  String get dispatchSnfHint => 'SNF %';
+
+  @override
+  String get dispatchWaterHint => 'Water % (optional)';
+
+  @override
+  String get dispatchHistoryTitle => 'Dispatch history';
+
+  @override
+  String get dispatchSeeFullHistory => 'See full history';
+
+  @override
+  String get dispatchHistoryLoadError => 'Could not load history';
+
+  @override
+  String get dispatchHistoryEmptyTitle => 'No dispatches yet';
+
+  @override
+  String get dispatchHistoryEmptySubtitle =>
+      'Tankers dispatched over the last 30 days show here';
+
+  @override
+  String get dispatchHistoryPlantFallback => 'Plant';
+
+  @override
+  String get dispatchHistoryCcFallback => 'Chilling centre';
+
+  @override
+  String dispatchHistoryCount(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n dispatches',
+      one: '$n dispatch',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchHistoryInTransit(int n) {
+    return '$n in transit';
+  }
+
+  @override
+  String get dispatchHistoryReversed => '⊘ reversed';
+
+  @override
+  String farmerPoursGradeLabel(Object letter) {
+    return 'Grade $letter';
+  }
+
+  @override
+  String get collectLowWord => 'Low';
+
+  @override
+  String get qcReportLoadError => 'Could not load QC data';
+
+  @override
+  String qcReportHeroLabelFarmer(Object name, int days) {
+    return '$name · LAST $days DAYS';
+  }
+
+  @override
+  String qcReportHeroLabelAll(int days) {
+    return 'COLLECTED · LAST $days DAYS';
+  }
+
+  @override
+  String qcReportHeroLabelDays(int days) {
+    return 'LAST $days DAYS';
+  }
+
+  @override
+  String get qcReportFooterFarmer => 'Qty-weighted quality for this farmer';
+
+  @override
+  String get qcReportFooterAll => 'Qty-weighted quality across all farmers';
+
+  @override
+  String get qcReportEmptyTitle => 'No readings in this window';
+
+  @override
+  String get qcReportEmptySubtitle =>
+      'Record collections to see the daily QC trend';
+
+  @override
+  String get qcReportSelectFarmerTitle => 'Select a farmer';
+
+  @override
+  String get qcReportSelectFarmerSubtitle =>
+      'Pick a farmer to see their quality trend';
+
+  @override
+  String get qcReportScopeAll => 'All farmers';
+
+  @override
+  String get qcReportScopePerFarmer => 'Per farmer';
+
+  @override
+  String qcReportDaysChip(int d) {
+    return '$d days';
+  }
+
+  @override
+  String get homeCouldNotLoadCentre => 'Could not load your centre';
+
+  @override
+  String get updateRequiredTitle => 'Update required';
+
+  @override
+  String get updateRequiredButton => 'Update now';
+
+  @override
+  String get updateRequiredCouldNotOpenStore => 'Could not open the store';
+
+  @override
+  String get nodePickerSearchHint => 'Search…';
+
+  @override
+  String get nodePickerNoMatch => 'No match';
+
+  @override
+  String get voiceFieldDictateTooltip => 'Dictate';
+
+  @override
+  String get voiceFieldReadBackTooltip => 'Read back';
+
+  @override
+  String get splashTagline => 'Every drop counts';
 }

@@ -53,10 +53,8 @@ class FarmerRateChart extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(right: DhenuSpacing.md),
             child: AudioPlay(
-              speak: lastRate == null
-                  ? l.farmerRateListenSpeak
-                  : l.farmerRateListenSpeakWithRate(
-                      lastRate.ratePerLitre.toStringAsFixed(1)),
+              speak: _speakText(l, detailAsync.asData?.value, lastPour, lastRate,
+                  averageDailyQty(monthPours)),
               size: 22,
             ),
           ),
@@ -86,6 +84,30 @@ class FarmerRateChart extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// What the Listen button says: the last rate, plus the single most valuable
+/// coaching step ("if SNF reaches 8.5, +₹0.60/L") when one exists — turning
+/// the densest screen into spoken guidance for farmers who can't read the
+/// matrix (audit D5). Reuses the same computeRateCoaching as the visual strip.
+String _speakText(AppLocalizations l, MpRateChartDetail? detail, MpPour? lastPour,
+    MpRateResolution? lastRate, double dailyQty) {
+  var text = lastRate == null
+      ? l.farmerRateListenSpeak
+      : l.farmerRateListenSpeakWithRate(lastRate.ratePerLitre.toStringAsFixed(1));
+  final fat = lastPour?.fat, snf = lastPour?.snf;
+  if (detail == null || fat == null || snf == null) return text;
+  final c = computeRateCoaching(
+      cells: detail.cells, curFat: fat, curSnf: snf, dailyQty: dailyQty);
+  if (c == null || !c.hasAny) return text;
+  // Speak only the bigger of the two opportunities — short enough to listen to.
+  final snfDelta = c.snfDeltaPerLitre ?? 0, fatDelta = c.fatDeltaPerLitre ?? 0;
+  if (snfDelta >= fatDelta && snfDelta > 0) {
+    text += ' ${l.farmerRateSpeakCoach('SNF', oneDp(c.nextSnf!), snfDelta.toStringAsFixed(2))}';
+  } else if (fatDelta > 0) {
+    text += ' ${l.farmerRateSpeakCoach('FAT', oneDp(c.nextFat!), fatDelta.toStringAsFixed(2))}';
+  }
+  return text;
 }
 
 class _RateChartBody extends StatelessWidget {
@@ -159,7 +181,7 @@ class _RateChartBody extends StatelessWidget {
             children: [
               if (hasDate)
                 Text(
-                  'From ${prettyDate(chart.effectiveFrom!)}',
+                  AppLocalizations.of(context).farmerRateEffectiveFrom(prettyDate(chart.effectiveFrom!)),
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               if (hasDate && hasSeason)

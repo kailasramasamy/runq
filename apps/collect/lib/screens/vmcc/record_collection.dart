@@ -1027,7 +1027,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         ),
         if (lowLabels.isNotEmpty) ...[
           const SizedBox(height: DhenuSpacing.sm),
-          _lowQualityChip(lowLabels, t),
+          _lowQualityChip(lowLabels, t, l),
         ],
         if (_qtyVal > 0) ...[
           const SizedBox(height: DhenuSpacing.sm),
@@ -1058,7 +1058,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     return low;
   }
 
-  Widget _lowQualityChip(List<String> labels, DhenuTokens t) => Container(
+  Widget _lowQualityChip(List<String> labels, DhenuTokens t, AppLocalizations l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
         decoration: BoxDecoration(
           color: t.gradeC.withValues(alpha: 0.12),
@@ -1066,7 +1066,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           border: Border.all(color: t.gradeC.withValues(alpha: 0.35)),
         ),
         child: Text(
-          '⚠ Low ${labels.join(' · Low ')}',
+          '⚠ ${labels.map((m) => '${l.collectLowWord} $m').join(' · ')}',
           style: DhenuText.caption.copyWith(color: t.gradeC),
         ),
       );

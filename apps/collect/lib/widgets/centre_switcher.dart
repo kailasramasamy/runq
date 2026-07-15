@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
@@ -18,9 +19,9 @@ IconData nodeTierIcon(MpNode n) => _iconForType(n.nodeType);
 IconData _iconForType(String type) =>
     type == 'pp' ? DhenuIcons.tankers : (type == 'cc' ? DhenuIcons.snowflake : DhenuIcons.store);
 
-String _titleForType(String type) => type == 'pp'
-    ? 'Processing plants'
-    : (type == 'cc' ? 'Chilling centres' : 'Village collection centres');
+String _titleForType(AppLocalizations l, String type) => type == 'pp'
+    ? l.adminSwitchTitlePp
+    : (type == 'cc' ? l.adminSwitchTitleCc : l.adminSwitchTitleVmcc);
 
 /// A slim "tier · name ▾ Switch" bar shown at the top of an admin's shell —
 /// the active centre plus a tap target to change it. Only built for admins
@@ -91,6 +92,7 @@ class _CentreSwitcherSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final current = ref.watch(mpActiveNodeProvider);
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
@@ -105,7 +107,7 @@ class _CentreSwitcherSheet extends ConsumerWidget {
               DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.sm),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Text('Switch centre', style: DhenuText.h2.copyWith(color: t.ink)),
+            child: Text(l.adminSwitchSheetTitle, style: DhenuText.h2.copyWith(color: t.ink)),
           ),
         ),
         Flexible(
@@ -126,14 +128,11 @@ class _CentreSwitcherSheet extends ConsumerWidget {
 String _abbrForType(String type) => type == 'pp' ? 'PP' : (type == 'cc' ? 'CC' : 'VMCC');
 
 /// Count label like "12 centres" / "3 chilling centres" / "1 plant" for a tier.
-String _countLabel(String type, int n) {
-  final unit = type == 'pp'
-      ? (n == 1 ? 'plant' : 'plants')
-      : type == 'cc'
-          ? (n == 1 ? 'chilling centre' : 'chilling centres')
-          : (n == 1 ? 'centre' : 'centres');
-  return '$n $unit';
-}
+String _countLabel(AppLocalizations l, String type, int n) => type == 'pp'
+    ? l.adminSwitchCountPp(n)
+    : type == 'cc'
+        ? l.adminSwitchCountCc(n)
+        : l.adminSwitchCountVmcc(n);
 
 /// The centre list as three collapsible tiers — Village Collection Centres /
 /// Chilling Centres / Processing Plants. Each tier is a card showing its count;
@@ -171,19 +170,20 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return ref.watch(operatorNodesProvider).when(
           // Scroll-wrapped so the fixed-height skeleton never overflows the
           // bounded Expanded/Flexible this list always sits inside.
           loading: () => const SingleChildScrollView(child: DhenuLoadingList(rows: 3)),
           error: (e, _) => DhenuEmptyState(
-              icon: DhenuIcons.cloudOff, title: 'Could not load centres', subtitle: '$e'),
+              icon: DhenuIcons.cloudOff, title: l.adminSwitchLoadCentresError, subtitle: '$e'),
           data: (nodes) {
             final active = nodes.where((n) => n.isActive).toList();
             if (active.isEmpty) {
-              return const DhenuEmptyState(
+              return DhenuEmptyState(
                 icon: DhenuIcons.store,
-                title: 'No centres yet',
-                subtitle: 'Add VMCCs, chilling centres or plants in the web admin first',
+                title: l.adminSwitchNoCentresTitle,
+                subtitle: l.adminSwitchNoCentresSubtitle,
               );
             }
             final nodeById = {for (final n in nodes) n.id: n};
@@ -197,7 +197,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
                   DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.lg),
               itemCount: types.length,
               separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.md),
-              itemBuilder: (_, i) => _tierCard(t, types[i],
+              itemBuilder: (_, i) => _tierCard(l, t, types[i],
                   active.where((n) => n.nodeType == types[i]).toList(), nodeById),
             );
           },
@@ -205,12 +205,12 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
   }
 
   Widget _tierCard(
-      DhenuTokens t, String type, List<MpNode> nodes, Map<String, MpNode> nodeById) {
+      AppLocalizations l, DhenuTokens t, String type, List<MpNode> nodes, Map<String, MpNode> nodeById) {
     final open = _open.contains(type);
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(children: [
-        _tierHeader(t, type, nodes.length, open),
+        _tierHeader(l, t, type, nodes.length, open),
         AnimatedSize(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeInOut,
@@ -218,7 +218,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
           child: open
               ? Column(children: [
                   Divider(height: 1, color: t.hairline),
-                  ..._tierBody(t, nodes, nodeById),
+                  ..._tierBody(l, t, nodes, nodeById),
                 ])
               : const SizedBox(width: double.infinity),
         ),
@@ -230,7 +230,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
   /// parent node (e.g. VMCCs under their chilling centre); only the parent
   /// names show until a parent is tapped to reveal its centres. Falls back to a
   /// flat list when nothing in the tier has a parent (e.g. processing plants).
-  List<Widget> _tierBody(DhenuTokens t, List<MpNode> nodes, Map<String, MpNode> nodeById) {
+  List<Widget> _tierBody(AppLocalizations l, DhenuTokens t, List<MpNode> nodes, Map<String, MpNode> nodeById) {
     final groups = <String?, List<MpNode>>{};
     for (final n in nodes) {
       final pid = nodeById.containsKey(n.parentNodeId) ? n.parentNodeId : null;
@@ -241,15 +241,15 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
     final parents = groups.keys.whereType<String>().toList()
       ..sort((a, b) => (nodeById[a]?.name ?? '').compareTo(nodeById[b]?.name ?? ''));
     return [
-      for (final pid in parents) ..._parentGroup(t, pid, nodeById[pid], groups[pid]!),
-      if (groups.containsKey(null)) ..._parentGroup(t, _kNoParent, null, groups[null]!),
+      for (final pid in parents) ..._parentGroup(l, t, pid, nodeById[pid], groups[pid]!),
+      if (groups.containsKey(null)) ..._parentGroup(l, t, _kNoParent, null, groups[null]!),
     ];
   }
 
-  List<Widget> _parentGroup(DhenuTokens t, String key, MpNode? parent, List<MpNode> nodes) {
+  List<Widget> _parentGroup(AppLocalizations l, DhenuTokens t, String key, MpNode? parent, List<MpNode> nodes) {
     final open = _openParent.contains(key);
     return [
-      _groupHeader(t, key, parent, nodes.length, open),
+      _groupHeader(l, t, key, parent, nodes.length, open),
       if (open) ..._rows(t, nodes),
     ];
   }
@@ -261,7 +261,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
         ],
       ];
 
-  Widget _groupHeader(DhenuTokens t, String key, MpNode? parent, int count, bool open) {
+  Widget _groupHeader(AppLocalizations l, DhenuTokens t, String key, MpNode? parent, int count, bool open) {
     return Material(
       color: t.brandSubtle,
       child: InkWell(
@@ -274,7 +274,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
                 size: 16, color: t.brand),
             const SizedBox(width: DhenuSpacing.sm),
             Expanded(
-              child: Text(parent?.name ?? 'Not linked to a chilling centre',
+              child: Text(parent?.name ?? l.adminSwitchNotLinkedToCc,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
@@ -292,7 +292,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
     );
   }
 
-  Widget _tierHeader(DhenuTokens t, String type, int count, bool open) {
+  Widget _tierHeader(AppLocalizations l, DhenuTokens t, String type, int count, bool open) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -312,10 +312,10 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
             const SizedBox(width: DhenuSpacing.md),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_titleForType(type),
+                Text(_titleForType(l, type),
                     style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text('${_abbrForType(type)} · ${_countLabel(type, count)}',
+                Text('${_abbrForType(type)} · ${_countLabel(l, type, count)}',
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ]),
             ),

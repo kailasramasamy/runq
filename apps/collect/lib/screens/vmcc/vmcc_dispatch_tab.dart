@@ -219,14 +219,14 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
             controller: _fatCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textCapitalization: TextCapitalization.none,
-            decoration: const InputDecoration(hintText: 'FAT %'),
+            decoration: InputDecoration(hintText: l.dispatchFatHint),
           )),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(child: TextField(
             controller: _snfCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textCapitalization: TextCapitalization.none,
-            decoration: const InputDecoration(hintText: 'SNF %'),
+            decoration: InputDecoration(hintText: l.dispatchSnfHint),
           )),
         ]),
         const SizedBox(height: DhenuSpacing.md),
@@ -234,7 +234,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           controller: _waterCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textCapitalization: TextCapitalization.none,
-          decoration: const InputDecoration(hintText: 'Water % (optional)'),
+          decoration: InputDecoration(hintText: l.dispatchWaterHint),
         ),
         const SizedBox(height: DhenuSpacing.md),
         TextField(
@@ -264,22 +264,22 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         Text(l.dispatchTodaysOutbound, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         _outboundList(t, l, outboundAsync),
-        _seeDispatchHistoryLink(context, t),
+        _seeDispatchHistoryLink(context, t, l),
       ],
       ),
     );
   }
 
-  Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t) => Center(
+  Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t, AppLocalizations l) => Center(
         child: TextButton(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: Text('Dispatch history', style: DhenuText.h2.copyWith(color: t.ink))),
+              appBar: AppBar(title: Text(l.dispatchHistoryTitle, style: DhenuText.h2.copyWith(color: t.ink))),
               body: DispatchHistory(node: widget.node, kind: 'vmcc_to_cc'),
             ),
           )),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('See full history', style: DhenuText.label.copyWith(color: t.brand)),
+            Text(l.dispatchSeeFullHistory, style: DhenuText.label.copyWith(color: t.brand)),
             const SizedBox(width: 4),
             Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
           ]),

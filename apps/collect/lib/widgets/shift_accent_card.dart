@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
+import '../l10n/app_localizations.dart';
 
 /// Today's AM / PM pour summary card: white surface with a 4px left accent bar
 /// (AM amber / PM violet), a sun/moon icon chip + shift label, the litres, and
@@ -57,7 +58,7 @@ class ShiftAccentCard extends StatelessWidget {
                           child: Icon(isAm ? DhenuIcons.sun : DhenuIcons.moon, size: 15, color: accent),
                         ),
                         const SizedBox(width: DhenuSpacing.sm),
-                        Text(isAm ? 'AM' : 'PM', style: DhenuText.label.copyWith(color: accentText)),
+                        Text(isAm ? AppLocalizations.of(context).shiftAm : AppLocalizations.of(context).shiftPm, style: DhenuText.label.copyWith(color: accentText)),
                       ],
                     ),
                     const SizedBox(height: DhenuSpacing.sm),
@@ -67,7 +68,7 @@ class ShiftAccentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: DhenuSpacing.sm),
                     if (empty)
-                      Text('Not recorded', style: DhenuText.caption.copyWith(color: t.inkSoft))
+                      Text(AppLocalizations.of(context).shiftNotRecorded, style: DhenuText.caption.copyWith(color: t.inkSoft))
                     else if (quality != null)
                       FittedBox(
                         fit: BoxFit.scaleDown,

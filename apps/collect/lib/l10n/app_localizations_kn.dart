@@ -293,6 +293,118 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeReports => 'ವರದಿಗಳು';
 
   @override
+  String farmerRateSpeakCoach(Object metric, Object value, Object extra) {
+    return 'ನಿಮ್ಮ $metric $value ತಲುಪಿದರೆ, ಪ್ರತಿ ಲೀಟರ್‌ಗೆ $extra ರೂಪಾಯಿ ಹೆಚ್ಚು ಸಿಗುತ್ತದೆ.';
+  }
+
+  @override
+  String get helpTitle => 'ಸಹಾಯ ಮತ್ತು ಬೆಂಬಲ';
+
+  @override
+  String get helpCallSupport => 'ಬೆಂಬಲಕ್ಕೆ ಕರೆ ಮಾಡಿ';
+
+  @override
+  String get helpEmailSupport => 'ಇಮೇಲ್ ಮಾಡಿ';
+
+  @override
+  String get helpWhatsApp => 'WhatsApp ನಲ್ಲಿ ಮಾತನಾಡಿ';
+
+  @override
+  String get helpReplySoon => 'ಸಾಮಾನ್ಯವಾಗಿ ಕೆಲವೇ ಗಂಟೆಗಳಲ್ಲಿ ಉತ್ತರಿಸುತ್ತೇವೆ.';
+
+  @override
+  String get helpNoContacts =>
+      'ಬೆಂಬಲ ಸಂಪರ್ಕಗಳನ್ನು ಇನ್ನೂ ಹೊಂದಿಸಿಲ್ಲ — ದಯವಿಟ್ಟು ನಿಮ್ಮ ಡೈರಿ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get helpCouldNotOpen => 'ತೆರೆಯಲು ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get faqFarmerQ1 => 'ನನ್ನ ಹಾಲಿನ ನಮೂದುಗಳನ್ನು ಎಲ್ಲಿ ನೋಡಬಹುದು?';
+
+  @override
+  String get faqFarmerA1 =>
+      'ಸಂಗ್ರಹಗಳು ಟ್ಯಾಬ್‌ನಲ್ಲಿ ಪ್ರತಿ ದಿನದ ಪ್ರಮಾಣ ಮತ್ತು ಗುಣಮಟ್ಟದೊಂದಿಗೆ ಎಲ್ಲಾ ನಮೂದುಗಳಿವೆ.';
+
+  @override
+  String get faqFarmerQ2 => 'ನನ್ನ ದರ ಹೇಗೆ ನಿರ್ಧಾರವಾಗುತ್ತದೆ?';
+
+  @override
+  String get faqFarmerA2 =>
+      'ಮುಖಪುಟದಿಂದ ದರ ಪಟ್ಟಿ ತೆರೆಯಿರಿ — ನಿಮ್ಮ FAT ಮತ್ತು SNF (ಅಥವಾ CLR) ಪ್ರತಿ ಲೀಟರ್ ಬೆಲೆ ನಿರ್ಧರಿಸುತ್ತದೆ.';
+
+  @override
+  String get faqFarmerQ3 => 'ನನಗೆ ಯಾವಾಗ ಪಾವತಿ ಆಗುತ್ತದೆ?';
+
+  @override
+  String get faqFarmerA3 =>
+      'ಪಾವತಿಗಳು ನಿಮ್ಮ ಡೈರಿಯ ಪಾವತಿ ಚಕ್ರವನ್ನು ಅನುಸರಿಸುತ್ತವೆ. ಪಾವತಿಗಳು ಟ್ಯಾಬ್‌ನಲ್ಲಿ ಈಗಿನ ಚಕ್ರ ಮತ್ತು ಬಾಕಿ ಕಾಣುತ್ತದೆ.';
+
+  @override
+  String get faqOperatorQ1 => 'ಸಂಗ್ರಹವನ್ನು ಹೇಗೆ ದಾಖಲಿಸುವುದು?';
+
+  @override
+  String get faqOperatorA1 =>
+      'ಕೆಳಗಿನ ಪಟ್ಟಿಯಲ್ಲಿ ಸಂಗ್ರಹ ಒತ್ತಿ, ರೈತರನ್ನು ಆರಿಸಿ, ನಂತರ ಪ್ರಮಾಣ, FAT ಮತ್ತು SNF ನಮೂದಿಸಿ.';
+
+  @override
+  String get faqOperatorQ2 => 'ಪಾವತಿಗಳು ಯಾವಾಗ ಇತ್ಯರ್ಥವಾಗುತ್ತವೆ?';
+
+  @override
+  String get faqOperatorA2 =>
+      'ಪಾವತಿಗಳು ನಿಮ್ಮ ಕೇಂದ್ರದ ಚಕ್ರವನ್ನು ಅನುಸರಿಸುತ್ತವೆ. ಈಗಿನ ಚಕ್ರಕ್ಕೆ ಪಾವತಿಗಳು ಟ್ಯಾಬ್ ನೋಡಿ.';
+
+  @override
+  String get commonRetry => 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ';
+
+  @override
+  String get commonErrorTitle => 'ನಿಮ್ಮ ಡೇಟಾ ಲೋಡ್ ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get commonErrorSubtitle => 'ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get commonOfflineSaved => 'ಆಫ್‌ಲೈನ್ — ಉಳಿಸಿದ ಡೇಟಾ ತೋರಿಸಲಾಗುತ್ತಿದೆ';
+
+  @override
+  String get shiftNotRecorded => 'ದಾಖಲಾಗಿಲ್ಲ';
+
+  @override
+  String get syncSyncedLabel => 'ಸಿಂಕ್ ಆಗಿದೆ';
+
+  @override
+  String syncSyncedAgoLabel(Object ago) {
+    return 'ಸಿಂಕ್ ಆಗಿದೆ $ago';
+  }
+
+  @override
+  String syncToSendLabel(Object count) {
+    return '$count ಕಳುಹಿಸಬೇಕಿದೆ';
+  }
+
+  @override
+  String get syncOfflineLabel => 'ಆಫ್‌ಲೈನ್ — ಸಾಧನದಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ';
+
+  @override
+  String get notifScreenTitle => 'ಅಧಿಸೂಚನೆಗಳು';
+
+  @override
+  String get notifPushTitle => 'ಪುಶ್ ಅಧಿಸೂಚನೆಗಳು';
+
+  @override
+  String get notifPushSubtitle =>
+      'ಸಂಗ್ರಹ, ರವಾನೆ ಮತ್ತು ಪಾವತಿಗಳ ಎಚ್ಚರಿಕೆ ಪಡೆಯಿರಿ';
+
+  @override
+  String get notifPushFootnote =>
+      'ಆಫ್ ಮಾಡಿದರೆ ಈ ಸಾಧನಕ್ಕೆ ಪುಶ್ ಅಧಿಸೂಚನೆಗಳು ಬರುವುದಿಲ್ಲ. ಯಾವಾಗ ಬೇಕಾದರೂ ಮತ್ತೆ ಆನ್ ಮಾಡಬಹುದು.';
+
+  @override
+  String farmerRateEffectiveFrom(Object date) {
+    return '$date ರಿಂದ';
+  }
+
+  @override
   String get errorOffline =>
       'ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ — ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
 
@@ -1588,4 +1700,895 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get farmerServicesLoansDesc => 'ನಿಮ್ಮ ಹಾಲು ಆದಾಯದ ವಿರುದ್ಧ ತಕ್ಷಣ ಮುಂಗಡ.';
+
+  @override
+  String get navReceive => 'ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccDispatchToPlant => 'ಪ್ಲಾಂಟ್‌ಗೆ ರವಾನಿಸಿ';
+
+  @override
+  String get ccDispatchSelectDestinationPlant => 'ಗಮ್ಯ ಪ್ಲಾಂಟ್ ಆಯ್ಕೆಮಾಡಿ…';
+
+  @override
+  String get ccDispatchSearchPlant => 'ಪ್ಲಾಂಟ್ ಹುಡುಕಿ';
+
+  @override
+  String get ccDispatchNoPlantsFound => 'ಯಾವುದೇ ಪ್ಲಾಂಟ್ ಕಂಡುಬಂದಿಲ್ಲ';
+
+  @override
+  String get ccDispatchErrorNoDestination => 'ಗಮ್ಯ ಪ್ಲಾಂಟ್ ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get ccDispatchErrorInvalidNumbers => 'ಸರಿಯಾದ ಸಂಖ್ಯೆಗಳನ್ನು ನಮೂದಿಸಿ';
+
+  @override
+  String get ccDispatchCloseFirstShift =>
+      'ರವಾನಿಸುವ ಮೊದಲು ಈ ಪಾಳಿಯ ಸ್ವೀಕೃತಿಯನ್ನು ಮುಚ್ಚಿ.';
+
+  @override
+  String get ccDispatchCloseFirstDay =>
+      'ರವಾನಿಸುವ ಮೊದಲು ಇಂದಿನ ಸ್ವೀಕೃತಿಯನ್ನು ಮುಚ್ಚಿ.';
+
+  @override
+  String get ccDispatchCloseFirstPool =>
+      'ರವಾನಿಸುವ ಮೊದಲು ಪೂಲ್ ಮುಚ್ಚಿ (ನಿನ್ನೆ ಸಂಜೆ + ಇಂದಿನ ಬೆಳಿಗ್ಗೆ).';
+
+  @override
+  String get ccDispatchCloseReceivingPool => 'ಪೂಲ್ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಿ';
+
+  @override
+  String ccDispatchCloseReceivingShift(Object slot) {
+    return '$slot ಸ್ವೀಕೃತಿ ಮುಚ್ಚಿ';
+  }
+
+  @override
+  String get ccDispatchCloseReceivingToday => 'ಇಂದಿನ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಿ';
+
+  @override
+  String ccDispatchUnlocksFor(Object slot) {
+    return '$slotಕ್ಕೆ ಪ್ಲಾಂಟ್‌ಗೆ ರವಾನೆ ತೆರೆಯುತ್ತದೆ.';
+  }
+
+  @override
+  String ccDispatchClosedFor(Object slot) {
+    return '$slotಗೆ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಲಾಗಿದೆ · ರವಾನೆಗೆ ಸಿದ್ಧ';
+  }
+
+  @override
+  String get ccDispatchSlotToday => 'ಇಂದು';
+
+  @override
+  String get ccDispatchSlotPool => 'ಈ ಪೂಲ್';
+
+  @override
+  String get ccDispatchHistoryTitle => 'ರವಾನೆ ಇತಿಹಾಸ';
+
+  @override
+  String get ccHomeChillingTank => 'ಚಿಲ್ಲಿಂಗ್ ಟ್ಯಾಂಕ್';
+
+  @override
+  String get ccHomeVmccsPool => 'VMCC ಗಳು · ಈ ಪೂಲ್';
+
+  @override
+  String get ccHomeVmccsToday => 'VMCC ಗಳು · ಇಂದು';
+
+  @override
+  String get ccHomeAcrossVmccs => 'ಎಲ್ಲಾ VMCCಗಳಲ್ಲಿ';
+
+  @override
+  String get ccHomeInPoolLabel => 'ಪೂಲ್‌ನಲ್ಲಿ · ಹಿಂದಿನ ಸಂಜೆ + ಇಂದಿನ ಬೆಳಿಗ್ಗೆ';
+
+  @override
+  String get ccHomeCollectedTodayLabel => 'ಎಲ್ಲಾ VMCCಗಳಿಂದ ಸಂಗ್ರಹ · ಇಂದು';
+
+  @override
+  String ccHomeActiveOfTotal(int active, int total, Object inTransit) {
+    return '$total ರಲ್ಲಿ $active VMCC · $inTransit ಸಾಗಣೆಯಲ್ಲಿ';
+  }
+
+  @override
+  String ccHomeNextPoolNote(Object amount) {
+    return 'ಮುಂದಿನ ರವಾನೆಗಾಗಿ $amount ಸಂಗ್ರಹವಾಗುತ್ತಿದೆ';
+  }
+
+  @override
+  String get ccHomeReportLink => 'ವರದಿ';
+
+  @override
+  String get ccHomeQcReportLink => 'QC ವರದಿ';
+
+  @override
+  String get ccInTransitLabel => 'ಸಾಗಣೆಯಲ್ಲಿ';
+
+  @override
+  String get ccHomePlantReadyLabel => 'ಪ್ಲಾಂಟ್‌ಗೆ ಸಿದ್ಧ';
+
+  @override
+  String get ccVmccsLoadError => 'VMCCಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get ccNoVmccsLinkedTitle => 'ಯಾವುದೇ VMCC ಜೋಡಿಸಿಲ್ಲ';
+
+  @override
+  String get ccNoVmccsLinkedSubtitle =>
+      'ಈ CCಗೆ VMCCಗಳನ್ನು ವೆಬ್ ಅಡ್ಮಿನ್‌ನಲ್ಲಿ ನಿಯೋಜಿಸಿ';
+
+  @override
+  String ccHomeFarmersCount(int count) {
+    return '$count ರೈತರು';
+  }
+
+  @override
+  String get ccHomeMorning => 'ಬೆಳಿಗ್ಗೆ';
+
+  @override
+  String get ccHomeEvening => 'ಸಂಜೆ';
+
+  @override
+  String get ccReceiveTitle => 'ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccReceiveLoadError => 'ಕನ್ಸೈನ್‌ಮೆಂಟ್‌ಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get ccReceiveManualButton => 'ಕೈಯಾರೆ ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccReceiveNothingInTransit => 'ಸಾಗಣೆಯಲ್ಲಿ ಏನೂ ಇಲ್ಲ';
+
+  @override
+  String get ccReceiveNothingInTransitSubtitle =>
+      'ಬರುತ್ತಿರುವ ಕನ್ಸೈನ್‌ಮೆಂಟ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣುತ್ತವೆ';
+
+  @override
+  String get ccReceiveRecentReceives => 'ಇತ್ತೀಚಿನ ಸ್ವೀಕೃತಿಗಳು';
+
+  @override
+  String get ccReceiveNoReceiptsYet => 'ಇನ್ನೂ ಸ್ವೀಕೃತಿಗಳಿಲ್ಲ';
+
+  @override
+  String get ccReceiveNoReceiptsSubtitle =>
+      'VMCCಗಳಿಂದ ನೀವು ಸ್ವೀಕರಿಸುವ ಹಾಲು ಇಲ್ಲಿ ಕಾಣುತ್ತದೆ';
+
+  @override
+  String get ccReceiveHistoryTitle => 'ಸ್ವೀಕೃತಿ ಇತಿಹಾಸ';
+
+  @override
+  String get ccReceivePillInTransit => '⏳ ಸಾಗಣೆಯಲ್ಲಿ';
+
+  @override
+  String get ccReceiveTapToReceive => 'ಸ್ವೀಕರಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ';
+
+  @override
+  String ccVarianceSuffix(Object value) {
+    return '$value% ವ್ಯತ್ಯಾಸ';
+  }
+
+  @override
+  String get ccReceiveEditReceipt => 'ಸ್ವೀಕೃತಿ ಸಂಪಾದಿಸಿ';
+
+  @override
+  String get ccReceiveDeleteReceipt => 'ಸ್ವೀಕೃತಿ ಅಳಿಸಿ';
+
+  @override
+  String get ccReceiveLockedForDispatch =>
+      'ಲಾಕ್ ಆಗಿದೆ — ರವಾನೆಗಾಗಿ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಲಾಗಿದೆ';
+
+  @override
+  String get ccReceiveDeleteConfirmTitle => 'ಸ್ವೀಕೃತಿ ಅಳಿಸುವುದೇ?';
+
+  @override
+  String ccReceiveDeleteConfirmBody(Object name, Object qty) {
+    return '$name · $qty ತೆಗೆದುಹಾಕಲಾಗುತ್ತದೆ.';
+  }
+
+  @override
+  String get ccReceiveReceiptDeletedToast => 'ಸ್ವೀಕೃತಿ ಅಳಿಸಲಾಗಿದೆ';
+
+  @override
+  String get ccReceiveNoVmccsLinkedToast => 'ಈ CCಗೆ ಯಾವುದೇ VMCC ಜೋಡಿಸಿಲ್ಲ';
+
+  @override
+  String get ccHistoryNoReceiptsSubtitle =>
+      'ಕಳೆದ 30 ದಿನಗಳಲ್ಲಿ VMCCಗಳಿಂದ ಸ್ವೀಕರಿಸಿದ ಹಾಲು ಇಲ್ಲಿ ಕಾಣುತ್ತದೆ';
+
+  @override
+  String ccHistoryVmccCount(int count) {
+    return '$count VMCC';
+  }
+
+  @override
+  String get ccHistoryDayLoadError => 'ಈ ದಿನವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get ccDayLabel => 'ದಿನ';
+
+  @override
+  String get ccReportLoadError => 'ವರದಿ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get ccReportNoMilkReceived => 'ಈ ದಿನಾಂಕದಲ್ಲಿ ಹಾಲು ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String get ccReportTotalReceived => 'ಒಟ್ಟು ಸ್ವೀಕರಿಸಿದ್ದು';
+
+  @override
+  String ccReportSourcesReceipts(int sources, int receipts) {
+    return '$sources VMCC · $receipts ಸ್ವೀಕೃತಿಗಳು';
+  }
+
+  @override
+  String get ccReportAvgFat => 'ಸರಾಸರಿ FAT';
+
+  @override
+  String get ccReportAvgSnf => 'ಸರಾಸರಿ SNF';
+
+  @override
+  String get ccReportAvgWater => 'ಸರಾಸರಿ ನೀರು';
+
+  @override
+  String get ccReportSourceVmccs => 'ಮೂಲ VMCCಗಳು';
+
+  @override
+  String get ccQcLoadError => 'QC ಡೇಟಾ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String ccQcHeroLabelAll(int days) {
+    return 'ಸ್ವೀಕರಿಸಿದ್ದು · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get ccQcHeroFooterAll => 'ಎಲ್ಲಾ VMCC ಸ್ವೀಕೃತಿಗಳ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String ccQcHeroLabelVmcc(Object name, int days) {
+    return '$name · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get ccQcHeroFooterVmcc => 'ಈ VMCCಯಿಂದ ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String get ccQcEmptySubtitleVmcc =>
+      'ಈ ಅವಧಿಯಲ್ಲಿ ಈ VMCCಯಿಂದ ಹಾಲು ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String get ccQcScopeAll => 'ಎಲ್ಲಾ';
+
+  @override
+  String get ccQcScopeByVmcc => 'VMCC ಮೂಲಕ';
+
+  @override
+  String get ccQcScopeRanking => 'ಶ್ರೇಣಿ';
+
+  @override
+  String get ccQcSelectVmccTitle => 'VMCC ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get ccQcSelectVmccPlaceholder => 'ಒಂದು VMCC ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String ccQcRangeDays(int d) {
+    return '$d ದಿನಗಳು';
+  }
+
+  @override
+  String get ccVmccsSearchHint => 'VMCCಗಳನ್ನು ಹುಡುಕಿ';
+
+  @override
+  String get ccVmccsNoneAssigned => 'ಯಾವುದೇ VMCC ನಿಯೋಜಿಸಿಲ್ಲ';
+
+  @override
+  String get ccVmccsNoMatch => 'ಹೊಂದಾಣಿಕೆಯ VMCC ಇಲ್ಲ';
+
+  @override
+  String get ccManualReceiveTitle => 'ಕೈಯಾರೆ ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccManualReceiveInfoBanner =>
+      'ಆ್ಯಪ್‌ನಲ್ಲಿ ರವಾನೆ ನಮೂದು ಇಲ್ಲದೆ ಹಾಲು ಬಂದಾಗ ಮಾತ್ರ ಇದನ್ನು ಬಳಸಿ.';
+
+  @override
+  String get ccManualReceiveReceivingFor => 'ಇದಕ್ಕಾಗಿ ಸ್ವೀಕರಿಸುತ್ತಿದೆ';
+
+  @override
+  String get ccManualReceiveShiftLabel => 'ಪಾಳಿ';
+
+  @override
+  String get ccManualReceiveSelectVmcc => 'VMCC ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get ccManualReceiveNoVmccsLinked => 'ಈ CCಗೆ ಯಾವುದೇ VMCC ಜೋಡಿಸಿಲ್ಲ.';
+
+  @override
+  String ccManualReceiveNoVmccsShift(Object shift) {
+    return '$shift ಪಾಳಿಯಲ್ಲಿ ಯಾವುದೇ VMCC ಸಂಗ್ರಹಿಸುವುದಿಲ್ಲ.';
+  }
+
+  @override
+  String ccManualReceiveReceivedBadge(Object qty) {
+    return '$qty ಸ್ವೀಕರಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String get ccManualReceiveCollectionDate => 'ಸಂಗ್ರಹ ದಿನಾಂಕ';
+
+  @override
+  String ccManualReceiveDeleteConfirmBody(
+    Object name,
+    Object date,
+    Object shift,
+  ) {
+    return '$name · $date $shift ತೆಗೆದುಹಾಕಲಾಗುತ್ತದೆ.';
+  }
+
+  @override
+  String get ccManualReceiveErrorMissingFields =>
+      'ಪ್ರಮಾಣ, FAT ಮತ್ತು SNF ನಮೂದಿಸಿ';
+
+  @override
+  String get ccMeasuredAtCc => 'CCಯಲ್ಲಿ ಅಳೆಯಲಾಗಿದೆ';
+
+  @override
+  String get ccManualReceiveQtyHint => 'ಪ್ರಮಾಣ (L)';
+
+  @override
+  String get ccManualReceiveSaveChanges => 'ಬದಲಾವಣೆ ಉಳಿಸಿ';
+
+  @override
+  String get ccManualReceiveMarkReceived => 'ಸ್ವೀಕರಿಸಿದ್ದೆಂದು ಗುರುತಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentSourceFallback => 'ಮೂಲ';
+
+  @override
+  String get ccReceiveConsignmentReceiptTitle => 'ಸ್ವೀಕೃತಿ';
+
+  @override
+  String get ccReceiveConsignmentReceiveMilkTitle => 'ಹಾಲು ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentQuantityLabel => 'ಪ್ರಮಾಣ';
+
+  @override
+  String get ccReceiveConsignmentSameAsDispatched => 'ರವಾನಿಸಿದಂತೆಯೇ';
+
+  @override
+  String get ccReceiveConsignmentReceivedQtyHint => 'ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ (L)';
+
+  @override
+  String get ccReceiveConsignmentUpdateReceipt => 'ಸ್ವೀಕೃತಿ ನವೀಕರಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentConfirmReceipt => 'ಸ್ವೀಕೃತಿ ದೃಢೀಕರಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentErrorQty => 'ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ ನಮೂದಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentEnterQtyForVariance =>
+      'ರವಾನೆಗೆ ಹೋಲಿಸಿದ ವ್ಯತ್ಯಾಸ ನೋಡಲು ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ ನಮೂದಿಸಿ';
+
+  @override
+  String get ccReceiveConsignmentVarianceLabel => 'ರವಾನೆಗೆ ಹೋಲಿಸಿದ ವ್ಯತ್ಯಾಸ';
+
+  @override
+  String get ccReceiveConsignmentDispatchedByVmcc => 'VMCC ಯಿಂದ ರವಾನಿಸಲಾಗಿದೆ';
+
+  @override
+  String get ccQcReportEmptyTitle => 'ಈ ಅವಧಿಯಲ್ಲಿ ಯಾವುದೇ ಸ್ವೀಕೃತಿಗಳಿಲ್ಲ';
+
+  @override
+  String get ccQcReportEmptySubtitle =>
+      'ದೈನಂದಿನ QC ವರದಿ ನೋಡಲು VMCCಗಳಿಂದ ಹಾಲು ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ccQcReportTrendsLabel => 'ಗುಣಮಟ್ಟದ ಪ್ರವೃತ್ತಿಗಳು';
+
+  @override
+  String get ccQcReportDailyQualityLabel => 'ದೈನಂದಿನ ಗುಣಮಟ್ಟ · ಪ್ರಮಾಣ-ತೂಕ';
+
+  @override
+  String get ccQcReportDateHeader => 'ದಿನಾಂಕ';
+
+  @override
+  String get ccQcReportNoReadings => 'ಈ ಅವಧಿಯಲ್ಲಿ ಯಾವುದೇ ವಾಚನಗಳಿಲ್ಲ';
+
+  @override
+  String ccQcRankingByMetric(Object metric) {
+    return '$metric ಮೂಲಕ';
+  }
+
+  @override
+  String get ccQcRankingHighToLow => 'ಹೆಚ್ಚು → ಕಡಿಮೆ';
+
+  @override
+  String get ccQcRankingLowToHigh => 'ಕಡಿಮೆ → ಹೆಚ್ಚು';
+
+  @override
+  String ccQcRankingSummary(int active, int total, int days) {
+    return '$total ರಲ್ಲಿ $active VMCC ವಿತರಿಸಿದೆ · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get navTankers => 'ಟ್ಯಾಂಕರ್‌ಗಳು';
+
+  @override
+  String get ppHomeRawMilkTank => 'ಕಚ್ಚಾ ಹಾಲಿನ ಟ್ಯಾಂಕ್';
+
+  @override
+  String get ppHomeCcsToday => 'CCಗಳು · ಇಂದು';
+
+  @override
+  String get ppHomeTodayLabel => 'ಇಂದು';
+
+  @override
+  String get ppHomeTodayReceivedLabel => 'ಇಂದು ಸ್ವೀಕರಿಸಿದ್ದು';
+
+  @override
+  String ppHomeTankersCount(int count) {
+    return '$count ಟ್ಯಾಂಕರ್';
+  }
+
+  @override
+  String ppHomeVarianceVsDispatch(Object value) {
+    return '$value% ರವಾನೆಗೆ ಹೋಲಿಸಿ';
+  }
+
+  @override
+  String get ppHomeReceivedLabel => 'ಸ್ವೀಕರಿಸಿದ್ದು';
+
+  @override
+  String get ppHomeInventoryNote =>
+      '→ ಅಂಗೀಕರಿಸಿದ್ದು runq ದಾಸ್ತಾನಿಗೆ ಪೋಸ್ಟ್ ಆಗುತ್ತದೆ (ಕಚ್ಚಾ ಹಾಲಿನ ಬ್ಯಾಚ್)';
+
+  @override
+  String get ppHomeNoCcsTitle => 'ರವಾನಿಸುತ್ತಿರುವ CCಗಳಿಲ್ಲ';
+
+  @override
+  String get ppHomeNoCcsSubtitle =>
+      'ಈ ಪ್ಲಾಂಟ್‌ಗೆ ಪೂರೈಸುವ ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String ppHomeFlowTransit(Object amount) {
+    return '⏳ $amount ಸಾಗಣೆಯಲ್ಲಿ';
+  }
+
+  @override
+  String ppHomeFlowReceived(Object amount) {
+    return '✓ $amount ಸ್ವೀಕರಿಸಿದ್ದು';
+  }
+
+  @override
+  String get ppReceiveNoReceiptsSubtitle =>
+      'CCಗಳಿಂದ ನೀವು ಸ್ವೀಕರಿಸುವ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get ppReceiveLoadError => 'ಟ್ಯಾಂಕರ್‌ಗಳನ್ನು ಲೋಡ್ ಮಾಡಲು ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get ppReceiveNothingInTransitSubtitle =>
+      'ರವಾನಿಸಿದ ನಂತರ ಒಳಬರುವ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get ppReceiveDispatchedByCc => 'CC ಯಿಂದ ರವಾನಿಸಲಾಗಿದೆ';
+
+  @override
+  String get ppReceiveMeasuredAtPlant => 'ಪ್ಲಾಂಟ್‌ನಲ್ಲಿ ಅಳೆಯಲಾಗಿದೆ';
+
+  @override
+  String get ppTankersEmptyTitle => 'ಇಂದು ಯಾವುದೇ ಟ್ಯಾಂಕರ್ ಇಲ್ಲ';
+
+  @override
+  String get ppTankersEmptySubtitle =>
+      'ಈ ಪ್ಲಾಂಟ್‌ಗೆ ರವಾನಿಸಿದ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get adminSwitchTitlePp => 'ಸಂಸ್ಕರಣಾ ಘಟಕಗಳು';
+
+  @override
+  String get adminSwitchTitleCc => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಗಳು';
+
+  @override
+  String get adminSwitchTitleVmcc => 'ಗ್ರಾಮ ಸಂಗ್ರಹ ಕೇಂದ್ರಗಳು';
+
+  @override
+  String get adminSwitchFarmersNav => 'ರೈತರು';
+
+  @override
+  String get adminSwitchDefaultUserName => 'Dhenu ಬಳಕೆದಾರ';
+
+  @override
+  String get adminSwitchLoadError => 'ಇಂದಿನ ಸಂಗ್ರಹವನ್ನು ಲೋಡ್ ಮಾಡಲು ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get adminSwitchTodayCollectionLabel => 'ಇಂದಿನ ಸಂಗ್ರಹ';
+
+  @override
+  String get adminSwitchByChillingCentre => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರದ ಪ್ರಕಾರ';
+
+  @override
+  String get adminSwitchByMilkType => 'ಹಾಲಿನ ಪ್ರಕಾರದ ಪ್ರಕಾರ';
+
+  @override
+  String get adminSwitchNoCollectionTitle => 'ಇಂದು ಇನ್ನೂ ಸಂಗ್ರಹವಾಗಿಲ್ಲ';
+
+  @override
+  String get adminSwitchNoCollectionSubtitle =>
+      'ಪ್ರತಿ ಕೇಂದ್ರ ಮತ್ತು ಪ್ರತಿ ಹಾಲಿನ ಪ್ರಕಾರದ ಒಟ್ಟು ಮೊತ್ತ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ.';
+
+  @override
+  String get adminSwitchNoCollectionSuffix => ' · ಸಂಗ್ರಹವಿಲ್ಲ';
+
+  @override
+  String get adminSwitchNotLinkedToCc => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಕ್ಕೆ ಲಿಂಕ್ ಆಗಿಲ್ಲ';
+
+  @override
+  String get adminSwitchCcFallback => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ';
+
+  @override
+  String get adminSwitchUnlinkedVmccs => 'ಲಿಂಕ್ ಆಗದ VMCCಗಳು';
+
+  @override
+  String adminSwitchVmccsInCc(Object name) {
+    return '$name ನಲ್ಲಿನ VMCCಗಳು';
+  }
+
+  @override
+  String get adminSwitchSheetTitle => 'ಕೇಂದ್ರ ಬದಲಿಸಿ';
+
+  @override
+  String get adminSwitchLoadCentresError => 'ಕೇಂದ್ರಗಳನ್ನು ಲೋಡ್ ಮಾಡಲು ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get adminSwitchNoCentresTitle => 'ಇನ್ನೂ ಯಾವುದೇ ಕೇಂದ್ರಗಳಿಲ್ಲ';
+
+  @override
+  String get adminSwitchNoCentresSubtitle =>
+      'ವೆಬ್ ಅಡ್ಮಿನ್‌ನಲ್ಲಿ ಮೊದಲು VMCCಗಳು, ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಗಳು ಅಥವಾ ಘಟಕಗಳನ್ನು ಸೇರಿಸಿ';
+
+  @override
+  String adminSwitchCountPp(int n) {
+    return '$n ಘಟಕ';
+  }
+
+  @override
+  String adminSwitchCountCc(int n) {
+    return '$n ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ';
+  }
+
+  @override
+  String adminSwitchCountVmcc(int n) {
+    return '$n ಕೇಂದ್ರ';
+  }
+
+  @override
+  String get operatorSwitchRolePp => 'ಸಂಸ್ಕರಣಾ ಘಟಕ';
+
+  @override
+  String get operatorSwitchRoleCc => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ';
+
+  @override
+  String get operatorSwitchRoleVmcc => 'ಗ್ರಾಮ ಸಂಗ್ರಹ ಕೇಂದ್ರ';
+
+  @override
+  String get operatorSwitchLoadError => 'ನಿಮ್ಮ ಕೇಂದ್ರಗಳನ್ನು ಲೋಡ್ ಮಾಡಲು ಆಗಲಿಲ್ಲ';
+
+  @override
+  String get operatorSwitchNoneTitle => 'ಯಾವುದೇ ಕೇಂದ್ರ ನಿಯೋಜಿಸಿಲ್ಲ';
+
+  @override
+  String get operatorSwitchNoneSubtitle =>
+      'ಕೇಂದ್ರಕ್ಕೆ ನಿಯೋಜಿಸಲು ನಿಮ್ಮ ಅಡ್ಮಿನ್ ಅನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get operatorSwitchTodayLoading => 'ಇಂದು  …';
+
+  @override
+  String get operatorSwitchNoCollection => 'ಇನ್ನೂ ಸಂಗ್ರಹವಾಗಿಲ್ಲ';
+
+  @override
+  String operatorSwitchTodaySummary(Object qty, int count) {
+    return 'ಇಂದು  $qty · $count ರೈತರು';
+  }
+
+  @override
+  String get operatorSwitchButton => 'ಬದಲಿಸಿ';
+
+  @override
+  String get operatorSelectorGreetingPlain => 'ನಮಸ್ತೆ';
+
+  @override
+  String operatorSelectorGreetingNamed(Object name) {
+    return 'ನಮಸ್ತೆ, $name';
+  }
+
+  @override
+  String get operatorSelectorSubtitle =>
+      'ಕಾರ್ಯನಿರ್ವಹಿಸಲು ಒಂದು ಕೇಂದ್ರ ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get operatorNoAccessTitle => 'ಇನ್ನೂ Dhenu ಪ್ರವೇಶವಿಲ್ಲ';
+
+  @override
+  String get operatorNoAccessSubtitle =>
+      'ನಿಮ್ಮ ಖಾತೆಗೆ ಹಾಲು ಸಂಗ್ರಹಣೆಯನ್ನು ಸಕ್ರಿಯಗೊಳಿಸಲು ನಿಮ್ಮ ಡೈರಿ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get operatorNoAccessSignOut => 'ಸೈನ್ ಔಟ್';
+
+  @override
+  String get authLoginTagline => 'ಹಾಲು ಸಂಗ್ರಹಣೆ, ನ್ಯಾಯಯುತವಾಗಿ';
+
+  @override
+  String get authLoginSessionExpired =>
+      'ನಿಮ್ಮ ಸೆಶನ್ ಮುಗಿದಿದೆ. ನಿಮ್ಮ ಫೋನ್ ಸಂಖ್ಯೆಯೊಂದಿಗೆ ಮತ್ತೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.';
+
+  @override
+  String get commonBack => 'ಹಿಂದೆ';
+
+  @override
+  String get authOtpPhoneLabel => 'ಫೋನ್ ಸಂಖ್ಯೆ';
+
+  @override
+  String get authOtpPhoneHint => '10-ಅಂಕಿಯ ಮೊಬೈಲ್';
+
+  @override
+  String get authOtpSendButton => 'OTP ಕಳುಹಿಸಿ';
+
+  @override
+  String get authOtpEnterDigits => '10-ಅಂಕಿಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ';
+
+  @override
+  String get authOtpEnterCode => '6-ಅಂಕಿಯ ಕೋಡ್ ನಮೂದಿಸಿ';
+
+  @override
+  String authOtpCodeSentTo(Object phone) {
+    return '$phone ಗೆ ಕಳುಹಿಸಿದ ಕೋಡ್ ನಮೂದಿಸಿ';
+  }
+
+  @override
+  String get authOtpSignIn => 'ಸೈನ್ ಇನ್';
+
+  @override
+  String get authOtpSmsDelay =>
+      'SMS ಬರಲು ಒಂದು ನಿಮಿಷದವರೆಗೆ ಸಮಯ ತೆಗೆದುಕೊಳ್ಳಬಹುದು.';
+
+  @override
+  String get authOtpChangeNumber => 'ಸಂಖ್ಯೆ ಬದಲಾಯಿಸಿ';
+
+  @override
+  String authOtpResendIn(int seconds) {
+    return '$secondsಸೆ ನಂತರ ಮರುಕಳುಹಿಸಿ';
+  }
+
+  @override
+  String get authOtpResendButton => 'OTP ಮರುಕಳುಹಿಸಿ';
+
+  @override
+  String authOtpNetworkErrorDebug(Object baseUrl) {
+    return '$baseUrl ಸರ್ವರ್ ತಲುಪಲಾಗುತ್ತಿಲ್ಲ. API ರನ್ ಆಗುತ್ತಿದೆಯೇ ಮತ್ತು ಫೋನ್ ಅದೇ ನೆಟ್‌ವರ್ಕ್‌ನಲ್ಲಿದೆಯೇ?';
+  }
+
+  @override
+  String get authOtpNetworkErrorProd =>
+      'ಸರ್ವರ್ ತಲುಪಲಾಗುತ್ತಿಲ್ಲ. ನಿಮ್ಮ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
+
+  @override
+  String get aboutScreenTitle => 'ಬಗ್ಗೆ';
+
+  @override
+  String get aboutScreenTagline => 'ಹಾಲು ಸಂಗ್ರಹಣೆ, ಸರಳೀಕೃತ';
+
+  @override
+  String aboutScreenVersion(Object version, Object build) {
+    return 'ಆವೃತ್ತಿ $version ($build)';
+  }
+
+  @override
+  String get aboutScreenPrivacyPolicy => 'ಗೌಪ್ಯತಾ ನೀತಿ';
+
+  @override
+  String get aboutScreenTermsOfService => 'ಸೇವಾ ನಿಯಮಗಳು';
+
+  @override
+  String get aboutScreenMadeWith => 'ಭಾರತದಲ್ಲಿ ಕಾಳಜಿಯಿಂದ ತಯಾರಿಸಲಾಗಿದೆ 🇮🇳';
+
+  @override
+  String get aboutScreenCouldNotOpen => 'ತೆರೆಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ';
+
+  @override
+  String get bankPayoutTitle => 'ಬ್ಯಾಂಕ್ ಮತ್ತು ಪಾವತಿ';
+
+  @override
+  String get bankPayoutLoadError => 'ಪಾವತಿ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get bankPayoutEmptyTitle => 'ಇನ್ನೂ ಪಾವತಿ ನಿಯಮಗಳಿಲ್ಲ';
+
+  @override
+  String get bankPayoutEmptySubtitle =>
+      'ನಿಮ್ಮ ಸಂಭಾವನೆಯನ್ನು ನಿಮ್ಮ ನಿರ್ವಾಹಕರು ಹೊಂದಿಸುತ್ತಾರೆ ಮತ್ತು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ.';
+
+  @override
+  String get bankPayoutThisMonth => 'ಈ ತಿಂಗಳು';
+
+  @override
+  String bankPayoutCollectedEstEarning(Object qty) {
+    return '$qty ಸಂಗ್ರಹಿಸಲಾಗಿದೆ · ಇಲ್ಲಿಯವರೆಗಿನ ಅಂದಾಜು ಗಳಿಕೆ';
+  }
+
+  @override
+  String get bankPayoutMethodLabel => 'ಪಾವತಿ ವಿಧಾನ';
+
+  @override
+  String get bankPayoutRentLabel => 'ಬಾಡಿಗೆ';
+
+  @override
+  String bankPayoutPerMonth(Object amount) {
+    return '$amount / ತಿಂಗಳಿಗೆ';
+  }
+
+  @override
+  String get bankPayoutSinceLabel => 'ಇಂದಿನಿಂದ';
+
+  @override
+  String get bankPayoutHasAccount =>
+      'ಪಾವತಿಗಳು ನಿಮ್ಮ ನೋಂದಾಯಿತ ಬ್ಯಾಂಕ್ ಖಾತೆಗೆ ಹೋಗುತ್ತವೆ.';
+
+  @override
+  String get bankPayoutNoAccount =>
+      'ಫೈಲ್‌ನಲ್ಲಿ ಬ್ಯಾಂಕ್ ಖಾತೆ ಇಲ್ಲ — ಒಂದನ್ನು ಸೇರಿಸಲು ನಿಮ್ಮ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get bankPayoutFixedSalary => 'ನಿಗದಿತ ಸಂಬಳ';
+
+  @override
+  String get bankPayoutPerLitreCommission => 'ಪ್ರತಿ-ಲೀಟರ್ ಕಮಿಷನ್';
+
+  @override
+  String bankPayoutPerLitre(Object rate) {
+    return '$rate / ಲೀಟರ್';
+  }
+
+  @override
+  String get langPickerTitle => 'ಭಾಷೆ ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get langPickerComingSoon => 'ಶೀಘ್ರದಲ್ಲಿ ಬರುತ್ತಿದೆ';
+
+  @override
+  String get dispatchFatHint => 'FAT %';
+
+  @override
+  String get dispatchSnfHint => 'SNF %';
+
+  @override
+  String get dispatchWaterHint => 'ನೀರು % (ಐಚ್ಛಿಕ)';
+
+  @override
+  String get dispatchHistoryTitle => 'ಡಿಸ್ಪ್ಯಾಚ್ ಇತಿಹಾಸ';
+
+  @override
+  String get dispatchSeeFullHistory => 'ಪೂರ್ಣ ಇತಿಹಾಸ ನೋಡಿ';
+
+  @override
+  String get dispatchHistoryLoadError => 'ಇತಿಹಾಸ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get dispatchHistoryEmptyTitle => 'ಇನ್ನೂ ಡಿಸ್ಪ್ಯಾಚ್‌ಗಳಿಲ್ಲ';
+
+  @override
+  String get dispatchHistoryEmptySubtitle =>
+      'ಕಳೆದ 30 ದಿನಗಳಲ್ಲಿ ಕಳುಹಿಸಿದ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get dispatchHistoryPlantFallback => 'ಪ್ಲಾಂಟ್';
+
+  @override
+  String get dispatchHistoryCcFallback => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ';
+
+  @override
+  String dispatchHistoryCount(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n ಡಿಸ್ಪ್ಯಾಚ್‌ಗಳು',
+      one: '$n ಡಿಸ್ಪ್ಯಾಚ್',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchHistoryInTransit(int n) {
+    return '$n ಸಾಗಣೆಯಲ್ಲಿ';
+  }
+
+  @override
+  String get dispatchHistoryReversed => '⊘ ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ';
+
+  @override
+  String farmerPoursGradeLabel(Object letter) {
+    return 'ಗ್ರೇಡ್ $letter';
+  }
+
+  @override
+  String get collectLowWord => 'ಕಡಿಮೆ';
+
+  @override
+  String get qcReportLoadError => 'QC ಡೇಟಾ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String qcReportHeroLabelFarmer(Object name, int days) {
+    return '$name · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String qcReportHeroLabelAll(int days) {
+    return 'ಸಂಗ್ರಹಿಸಲಾಗಿದೆ · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String qcReportHeroLabelDays(int days) {
+    return 'ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get qcReportFooterFarmer => 'ಈ ರೈತರಿಗೆ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String get qcReportFooterAll => 'ಎಲ್ಲಾ ರೈತರ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String get qcReportEmptyTitle => 'ಈ ಅವಧಿಯಲ್ಲಿ ಯಾವುದೇ ವಾಚನಗಳಿಲ್ಲ';
+
+  @override
+  String get qcReportEmptySubtitle =>
+      'ದೈನಂದಿನ QC ಪ್ರವೃತ್ತಿ ನೋಡಲು ಸಂಗ್ರಹಣೆಗಳನ್ನು ದಾಖಲಿಸಿ';
+
+  @override
+  String get qcReportSelectFarmerTitle => 'ಒಬ್ಬ ರೈತರನ್ನು ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get qcReportSelectFarmerSubtitle =>
+      'ಗುಣಮಟ್ಟದ ಪ್ರವೃತ್ತಿ ನೋಡಲು ರೈತರನ್ನು ಆರಿಸಿ';
+
+  @override
+  String get qcReportScopeAll => 'ಎಲ್ಲಾ ರೈತರು';
+
+  @override
+  String get qcReportScopePerFarmer => 'ಪ್ರತಿ ರೈತ';
+
+  @override
+  String qcReportDaysChip(int d) {
+    return '$d ದಿನಗಳು';
+  }
+
+  @override
+  String get homeCouldNotLoadCentre => 'ನಿಮ್ಮ ಕೇಂದ್ರ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get updateRequiredTitle => 'ಅಪ್‌ಡೇಟ್ ಅಗತ್ಯವಿದೆ';
+
+  @override
+  String get updateRequiredButton => 'ಈಗ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ';
+
+  @override
+  String get updateRequiredCouldNotOpenStore => 'ಸ್ಟೋರ್ ತೆರೆಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ';
+
+  @override
+  String get nodePickerSearchHint => 'ಹುಡುಕಿ…';
+
+  @override
+  String get nodePickerNoMatch => 'ಹೊಂದಾಣಿಕೆ ಇಲ್ಲ';
+
+  @override
+  String get voiceFieldDictateTooltip => 'ಡಿಕ್ಟೇಟ್ ಮಾಡಿ';
+
+  @override
+  String get voiceFieldReadBackTooltip => 'ಮತ್ತೆ ಓದಿ';
+
+  @override
+  String get splashTagline => 'ಪ್ರತಿ ಹನಿಯೂ ಮುಖ್ಯ';
 }

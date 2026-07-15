@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../profile_tab.dart';
@@ -18,17 +19,18 @@ class CcShell extends StatelessWidget {
   /// Optional bar pinned above the tabs — the admin centre-switcher.
   final Widget? header;
 
-  static const _items = [
-    DhenuNavItem(icon: DhenuIcons.home, label: 'Home'),
-    DhenuNavItem(icon: DhenuIcons.receive, label: 'Receive'),
-    DhenuNavItem(icon: DhenuIcons.dispatch, label: 'Dispatch'),
-    DhenuNavItem(icon: DhenuIcons.profile, label: 'Profile'),
-  ];
+  List<DhenuNavItem> _items(AppLocalizations l) => [
+        DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
+        DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive),
+        DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch),
+        DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return RoleShell(
-      items: _items,
+      items: _items(l),
       header: header,
       pages: [
         CcHome(node: node),

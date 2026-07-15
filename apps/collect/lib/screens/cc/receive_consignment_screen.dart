@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -26,8 +27,8 @@ class ReceiveConsignmentScreen extends ConsumerStatefulWidget {
     required this.nodeId,
     this.sourceName,
     this.editable = false,
-    this.sourceLabel = 'DISPATCHED BY VMCC',
-    this.measuredLabel = 'MEASURED AT CC',
+    this.sourceLabel,
+    this.measuredLabel,
     this.sourceIcon = DhenuIcons.store,
   });
   final MpConsignment consignment;
@@ -38,11 +39,13 @@ class ReceiveConsignmentScreen extends ConsumerStatefulWidget {
   /// recent receipt is passed editable). Ignored when still in transit.
   final bool editable;
 
-  /// Section label over the read-only dispatched figures.
-  final String sourceLabel;
+  /// Section label over the read-only dispatched figures. Defaults to the
+  /// CC (VMCC source) wording when the caller doesn't override it (PP passes
+  /// its own CC-source wording explicitly).
+  final String? sourceLabel;
 
-  /// Section label over the operator-measured figures.
-  final String measuredLabel;
+  /// Section label over the operator-measured figures. Same default rule.
+  final String? measuredLabel;
 
   /// Leading avatar icon for the source (storefront for VMCC, factory for CC).
   final IconData sourceIcon;
@@ -102,7 +105,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
   Future<void> _save() async {
     final qty = _qtyVal;
     if (qty == null || qty < 0) {
-      setState(() => _error = 'Enter the received quantity');
+      setState(() => _error = AppLocalizations.of(context).ccReceiveConsignmentErrorQty);
       return;
     }
     setState(() { _saving = true; _error = null; });
@@ -127,6 +130,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final bands = ref.watch(qualityBandsProvider(widget.nodeId)).valueOrNull ?? QualityBands.empty;
     final ccNodes = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final ppNodes = ref.watch(nodesByTypeProvider('pp')).value ?? const <MpNode>[];
@@ -136,20 +140,22 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
     }
     return Scaffold(
       backgroundColor: t.surface,
-      appBar: AppBar(title: Text(_readonly ? 'Receipt' : _isEdit ? 'Edit receipt' : 'Receive milk')),
+      appBar: AppBar(title: Text(_readonly
+          ? l.ccReceiveConsignmentReceiptTitle
+          : _isEdit ? l.ccReceiveEditReceipt : l.ccReceiveConsignmentReceiveMilkTitle)),
       body: SafeArea(
         child: Column(children: [
           Expanded(child: ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(DhenuSpacing.screen),
             children: [
-              _headerCard(t),
+              _headerCard(t, l),
               const SizedBox(height: DhenuSpacing.lg),
-              _dispatchCard(t, bands, milkType),
+              _dispatchCard(t, l, bands, milkType),
               const SizedBox(height: DhenuSpacing.lg),
-              _receiptCard(t, bands, milkType),
+              _receiptCard(t, l, bands, milkType),
               const SizedBox(height: DhenuSpacing.md),
-              _varianceLine(t),
+              _varianceLine(t, l),
               if (_error != null) ...[
                 const SizedBox(height: DhenuSpacing.sm),
                 Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
@@ -160,7 +166,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
             Padding(
               padding: const EdgeInsets.all(DhenuSpacing.screen),
               child: PrimaryAction(
-                label: _isEdit ? 'Update receipt' : 'Confirm receipt',
+                label: _isEdit ? l.ccReceiveConsignmentUpdateReceipt : l.ccReceiveConsignmentConfirmReceipt,
                 onPressed: _save, loading: _saving),
             ),
         ]),
@@ -168,7 +174,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
     );
   }
 
-  Widget _headerCard(DhenuTokens t) => Row(children: [
+  Widget _headerCard(DhenuTokens t, AppLocalizations l) => Row(children: [
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
@@ -176,7 +182,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
         ),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.sourceName ?? 'Source', style: DhenuText.h2.copyWith(color: t.ink)),
+          Text(widget.sourceName ?? l.ccReceiveConsignmentSourceFallback, style: DhenuText.h2.copyWith(color: t.ink)),
           const SizedBox(height: 2),
           Text.rich(
             TextSpan(
@@ -193,7 +199,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
                     ),
                   ),
                 TextSpan(text:
-                    '${c.shift == null ? 'Day' : c.shift == Shift.am ? 'AM' : 'PM'} · ${prettyDate(c.collectionDate)}'),
+                    '${c.shift == null ? l.ccDayLabel : c.shift == Shift.am ? l.shiftAm : l.shiftPm} · ${prettyDate(c.collectionDate)}'),
               ],
             ),
           ),
@@ -201,16 +207,17 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       ]);
 
   // ── Dispatched by VMCC (read-only reference) ──────────────────────────────
-  Widget _dispatchCard(DhenuTokens t, QualityBands bands, MilkType? milkType) => DhenuCard(
+  Widget _dispatchCard(DhenuTokens t, AppLocalizations l, QualityBands bands, MilkType? milkType) => DhenuCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(DhenuIcons.truck, size: 16, color: t.inkSoft),
             const SizedBox(width: DhenuSpacing.xs),
-            Text(widget.sourceLabel, style: DhenuText.label.copyWith(color: t.inkSoft)),
+            Text(widget.sourceLabel ?? l.ccReceiveConsignmentDispatchedByVmcc,
+                style: DhenuText.label.copyWith(color: t.inkSoft)),
           ]),
           const SizedBox(height: DhenuSpacing.md),
           Row(children: [
-            _readTile(t, 'Quantity', litres(c.dispatchQty ?? 0, unit: true)),
+            _readTile(t, l.ccReceiveConsignmentQuantityLabel, litres(c.dispatchQty ?? 0, unit: true)),
             _readTile(t, 'FAT', c.dispatchFat?.toStringAsFixed(1) ?? '—',
                 valueColor: QualityBadge.bandColor(bands, milkType, 'fat', c.dispatchFat, t)),
             _readTile(t, 'SNF', c.dispatchSnf?.toStringAsFixed(1) ?? '—',
@@ -230,24 +237,24 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       );
 
   // ── Measured at CC (the actual recorded data) ─────────────────────────────
-  Widget _receiptCard(DhenuTokens t, QualityBands bands, MilkType? milkType) => DhenuCard(
+  Widget _receiptCard(DhenuTokens t, AppLocalizations l, QualityBands bands, MilkType? milkType) => DhenuCard(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(DhenuIcons.scale, size: 16, color: t.brand),
             const SizedBox(width: DhenuSpacing.xs),
-            Text(widget.measuredLabel, style: DhenuText.label.copyWith(color: t.brand)),
+            Text(widget.measuredLabel ?? l.ccMeasuredAtCc, style: DhenuText.label.copyWith(color: t.brand)),
             const Spacer(),
             if (!_readonly)
               TextButton(
                 onPressed: _copyDispatch,
                 style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-                child: Text('Same as dispatched', style: DhenuText.caption.copyWith(color: t.brand)),
+                child: Text(l.ccReceiveConsignmentSameAsDispatched, style: DhenuText.caption.copyWith(color: t.brand)),
               ),
           ]),
           const SizedBox(height: DhenuSpacing.md),
           if (_readonly)
             Row(children: [
-              _readTile(t, 'Quantity', litres(c.receiptQty ?? 0, unit: true)),
+              _readTile(t, l.ccReceiveConsignmentQuantityLabel, litres(c.receiptQty ?? 0, unit: true)),
               _readTile(t, 'FAT', c.receiptFat?.toStringAsFixed(1) ?? '—',
                   valueColor: QualityBadge.bandColor(bands, milkType, 'fat', c.receiptFat, t)),
               _readTile(t, 'SNF', c.receiptSnf?.toStringAsFixed(1) ?? '—',
@@ -256,7 +263,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
                 _readTile(t, 'Water %', c.receiptWater!.toStringAsFixed(1)),
             ])
           else ...[
-            _field(_qty, 'Received quantity (L)', onChanged: () => setState(() {})),
+            _field(_qty, l.ccReceiveConsignmentReceivedQtyHint, onChanged: () => setState(() {})),
             const SizedBox(height: DhenuSpacing.md),
             Row(children: [
               Expanded(child: _field(_fat, 'FAT %')),
@@ -277,11 +284,11 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
         decoration: InputDecoration(labelText: hint),
       );
 
-  Widget _varianceLine(DhenuTokens t) {
+  Widget _varianceLine(DhenuTokens t, AppLocalizations l) {
     final dispatched = c.dispatchQty ?? 0;
     final qty = _readonly ? c.receiptQty : _qtyVal;
     if (qty == null) {
-      return Text('Enter received qty to see variance vs dispatch',
+      return Text(l.ccReceiveConsignmentEnterQtyForVariance,
           style: DhenuText.caption.copyWith(color: t.inkSoft));
     }
     final diff = qty - dispatched;
@@ -296,7 +303,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       child: Row(children: [
         Icon(v.abs() > 2 ? DhenuIcons.warning : DhenuIcons.checkCircle, size: 18, color: color),
         const SizedBox(width: DhenuSpacing.sm),
-        Expanded(child: Text('Variance vs dispatch', style: DhenuText.body.copyWith(color: t.ink))),
+        Expanded(child: Text(l.ccReceiveConsignmentVarianceLabel, style: DhenuText.body.copyWith(color: t.ink))),
         Text('${diff >= 0 ? '+' : ''}${diff.toStringAsFixed(1)} L · ${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}%',
             style: DhenuText.number(size: 15, color: color)),
       ]),

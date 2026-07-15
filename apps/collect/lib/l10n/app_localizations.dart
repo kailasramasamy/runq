@@ -622,6 +622,198 @@ abstract class AppLocalizations {
   /// **'Reports'**
   String get homeReports;
 
+  /// No description provided for @farmerRateSpeakCoach.
+  ///
+  /// In en, this message translates to:
+  /// **'If your {metric} reaches {value}, you earn {extra} rupees more per litre.'**
+  String farmerRateSpeakCoach(Object metric, Object value, Object extra);
+
+  /// No description provided for @helpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & support'**
+  String get helpTitle;
+
+  /// No description provided for @helpCallSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Call support'**
+  String get helpCallSupport;
+
+  /// No description provided for @helpEmailSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Email support'**
+  String get helpEmailSupport;
+
+  /// No description provided for @helpWhatsApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat on WhatsApp'**
+  String get helpWhatsApp;
+
+  /// No description provided for @helpReplySoon.
+  ///
+  /// In en, this message translates to:
+  /// **'We usually reply within a few hours.'**
+  String get helpReplySoon;
+
+  /// No description provided for @helpNoContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Support contacts have not been set up yet — please ask your dairy administrator.'**
+  String get helpNoContacts;
+
+  /// No description provided for @helpCouldNotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open'**
+  String get helpCouldNotOpen;
+
+  /// No description provided for @faqFarmerQ1.
+  ///
+  /// In en, this message translates to:
+  /// **'Where do I see my milk entries?'**
+  String get faqFarmerQ1;
+
+  /// No description provided for @faqFarmerA1.
+  ///
+  /// In en, this message translates to:
+  /// **'The Collections tab lists every pour with its quantity and quality readings, day by day.'**
+  String get faqFarmerA1;
+
+  /// No description provided for @faqFarmerQ2.
+  ///
+  /// In en, this message translates to:
+  /// **'How is my rate decided?'**
+  String get faqFarmerQ2;
+
+  /// No description provided for @faqFarmerA2.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Rate chart from Home — your FAT and SNF (or CLR) readings decide the price per litre.'**
+  String get faqFarmerA2;
+
+  /// No description provided for @faqFarmerQ3.
+  ///
+  /// In en, this message translates to:
+  /// **'When will I be paid?'**
+  String get faqFarmerQ3;
+
+  /// No description provided for @faqFarmerA3.
+  ///
+  /// In en, this message translates to:
+  /// **'Payments follow your dairy\'s payout cycle. The Payments tab shows the current cycle and what\'s payable.'**
+  String get faqFarmerA3;
+
+  /// No description provided for @faqOperatorQ1.
+  ///
+  /// In en, this message translates to:
+  /// **'How do I record a collection?'**
+  String get faqOperatorQ1;
+
+  /// No description provided for @faqOperatorA1.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Collect in the bottom bar, pick the farmer, then enter quantity, FAT and SNF.'**
+  String get faqOperatorA1;
+
+  /// No description provided for @faqOperatorQ2.
+  ///
+  /// In en, this message translates to:
+  /// **'When are payouts settled?'**
+  String get faqOperatorQ2;
+
+  /// No description provided for @faqOperatorA2.
+  ///
+  /// In en, this message translates to:
+  /// **'Payouts follow your centre\'s cycle. Check the Payments tab for the current cycle window.'**
+  String get faqOperatorA2;
+
+  /// No description provided for @commonRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get commonRetry;
+
+  /// No description provided for @commonErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load your data'**
+  String get commonErrorTitle;
+
+  /// No description provided for @commonErrorSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Please check your connection and try again.'**
+  String get commonErrorSubtitle;
+
+  /// No description provided for @commonOfflineSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline — showing saved data'**
+  String get commonOfflineSaved;
+
+  /// No description provided for @shiftNotRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Not recorded'**
+  String get shiftNotRecorded;
+
+  /// No description provided for @syncSyncedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced'**
+  String get syncSyncedLabel;
+
+  /// No description provided for @syncSyncedAgoLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced {ago}'**
+  String syncSyncedAgoLabel(Object ago);
+
+  /// No description provided for @syncToSendLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} to send'**
+  String syncToSendLabel(Object count);
+
+  /// No description provided for @syncOfflineLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline — saved on device'**
+  String get syncOfflineLabel;
+
+  /// No description provided for @notifScreenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notifScreenTitle;
+
+  /// No description provided for @notifPushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications'**
+  String get notifPushTitle;
+
+  /// No description provided for @notifPushSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Get alerts for collections, dispatch and payouts'**
+  String get notifPushSubtitle;
+
+  /// No description provided for @notifPushFootnote.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, this device won\'t receive any push notifications. You can turn it back on anytime.'**
+  String get notifPushFootnote;
+
+  /// No description provided for @farmerRateEffectiveFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From {date}'**
+  String farmerRateEffectiveFrom(Object date);
+
   /// No description provided for @errorOffline.
   ///
   /// In en, this message translates to:
@@ -2895,6 +3087,1540 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instant advances against your milk supply earnings.'**
   String get farmerServicesLoansDesc;
+
+  /// CC bottom-nav: receive tab
+  ///
+  /// In en, this message translates to:
+  /// **'Receive'**
+  String get navReceive;
+
+  /// No description provided for @ccDispatchToPlant.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch to Plant'**
+  String get ccDispatchToPlant;
+
+  /// No description provided for @ccDispatchSelectDestinationPlant.
+  ///
+  /// In en, this message translates to:
+  /// **'Select destination plant…'**
+  String get ccDispatchSelectDestinationPlant;
+
+  /// No description provided for @ccDispatchSearchPlant.
+  ///
+  /// In en, this message translates to:
+  /// **'Search plant'**
+  String get ccDispatchSearchPlant;
+
+  /// No description provided for @ccDispatchNoPlantsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No plants found'**
+  String get ccDispatchNoPlantsFound;
+
+  /// No description provided for @ccDispatchErrorNoDestination.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a destination plant'**
+  String get ccDispatchErrorNoDestination;
+
+  /// No description provided for @ccDispatchErrorInvalidNumbers.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter valid numbers'**
+  String get ccDispatchErrorInvalidNumbers;
+
+  /// No description provided for @ccDispatchCloseFirstShift.
+  ///
+  /// In en, this message translates to:
+  /// **'Close receiving for this shift before dispatching.'**
+  String get ccDispatchCloseFirstShift;
+
+  /// No description provided for @ccDispatchCloseFirstDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Close today\'s receiving before dispatching.'**
+  String get ccDispatchCloseFirstDay;
+
+  /// No description provided for @ccDispatchCloseFirstPool.
+  ///
+  /// In en, this message translates to:
+  /// **'Close the pool (yesterday PM + today AM) before dispatching.'**
+  String get ccDispatchCloseFirstPool;
+
+  /// No description provided for @ccDispatchCloseReceivingPool.
+  ///
+  /// In en, this message translates to:
+  /// **'Close pool receiving'**
+  String get ccDispatchCloseReceivingPool;
+
+  /// Close-receiving button for a shift slot
+  ///
+  /// In en, this message translates to:
+  /// **'Close {slot} receiving'**
+  String ccDispatchCloseReceivingShift(Object slot);
+
+  /// No description provided for @ccDispatchCloseReceivingToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Close today\'s receiving'**
+  String get ccDispatchCloseReceivingToday;
+
+  /// Helper text under the close-receiving button
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocks dispatch to the plant for {slot}.'**
+  String ccDispatchUnlocksFor(Object slot);
+
+  /// Banner shown once receiving is closed
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving closed for {slot} · ready for dispatch'**
+  String ccDispatchClosedFor(Object slot);
+
+  /// No description provided for @ccDispatchSlotToday.
+  ///
+  /// In en, this message translates to:
+  /// **'today'**
+  String get ccDispatchSlotToday;
+
+  /// No description provided for @ccDispatchSlotPool.
+  ///
+  /// In en, this message translates to:
+  /// **'this pool'**
+  String get ccDispatchSlotPool;
+
+  /// No description provided for @ccDispatchHistoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch history'**
+  String get ccDispatchHistoryTitle;
+
+  /// No description provided for @ccHomeChillingTank.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling tank'**
+  String get ccHomeChillingTank;
+
+  /// No description provided for @ccHomeVmccsPool.
+  ///
+  /// In en, this message translates to:
+  /// **'VMCCs · this pool'**
+  String get ccHomeVmccsPool;
+
+  /// No description provided for @ccHomeVmccsToday.
+  ///
+  /// In en, this message translates to:
+  /// **'VMCCs · today'**
+  String get ccHomeVmccsToday;
+
+  /// No description provided for @ccHomeAcrossVmccs.
+  ///
+  /// In en, this message translates to:
+  /// **'ACROSS VMCCs'**
+  String get ccHomeAcrossVmccs;
+
+  /// No description provided for @ccHomeInPoolLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'IN POOL · PREV PM + TODAY AM'**
+  String get ccHomeInPoolLabel;
+
+  /// No description provided for @ccHomeCollectedTodayLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'COLLECTED ACROSS VMCCs · TODAY'**
+  String get ccHomeCollectedTodayLabel;
+
+  /// CC home hero footer: active VMCCs and litres in transit
+  ///
+  /// In en, this message translates to:
+  /// **'{active} of {total} VMCCs · {inTransit} in transit'**
+  String ccHomeActiveOfTotal(int active, int total, Object inTransit);
+
+  /// Overnight CC: next pool note
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} collecting for next dispatch'**
+  String ccHomeNextPoolNote(Object amount);
+
+  /// No description provided for @ccHomeReportLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Report'**
+  String get ccHomeReportLink;
+
+  /// No description provided for @ccHomeQcReportLink.
+  ///
+  /// In en, this message translates to:
+  /// **'QC report'**
+  String get ccHomeQcReportLink;
+
+  /// No description provided for @ccInTransitLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'In transit'**
+  String get ccInTransitLabel;
+
+  /// No description provided for @ccHomePlantReadyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Plant-ready'**
+  String get ccHomePlantReadyLabel;
+
+  /// No description provided for @ccVmccsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load VMCCs'**
+  String get ccVmccsLoadError;
+
+  /// No description provided for @ccNoVmccsLinkedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No VMCCs linked'**
+  String get ccNoVmccsLinkedTitle;
+
+  /// No description provided for @ccNoVmccsLinkedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign VMCCs to this CC in the web admin'**
+  String get ccNoVmccsLinkedSubtitle;
+
+  /// Farmer count under a VMCC row
+  ///
+  /// In en, this message translates to:
+  /// **'{count} farmers'**
+  String ccHomeFarmersCount(int count);
+
+  /// No description provided for @ccHomeMorning.
+  ///
+  /// In en, this message translates to:
+  /// **'Morning'**
+  String get ccHomeMorning;
+
+  /// No description provided for @ccHomeEvening.
+  ///
+  /// In en, this message translates to:
+  /// **'Evening'**
+  String get ccHomeEvening;
+
+  /// No description provided for @ccReceiveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive'**
+  String get ccReceiveTitle;
+
+  /// No description provided for @ccReceiveLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load consignments'**
+  String get ccReceiveLoadError;
+
+  /// No description provided for @ccReceiveManualButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual receive'**
+  String get ccReceiveManualButton;
+
+  /// No description provided for @ccReceiveNothingInTransit.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing in transit'**
+  String get ccReceiveNothingInTransit;
+
+  /// No description provided for @ccReceiveNothingInTransitSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Incoming consignments appear here'**
+  String get ccReceiveNothingInTransitSubtitle;
+
+  /// No description provided for @ccReceiveRecentReceives.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent receives'**
+  String get ccReceiveRecentReceives;
+
+  /// No description provided for @ccReceiveNoReceiptsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No receipts yet'**
+  String get ccReceiveNoReceiptsYet;
+
+  /// No description provided for @ccReceiveNoReceiptsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk you receive from VMCCs shows here'**
+  String get ccReceiveNoReceiptsSubtitle;
+
+  /// No description provided for @ccReceiveHistoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive history'**
+  String get ccReceiveHistoryTitle;
+
+  /// No description provided for @ccReceivePillInTransit.
+  ///
+  /// In en, this message translates to:
+  /// **'⏳ In transit'**
+  String get ccReceivePillInTransit;
+
+  /// No description provided for @ccReceiveTapToReceive.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to receive'**
+  String get ccReceiveTapToReceive;
+
+  /// Variance percentage suffix, value already signed
+  ///
+  /// In en, this message translates to:
+  /// **'{value}% var'**
+  String ccVarianceSuffix(Object value);
+
+  /// No description provided for @ccReceiveEditReceipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit receipt'**
+  String get ccReceiveEditReceipt;
+
+  /// No description provided for @ccReceiveDeleteReceipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete receipt'**
+  String get ccReceiveDeleteReceipt;
+
+  /// No description provided for @ccReceiveLockedForDispatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Locked — receiving closed for dispatch'**
+  String get ccReceiveLockedForDispatch;
+
+  /// No description provided for @ccReceiveDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete receipt?'**
+  String get ccReceiveDeleteConfirmTitle;
+
+  /// Delete-receipt confirm dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · {qty} will be removed.'**
+  String ccReceiveDeleteConfirmBody(Object name, Object qty);
+
+  /// No description provided for @ccReceiveReceiptDeletedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt deleted'**
+  String get ccReceiveReceiptDeletedToast;
+
+  /// No description provided for @ccReceiveNoVmccsLinkedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'No VMCCs linked to this CC'**
+  String get ccReceiveNoVmccsLinkedToast;
+
+  /// No description provided for @ccHistoryNoReceiptsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk received from VMCCs over the last 30 days shows here'**
+  String get ccHistoryNoReceiptsSubtitle;
+
+  /// VMCC count on a collapsed history day row
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} VMCC} other{{count} VMCCs}}'**
+  String ccHistoryVmccCount(int count);
+
+  /// No description provided for @ccHistoryDayLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this day'**
+  String get ccHistoryDayLoadError;
+
+  /// No description provided for @ccDayLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get ccDayLabel;
+
+  /// No description provided for @ccReportLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the report'**
+  String get ccReportLoadError;
+
+  /// No description provided for @ccReportNoMilkReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'No milk received on this date'**
+  String get ccReportNoMilkReceived;
+
+  /// No description provided for @ccReportTotalReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Total received'**
+  String get ccReportTotalReceived;
+
+  /// Report footer: source VMCC and receipt counts
+  ///
+  /// In en, this message translates to:
+  /// **'{sources} VMCCs · {receipts} receipts'**
+  String ccReportSourcesReceipts(int sources, int receipts);
+
+  /// No description provided for @ccReportAvgFat.
+  ///
+  /// In en, this message translates to:
+  /// **'AVG FAT'**
+  String get ccReportAvgFat;
+
+  /// No description provided for @ccReportAvgSnf.
+  ///
+  /// In en, this message translates to:
+  /// **'AVG SNF'**
+  String get ccReportAvgSnf;
+
+  /// No description provided for @ccReportAvgWater.
+  ///
+  /// In en, this message translates to:
+  /// **'AVG WATER'**
+  String get ccReportAvgWater;
+
+  /// No description provided for @ccReportSourceVmccs.
+  ///
+  /// In en, this message translates to:
+  /// **'SOURCE VMCCS'**
+  String get ccReportSourceVmccs;
+
+  /// No description provided for @ccQcLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load QC data'**
+  String get ccQcLoadError;
+
+  /// QC report hero label, all VMCCs
+  ///
+  /// In en, this message translates to:
+  /// **'RECEIVED · LAST {days} DAYS'**
+  String ccQcHeroLabelAll(int days);
+
+  /// No description provided for @ccQcHeroFooterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality across all VMCC receipts'**
+  String get ccQcHeroFooterAll;
+
+  /// QC report hero label, single VMCC
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · LAST {days} DAYS'**
+  String ccQcHeroLabelVmcc(Object name, int days);
+
+  /// No description provided for @ccQcHeroFooterVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality received from this VMCC'**
+  String get ccQcHeroFooterVmcc;
+
+  /// No description provided for @ccQcEmptySubtitleVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'No milk received from this VMCC in this window'**
+  String get ccQcEmptySubtitleVmcc;
+
+  /// No description provided for @ccQcScopeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get ccQcScopeAll;
+
+  /// No description provided for @ccQcScopeByVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'By VMCC'**
+  String get ccQcScopeByVmcc;
+
+  /// No description provided for @ccQcScopeRanking.
+  ///
+  /// In en, this message translates to:
+  /// **'Ranking'**
+  String get ccQcScopeRanking;
+
+  /// No description provided for @ccQcSelectVmccTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select VMCC'**
+  String get ccQcSelectVmccTitle;
+
+  /// No description provided for @ccQcSelectVmccPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a VMCC'**
+  String get ccQcSelectVmccPlaceholder;
+
+  /// QC report range chip
+  ///
+  /// In en, this message translates to:
+  /// **'{d} days'**
+  String ccQcRangeDays(int d);
+
+  /// No description provided for @ccVmccsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search VMCCs'**
+  String get ccVmccsSearchHint;
+
+  /// No description provided for @ccVmccsNoneAssigned.
+  ///
+  /// In en, this message translates to:
+  /// **'No VMCCs assigned'**
+  String get ccVmccsNoneAssigned;
+
+  /// No description provided for @ccVmccsNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching VMCCs'**
+  String get ccVmccsNoMatch;
+
+  /// No description provided for @ccManualReceiveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual receive'**
+  String get ccManualReceiveTitle;
+
+  /// No description provided for @ccManualReceiveInfoBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this only when milk arrived with no dispatch entry in the app.'**
+  String get ccManualReceiveInfoBanner;
+
+  /// No description provided for @ccManualReceiveReceivingFor.
+  ///
+  /// In en, this message translates to:
+  /// **'RECEIVING FOR'**
+  String get ccManualReceiveReceivingFor;
+
+  /// No description provided for @ccManualReceiveShiftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Shift'**
+  String get ccManualReceiveShiftLabel;
+
+  /// No description provided for @ccManualReceiveSelectVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'SELECT VMCC'**
+  String get ccManualReceiveSelectVmcc;
+
+  /// No description provided for @ccManualReceiveNoVmccsLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'No VMCCs linked to this CC.'**
+  String get ccManualReceiveNoVmccsLinked;
+
+  /// No VMCCs collecting in the selected shift
+  ///
+  /// In en, this message translates to:
+  /// **'No VMCCs collect in the {shift} shift.'**
+  String ccManualReceiveNoVmccsShift(Object shift);
+
+  /// Badge on an already-received VMCC tile
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} received'**
+  String ccManualReceiveReceivedBadge(Object qty);
+
+  /// No description provided for @ccManualReceiveCollectionDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection date'**
+  String get ccManualReceiveCollectionDate;
+
+  /// Delete confirm dialog body for a manual receipt
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · {date} {shift} will be removed.'**
+  String ccManualReceiveDeleteConfirmBody(
+    Object name,
+    Object date,
+    Object shift,
+  );
+
+  /// No description provided for @ccManualReceiveErrorMissingFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter quantity, FAT and SNF'**
+  String get ccManualReceiveErrorMissingFields;
+
+  /// No description provided for @ccMeasuredAtCc.
+  ///
+  /// In en, this message translates to:
+  /// **'MEASURED AT CC'**
+  String get ccMeasuredAtCc;
+
+  /// No description provided for @ccManualReceiveQtyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty (L)'**
+  String get ccManualReceiveQtyHint;
+
+  /// No description provided for @ccManualReceiveSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get ccManualReceiveSaveChanges;
+
+  /// No description provided for @ccManualReceiveMarkReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark received'**
+  String get ccManualReceiveMarkReceived;
+
+  /// No description provided for @ccReceiveConsignmentSourceFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get ccReceiveConsignmentSourceFallback;
+
+  /// No description provided for @ccReceiveConsignmentReceiptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt'**
+  String get ccReceiveConsignmentReceiptTitle;
+
+  /// No description provided for @ccReceiveConsignmentReceiveMilkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive milk'**
+  String get ccReceiveConsignmentReceiveMilkTitle;
+
+  /// No description provided for @ccReceiveConsignmentQuantityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get ccReceiveConsignmentQuantityLabel;
+
+  /// No description provided for @ccReceiveConsignmentSameAsDispatched.
+  ///
+  /// In en, this message translates to:
+  /// **'Same as dispatched'**
+  String get ccReceiveConsignmentSameAsDispatched;
+
+  /// No description provided for @ccReceiveConsignmentReceivedQtyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Received quantity (L)'**
+  String get ccReceiveConsignmentReceivedQtyHint;
+
+  /// No description provided for @ccReceiveConsignmentUpdateReceipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Update receipt'**
+  String get ccReceiveConsignmentUpdateReceipt;
+
+  /// No description provided for @ccReceiveConsignmentConfirmReceipt.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm receipt'**
+  String get ccReceiveConsignmentConfirmReceipt;
+
+  /// No description provided for @ccReceiveConsignmentErrorQty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the received quantity'**
+  String get ccReceiveConsignmentErrorQty;
+
+  /// No description provided for @ccReceiveConsignmentEnterQtyForVariance.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter received qty to see variance vs dispatch'**
+  String get ccReceiveConsignmentEnterQtyForVariance;
+
+  /// No description provided for @ccReceiveConsignmentVarianceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Variance vs dispatch'**
+  String get ccReceiveConsignmentVarianceLabel;
+
+  /// No description provided for @ccReceiveConsignmentDispatchedByVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'DISPATCHED BY VMCC'**
+  String get ccReceiveConsignmentDispatchedByVmcc;
+
+  /// No description provided for @ccQcReportEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No receipts in this window'**
+  String get ccQcReportEmptyTitle;
+
+  /// No description provided for @ccQcReportEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive milk from VMCCs to see the daily QC report'**
+  String get ccQcReportEmptySubtitle;
+
+  /// No description provided for @ccQcReportTrendsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality trends'**
+  String get ccQcReportTrendsLabel;
+
+  /// No description provided for @ccQcReportDailyQualityLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily quality · qty-weighted'**
+  String get ccQcReportDailyQualityLabel;
+
+  /// No description provided for @ccQcReportDateHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'DATE'**
+  String get ccQcReportDateHeader;
+
+  /// No description provided for @ccQcReportNoReadings.
+  ///
+  /// In en, this message translates to:
+  /// **'No readings in this window'**
+  String get ccQcReportNoReadings;
+
+  /// Ranking section title, metric name is untranslated (FAT/SNF/Water)
+  ///
+  /// In en, this message translates to:
+  /// **'By {metric}'**
+  String ccQcRankingByMetric(Object metric);
+
+  /// No description provided for @ccQcRankingHighToLow.
+  ///
+  /// In en, this message translates to:
+  /// **'high → low'**
+  String get ccQcRankingHighToLow;
+
+  /// No description provided for @ccQcRankingLowToHigh.
+  ///
+  /// In en, this message translates to:
+  /// **'low → high'**
+  String get ccQcRankingLowToHigh;
+
+  /// QC ranking summary card
+  ///
+  /// In en, this message translates to:
+  /// **'{active} of {total} VMCCs delivered · last {days} days'**
+  String ccQcRankingSummary(int active, int total, int days);
+
+  /// No description provided for @navTankers.
+  ///
+  /// In en, this message translates to:
+  /// **'Tankers'**
+  String get navTankers;
+
+  /// No description provided for @ppHomeRawMilkTank.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw-milk tank'**
+  String get ppHomeRawMilkTank;
+
+  /// No description provided for @ppHomeCcsToday.
+  ///
+  /// In en, this message translates to:
+  /// **'CCs · today'**
+  String get ppHomeCcsToday;
+
+  /// No description provided for @ppHomeTodayLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'TODAY'**
+  String get ppHomeTodayLabel;
+
+  /// No description provided for @ppHomeTodayReceivedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'TODAY RECEIVED'**
+  String get ppHomeTodayReceivedLabel;
+
+  /// Tanker count shown against a CC's flow row on the PP home
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} tanker} other{{count} tankers}}'**
+  String ppHomeTankersCount(int count);
+
+  /// Hero footer delta; value already carries its +/- sign
+  ///
+  /// In en, this message translates to:
+  /// **'{value}% vs disp.'**
+  String ppHomeVarianceVsDispatch(Object value);
+
+  /// No description provided for @ppHomeReceivedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Received'**
+  String get ppHomeReceivedLabel;
+
+  /// No description provided for @ppHomeInventoryNote.
+  ///
+  /// In en, this message translates to:
+  /// **'→ Accepted posts to runq Inventory (raw-milk batch)'**
+  String get ppHomeInventoryNote;
+
+  /// No description provided for @ppHomeNoCcsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No CCs dispatching'**
+  String get ppHomeNoCcsTitle;
+
+  /// No description provided for @ppHomeNoCcsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centres feeding this plant appear here'**
+  String get ppHomeNoCcsSubtitle;
+
+  /// In-transit flow chip on the PP home CC list
+  ///
+  /// In en, this message translates to:
+  /// **'⏳ {amount} transit'**
+  String ppHomeFlowTransit(Object amount);
+
+  /// Received flow chip on the PP home CC list
+  ///
+  /// In en, this message translates to:
+  /// **'✓ {amount} received'**
+  String ppHomeFlowReceived(Object amount);
+
+  /// No description provided for @ppReceiveNoReceiptsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tankers you receive from CCs show here'**
+  String get ppReceiveNoReceiptsSubtitle;
+
+  /// No description provided for @ppReceiveLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load tankers'**
+  String get ppReceiveLoadError;
+
+  /// No description provided for @ppReceiveNothingInTransitSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbound tankers appear here once dispatched'**
+  String get ppReceiveNothingInTransitSubtitle;
+
+  /// No description provided for @ppReceiveDispatchedByCc.
+  ///
+  /// In en, this message translates to:
+  /// **'DISPATCHED BY CC'**
+  String get ppReceiveDispatchedByCc;
+
+  /// No description provided for @ppReceiveMeasuredAtPlant.
+  ///
+  /// In en, this message translates to:
+  /// **'MEASURED AT PLANT'**
+  String get ppReceiveMeasuredAtPlant;
+
+  /// No description provided for @ppTankersEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No tankers today'**
+  String get ppTankersEmptyTitle;
+
+  /// No description provided for @ppTankersEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tankers dispatched to this plant appear here'**
+  String get ppTankersEmptySubtitle;
+
+  /// No description provided for @adminSwitchTitlePp.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing plants'**
+  String get adminSwitchTitlePp;
+
+  /// No description provided for @adminSwitchTitleCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centres'**
+  String get adminSwitchTitleCc;
+
+  /// No description provided for @adminSwitchTitleVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'Village collection centres'**
+  String get adminSwitchTitleVmcc;
+
+  /// No description provided for @adminSwitchFarmersNav.
+  ///
+  /// In en, this message translates to:
+  /// **'Farmers'**
+  String get adminSwitchFarmersNav;
+
+  /// No description provided for @adminSwitchDefaultUserName.
+  ///
+  /// In en, this message translates to:
+  /// **'Dhenu User'**
+  String get adminSwitchDefaultUserName;
+
+  /// No description provided for @adminSwitchLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load today’s collection'**
+  String get adminSwitchLoadError;
+
+  /// No description provided for @adminSwitchTodayCollectionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'TODAY’S COLLECTION'**
+  String get adminSwitchTodayCollectionLabel;
+
+  /// No description provided for @adminSwitchByChillingCentre.
+  ///
+  /// In en, this message translates to:
+  /// **'BY CHILLING CENTRE'**
+  String get adminSwitchByChillingCentre;
+
+  /// No description provided for @adminSwitchByMilkType.
+  ///
+  /// In en, this message translates to:
+  /// **'BY MILK TYPE'**
+  String get adminSwitchByMilkType;
+
+  /// No description provided for @adminSwitchNoCollectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection yet today'**
+  String get adminSwitchNoCollectionTitle;
+
+  /// No description provided for @adminSwitchNoCollectionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Per-centre and per-milk-type totals will appear here.'**
+  String get adminSwitchNoCollectionSubtitle;
+
+  /// No description provided for @adminSwitchNoCollectionSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **' · no collection'**
+  String get adminSwitchNoCollectionSuffix;
+
+  /// No description provided for @adminSwitchNotLinkedToCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Not linked to a chilling centre'**
+  String get adminSwitchNotLinkedToCc;
+
+  /// No description provided for @adminSwitchCcFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centre'**
+  String get adminSwitchCcFallback;
+
+  /// No description provided for @adminSwitchUnlinkedVmccs.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlinked VMCCs'**
+  String get adminSwitchUnlinkedVmccs;
+
+  /// Section header for VMCCs under a chilling centre in the admin drill sheet
+  ///
+  /// In en, this message translates to:
+  /// **'VMCCs in {name}'**
+  String adminSwitchVmccsInCc(Object name);
+
+  /// No description provided for @adminSwitchSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch centre'**
+  String get adminSwitchSheetTitle;
+
+  /// No description provided for @adminSwitchLoadCentresError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load centres'**
+  String get adminSwitchLoadCentresError;
+
+  /// No description provided for @adminSwitchNoCentresTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No centres yet'**
+  String get adminSwitchNoCentresTitle;
+
+  /// No description provided for @adminSwitchNoCentresSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add VMCCs, chilling centres or plants in the web admin first'**
+  String get adminSwitchNoCentresSubtitle;
+
+  /// Plant count in the centre switcher tier header
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{{n} plant} other{{n} plants}}'**
+  String adminSwitchCountPp(int n);
+
+  /// Chilling centre count in the centre switcher tier header
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{{n} chilling centre} other{{n} chilling centres}}'**
+  String adminSwitchCountCc(int n);
+
+  /// VMCC count in the centre switcher tier header
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{{n} centre} other{{n} centres}}'**
+  String adminSwitchCountVmcc(int n);
+
+  /// No description provided for @operatorSwitchRolePp.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing plant'**
+  String get operatorSwitchRolePp;
+
+  /// No description provided for @operatorSwitchRoleCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centre'**
+  String get operatorSwitchRoleCc;
+
+  /// No description provided for @operatorSwitchRoleVmcc.
+  ///
+  /// In en, this message translates to:
+  /// **'Village collection centre'**
+  String get operatorSwitchRoleVmcc;
+
+  /// No description provided for @operatorSwitchLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load your centres'**
+  String get operatorSwitchLoadError;
+
+  /// No description provided for @operatorSwitchNoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No centres assigned'**
+  String get operatorSwitchNoneTitle;
+
+  /// No description provided for @operatorSwitchNoneSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask your admin to assign you to a centre.'**
+  String get operatorSwitchNoneSubtitle;
+
+  /// No description provided for @operatorSwitchTodayLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Today  …'**
+  String get operatorSwitchTodayLoading;
+
+  /// No description provided for @operatorSwitchNoCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection yet'**
+  String get operatorSwitchNoCollection;
+
+  /// VMCC card subtitle on the operator switcher/selector — today's collected litres and farmer count
+  ///
+  /// In en, this message translates to:
+  /// **'Today  {qty} · {count} farmers'**
+  String operatorSwitchTodaySummary(Object qty, int count);
+
+  /// No description provided for @operatorSwitchButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch'**
+  String get operatorSwitchButton;
+
+  /// No description provided for @operatorSelectorGreetingPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Namaste'**
+  String get operatorSelectorGreetingPlain;
+
+  /// Named greeting on the multi-node operator's landing screen
+  ///
+  /// In en, this message translates to:
+  /// **'Namaste, {name}'**
+  String operatorSelectorGreetingNamed(Object name);
+
+  /// No description provided for @operatorSelectorSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a centre to operate'**
+  String get operatorSelectorSubtitle;
+
+  /// No description provided for @operatorNoAccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Dhenu access yet'**
+  String get operatorNoAccessTitle;
+
+  /// No description provided for @operatorNoAccessSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask your dairy administrator to enable milk procurement for your account.'**
+  String get operatorNoAccessSubtitle;
+
+  /// No description provided for @operatorNoAccessSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get operatorNoAccessSignOut;
+
+  /// No description provided for @authLoginTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk procurement, made fair'**
+  String get authLoginTagline;
+
+  /// No description provided for @authLoginSessionExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Your session expired. Sign in again with your phone number.'**
+  String get authLoginSessionExpired;
+
+  /// No description provided for @commonBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get commonBack;
+
+  /// No description provided for @authOtpPhoneLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone number'**
+  String get authOtpPhoneLabel;
+
+  /// No description provided for @authOtpPhoneHint.
+  ///
+  /// In en, this message translates to:
+  /// **'10-digit mobile'**
+  String get authOtpPhoneHint;
+
+  /// No description provided for @authOtpSendButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Send OTP'**
+  String get authOtpSendButton;
+
+  /// No description provided for @authOtpEnterDigits.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a 10-digit mobile number'**
+  String get authOtpEnterDigits;
+
+  /// No description provided for @authOtpEnterCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the 6-digit code'**
+  String get authOtpEnterCode;
+
+  /// OTP step subtitle — phone is the full number with country code, e.g. +91 98765 43210
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the code sent to {phone}'**
+  String authOtpCodeSentTo(Object phone);
+
+  /// No description provided for @authOtpSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get authOtpSignIn;
+
+  /// No description provided for @authOtpSmsDelay.
+  ///
+  /// In en, this message translates to:
+  /// **'The SMS can take up to a minute to arrive.'**
+  String get authOtpSmsDelay;
+
+  /// No description provided for @authOtpChangeNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Change number'**
+  String get authOtpChangeNumber;
+
+  /// Resend-OTP cooldown countdown
+  ///
+  /// In en, this message translates to:
+  /// **'Resend in {seconds}s'**
+  String authOtpResendIn(int seconds);
+
+  /// No description provided for @authOtpResendButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend OTP'**
+  String get authOtpResendButton;
+
+  /// Debug-build network error, shown when the API host is unreachable
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t reach the server at {baseUrl}. Is the API running and the phone on the same network?'**
+  String authOtpNetworkErrorDebug(Object baseUrl);
+
+  /// No description provided for @authOtpNetworkErrorProd.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t reach the server. Check your connection and try again.'**
+  String get authOtpNetworkErrorProd;
+
+  /// No description provided for @aboutScreenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get aboutScreenTitle;
+
+  /// No description provided for @aboutScreenTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk procurement, simplified'**
+  String get aboutScreenTagline;
+
+  /// App version line on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} ({build})'**
+  String aboutScreenVersion(Object version, Object build);
+
+  /// No description provided for @aboutScreenPrivacyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get aboutScreenPrivacyPolicy;
+
+  /// No description provided for @aboutScreenTermsOfService.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of Service'**
+  String get aboutScreenTermsOfService;
+
+  /// No description provided for @aboutScreenMadeWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Made with care in India 🇮🇳'**
+  String get aboutScreenMadeWith;
+
+  /// No description provided for @aboutScreenCouldNotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open'**
+  String get aboutScreenCouldNotOpen;
+
+  /// No description provided for @bankPayoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank & payout'**
+  String get bankPayoutTitle;
+
+  /// No description provided for @bankPayoutLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load payout'**
+  String get bankPayoutLoadError;
+
+  /// No description provided for @bankPayoutEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No payout terms yet'**
+  String get bankPayoutEmptyTitle;
+
+  /// No description provided for @bankPayoutEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your compensation is set up by your admin and will appear here.'**
+  String get bankPayoutEmptySubtitle;
+
+  /// No description provided for @bankPayoutThisMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'THIS MONTH'**
+  String get bankPayoutThisMonth;
+
+  /// Bank & payout hero card footer — qty is a formatted litres string
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} collected · est. earning so far'**
+  String bankPayoutCollectedEstEarning(Object qty);
+
+  /// No description provided for @bankPayoutMethodLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Payout method'**
+  String get bankPayoutMethodLabel;
+
+  /// No description provided for @bankPayoutRentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rent'**
+  String get bankPayoutRentLabel;
+
+  /// Recurring monthly amount — amount is a formatted rupee string
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} / month'**
+  String bankPayoutPerMonth(Object amount);
+
+  /// No description provided for @bankPayoutSinceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Since'**
+  String get bankPayoutSinceLabel;
+
+  /// No description provided for @bankPayoutHasAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Payouts go to your registered bank account.'**
+  String get bankPayoutHasAccount;
+
+  /// No description provided for @bankPayoutNoAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'No bank account on file — ask your admin to add one.'**
+  String get bankPayoutNoAccount;
+
+  /// No description provided for @bankPayoutFixedSalary.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed salary'**
+  String get bankPayoutFixedSalary;
+
+  /// No description provided for @bankPayoutPerLitreCommission.
+  ///
+  /// In en, this message translates to:
+  /// **'Per-litre commission'**
+  String get bankPayoutPerLitreCommission;
+
+  /// Per-litre payout rate — rate is a formatted rupee string
+  ///
+  /// In en, this message translates to:
+  /// **'{rate} / litre'**
+  String bankPayoutPerLitre(Object rate);
+
+  /// No description provided for @langPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose language'**
+  String get langPickerTitle;
+
+  /// No description provided for @langPickerComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming soon'**
+  String get langPickerComingSoon;
+
+  /// No description provided for @dispatchFatHint.
+  ///
+  /// In en, this message translates to:
+  /// **'FAT %'**
+  String get dispatchFatHint;
+
+  /// No description provided for @dispatchSnfHint.
+  ///
+  /// In en, this message translates to:
+  /// **'SNF %'**
+  String get dispatchSnfHint;
+
+  /// No description provided for @dispatchWaterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Water % (optional)'**
+  String get dispatchWaterHint;
+
+  /// No description provided for @dispatchHistoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch history'**
+  String get dispatchHistoryTitle;
+
+  /// No description provided for @dispatchSeeFullHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'See full history'**
+  String get dispatchSeeFullHistory;
+
+  /// No description provided for @dispatchHistoryLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load history'**
+  String get dispatchHistoryLoadError;
+
+  /// No description provided for @dispatchHistoryEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No dispatches yet'**
+  String get dispatchHistoryEmptyTitle;
+
+  /// No description provided for @dispatchHistoryEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tankers dispatched over the last 30 days show here'**
+  String get dispatchHistoryEmptySubtitle;
+
+  /// No description provided for @dispatchHistoryPlantFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Plant'**
+  String get dispatchHistoryPlantFallback;
+
+  /// No description provided for @dispatchHistoryCcFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centre'**
+  String get dispatchHistoryCcFallback;
+
+  /// Collapsed dispatch-history day row — count of dispatch legs
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{{n} dispatch} other{{n} dispatches}}'**
+  String dispatchHistoryCount(int n);
+
+  /// Collapsed dispatch-history day row — count still in transit
+  ///
+  /// In en, this message translates to:
+  /// **'{n} in transit'**
+  String dispatchHistoryInTransit(int n);
+
+  /// No description provided for @dispatchHistoryReversed.
+  ///
+  /// In en, this message translates to:
+  /// **'⊘ reversed'**
+  String get dispatchHistoryReversed;
+
+  /// Grade pill on a pour card — letter is A/B/C
+  ///
+  /// In en, this message translates to:
+  /// **'Grade {letter}'**
+  String farmerPoursGradeLabel(Object letter);
+
+  /// No description provided for @collectLowWord.
+  ///
+  /// In en, this message translates to:
+  /// **'Low'**
+  String get collectLowWord;
+
+  /// No description provided for @qcReportLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load QC data'**
+  String get qcReportLoadError;
+
+  /// QC report hero label scoped to one farmer — name is already uppercased
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · LAST {days} DAYS'**
+  String qcReportHeroLabelFarmer(Object name, int days);
+
+  /// QC report hero label pooled across all farmers
+  ///
+  /// In en, this message translates to:
+  /// **'COLLECTED · LAST {days} DAYS'**
+  String qcReportHeroLabelAll(int days);
+
+  /// QC report hero label on the single-farmer QC tab (no name prefix)
+  ///
+  /// In en, this message translates to:
+  /// **'LAST {days} DAYS'**
+  String qcReportHeroLabelDays(int days);
+
+  /// No description provided for @qcReportFooterFarmer.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality for this farmer'**
+  String get qcReportFooterFarmer;
+
+  /// No description provided for @qcReportFooterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality across all farmers'**
+  String get qcReportFooterAll;
+
+  /// No description provided for @qcReportEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No readings in this window'**
+  String get qcReportEmptyTitle;
+
+  /// No description provided for @qcReportEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Record collections to see the daily QC trend'**
+  String get qcReportEmptySubtitle;
+
+  /// No description provided for @qcReportSelectFarmerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a farmer'**
+  String get qcReportSelectFarmerTitle;
+
+  /// No description provided for @qcReportSelectFarmerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a farmer to see their quality trend'**
+  String get qcReportSelectFarmerSubtitle;
+
+  /// No description provided for @qcReportScopeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All farmers'**
+  String get qcReportScopeAll;
+
+  /// No description provided for @qcReportScopePerFarmer.
+  ///
+  /// In en, this message translates to:
+  /// **'Per farmer'**
+  String get qcReportScopePerFarmer;
+
+  /// QC report range-selector chip
+  ///
+  /// In en, this message translates to:
+  /// **'{d} days'**
+  String qcReportDaysChip(int d);
+
+  /// No description provided for @homeCouldNotLoadCentre.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load your centre'**
+  String get homeCouldNotLoadCentre;
+
+  /// No description provided for @updateRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get updateRequiredTitle;
+
+  /// No description provided for @updateRequiredButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Update now'**
+  String get updateRequiredButton;
+
+  /// No description provided for @updateRequiredCouldNotOpenStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the store'**
+  String get updateRequiredCouldNotOpenStore;
+
+  /// No description provided for @nodePickerSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search…'**
+  String get nodePickerSearchHint;
+
+  /// No description provided for @nodePickerNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No match'**
+  String get nodePickerNoMatch;
+
+  /// No description provided for @voiceFieldDictateTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Dictate'**
+  String get voiceFieldDictateTooltip;
+
+  /// No description provided for @voiceFieldReadBackTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Read back'**
+  String get voiceFieldReadBackTooltip;
+
+  /// No description provided for @splashTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Every drop counts'**
+  String get splashTagline;
 }
 
 class _AppLocalizationsDelegate

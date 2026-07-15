@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -18,22 +19,23 @@ class BankPayoutScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final selfAsync = ref.watch(operatorSelfProvider);
     return Scaffold(
       backgroundColor: t.surface,
-      appBar: AppBar(title: Text('Bank & payout', style: DhenuText.h2.copyWith(color: t.ink))),
+      appBar: AppBar(title: Text(l.bankPayoutTitle, style: DhenuText.h2.copyWith(color: t.ink))),
       body: selfAsync.when(
         loading: () => const DhenuLoadingList(rows: 3),
         error: (e, _) => DhenuEmptyState(
           icon: DhenuIcons.cloudOff,
-          title: 'Could not load payout',
+          title: l.bankPayoutLoadError,
           subtitle: '$e',
         ),
         data: (rows) => rows.isEmpty
-            ? const DhenuEmptyState(
+            ? DhenuEmptyState(
                 icon: DhenuIcons.payments,
-                title: 'No payout terms yet',
-                subtitle: 'Your compensation is set up by your admin and will appear here.',
+                title: l.bankPayoutEmptyTitle,
+                subtitle: l.bankPayoutEmptySubtitle,
               )
             : ListView(
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -42,7 +44,7 @@ class BankPayoutScreen extends ConsumerWidget {
                 children: [
                   for (var i = 0; i < rows.length; i++) ...[
                     if (i > 0) const SizedBox(height: DhenuSpacing.xl),
-                    ..._nodeBlock(t, rows[i]),
+                    ..._nodeBlock(t, l, rows[i]),
                   ],
                 ],
               ),
@@ -50,49 +52,50 @@ class BankPayoutScreen extends ConsumerWidget {
     );
   }
 
-  List<Widget> _nodeBlock(DhenuTokens t, MpOperatorSelf o) => [
+  List<Widget> _nodeBlock(DhenuTokens t, AppLocalizations l, MpOperatorSelf o) => [
         Text(o.nodeName, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
-        _earningCard(t, o),
+        _earningCard(t, l, o),
         const SizedBox(height: DhenuSpacing.md),
-        _termsCard(t, o),
+        _termsCard(t, l, o),
         const SizedBox(height: DhenuSpacing.md),
-        _accountCard(t, o),
+        _accountCard(t, l, o),
       ];
 
   // This month's earning hero.
-  Widget _earningCard(DhenuTokens t, MpOperatorSelf o) {
+  Widget _earningCard(DhenuTokens t, AppLocalizations l, MpOperatorSelf o) {
     return DhenuCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('THIS MONTH', style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.8)),
+        Text(l.bankPayoutThisMonth, style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.8)),
         const SizedBox(height: DhenuSpacing.xs),
         Text(rupees(o.monthEarning), style: DhenuText.h1.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.xs),
-        Text('${litres(o.monthQty, unit: true)} collected · est. earning so far',
+        Text(l.bankPayoutCollectedEstEarning(litres(o.monthQty, unit: true)),
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
       ]),
     );
   }
 
   // Comp arrangement breakdown.
-  Widget _termsCard(DhenuTokens t, MpOperatorSelf o) {
+  Widget _termsCard(DhenuTokens t, AppLocalizations l, MpOperatorSelf o) {
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(children: [
-        _row(t, icon: DhenuIcons.bank, label: 'Payout method', value: _compLabel(o)),
+        _row(t, icon: DhenuIcons.bank, label: l.bankPayoutMethodLabel, value: _compLabel(l, o)),
         if (o.rentAmount != null && o.rentAmount! > 0) ...[
           _divider(t),
-          _row(t, icon: DhenuIcons.about, label: 'Rent', value: '${rupees(o.rentAmount!)} / month'),
+          _row(t, icon: DhenuIcons.about, label: l.bankPayoutRentLabel,
+              value: l.bankPayoutPerMonth(rupees(o.rentAmount!))),
         ],
         _divider(t),
-        _row(t, icon: DhenuIcons.calendar, label: 'Since',
+        _row(t, icon: DhenuIcons.calendar, label: l.bankPayoutSinceLabel,
             value: memberSinceLabel(DateTime.tryParse(o.effectiveFrom) ?? DateTime(2000))),
       ]),
     );
   }
 
   // Bank payee status — capture is an admin task.
-  Widget _accountCard(DhenuTokens t, MpOperatorSelf o) {
+  Widget _accountCard(DhenuTokens t, AppLocalizations l, MpOperatorSelf o) {
     final ok = o.hasPayee;
     return DhenuCard(
       child: Row(children: [
@@ -101,9 +104,7 @@ class BankPayoutScreen extends ConsumerWidget {
         const SizedBox(width: DhenuSpacing.md),
         Expanded(
           child: Text(
-            ok
-                ? 'Payouts go to your registered bank account.'
-                : 'No bank account on file — ask your admin to add one.',
+            ok ? l.bankPayoutHasAccount : l.bankPayoutNoAccount,
             style: DhenuText.body.copyWith(color: t.ink),
           ),
         ),
@@ -111,11 +112,13 @@ class BankPayoutScreen extends ConsumerWidget {
     );
   }
 
-  String _compLabel(MpOperatorSelf o) {
+  String _compLabel(AppLocalizations l, MpOperatorSelf o) {
     if (o.compType == 'fixed_salary') {
-      return o.monthlySalary != null ? '${rupees(o.monthlySalary!)} / month' : 'Fixed salary';
+      return o.monthlySalary != null ? l.bankPayoutPerMonth(rupees(o.monthlySalary!)) : l.bankPayoutFixedSalary;
     }
-    return o.ratePerLitre != null ? '${rupees(o.ratePerLitre!, paise: true)} / litre' : 'Per-litre commission';
+    return o.ratePerLitre != null
+        ? l.bankPayoutPerLitre(rupees(o.ratePerLitre!, paise: true))
+        : l.bankPayoutPerLitreCommission;
   }
 
   Widget _row(DhenuTokens t, {required IconData icon, required String label, required String value}) {

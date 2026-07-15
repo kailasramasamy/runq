@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -44,6 +45,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     _bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
     _milkType = node.effectiveMilkType;
     final async =
@@ -62,13 +64,13 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: async.when(
         loading: () => const DhenuLoadingList(),
         error: (e, _) => DhenuEmptyState(
-            icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: friendlyError(context, e)),
+            icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: friendlyError(context, e)),
         data: (days) {
           if (days.isEmpty) {
-            return const DhenuEmptyState(
+            return DhenuEmptyState(
               icon: DhenuIcons.package,
-              title: 'No receipts yet',
-              subtitle: 'Milk received from VMCCs over the last 30 days shows here',
+              title: l.ccReceiveNoReceiptsYet,
+              subtitle: l.ccHistoryNoReceiptsSubtitle,
             );
           }
           if (!_seeded) {
@@ -81,7 +83,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
                 DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
             itemCount: days.length,
             separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.lg),
-            itemBuilder: (_, i) => _daySection(t, days[i], names),
+            itemBuilder: (_, i) => _daySection(t, l, days[i], names),
           );
         },
       ),
@@ -90,7 +92,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
 
   /// A day header (date + cumulative qty) over either the collapsed summary or,
   /// when open, the lazily-loaded per-VMCC detail.
-  Widget _daySection(DhenuTokens t, MpReceivedDay day, Map<String, String> names) {
+  Widget _daySection(DhenuTokens t, AppLocalizations l, MpReceivedDay day, Map<String, String> names) {
     final open = _open.contains(day.date);
     return DhenuCard(
       padding: EdgeInsets.zero,
@@ -118,7 +120,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
           ),
         ),
         Divider(height: 1, color: t.hairline),
-        if (open) _dayDetail(t, day.date, names) else _collapsedSummary(t, day),
+        if (open) _dayDetail(t, l, day.date, names) else _collapsedSummary(t, l, day),
       ]),
     );
   }
@@ -126,14 +128,14 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   /// Collapsed secondary row: VMCC count + qty-weighted avg quality, kept muted
   /// so it reads below the date/total. Colour-graded QC lives in the expanded
   /// per-leg detail.
-  Widget _collapsedSummary(DhenuTokens t, MpReceivedDay day) {
+  Widget _collapsedSummary(DhenuTokens t, AppLocalizations l, MpReceivedDay day) {
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       child: Row(children: [
         Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.sm),
-        Text('${day.vmccCount} VMCC${day.vmccCount == 1 ? '' : 's'}',
+        Text(l.ccHistoryVmccCount(day.vmccCount),
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
         if (day.fat != null) ...[
           const Spacer(),
@@ -145,7 +147,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   }
 
   /// Expanded: fetch this day's consignment rows on demand, then group by VMCC.
-  Widget _dayDetail(DhenuTokens t, String date, Map<String, String> names) {
+  Widget _dayDetail(DhenuTokens t, AppLocalizations l, String date, Map<String, String> names) {
     final async = ref.watch(nodeReceivedDayDetailProvider((nodeId: node.id, date: date)));
     return async.when(
       loading: () => const Padding(
@@ -156,14 +158,14 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       ),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(DhenuSpacing.lg),
-        child: Text('Could not load this day', style: DhenuText.body.copyWith(color: t.inkSoft)),
+        child: Text(l.ccHistoryDayLoadError, style: DhenuText.body.copyWith(color: t.inkSoft)),
       ),
       data: (cs) {
         final vmccs = _groupByVmcc(cs);
         return Column(children: [
           for (var i = 0; i < vmccs.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
-            _entry(context, t, date, vmccs[i], names),
+            _entry(context, t, l, date, vmccs[i], names),
           ],
         ]);
       },
@@ -197,7 +199,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
 
   /// A VMCC's day receipts as a collapsed row that expands inline (no bottom
   /// sheet) into its per-shift legs.
-  Widget _entry(BuildContext context, DhenuTokens t, String date,
+  Widget _entry(BuildContext context, DhenuTokens t, AppLocalizations l, String date,
       MapEntry<String, List<MpConsignment>> e, Map<String, String> names) {
     final key = '$date|${e.key}';
     final expanded = _openVmcc.contains(key);
@@ -239,13 +241,13 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
           ]),
         ),
       ),
-      if (expanded) _entryDetail(t, date, e.key, e.value),
+      if (expanded) _entryDetail(t, l, date, e.key, e.value),
     ]);
   }
 
   /// Inline per-shift breakup (replaces the old bottom sheet): each AM/PM/Day leg
   /// with received qty, quality, variance and the effective ₹/L for that shift.
-  Widget _entryDetail(DhenuTokens t, String date, String vmccId, List<MpConsignment> cs) {
+  Widget _entryDetail(DhenuTokens t, AppLocalizations l, String date, String vmccId, List<MpConsignment> cs) {
     final legs = [...cs]..sort((a, b) => _shiftOrder(a.shift).compareTo(_shiftOrder(b.shift)));
     final summary = ref.watch(nodeDaySummaryProvider((nodeId: vmccId, date: date))).valueOrNull;
     return Container(
@@ -260,7 +262,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: Column(children: [
         for (var i = 0; i < legs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _legTile(t, legs[i], _rateFor(summary, legs[i], vmccId, date)),
+          _legTile(t, l, legs[i], _rateFor(summary, legs[i], vmccId, date)),
         ],
       ]),
     );
@@ -294,9 +296,9 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   IconData _shiftIcon(Shift? s) =>
       s == Shift.am ? DhenuIcons.sun : s == Shift.pm ? DhenuIcons.moon : DhenuIcons.calendar;
 
-  Widget _legTile(DhenuTokens t, MpConsignment c, double? rate) {
+  Widget _legTile(DhenuTokens t, AppLocalizations l, MpConsignment c, double? rate) {
     final isAm = c.shift == Shift.am, isPm = c.shift == Shift.pm;
-    final label = isAm ? 'AM' : isPm ? 'PM' : 'Day';
+    final label = isAm ? l.shiftAm : isPm ? l.shiftPm : l.ccDayLabel;
     final color = isAm ? t.am : isPm ? t.pm : t.inkSoft;
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
@@ -329,7 +331,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
             QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
                 grade: Grade.unknown, bands: _bands, milkType: _milkType),
           const Spacer(),
-          Text('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}% var',
+          Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
       ]),

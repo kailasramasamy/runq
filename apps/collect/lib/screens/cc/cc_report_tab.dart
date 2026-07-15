@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -35,6 +36,7 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final rowsAsync = ref.watch(nodeReceivedDayDetailProvider(_key));
     return RefreshIndicator(
       onRefresh: () async {
@@ -52,17 +54,17 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
             loading: () => const DhenuLoadingList(rows: 3),
             error: (e, _) => DhenuEmptyState(
               icon: DhenuIcons.cloudOff,
-              title: 'Could not load the report',
+              title: l.ccReportLoadError,
               subtitle: friendlyError(context, e),
             ),
             data: (rows) {
               final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
               return rows.isEmpty
-                  ? const DhenuEmptyState(
+                  ? DhenuEmptyState(
                       icon: DhenuIcons.drop,
-                      title: 'No milk received on this date',
+                      title: l.ccReportNoMilkReceived,
                     )
-                  : _body(t, rows, bands);
+                  : _body(t, l, rows, bands);
             },
           ),
         ],
@@ -70,7 +72,7 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
     );
   }
 
-  Widget _body(DhenuTokens t, List<MpConsignment> rows, QualityBands bands) {
+  Widget _body(DhenuTokens t, AppLocalizations l, List<MpConsignment> rows, QualityBands bands) {
     final acc = QcAcc();
     var amQty = 0.0, pmQty = 0.0;
     final sources = <String>{};
@@ -83,19 +85,20 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
     }
     return Column(children: [
       HeroNumberCard(
-        label: 'Total received',
+        label: l.ccReportTotalReceived,
         primaryValue: litres(acc.qty, unit: true),
         footer: Text(
-          '${sources.length} VMCCs · ${rows.length} receipts',
+          l.ccReportSourcesReceipts(sources.length, rows.length),
           style: DhenuText.body.copyWith(color: t.inkSoft),
         ),
       ),
       const SizedBox(height: DhenuSpacing.md),
-      _statsGrid(t, acc, amQty, pmQty, sources.length, bands),
+      _statsGrid(t, l, acc, amQty, pmQty, sources.length, bands),
     ]);
   }
 
-  Widget _statsGrid(DhenuTokens t, QcAcc acc, double amQty, double pmQty, int sources, QualityBands bands) {
+  Widget _statsGrid(DhenuTokens t, AppLocalizations l, QcAcc acc, double amQty, double pmQty, int sources,
+      QualityBands bands) {
     String pct(double? v) => v == null ? '—' : '${oneDp(v)} %';
     return GridView.count(
       crossAxisCount: 2,
@@ -105,19 +108,19 @@ class _CcReportTabState extends ConsumerState<CcReportTab> {
       mainAxisSpacing: DhenuSpacing.md,
       childAspectRatio: 2.0,
       children: [
-        DhenuStatCard(label: 'AM', value: litres(amQty, unit: true), valueColor: t.am),
-        DhenuStatCard(label: 'PM', value: litres(pmQty, unit: true), valueColor: t.pm),
+        DhenuStatCard(label: l.shiftAm, value: litres(amQty, unit: true), valueColor: t.am),
+        DhenuStatCard(label: l.shiftPm, value: litres(pmQty, unit: true), valueColor: t.pm),
         DhenuStatCard(
-          label: 'AVG FAT', value: pct(acc.avgFat),
+          label: l.ccReportAvgFat, value: pct(acc.avgFat),
           valueColor: QualityBadge.bandColor(bands, widget.node.effectiveMilkType, 'fat', acc.avgFat, t) ?? t.brand,
         ),
         DhenuStatCard(
-          label: 'AVG SNF', value: pct(acc.avgSnf),
+          label: l.ccReportAvgSnf, value: pct(acc.avgSnf),
           valueColor: QualityBadge.bandColor(bands, widget.node.effectiveMilkType, 'snf', acc.avgSnf, t) ?? t.brand,
         ),
         if ((acc.avgWater ?? 0) > 0)
-          DhenuStatCard(label: 'AVG WATER', value: pct(acc.avgWater), valueColor: t.brand),
-        DhenuStatCard(label: 'SOURCE VMCCS', value: '$sources', valueColor: t.ink),
+          DhenuStatCard(label: l.ccReportAvgWater, value: pct(acc.avgWater), valueColor: t.brand),
+        DhenuStatCard(label: l.ccReportSourceVmccs, value: '$sources', valueColor: t.ink),
       ],
     );
   }

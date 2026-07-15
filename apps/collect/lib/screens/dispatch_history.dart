@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/transfer_providers.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
@@ -41,6 +42,7 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final async = ref.watch(nodeDispatchedRangeProvider(_args));
     final names = {
       for (final n in ref.watch(nodesByTypeProvider(_destType)).value ?? const <MpNode>[])
@@ -51,13 +53,13 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
       child: async.when(
         loading: () => const DhenuLoadingList(),
         error: (e, _) => DhenuEmptyState(
-            icon: DhenuIcons.cloudOff, title: 'Could not load history', subtitle: '$e'),
+            icon: DhenuIcons.cloudOff, title: l.dispatchHistoryLoadError, subtitle: '$e'),
         data: (all) {
           if (all.isEmpty) {
-            return const DhenuEmptyState(
+            return DhenuEmptyState(
               icon: DhenuIcons.truck,
-              title: 'No dispatches yet',
-              subtitle: 'Tankers dispatched over the last 30 days show here',
+              title: l.dispatchHistoryEmptyTitle,
+              subtitle: l.dispatchHistoryEmptySubtitle,
             );
           }
           final days = _groupByDate(all);
@@ -71,7 +73,7 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
                 DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
             itemCount: days.length,
             separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.lg),
-            itemBuilder: (_, i) => _daySection(t, days[i], names),
+            itemBuilder: (_, i) => _daySection(t, l, days[i], names),
           );
         },
       ),
@@ -89,8 +91,8 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
 
   /// One day = one card: a tappable date/total header, a divider, then the
   /// day's dispatch rows (open) or a one-line count summary (collapsed).
-  Widget _daySection(
-      DhenuTokens t, MapEntry<String, List<MpConsignment>> day, Map<String, String> names) {
+  Widget _daySection(DhenuTokens t, AppLocalizations l, MapEntry<String, List<MpConsignment>> day,
+      Map<String, String> names) {
     final open = _open.contains(day.key);
     final total = day.value.fold<double>(0, (s, c) => s + (c.dispatchQty ?? 0));
     return DhenuCard(
@@ -115,14 +117,14 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
             ),
           ),
           Divider(height: 1, color: t.hairline),
-          if (open) ..._detailRows(t, day.value, names) else _collapsedRow(t, day.value),
+          if (open) ..._detailRows(t, l, day.value, names) else _collapsedRow(t, l, day.value),
         ]),
       ),
     );
   }
 
   /// Collapsed body: dispatch count + how many are still in transit.
-  Widget _collapsedRow(DhenuTokens t, List<MpConsignment> cs) {
+  Widget _collapsedRow(DhenuTokens t, AppLocalizations l, List<MpConsignment> cs) {
     final inTransit = cs.where((c) => c.inTransit).length;
     return Padding(
       padding: const EdgeInsets.all(DhenuSpacing.lg),
@@ -130,23 +132,25 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
         Icon(DhenuIcons.truck, size: 18, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(
-            child: Text('${cs.length} dispatch${cs.length == 1 ? '' : 'es'}',
+            child: Text(l.dispatchHistoryCount(cs.length),
                 style: DhenuText.body.copyWith(color: t.inkSoft))),
         if (inTransit > 0)
-          Text('$inTransit in transit', style: DhenuText.caption.copyWith(color: t.gradeB)),
+          Text(l.dispatchHistoryInTransit(inTransit), style: DhenuText.caption.copyWith(color: t.gradeB)),
       ]),
     );
   }
 
   /// Expanded body: one row per dispatch leg — destination, shift · no., qty, status.
-  List<Widget> _detailRows(DhenuTokens t, List<MpConsignment> cs, Map<String, String> names) => [
+  List<Widget> _detailRows(
+      DhenuTokens t, AppLocalizations l, List<MpConsignment> cs, Map<String, String> names) => [
         for (var i = 0; i < cs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
           SourceRow(
-            title: names[cs[i].toNodeId] ?? (_destType == 'pp' ? 'Plant' : 'Chilling centre'),
+            title: names[cs[i].toNodeId] ??
+                (_destType == 'pp' ? l.dispatchHistoryPlantFallback : l.dispatchHistoryCcFallback),
             subtitle: _subtitle(cs[i]),
             litres: litres(cs[i].dispatchQty ?? 0, unit: true),
-            trailingStatus: _status(t, cs[i]),
+            trailingStatus: _status(t, l, cs[i]),
           ),
         ],
       ];
@@ -156,12 +160,12 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     return '$shift${c.consignmentNo}';
   }
 
-  Widget _status(DhenuTokens t, MpConsignment c) {
+  Widget _status(DhenuTokens t, AppLocalizations l, MpConsignment c) {
     if (c.status == 'reversed') {
-      return Text('⊘ reversed', style: DhenuText.caption.copyWith(color: t.gradeC));
+      return Text(l.dispatchHistoryReversed, style: DhenuText.caption.copyWith(color: t.gradeC));
     }
     return Text(
-      c.inTransit ? '⏳ transit' : '✓ received',
+      c.inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
       style: DhenuText.caption.copyWith(color: c.inTransit ? t.gradeB : t.gradeA),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -23,6 +24,7 @@ class PpTankersTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
     final allCcs = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final names = {for (final n in allCcs) n.id: n.name};
@@ -30,7 +32,7 @@ class PpTankersTab extends ConsumerWidget {
       backgroundColor: t.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Tankers', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.navTankers, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: RefreshIndicator(
         onRefresh: () => _refresh(ref),
@@ -38,7 +40,7 @@ class PpTankersTab extends ConsumerWidget {
           loading: () => const DhenuLoadingList(),
           error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff,
-            title: 'Could not load tankers',
+            title: l.ppReceiveLoadError,
             subtitle: friendlyError(context, e),
           ),
           data: (all) {
@@ -47,35 +49,35 @@ class PpTankersTab extends ConsumerWidget {
               return ListView(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
-                children: const [
-                  SizedBox(height: DhenuSpacing.bottomGap),
+                children: [
+                  const SizedBox(height: DhenuSpacing.bottomGap),
                   DhenuEmptyState(
                     icon: DhenuIcons.truck,
-                    title: 'No tankers today',
-                    subtitle: 'Tankers dispatched to this plant appear here',
+                    title: l.ppTankersEmptyTitle,
+                    subtitle: l.ppTankersEmptySubtitle,
                   ),
                 ],
               );
             }
-            return _list(t, tankers, names);
+            return _list(l, t, tankers, names);
           },
         ),
       ),
     );
   }
 
-  Widget _list(DhenuTokens t, List<MpConsignment> tankers, Map<String, String> names) {
+  Widget _list(AppLocalizations l, DhenuTokens t, List<MpConsignment> tankers, Map<String, String> names) {
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
       itemCount: tankers.length,
       separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.sm),
-      itemBuilder: (_, i) => _tankerCard(t, tankers[i], names),
+      itemBuilder: (_, i) => _tankerCard(l, t, tankers[i], names),
     );
   }
 
-  Widget _tankerCard(DhenuTokens t, MpConsignment c, Map<String, String> names) {
+  Widget _tankerCard(AppLocalizations l, DhenuTokens t, MpConsignment c, Map<String, String> names) {
     final qty = c.receiptQty ?? c.dispatchQty ?? 0;
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
@@ -101,13 +103,13 @@ class PpTankersTab extends ConsumerWidget {
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(litres(qty, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
           const SizedBox(height: 4),
-          _statusBadge(t, c),
+          _statusBadge(l, t, c),
         ]),
       ]),
     );
   }
 
-  Widget _statusBadge(DhenuTokens t, MpConsignment c) {
+  Widget _statusBadge(AppLocalizations l, DhenuTokens t, MpConsignment c) {
     final isReceived = c.received;
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -117,7 +119,7 @@ class PpTankersTab extends ConsumerWidget {
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Text(
-        isReceived ? '✓ received' : '⏳ transit',
+        isReceived ? l.dispatchStatusReceived : l.dispatchStatusTransit,
         style: DhenuText.caption.copyWith(color: isReceived ? t.gradeA : t.gradeB),
       ),
     );

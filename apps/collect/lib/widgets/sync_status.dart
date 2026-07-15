@@ -79,7 +79,7 @@ class SyncStatus extends StatelessWidget {
           ),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
-            agoLabel != null ? 'Synced $agoLabel' : 'Synced',
+            agoLabel != null ? l.syncSyncedAgoLabel(agoLabel!) : l.syncSyncedLabel,
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ];
@@ -89,7 +89,7 @@ class SyncStatus extends StatelessWidget {
           Text('⏳', style: DhenuText.caption),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
-            '$pendingCount to send',
+            l.syncToSendLabel(pendingCount),
             style: DhenuText.caption.copyWith(color: t.gradeB),
           ),
         ];
@@ -99,7 +99,7 @@ class SyncStatus extends StatelessWidget {
           Text('⚠', style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
-            'Offline — saved on device',
+            l.syncOfflineLabel,
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ];

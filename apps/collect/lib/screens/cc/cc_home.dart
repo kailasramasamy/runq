@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/sync_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -62,6 +63,7 @@ class CcHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     final sync = ref.watch(syncProvider);
     final vmccsAsync = ref.watch(ccVmccCollectionsProvider(node.id));
     final overnight = node.overnightPooling;
@@ -105,39 +107,39 @@ class CcHome extends ConsumerWidget {
             onTap: () => showSyncQueueSheet(context, ref, node.id),
           )),
           const SizedBox(height: DhenuSpacing.lg),
-          _hero(context, t, vmccsAsync, flow, inTransit, overnight),
+          _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
             DhenuCard(child: TankGauge(
-                current: received, capacity: node.capacityLitres!, label: 'Chilling tank')),
+                current: received, capacity: node.capacityLitres!, label: l.ccHomeChillingTank)),
             const SizedBox(height: DhenuSpacing.md),
           ],
-          _statsRow(t, inTransit, ready),
+          _statsRow(t, l, inTransit, ready),
           if (overnight && nextPm > 0.05) ...[
             const SizedBox(height: DhenuSpacing.md),
-            _nextPoolNote(t, nextPm),
+            _nextPoolNote(t, l, nextPm),
           ],
           const SizedBox(height: DhenuSpacing.md),
-          _quickLinks(context, t),
+          _quickLinks(context, t, l),
           const SizedBox(height: DhenuSpacing.x3),
-          Text(overnight ? 'VMCCs · this pool' : 'VMCCs · today',
+          Text(overnight ? l.ccHomeVmccsPool : l.ccHomeVmccsToday,
               style: DhenuText.title.copyWith(color: t.ink)),
           if (overnight) ...[
             const SizedBox(height: 4),
             Row(children: [
               Icon(DhenuIcons.moon, size: 12, color: t.inkSoft),
               const SizedBox(width: 4),
-              Text('${shortDate(isoDaysAgo(1))} PM',
+              Text('${shortDate(isoDaysAgo(1))} ${l.shiftPm}',
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
               Text('  ·  ', style: DhenuText.caption.copyWith(color: t.inkSoft)),
               Icon(DhenuIcons.sun, size: 12, color: t.inkSoft),
               const SizedBox(width: 4),
-              Text('${shortDate(todayIso())} AM',
+              Text('${shortDate(todayIso())} ${l.shiftAm}',
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
             ]),
           ],
           const SizedBox(height: DhenuSpacing.sm),
-          _vmccList(context, t, vmccsAsync, flow, receiptQc, overnight),
+          _vmccList(context, t, l, vmccsAsync, flow, receiptQc, overnight),
         ],
       ),
     );
@@ -205,11 +207,12 @@ class CcHome extends ConsumerWidget {
   ShiftQc _resolveQc(ShiftQc pour, ShiftQc? receipt) =>
       (receipt != null && receipt.fat > 0) ? receipt : pour;
 
-  Widget _hero(BuildContext context, DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
+  Widget _hero(BuildContext context, DhenuTokens t, AppLocalizations l,
+      AsyncValue<List<VmccCollection>> vmccsAsync,
       Map<String, _Flow> flow, double inTransit, bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(rows: 2),
-      error: (e, _) => HeroNumberCard(label: 'ACROSS VMCCs', primaryValue: '—',
+      error: (e, _) => HeroNumberCard(label: l.ccHomeAcrossVmccs, primaryValue: '—',
           footer: Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC))),
       data: (rows) {
         // Sum the per-VMCC shown qty (in-app pour, else received, else transit)
@@ -218,7 +221,7 @@ class CcHome extends ConsumerWidget {
             rows.fold<double>(0, (a, r) => a + _shownQty(r, flow[r.vmcc.id], overnight));
         final active = rows.where((r) => _shownQty(r, flow[r.vmcc.id], overnight) > 0).length;
         return HeroNumberCard(
-          label: overnight ? 'IN POOL · PREV PM + TODAY AM' : 'COLLECTED ACROSS VMCCs · TODAY',
+          label: overnight ? l.ccHomeInPoolLabel : l.ccHomeCollectedTodayLabel,
           primaryValue: litres(collected, unit: true),
           gradient: const LinearGradient(
             colors: [DhenuColors.brand, DhenuColors.brandDark],
@@ -226,7 +229,7 @@ class CcHome extends ConsumerWidget {
             end: Alignment.bottomRight,
           ),
           footer: Text(
-            '$active of ${rows.length} VMCCs · ${litres(inTransit, unit: true)} in transit',
+            l.ccHomeActiveOfTotal(active, rows.length, litres(inTransit, unit: true)),
             style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82)),
           ),
         );
@@ -236,25 +239,25 @@ class CcHome extends ConsumerWidget {
 
   /// Overnight CCs: tonight's PM collection pools with tomorrow's AM, so it's
   /// surfaced separately from the current dispatch pool.
-  Widget _nextPoolNote(DhenuTokens t, double nextPm) => DhenuCard(
+  Widget _nextPoolNote(DhenuTokens t, AppLocalizations l, double nextPm) => DhenuCard(
         padding: const EdgeInsets.symmetric(
             horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
         child: Row(children: [
           Icon(DhenuIcons.moon, size: 14, color: t.inkSoft),
           const SizedBox(width: DhenuSpacing.sm),
-          Expanded(child: Text('${litres(nextPm, unit: true)} collecting for next dispatch',
+          Expanded(child: Text(l.ccHomeNextPoolNote(litres(nextPm, unit: true)),
               style: DhenuText.caption.copyWith(color: t.inkSoft))),
         ]),
       );
 
-  Widget _quickLinks(BuildContext context, DhenuTokens t) => Row(children: [
-        Expanded(child: _linkCard(context, t, DhenuIcons.history, 'History',
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [
+        Expanded(child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
             CcReceiveHistory(node: node))),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.trendingUp, 'Report',
+        Expanded(child: _linkCard(context, t, DhenuIcons.trendingUp, l.ccHomeReportLink,
             CcReportTab(node: node))),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, 'QC report',
+        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.ccHomeQcReportLink,
             CcQcReport(node: node))),
       ]);
 
@@ -275,11 +278,11 @@ class CcHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _statsRow(DhenuTokens t, double inTransit, double ready) => Row(children: [
-        Expanded(child: _miniStat(t, 'In transit', litres(inTransit, unit: true),
+  Widget _statsRow(DhenuTokens t, AppLocalizations l, double inTransit, double ready) => Row(children: [
+        Expanded(child: _miniStat(t, l.ccInTransitLabel, litres(inTransit, unit: true),
             DhenuIcons.truck, t.am)),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _miniStat(t, 'Plant-ready', litres(ready, unit: true),
+        Expanded(child: _miniStat(t, l.ccHomePlantReadyLabel, litres(ready, unit: true),
             DhenuIcons.outbound, ready > 0.05 ? t.brand : t.inkSoft)),
       ]);
 
@@ -297,19 +300,20 @@ class CcHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _vmccList(BuildContext context, DhenuTokens t, AsyncValue<List<VmccCollection>> vmccsAsync,
+  Widget _vmccList(BuildContext context, DhenuTokens t, AppLocalizations l,
+      AsyncValue<List<VmccCollection>> vmccsAsync,
       Map<String, _Flow> flow, Map<String, ({ShiftQc am, ShiftQc pm})> receiptQc,
       bool overnight) {
     return vmccsAsync.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => DhenuEmptyState(
-          icon: DhenuIcons.cloudOff, title: 'Could not load VMCCs', subtitle: friendlyError(context, e)),
+          icon: DhenuIcons.cloudOff, title: l.ccVmccsLoadError, subtitle: friendlyError(context, e)),
       data: (rows) {
         if (rows.isEmpty) {
-          return const DhenuEmptyState(
+          return DhenuEmptyState(
             icon: DhenuIcons.store,
-            title: 'No VMCCs linked',
-            subtitle: 'Assign VMCCs to this CC in the web admin',
+            title: l.ccNoVmccsLinkedTitle,
+            subtitle: l.ccNoVmccsLinkedSubtitle,
           );
         }
         rows.sort((a, b) => a.vmcc.name.toLowerCase().compareTo(b.vmcc.name.toLowerCase()));
@@ -385,14 +389,15 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     return Column(children: [
       InkWell(
         onTap: () => setState(() => _expanded = !_expanded),
-        child: _collapsed(t),
+        child: _collapsed(t, l),
       ),
       AnimatedCrossFade(
         firstChild: const SizedBox(width: double.infinity),
-        secondChild: _detail(t),
+        secondChild: _detail(t, l),
         crossFadeState:
             _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
         duration: const Duration(milliseconds: 180),
@@ -400,7 +405,7 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
     ]);
   }
 
-  Widget _collapsed(DhenuTokens t) {
+  Widget _collapsed(DhenuTokens t, AppLocalizations l) {
     // AM before PM by default; overnight pools show the carried PM first.
     final shifts = widget.overnight
         ? [(DhenuIcons.moon, widget.pmQty), (DhenuIcons.sun, widget.amQty)]
@@ -429,7 +434,7 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
             _shiftQty(t, shifts[1].$1, shifts[1].$2),
           ]),
           const SizedBox(height: 1),
-          Text('${widget.farmers} farmers',
+          Text(l.ccHomeFarmersCount(widget.farmers),
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
@@ -454,7 +459,7 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
   }
 
   /// Expanded panel: one block per shift with qty, quality and ₹/L rate.
-  Widget _detail(DhenuTokens t) => Container(
+  Widget _detail(DhenuTokens t, AppLocalizations l) => Container(
         width: double.infinity,
         margin: const EdgeInsets.fromLTRB(
             DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.md),
@@ -464,12 +469,12 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
           borderRadius: BorderRadius.circular(DhenuRadii.card),
         ),
         child: Column(children: [
-          _shiftDetail(t, 'Morning', DhenuIcons.sun, t.am, widget.amQty, widget.amQc),
+          _shiftDetail(t, l.ccHomeMorning, DhenuIcons.sun, t.am, widget.amQty, widget.amQc),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
             child: Divider(height: 1, color: t.hairline),
           ),
-          _shiftDetail(t, 'Evening', DhenuIcons.moon, t.pm, widget.pmQty, widget.pmQc),
+          _shiftDetail(t, l.ccHomeEvening, DhenuIcons.moon, t.pm, widget.pmQty, widget.pmQc),
         ]),
       );
 

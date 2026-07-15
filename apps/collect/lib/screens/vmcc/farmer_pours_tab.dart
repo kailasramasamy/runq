@@ -197,7 +197,7 @@ class _PourCard extends StatelessWidget {
               _shiftChip(t, l),
               if (pour.qualityGrade != Grade.unknown) ...[
                 const SizedBox(width: 7),
-                _gradePill(t),
+                _gradePill(t, l),
               ],
               const Spacer(),
               _volume(t),
@@ -245,13 +245,13 @@ class _PourCard extends StatelessWidget {
     );
   }
 
-  Widget _gradePill(DhenuTokens t) {
+  Widget _gradePill(DhenuTokens t, AppLocalizations l) {
     final gc = QualityBadge.gradeColor(pour.qualityGrade, t);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration:
           BoxDecoration(color: gc.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(7)),
-      child: Text('Grade ${QualityBadge.gradeLetter(pour.qualityGrade)}',
+      child: Text(l.farmerPoursGradeLabel(QualityBadge.gradeLetter(pour.qualityGrade)),
           style: DhenuText.label.copyWith(fontWeight: FontWeight.w800, color: gc)),
     );
   }

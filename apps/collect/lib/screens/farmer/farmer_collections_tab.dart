@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/farmer_providers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_icons.dart';
@@ -212,7 +213,7 @@ class _ChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bars = _buildBars(context);
     final avgL = _avgPerDay();
-    final axisLabels = _axisLabels();
+    final axisLabels = _axisLabels(context);
 
     return DhenuCard(
       elevated: true,
@@ -277,11 +278,9 @@ class _ChartCard extends StatelessWidget {
     return total / byDate.length;
   }
 
-  List<String> _axisLabels() {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  List<String> _axisLabels(BuildContext context) {
     final days = _spanDays();
-    String fmt(DateTime d) => '${months[d.month - 1]} ${d.day}';
+    String fmt(DateTime d) => '${shortMonth(context, d.month)} ${d.day}';
     return [fmt(days.first), fmt(days[days.length ~/ 2]), fmt(days.last)];
   }
 
@@ -512,7 +511,7 @@ class _DayRowState extends State<_DayRow> {
             children: [
               Text(d?.day.toString() ?? '--',
                   style: DhenuText.number(size: 22, w: FontWeight.w800).copyWith(color: t.brand)),
-              Text(d == null ? '' : _monthAbbr(d.month),
+              Text(d == null ? '' : shortMonth(context, d.month),
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
             ],
           ),
@@ -633,8 +632,5 @@ class _DayRowState extends State<_DayRow> {
     return values.reduce((a, b) => a + b) / values.length;
   }
 
-  String _monthAbbr(int m) => const [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ][m - 1];
+
 }

@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../l10n/app_localizations.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 
@@ -15,6 +17,7 @@ class HelpSupportScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
+    final l = AppLocalizations.of(context);
     // Tenant-configured contacts (GET /config/support). No fallbacks: a row
     // only renders when the tenant actually set that contact — a placeholder
     // number would dial a dead line.
@@ -26,7 +29,7 @@ class HelpSupportScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Help & support', style: DhenuText.h2.copyWith(color: t.ink)),
+        title: Text(l.helpTitle, style: DhenuText.h2.copyWith(color: t.ink)),
       ),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -43,7 +46,7 @@ class HelpSupportScreen extends ConsumerWidget {
                   if (phone != null)
                     _ContactRow(
                       icon: LucideIcons.phone,
-                      label: 'Call support',
+                      label: l.helpCallSupport,
                       isLast: email == null && whatsApp == null,
                       onTap: (ctx) => _launch(ctx, Uri.parse('tel:$phone')),
                     ),
@@ -51,7 +54,7 @@ class HelpSupportScreen extends ConsumerWidget {
                   if (email != null)
                     _ContactRow(
                       icon: LucideIcons.mail,
-                      label: 'Email support',
+                      label: l.helpEmailSupport,
                       isLast: whatsApp == null,
                       onTap: (ctx) => _launch(
                         ctx,
@@ -66,7 +69,7 @@ class HelpSupportScreen extends ConsumerWidget {
                   if (whatsApp != null)
                     _ContactRow(
                       icon: LucideIcons.message_circle,
-                      label: 'Chat on WhatsApp',
+                      label: l.helpWhatsApp,
                       isLast: true,
                       onTap: (ctx) => _launch(
                         ctx,
@@ -79,17 +82,17 @@ class HelpSupportScreen extends ConsumerWidget {
             )
           else
             Text(
-              'Support contacts have not been set up yet — please ask your dairy administrator.',
+              l.helpNoContacts,
               style: DhenuText.body.copyWith(color: t.inkSoft),
             ),
           const SizedBox(height: DhenuSpacing.md),
           if (hasAny)
             Text(
-              'We usually reply within a few hours.',
+              l.helpReplySoon,
               style: DhenuText.caption.copyWith(color: t.inkSoft),
             ),
           const SizedBox(height: DhenuSpacing.lg),
-          _faqCard(context, t),
+          _faqCard(context, ref, t, l),
         ],
       ),
     );
@@ -102,29 +105,39 @@ class HelpSupportScreen extends ConsumerWidget {
         child: Container(height: 1, color: t.hairline),
       );
 
-  Widget _faqCard(BuildContext context, DhenuTokens t) {
+  /// FAQ entries match the signed-in persona — a farmer must never be told
+  /// "tap Collect" (farmers don't collect; audit D4).
+  Widget _faqCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
+    final persona = ref.watch(authProvider).user?.persona;
+    final entries = persona == Persona.farmer
+        ? [
+            (l.faqFarmerQ1, l.faqFarmerA1),
+            (l.faqFarmerQ2, l.faqFarmerA2),
+            (l.faqFarmerQ3, l.faqFarmerA3),
+          ]
+        : [
+            (l.faqOperatorQ1, l.faqOperatorA1),
+            (l.faqOperatorQ2, l.faqOperatorA2),
+          ];
     return DhenuCard(
       padding: EdgeInsets.zero,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _FaqEntry(
-            question: 'How do I record a collection?',
-            answer:
-                'Tap Collect in the bottom bar, pick the farmer, then enter quantity, FAT and SNF.',
-          ),
-          Padding(
-            padding: const EdgeInsets.only(
-              left: DhenuSpacing.lg + 36 + DhenuSpacing.md,
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: DhenuSpacing.lg + 36 + DhenuSpacing.md,
+                ),
+                child: Container(height: 1, color: t.hairline),
+              ),
+            _FaqEntry(
+              question: entries[i].$1,
+              answer: entries[i].$2,
+              isLast: i == entries.length - 1,
             ),
-            child: Container(height: 1, color: t.hairline),
-          ),
-          _FaqEntry(
-            question: 'When are payouts settled?',
-            answer:
-                'Payouts follow your centre\'s cycle. Check the Payments tab for the current cycle window.',
-            isLast: true,
-          ),
+          ],
         ],
       ),
     );
@@ -138,7 +151,7 @@ class HelpSupportScreen extends ConsumerWidget {
     final ok = await launchUrl(uri, mode: mode);
     if (!context.mounted) return;
     if (!ok) {
-      showDhenuToast(context, 'Could not open', type: DhenuToastType.error);
+      showDhenuToast(context, AppLocalizations.of(context).helpCouldNotOpen, type: DhenuToastType.error);
     }
   }
 }
