@@ -35,15 +35,15 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 
 | # | Status | Finding | Where |
 |---|---|---|---|
-| C1 | ⬜ | **Haptic + sound confirmation on pour save** — zero `HapticFeedback` in codebase; eyes-on-queue operators need non-visual confirmation. One line + reuse AudioPlay | `record_collection.dart:393-398` |
-| C2 | ⬜ | **Permanent fake "unread" bell dot** on farmer Home — always painted, leads to a "no notifications" toast. Remove until notifications ship (P3.4) | `farmer_home.dart:170-178,152` |
-| C3 | ⬜ | **Logout has no confirmation** — one tap drops the session, forcing a fresh OTP round-trip (delete-account confirms; logout doesn't) | `profile_tab.dart:371` |
-| C4 | ⬜ | **Placeholder support contacts** — falls back to `+918000000000` / `support@dhenu.app` when tenant config missing; users would dial a dead number | `help_support_screen.dart:12-14` |
-| C5 | ⬜ | **Farmer picker sorts by name with a text keyboard** — operators call farmers by code/number; no recent-first ordering | `farmer_picker.dart:64-71,86-87` |
-| C6 | ⬜ | **Auto-open farmer picker after save** for true rapid-fire queue entry (form resets but focuses nothing) | `record_collection.dart:475-486` |
-| C7 | ⬜ | Statement share forces a cycle pick every time — default to latest | `farmer_statement_share.dart:56-97` |
-| C8 | ⬜ | Water mandatory in capture but optional in dispatch — blocks entry when analyzer doesn't emit water | `record_collection.dart:136-140` vs `vmcc_dispatch_tab.dart:237` |
-| C9 | ⬜ | Plausibility validation missing — FAT 45 / SNF 30 / 500 L pass silently; add upper bounds + large-qty confirm | `record_collection.dart:137-153` |
+| C1 | ✅ | **Haptic + sound confirmation on pour save** — zero `HapticFeedback` in codebase; eyes-on-queue operators need non-visual confirmation. One line + reuse AudioPlay | `record_collection.dart:393-398` |
+| C2 | ✅ | **Permanent fake "unread" bell dot** on farmer Home — always painted, leads to a "no notifications" toast. Remove until notifications ship (P3.4) | `farmer_home.dart:170-178,152` |
+| C3 | ✅ | **Logout has no confirmation** — one tap drops the session, forcing a fresh OTP round-trip (delete-account confirms; logout doesn't) | `profile_tab.dart:371` |
+| C4 | ✅ | **Placeholder support contacts** — falls back to `+918000000000` / `support@dhenu.app` when tenant config missing; users would dial a dead number | `help_support_screen.dart:12-14` |
+| C5 | ✅ | **Farmer picker sorts by name with a text keyboard** — operators call farmers by code/number; no recent-first ordering | `farmer_picker.dart:64-71,86-87` |
+| C6 | ✅ | **Auto-open farmer picker after save** for true rapid-fire queue entry (form resets but focuses nothing) | `record_collection.dart:475-486` |
+| C7 | ✅ | Statement share forces a cycle pick every time — default to latest | `farmer_statement_share.dart:56-97` |
+| C8 | ✅ | Water mandatory in capture but optional in dispatch — blocks entry when analyzer doesn't emit water | `record_collection.dart:136-140` vs `vmcc_dispatch_tab.dart:237` |
+| C9 | ✅ | Plausibility validation missing — FAT 45 / SNF 30 / 500 L pass silently; add upper bounds + large-qty confirm | `record_collection.dart:137-153` |
 
 ## Tier 4 — Language & reach (the audience the app is for)
 

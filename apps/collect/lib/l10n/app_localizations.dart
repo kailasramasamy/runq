@@ -706,6 +706,36 @@ abstract class AppLocalizations {
   /// **'Corrections need a connection — try again when online.'**
   String get collectCorrectionNeedsConnection;
 
+  /// No description provided for @profileLogOutConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out?'**
+  String get profileLogOutConfirmTitle;
+
+  /// No description provided for @profileLogOutConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll need to sign in again with an OTP sent to your phone.'**
+  String get profileLogOutConfirmBody;
+
+  /// No description provided for @collectImplausibleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unusually high values'**
+  String get collectImplausibleTitle;
+
+  /// No description provided for @collectImplausibleBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{values} — is this correct?'**
+  String collectImplausibleBody(Object values);
+
+  /// No description provided for @collectSaveAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Save anyway'**
+  String get collectSaveAnyway;
+
   /// No description provided for @collectPendingDupTitle.
   ///
   /// In en, this message translates to:

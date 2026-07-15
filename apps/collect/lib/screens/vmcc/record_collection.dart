@@ -140,14 +140,12 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // edits keep the original collection date; fresh entries default to today
   // but can be back-dated via the date picker.
   String get _collectionDate => _date;
-  // Water is required in analyzer mode (read off the analyzer, same as FAT/SNF)
-  // so the pour — and the farmer's WhatsApp receipt — always carries the value
-  // instead of a blank "-".
-  bool get _waterReady => _waterVal != null;
+  // Water is optional (matches dispatch entry) — not every analyzer emits it,
+  // and requiring it blocked capture entirely at those VMCCs (audit C8).
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
-          : _fatVal != null && _snfVal != null && _waterReady);
+          : _fatVal != null && _snfVal != null);
 
   void _onFieldChanged() {
     setState(() {});
@@ -239,7 +237,6 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       if (_fatVal == null) { _fatFocus.requestFocus(); return; }
       if (_snfVal == null) { _snfFocus.requestFocus(); return; }
-      if (!_waterReady) { _waterFocus.requestFocus(); return; }
     }
     _save();
   }
@@ -277,11 +274,47 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     return (weighted / qty * 10).roundToDouble() / 10;
   }
 
+  /// Readings past any realistic value (fat-finger guard, audit C9). Server
+  /// validators cap at 15/40 — these are the "surely a typo" thresholds.
+  List<String> _implausibleLabels() {
+    final out = <String>[];
+    if (widget.node.isLactometer) {
+      if ((_clrVal ?? 0) > 35) out.add('CLR ${_clr.text}');
+    } else {
+      if ((_fatVal ?? 0) > 12) out.add('FAT ${_fat.text}');
+      if ((_snfVal ?? 0) > 12) out.add('SNF ${_snf.text}');
+    }
+    // Societies legitimately pour bulk; individual farmers above 100 L is a typo
+    // more often than a herd.
+    if (_qtyVal > 100 && !(_farmer?.isSociety ?? false)) out.add(litres(_qtyVal, unit: true));
+    return out;
+  }
+
+  Future<bool> _confirmImplausible() async {
+    final flagged = _implausibleLabels();
+    if (flagged.isEmpty) return true;
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.collectImplausibleTitle),
+        content: Text(l.collectImplausibleBody(flagged.join(' · '))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.collectSaveAnyway)),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _save() async {
     if (!_canSave) return;
     // Drop the keypad up front: closing the prompt sheet would otherwise restore
     // focus to the last field and flash the keyboard back on.
     FocusScope.of(context).unfocus();
+    if (!await _confirmImplausible()) return;
+    if (!mounted) return;
     if (_isEdit) return _saveEdit();
     // A repeat for the same slot is a correction by default; combining a second
     // container is deliberate. Ask, so an operator never silently double-pays a
@@ -445,12 +478,18 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     }
   }
 
-  void _showSavedSnack(String name, String qtyLabel, bool sentNow) => showDhenuToast(
-        context,
-        sentNow ? '$qtyLabel · $name' : AppLocalizations.of(context).collectSavedOnDevice,
-        type: sentNow ? DhenuToastType.success : DhenuToastType.info,
-        icon: sentNow ? null : DhenuIcons.cloud,
-      );
+  void _showSavedSnack(String name, String qtyLabel, bool sentNow) {
+    // Non-visual confirmation: the operator's eyes are on the milk queue, not
+    // the phone — a buzz + click says "saved" without looking (audit C1).
+    HapticFeedback.mediumImpact();
+    SystemSound.play(SystemSoundType.click);
+    showDhenuToast(
+      context,
+      sentNow ? '$qtyLabel · $name' : AppLocalizations.of(context).collectSavedOnDevice,
+      type: sentNow ? DhenuToastType.success : DhenuToastType.info,
+      icon: sentNow ? null : DhenuIcons.cloud,
+    );
+  }
 
   /// Returns true = combine containers, false = replace prior, null = cancel.
   Future<bool?> _askReplaceOrCombine(List<MpPour> existing) {
@@ -538,6 +577,14 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       _rate = null;
       _saving = false;
     });
+    // Rapid-fire queue mode: go straight to the next farmer once the toast has
+    // registered. Only for fresh same-day entry — back-dating and edits are
+    // deliberate, slower flows.
+    if (!_isEdit && _date == todayIso()) {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && _farmer == null && !_saving) _pickFarmer();
+      });
+    }
   }
 
   // ── shift close ─────────────────────────────────────────────────────────────

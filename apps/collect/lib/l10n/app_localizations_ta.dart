@@ -345,6 +345,24 @@ class AppLocalizationsTa extends AppLocalizations {
       'திருத்தங்களுக்கு இணைப்பு தேவை — ஆன்லைனில் வந்ததும் மீண்டும் முயற்சிக்கவும்.';
 
   @override
+  String get profileLogOutConfirmTitle => 'வெளியேறவா?';
+
+  @override
+  String get profileLogOutConfirmBody =>
+      'உங்கள் ஃபோனுக்கு வரும் OTP மூலம் மீண்டும் உள்நுழைய வேண்டியிருக்கும்.';
+
+  @override
+  String get collectImplausibleTitle => 'வழக்கத்திற்கு மாறாக அதிக மதிப்புகள்';
+
+  @override
+  String collectImplausibleBody(Object values) {
+    return '$values — இது சரியா?';
+  }
+
+  @override
+  String get collectSaveAnyway => 'இருந்தாலும் சேமி';
+
+  @override
   String get collectPendingDupTitle =>
       'இந்த சாதனத்தில் ஏற்கனவே சேமிக்கப்பட்டுள்ளது';
 

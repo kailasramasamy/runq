@@ -24,7 +24,9 @@ class ShareStatementButton extends ConsumerStatefulWidget {
 class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
   bool _busy = false;
 
-  Future<void> _run() async {
+  /// Default tap: share the latest *closed* cycle straight away (the most
+  /// common ask — no picker). The calendar button next door opens the picker.
+  Future<void> _run({bool choose = false}) async {
     final l = AppLocalizations.of(context);
     final cycles = await ref.read(recentCyclePeriodsProvider.future);
     if (!mounted) return;
@@ -32,7 +34,10 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
       showDhenuToast(context, l.statementNoCycles, type: DhenuToastType.error);
       return;
     }
-    final picked = await _pickCycle(cycles);
+    // cycles[0] is the in-progress window; [1] is the newest closed one.
+    final MpCyclePeriod? picked = choose
+        ? await _pickCycle(cycles)
+        : (cycles.length > 1 ? cycles[1] : cycles.first);
     if (picked == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -100,18 +105,33 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    return OutlinedButton.icon(
-      onPressed: _busy ? null : _run,
-      icon: _busy
-          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-          : const Icon(DhenuIcons.share, size: 18),
-      label: Text(_busy ? l.statementPreparing : l.statementShareButton),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
-        side: BorderSide(color: t.brand),
-        foregroundColor: t.brand,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.button)),
-      ),
+    final buttonStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size.fromHeight(DhenuSpacing.minTap),
+      side: BorderSide(color: t.brand),
+      foregroundColor: t.brand,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.button)),
     );
+    return Row(children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _busy ? null : _run,
+          icon: _busy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(DhenuIcons.share, size: 18),
+          label: Text(_busy ? l.statementPreparing : l.statementShareButton),
+          style: buttonStyle,
+        ),
+      ),
+      const SizedBox(width: DhenuSpacing.sm),
+      // Pick a different cycle — the plain tap shares the latest closed one.
+      OutlinedButton(
+        onPressed: _busy ? null : () => _run(choose: true),
+        style: buttonStyle.copyWith(
+          minimumSize: const WidgetStatePropertyAll(Size(DhenuSpacing.minTap, DhenuSpacing.minTap)),
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        ),
+        child: const Icon(DhenuIcons.calendar, size: 18),
+      ),
+    ]);
   }
 }

@@ -182,6 +182,16 @@
   "pendingSavingPill": "Saving…",
   "pendingFailedPill": "Failed",
   "collectCorrectionNeedsConnection": "Corrections need a connection — try again when online.",
+  "profileLogOutConfirmTitle": "Log out?",
+  "profileLogOutConfirmBody": "You'll need to sign in again with an OTP sent to your phone.",
+  "collectImplausibleTitle": "Unusually high values",
+  "collectImplausibleBody": "{values} — is this correct?",
+  "@collectImplausibleBody": {
+    "placeholders": {
+      "values": {}
+    }
+  },
+  "collectSaveAnyway": "Save anyway",
   "collectPendingDupTitle": "Already saved on this device",
   "collectPendingDupBody": "{name} already has an entry for this shift waiting to sync. Replace it, or add this as an extra container?",
   "@collectPendingDupBody": {

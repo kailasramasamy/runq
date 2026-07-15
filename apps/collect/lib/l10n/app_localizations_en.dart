@@ -342,6 +342,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'Corrections need a connection — try again when online.';
 
   @override
+  String get profileLogOutConfirmTitle => 'Log out?';
+
+  @override
+  String get profileLogOutConfirmBody =>
+      'You\'ll need to sign in again with an OTP sent to your phone.';
+
+  @override
+  String get collectImplausibleTitle => 'Unusually high values';
+
+  @override
+  String collectImplausibleBody(Object values) {
+    return '$values — is this correct?';
+  }
+
+  @override
+  String get collectSaveAnyway => 'Save anyway';
+
+  @override
   String get collectPendingDupTitle => 'Already saved on this device';
 
   @override

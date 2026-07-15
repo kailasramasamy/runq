@@ -366,9 +366,25 @@ class ProfileTab extends ConsumerWidget {
   }
 
   // ── Log out ────────────────────────────────────────────────────────────────
+  Future<void> _confirmLogout(BuildContext context, WidgetRef ref, AppLocalizations l) async {
+    // One accidental tap otherwise drops the session and forces a fresh OTP.
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.profileLogOutConfirmTitle),
+        content: Text(l.profileLogOutConfirmBody),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.profileLogOut)),
+        ],
+      ),
+    );
+    if (ok == true) await ref.read(authProvider.notifier).logout();
+  }
+
   Widget _logoutButton(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
     return OutlinedButton.icon(
-      onPressed: () => ref.read(authProvider.notifier).logout(),
+      onPressed: () => _confirmLogout(context, ref, l),
       icon: Icon(DhenuIcons.logout, size: 18, color: t.gradeC),
       label: Text(l.profileLogOut, style: DhenuText.button.copyWith(color: t.gradeC)),
       style: OutlinedButton.styleFrom(

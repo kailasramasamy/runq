@@ -8,11 +8,6 @@ import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 
-// Fallback to the platform support desk when a tenant hasn't set its own.
-const _supportPhone = '+918000000000';
-const _supportEmail = 'support@dhenu.app';
-const _supportWhatsApp = '918000000000';
-
 /// Help & support screen — contact rows plus static FAQ entries.
 class HelpSupportScreen extends ConsumerWidget {
   const HelpSupportScreen({super.key});
@@ -20,11 +15,14 @@ class HelpSupportScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
-    // Tenant-configured contacts (GET /config/support) override the defaults.
+    // Tenant-configured contacts (GET /config/support). No fallbacks: a row
+    // only renders when the tenant actually set that contact — a placeholder
+    // number would dial a dead line.
     final cfg = ref.watch(supportConfigProvider).value;
-    final phone = cfg?.phone ?? _supportPhone;
-    final email = cfg?.email ?? _supportEmail;
-    final whatsApp = cfg?.whatsapp ?? _supportWhatsApp;
+    final phone = cfg?.phone;
+    final email = cfg?.email;
+    final whatsApp = cfg?.whatsapp;
+    final hasAny = phone != null || email != null || whatsApp != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,48 +34,60 @@ class HelpSupportScreen extends ConsumerWidget {
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4,
         ),
         children: [
-          DhenuCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ContactRow(
-                  icon: LucideIcons.phone,
-                  label: 'Call support',
-                  onTap: (ctx) => _launch(ctx, Uri.parse('tel:$phone')),
-                ),
-                _divider(t),
-                _ContactRow(
-                  icon: LucideIcons.mail,
-                  label: 'Email support',
-                  onTap: (ctx) => _launch(
-                    ctx,
-                    Uri(
-                      scheme: 'mailto',
-                      path: email,
-                      queryParameters: {'subject': 'Dhenu support'},
+          if (hasAny)
+            DhenuCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (phone != null)
+                    _ContactRow(
+                      icon: LucideIcons.phone,
+                      label: 'Call support',
+                      isLast: email == null && whatsApp == null,
+                      onTap: (ctx) => _launch(ctx, Uri.parse('tel:$phone')),
                     ),
-                  ),
-                ),
-                _divider(t),
-                _ContactRow(
-                  icon: LucideIcons.message_circle,
-                  label: 'Chat on WhatsApp',
-                  isLast: true,
-                  onTap: (ctx) => _launch(
-                    ctx,
-                    Uri.parse('https://wa.me/$whatsApp'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                ),
-              ],
+                  if (phone != null && email != null) _divider(t),
+                  if (email != null)
+                    _ContactRow(
+                      icon: LucideIcons.mail,
+                      label: 'Email support',
+                      isLast: whatsApp == null,
+                      onTap: (ctx) => _launch(
+                        ctx,
+                        Uri(
+                          scheme: 'mailto',
+                          path: email,
+                          queryParameters: {'subject': 'Dhenu support'},
+                        ),
+                      ),
+                    ),
+                  if (whatsApp != null && (phone != null || email != null)) _divider(t),
+                  if (whatsApp != null)
+                    _ContactRow(
+                      icon: LucideIcons.message_circle,
+                      label: 'Chat on WhatsApp',
+                      isLast: true,
+                      onTap: (ctx) => _launch(
+                        ctx,
+                        Uri.parse('https://wa.me/$whatsApp'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else
+            Text(
+              'Support contacts have not been set up yet — please ask your dairy administrator.',
+              style: DhenuText.body.copyWith(color: t.inkSoft),
             ),
-          ),
           const SizedBox(height: DhenuSpacing.md),
-          Text(
-            'We usually reply within a few hours.',
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
-          ),
+          if (hasAny)
+            Text(
+              'We usually reply within a few hours.',
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+            ),
           const SizedBox(height: DhenuSpacing.lg),
           _faqCard(context, t),
         ],

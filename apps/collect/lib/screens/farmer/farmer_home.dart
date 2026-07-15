@@ -150,36 +150,21 @@ class FarmerHome extends ConsumerWidget {
     );
   }
 
+  // No unread dot until real notifications exist (roadmap P3.4) — a permanent
+  // red dot that leads nowhere trains low-literacy users to ignore alerts.
   Widget _bell(BuildContext context, DhenuTokens t, AppLocalizations l) => GestureDetector(
         onTap: () => showDhenuToast(context, l.farmerHomeNoNotifications,
             type: DhenuToastType.info, duration: const Duration(seconds: 1)),
-        child: SizedBox(
+        child: Container(
           width: 42,
           height: 42,
-          child: Stack(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: t.card,
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(color: t.hairline),
-                ),
-                child: Icon(DhenuIcons.bell, size: 20, color: t.ink),
-              ),
-              Positioned(
-                top: 9,
-                right: 9,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: t.gradeC, shape: BoxShape.circle),
-                ),
-              ),
-            ],
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: t.card,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: t.hairline),
           ),
+          child: Icon(DhenuIcons.bell, size: 20, color: t.ink),
         ),
       );
 

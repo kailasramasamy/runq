@@ -7,6 +7,7 @@ import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
+import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/sheet_grabber.dart';
 import '../../widgets/source_row.dart';
@@ -80,11 +81,13 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
     return async.when(
       loading: () => const DhenuLoadingList(),
       error: (e, _) => Center(
-        child: DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.pickerLoadError, subtitle: '$e'),
+        child: DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.pickerLoadError, subtitle: friendlyError(context, e)),
       ),
       data: (all) {
+        // Operators call farmers by number — order by code (digit runs compared
+        // numerically so F-2 sorts before F-10), not alphabetically by name.
         final sorted = [...all]
-          ..sort((a, b) => farmerName(context, a).toLowerCase().compareTo(farmerName(context, b).toLowerCase()));
+          ..sort((a, b) => _naturalCompare(a.code.toLowerCase(), b.code.toLowerCase()));
         final farmers = _query.isEmpty
             ? sorted
             : sorted
@@ -129,4 +132,18 @@ class _FarmerPickerSheetState extends ConsumerState<_FarmerPickerSheet> {
           Text(l.pickerRecorded, style: DhenuText.caption.copyWith(color: t.gradeA)),
         ],
       );
+}
+
+/// Natural sort: digit runs compare numerically, everything else lexically.
+int _naturalCompare(String a, String b) {
+  final chunks = RegExp(r'\d+|\D+');
+  final ra = chunks.allMatches(a).map((m) => m.group(0)!).toList();
+  final rb = chunks.allMatches(b).map((m) => m.group(0)!).toList();
+  for (var i = 0; i < ra.length && i < rb.length; i++) {
+    final na = int.tryParse(ra[i]);
+    final nb = int.tryParse(rb[i]);
+    final c = (na != null && nb != null) ? na.compareTo(nb) : ra[i].compareTo(rb[i]);
+    if (c != 0) return c;
+  }
+  return ra.length.compareTo(rb.length);
 }

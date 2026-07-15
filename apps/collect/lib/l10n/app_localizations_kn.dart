@@ -340,6 +340,24 @@ class AppLocalizationsKn extends AppLocalizations {
       'ತಿದ್ದುಪಡಿಗಳಿಗೆ ಸಂಪರ್ಕ ಬೇಕು — ಆನ್‌ಲೈನ್ ಆದಾಗ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.';
 
   @override
+  String get profileLogOutConfirmTitle => 'ಲಾಗ್ ಔಟ್ ಮಾಡಬೇಕೇ?';
+
+  @override
+  String get profileLogOutConfirmBody =>
+      'ನಿಮ್ಮ ಫೋನ್‌ಗೆ ಬರುವ OTP ಬಳಸಿ ಮತ್ತೆ ಸೈನ್ ಇನ್ ಮಾಡಬೇಕಾಗುತ್ತದೆ.';
+
+  @override
+  String get collectImplausibleTitle => 'ಅಸಾಮಾನ್ಯವಾಗಿ ಹೆಚ್ಚಿನ ಮೌಲ್ಯಗಳು';
+
+  @override
+  String collectImplausibleBody(Object values) {
+    return '$values — ಇದು ಸರಿಯೇ?';
+  }
+
+  @override
+  String get collectSaveAnyway => 'ಆದರೂ ಉಳಿಸಿ';
+
+  @override
   String get collectPendingDupTitle => 'ಈ ಸಾಧನದಲ್ಲಿ ಈಗಾಗಲೇ ಉಳಿಸಲಾಗಿದೆ';
 
   @override
