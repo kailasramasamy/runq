@@ -44,6 +44,8 @@ const vmccFields = baseNodeFields.extend({
   // pre-selects the operator picker and must be within allowedMilkTypes.
   allowedMilkTypes: z.array(milkTypeEnum).min(1).nullish(),
   defaultMilkType: milkTypeEnum.nullish(),
+  // explicit rate chart override for pours at this VMCC; null = inherit
+  rateChartId: z.string().uuid().nullish(),
 });
 
 // CC-only: overnight pooling (prev-day PM + today AM).
@@ -101,6 +103,7 @@ type NodeTypeSpecific = {
   collectionShifts?: z.infer<typeof vmccFields>['collectionShifts'];
   allowedMilkTypes?: z.infer<typeof milkTypeEnum>[] | null;
   defaultMilkType?: z.infer<typeof milkTypeEnum> | null;
+  rateChartId?: string | null;
 };
 export type CreateNodeInput = z.infer<typeof baseNodeFields> & { nodeType: 'vmcc' | 'cc' | 'pp' } & NodeTypeSpecific;
 export type UpdateNodeInput = Partial<z.infer<typeof baseNodeFields>> & NodeTypeSpecific;

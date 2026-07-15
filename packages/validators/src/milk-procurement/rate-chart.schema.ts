@@ -80,6 +80,8 @@ export const resolveRateSchema = z
     clr: z.coerce.number().min(0).max(40).optional(),
     cycleQtyLitres: z.coerce.number().nonnegative().optional(),
     scopeNodeId: z.string().uuid().optional(),
+    // honor the farmer's assigned override chart, if any
+    farmerId: z.string().uuid().optional(),
     onDate: z.string().date().optional(),
   })
   .refine((d) => d.clr != null || (d.fat != null && d.snf != null), {

@@ -9,6 +9,7 @@ import type {
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { MpPrincipal, scopeFarmers } from './access-scope';
 import { upsertCredential } from './credentials.service';
+import { assertAssignableRateChart } from './rate-chart.service';
 
 export type FarmerWithNode = MpFarmerRow & {
   primaryNodeId: string | null;
@@ -74,6 +75,7 @@ function farmerInsertValues(
     aadhaar: input.aadhaar ?? null,
     isSociety: input.isSociety,
     defaultMilkType: input.defaultMilkType,
+    rateChartId: input.rateChartId ?? null,
     cattleBreeds: input.cattleBreeds ?? null,
     cattleCount: totalCattle(input),
     inMilkCount: input.inMilkCount ?? null,
@@ -90,6 +92,7 @@ function farmerUpdatePatch(input: UpdateFarmerInput): Partial<typeof mpFarmers.$
   const scalar = {
     name: input.name, phone: input.phone, village: input.village, address: input.address,
     aadhaar: input.aadhaar, isSociety: input.isSociety, defaultMilkType: input.defaultMilkType,
+    rateChartId: input.rateChartId,
     inMilkCount: input.inMilkCount, kycDocId: input.kycDocId, photoDocId: input.photoDocId,
   };
   for (const [k, v] of Object.entries(scalar)) {
@@ -156,6 +159,7 @@ export class FarmerService {
   async create(input: CreateFarmerInput): Promise<MpFarmerRow> {
     const code = input.code ?? (await this.generateCode(input.nodeId ?? null));
     await this.assertCodeFree(code);
+    if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
     return this.db.transaction(async (tx) => {
       // financial identity: link an existing vendor, or auto-create one
       let vendorId = input.vendorId ?? null;
@@ -193,6 +197,7 @@ export class FarmerService {
 
   async update(id: string, input: UpdateFarmerInput): Promise<FarmerWithNode> {
     const existing = await this.getById(id);
+    if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
     await this.db.update(mpFarmers).set(farmerUpdatePatch(input))
       .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, id)));
     await this.updateVendorBank(existing.vendorId, input);

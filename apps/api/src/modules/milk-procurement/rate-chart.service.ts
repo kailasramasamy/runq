@@ -1,10 +1,10 @@
 import { and, eq, desc, sql, lte, gte, isNull, or } from 'drizzle-orm';
-import { mpRateCharts, mpRateChartCells, mpRateChartRules, mpNodes, tenants } from '@runq/db';
+import { mpRateCharts, mpRateChartCells, mpRateChartRules, mpNodes, mpFarmers, tenants } from '@runq/db';
 import type { Db, MpRateChartRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateRateChartInput, RateChartFilter, ResolveRateInput } from '@runq/validators';
-import { NotFoundError } from '../../utils/errors';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 import type { RateChartPrintData } from './rate-chart-template';
 import { QualityBandService, gradeFromBands } from './quality-band.service';
 
@@ -137,7 +137,7 @@ export class RateChartService {
     // CLR supplied → lactometer (clr) chart; else fat/SNF → matrix/flat chart.
     const useClr = input.clr != null;
     const modes: PricingMode[] = useClr ? ['clr'] : ['matrix', 'flat'];
-    const chart = await this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
+    const chart = await this.pickChart(input, onDate, modes);
     if (!chart) {
       const kind = useClr ? 'CLR' : input.milkType;
       throw new NotFoundError(`No active ${kind} rate chart effective ${onDate}`);
@@ -161,19 +161,68 @@ export class RateChartService {
     };
   }
 
+  /** Override chain: farmer's chart → VMCC's chart → scoped/tenant default.
+   *  A stale or incompatible override silently falls through — never blocks a pour. */
+  private async pickChart(
+    input: ResolveRateInput,
+    onDate: string,
+    modes: PricingMode[],
+  ): Promise<MpRateChartRow | null> {
+    for (const id of await this.overrideChartIds(input.farmerId, input.scopeNodeId)) {
+      const c = await this.chartIfUsable(id, input.milkType, onDate, modes);
+      if (c) return c;
+    }
+    return this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
+  }
+
+  /** Assigned override chart ids in precedence order (farmer first). */
+  private async overrideChartIds(farmerId?: string, nodeId?: string): Promise<string[]> {
+    const [f, n] = await Promise.all([
+      farmerId
+        ? this.db.select({ id: mpFarmers.rateChartId }).from(mpFarmers)
+          .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, farmerId)))
+        : [],
+      nodeId
+        ? this.db.select({ id: mpNodes.rateChartId }).from(mpNodes)
+          .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)))
+        : [],
+    ]);
+    return [f[0]?.id, n[0]?.id].filter((x): x is string => x != null);
+  }
+
+  /** The override chart iff it passes the SAME gate as the normal path:
+   *  active + effective on date + milk type match + mode compatible with readings. */
+  private async chartIfUsable(
+    id: string,
+    milkType: ResolveRateInput['milkType'],
+    onDate: string,
+    modes: PricingMode[],
+  ): Promise<MpRateChartRow | null> {
+    const [c] = await this.db.select().from(mpRateCharts)
+      .where(and(eq(mpRateCharts.id, id), this.usableChartConds(milkType, onDate)));
+    return c && modes.includes(c.pricingMode) ? c : null;
+  }
+
+  /** Shared WHERE: tenant + milk type + active + effective window on onDate. */
+  private usableChartConds(milkType: ResolveRateInput['milkType'], onDate: string) {
+    return and(
+      eq(mpRateCharts.tenantId, this.tenantId),
+      eq(mpRateCharts.milkType, milkType),
+      eq(mpRateCharts.isActive, true),
+      lte(mpRateCharts.effectiveFrom, onDate),
+      or(isNull(mpRateCharts.effectiveTo), gte(mpRateCharts.effectiveTo, onDate)),
+    );
+  }
+
   private async findActiveChart(
     milkType: ResolveRateInput['milkType'],
     onDate: string,
     scopeNodeId: string | null,
     modes: PricingMode[],
   ): Promise<MpRateChartRow | null> {
-    const candidates = (await this.db.select().from(mpRateCharts).where(and(
-      eq(mpRateCharts.tenantId, this.tenantId),
-      eq(mpRateCharts.milkType, milkType),
-      eq(mpRateCharts.isActive, true),
-      lte(mpRateCharts.effectiveFrom, onDate),
-      or(isNull(mpRateCharts.effectiveTo), gte(mpRateCharts.effectiveTo, onDate)),
-    )).orderBy(desc(mpRateCharts.effectiveFrom)))
+    const candidates = (await this.db.select().from(mpRateCharts)
+      .where(this.usableChartConds(milkType, onDate))
+      .orderBy(desc(mpRateCharts.effectiveFrom)))
       .filter((c) => modes.includes(c.pricingMode));
     // prefer a chart scoped to this node; else fall back to a tenant-wide one
     const scoped = scopeNodeId ? candidates.find((c) => c.scopeNodeId === scopeNodeId) : undefined;
@@ -223,6 +272,14 @@ export class RateChartService {
     if (filters.isActive !== undefined) conds.push(eq(mpRateCharts.isActive, filters.isActive));
     return and(...conds);
   }
+}
+
+/** Assignment-time guard for overrides: chart must exist in this tenant and be active. */
+export async function assertAssignableRateChart(db: Db, tenantId: string, id: string): Promise<void> {
+  const [c] = await db.select({ isActive: mpRateCharts.isActive }).from(mpRateCharts)
+    .where(and(eq(mpRateCharts.tenantId, tenantId), eq(mpRateCharts.id, id)));
+  if (!c) throw new NotFoundError('Rate chart');
+  if (!c.isActive) throw new ValidationError('Rate chart is inactive');
 }
 
 function numOrNull(v: number | null | undefined): string | null {

@@ -39,6 +39,7 @@ export interface MpNode {
   collectionShifts: 'both' | 'am' | 'pm';
   allowedMilkTypes: MilkType[] | null;
   defaultMilkType: MilkType | null;
+  rateChartId: string | null;
   city: string | null; state: string | null; isActive: boolean;
 }
 export type CattleBreed = 'desi_natti' | 'crossbred' | 'jersey' | 'hf' | 'gir' | 'sahiwal' | 'murrah' | 'other';
@@ -54,11 +55,16 @@ export interface MpFarmer {
   bankAccountName?: string | null; bankAccountNumber?: string | null;
   bankIfsc?: string | null; bankName?: string | null; upiId?: string | null;
   profilePhotoUrl?: string | null;
+  rateChartId?: string | null;
 }
 export interface MpRateChart {
   id: string; name: string; milkType: MilkType; pricingMode: 'matrix' | 'flat' | 'clr';
   flatRatePerLitre: string | null; scopeNodeId: string | null; season: string | null;
   effectiveFrom: string; effectiveTo: string | null; isActive: boolean;
+}
+/** Picker label for a rate chart: name · milk type · mode. */
+export function rateChartLabel(c: MpRateChart): string {
+  return `${c.name} · ${milkTypeLabel(c.milkType)} · ${c.pricingMode}${c.isActive ? '' : ' (inactive)'}`;
 }
 export interface MpRateCell {
   id: string;
@@ -163,7 +169,11 @@ export function useUpdateNode(nodeType: NodeType) {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateNodeBody }) =>
       api.put<ApiSuccess<MpNode>>(`${BASE}${nodeEndpoint(nodeType)}/${id}`, data),
-    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'nodes'] }),
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'nodes'] });
+      // a changed rate-chart override invalidates cached rate previews
+      c.invalidateQueries({ queryKey: ['mp', 'rate-charts', 'resolve'] });
+    },
   });
 }
 export function useDeactivateNode() {
@@ -194,7 +204,11 @@ export function useUpdateFarmer() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateFarmerInput }) =>
       api.put<ApiSuccess<MpFarmer>>(`${BASE}/farmers/${id}`, data),
-    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'farmers'] }),
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'farmers'] });
+      // a changed rate-chart override invalidates cached rate previews
+      c.invalidateQueries({ queryKey: ['mp', 'rate-charts', 'resolve'] });
+    },
   });
 }
 export function useDeactivateFarmer() {

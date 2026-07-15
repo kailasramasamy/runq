@@ -5,7 +5,8 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import {
-  useFarmers, useCreateFarmer, useUpdateFarmer, useDeactivateFarmer, useNodes, milkTypeLabel,
+  useFarmers, useCreateFarmer, useUpdateFarmer, useDeactivateFarmer, useNodes, useRateCharts,
+  milkTypeLabel, rateChartLabel,
   type MilkType, type MpFarmer, type CattleBreedCount,
 } from '@/hooks/queries/use-milk-procurement';
 import { BreedCountEditor } from '@/components/milk-procurement/breed-count-editor';
@@ -113,7 +114,7 @@ export function MpFarmersPage() {
 
 interface FarmerFormState {
   name: string; phone: string; isSociety: boolean;
-  defaultMilkType: string;
+  defaultMilkType: string; rateChartId: string;
   village: string; address: string; aadhaar: string;
   cattleBreeds: CattleBreedCount[]; inMilkCount: string;
   bankAccountName: string; bankAccountNumber: string; bankIfsc: string; bankName: string; upiId: string;
@@ -125,6 +126,7 @@ function initForm(f?: MpFarmer): FarmerFormState {
     phone: f?.phone ?? '',
     isSociety: f?.isSociety ?? false,
     defaultMilkType: f?.defaultMilkType ?? 'cow_a1',
+    rateChartId: f?.rateChartId ?? '',
     village: f?.village ?? '',
     address: f?.address ?? '',
     aadhaar: f?.aadhaar ?? '',
@@ -198,6 +200,31 @@ function PaymentFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<Farm
   );
 }
 
+// ── PricingFields ─────────────────────────────────────────────────────────────
+
+function PricingFields({ f, setF, currentId }: {
+  f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void; currentId?: string | null;
+}) {
+  const { data } = useRateCharts({ limit: 200 });
+  // active charts, plus the currently-assigned one even if since deactivated
+  const charts = (data?.data ?? []).filter((c) => c.isActive || c.id === currentId);
+  return (
+    <>
+      <SectionLabel>Pricing</SectionLabel>
+      <Combobox
+        label="Rate chart override"
+        value={f.rateChartId}
+        onChange={(v) => setF({ rateChartId: v })}
+        options={[
+          { value: '', label: 'None (use VMCC / tenant chart)' },
+          ...charts.map((c) => ({ value: c.id, label: rateChartLabel(c) })),
+        ]}
+        placeholder="None"
+      />
+    </>
+  );
+}
+
 // ── payload helpers ───────────────────────────────────────────────────────────
 
 function formToPayload(f: FarmerFormState) {
@@ -207,6 +234,7 @@ function formToPayload(f: FarmerFormState) {
     phone: f.phone || null,
     isSociety: f.isSociety,
     defaultMilkType: f.defaultMilkType as MilkType,
+    rateChartId: f.rateChartId || null,
     village: f.village || null,
     address: f.address || null,
     aadhaar: aadhaarValid ? f.aadhaar : null,
@@ -254,6 +282,8 @@ function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () =>
         <IdentityFields f={f} setF={patch} />
 
         <HerdFields f={f} setF={patch} />
+
+        <PricingFields f={f} setF={patch} currentId={farmer.rateChartId} />
 
         {farmer.lat != null && farmer.lng != null && (
           <>
@@ -326,6 +356,8 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
         <IdentityFields f={f} setF={patch} />
 
         <HerdFields f={f} setF={patch} />
+
+        <PricingFields f={f} setF={patch} />
 
         <PaymentFields f={f} setF={patch} />
 

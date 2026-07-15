@@ -6,6 +6,7 @@ import type { PaginationMeta } from '@runq/types';
 import type { CreateNodeInput, UpdateNodeInput, NodeFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { MpPrincipal, scopeNodes } from './access-scope';
+import { assertAssignableRateChart } from './rate-chart.service';
 
 export interface NodeListResult {
   data: MpNodeRow[];
@@ -45,6 +46,7 @@ export class NodeService {
 
   async create(input: CreateNodeInput): Promise<MpNodeRow> {
     await this.assertCodeFree(input.code);
+    if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
     const [row] = await this.db.insert(mpNodes).values({
       tenantId: this.tenantId,
       code: input.code,
@@ -60,6 +62,7 @@ export class NodeService {
       capacityLitres: num(input.capacityLitres),
       payoutMode: input.payoutMode ?? null,
       payeeVendorId: input.payeeVendorId ?? null,
+      rateChartId: input.rateChartId ?? null,
       addressLine1: input.addressLine1 ?? null,
       addressLine2: input.addressLine2 ?? null,
       city: input.city ?? null,
@@ -73,6 +76,7 @@ export class NodeService {
 
   async update(id: string, input: UpdateNodeInput): Promise<MpNodeRow> {
     await this.getById(id);
+    if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
     const patch: Partial<typeof mpNodes.$inferInsert> = { updatedAt: new Date() };
     // raw values: assignDefined skips `undefined` (not provided) and applies
     // `null` (explicit clear) — so nullable fields clear correctly.
@@ -84,6 +88,7 @@ export class NodeService {
       measurementMode: input.measurementMode, collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,
       payoutMode: input.payoutMode, payeeVendorId: input.payeeVendorId,
+      rateChartId: input.rateChartId,
       parentNodeId: input.parentNodeId, addressLine1: input.addressLine1,
       addressLine2: input.addressLine2, city: input.city,
       state: input.state, pincode: input.pincode,

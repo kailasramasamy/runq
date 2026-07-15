@@ -54,7 +54,7 @@ export class PourService {
     const res = await this.rates.resolveRate({
       milkType: input.milkType,
       fat: input.fat ?? undefined, snf: input.snf ?? undefined, clr: input.clr ?? undefined,
-      scopeNodeId: input.nodeId, onDate: input.collectionDate,
+      scopeNodeId: input.nodeId, farmerId: input.farmerId, onDate: input.collectionDate,
     });
     const qty = input.qtyLitres;
     const baseAmount = round2(qty * res.baseRatePerLitre);

@@ -39,6 +39,11 @@ export const mpNodes = pgTable('mp_nodes', {
   // the node's own payout identity — receives the bulk settlement in
   // `via_vmcc` mode, and commission/rent.
   payeeVendorId: uuid('payee_vendor_id').references(() => vendors.id),
+  // Explicit rate-chart override for pours at this VMCC (precedence: farmer
+  // override → this → node-scoped chart → tenant-wide). Plain uuid — a
+  // .references() here would be circular (rate-charts.ts imports this file);
+  // the FK lives in migration 0164, same pattern as parentNodeId.
+  rateChartId: uuid('rate_chart_id'),
   addressLine1: varchar('address_line1', { length: 255 }),
   addressLine2: varchar('address_line2', { length: 255 }),
   city: varchar('city', { length: 100 }),

@@ -337,7 +337,8 @@ export class ReportService {
       const fat = numOrNull2(r.fat), snf = numOrNull2(r.snf);
       let gross = 0;
       if (fat != null && snf != null) {
-        const key = `${r.milkType}|${fat}|${snf}|${r.date}`;
+        // node included: the rate is node-dependent (scoped charts + VMCC overrides)
+        const key = `${r.fromNodeId}|${r.milkType}|${fat}|${snf}|${r.date}`;
         let rate = cache.get(key);
         if (rate === undefined) {
           rate = await this.resolveRateSafe(rates, r.milkType, fat, snf, r.fromNodeId, r.date);

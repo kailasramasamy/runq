@@ -7,6 +7,7 @@ import { vendors } from '../ap/vendors';
 import { documentAttachments } from '../common/attachments';
 import { mpMilkType } from './enums';
 import { mpNodes } from './nodes';
+import { mpRateCharts } from './rate-charts';
 
 /** Herd composition row stored in `cattle_breeds` JSON. `cattle_count` is the
  *  sum of `count` across rows; breed values are validated at the app layer. */
@@ -35,6 +36,8 @@ export const mpFarmers = pgTable('mp_farmers', {
   aadhaar: varchar('aadhaar', { length: 12 }),
   isSociety: boolean('is_society').notNull().default(false),
   defaultMilkType: mpMilkType('default_milk_type').notNull().default('cow'),
+  // Explicit per-farmer rate chart (highest pour-time precedence); null = inherit.
+  rateChartId: uuid('rate_chart_id').references(() => mpRateCharts.id),
   // Herd: per-breed counts (JSON); `cattleCount` is their sum; `inMilkCount`
   // are those currently milking (dry = cattleCount − inMilkCount).
   cattleBreeds: jsonb('cattle_breeds').$type<MpCattleBreed[]>(),

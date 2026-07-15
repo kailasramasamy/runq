@@ -38,6 +38,8 @@ export const createFarmerSchema = z.object({
   aadhaar: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits').nullish(),
   isSociety: z.boolean().default(false),
   defaultMilkType: z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']).default('cow_a1'),
+  // explicit rate chart (highest pour-time precedence); null = inherit
+  rateChartId: z.string().uuid().nullish(),
   // Herd: per-breed counts. `cattleCount` is derived (sum) server-side.
   cattleBreeds: z.array(cattleBreedCountSchema).nullish(),
   cattleCount: z.number().int().nonnegative().nullish(),
