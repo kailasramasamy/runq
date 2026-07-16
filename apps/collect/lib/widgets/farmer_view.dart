@@ -85,7 +85,7 @@ class _FarmerViewPickerSheetState extends ConsumerState<_FarmerViewPickerSheet> 
   void _pick(MpFarmer f) {
     // Farmer view takes precedence over a node; clear the node so exiting the
     // farmer view returns to the picker, not into a stale centre shell.
-    ref.read(mpActiveNodeProvider.notifier).state = null;
+    setActiveNode(ref, null);
     ref.read(mpViewAsFarmerProvider.notifier).state = f;
     Navigator.of(context).pop();
   }

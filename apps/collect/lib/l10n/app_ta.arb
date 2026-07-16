@@ -752,5 +752,19 @@
   "nodePickerNoMatch": "பொருத்தம் இல்லை",
   "voiceFieldDictateTooltip": "வாய்மொழி உள்ளீடு",
   "voiceFieldReadBackTooltip": "மீண்டும் படி",
-  "splashTagline": "ஒவ்வொரு துளியும் முக்கியம்"
+  "splashTagline": "ஒவ்வொரு துளியும் முக்கியம்",
+  "farmerBankAccountHolder": "கணக்கு வைத்திருப்பவர்",
+  "farmerBankAccountNumber": "கணக்கு எண்",
+  "farmerBankIfsc": "IFSC",
+  "farmerBankName": "வங்கி",
+  "farmerBankUpi": "UPI ID",
+  "farmerBankEmpty": "பணம் பெறும் விவரங்கள் இன்னும் இல்லை — உங்கள் சேகரிப்பு மைய ஆபரேட்டரை கேளுங்கள்.",
+  "farmerBankFootnote": "உங்கள் பால் பணம் இந்த கணக்கிற்கு செல்லும். மாற்ற உங்கள் சேகரிப்பு மைய ஆபரேட்டரை கேளுங்கள்.",
+  "farmerReportProblem": "பிரச்சனையை தெரிவிக்கவும்",
+  "farmerReportPrefill": "வணக்கம், {date} ({shift}, {qty}) அன்றைய என் பால் பதிவு பற்றி கேள்வி உள்ளது.",
+  "collectAdvanceChip": "{amount} முன்பணம் நிலுவை",
+  "collectShareSummary": "சுருக்கத்தை பகிர்",
+  "collectSummaryMessage": "{node} · {date} · {shift}\nசேகரித்த பால்: {qty}\nவிவசாயிகள்: {count}\nசராசரி FAT {fat} · SNF {snf}",
+  "farmerRateNewNotice": "{date} முதல் புதிய விலை அமலில் உள்ளது",
+  "homeCloseShiftNudge": "{shift} சேகரிப்பு இன்னும் திறந்துள்ளது — முடிந்ததும் மூடவும்."
 }

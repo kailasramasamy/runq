@@ -111,7 +111,7 @@ Future<void> _showNodeSheet(
       tier: tier,
       active: active,
       onPick: (n) {
-        ref.read(mpActiveNodeProvider.notifier).state = n;
+        setActiveNode(ref, n);
         Navigator.of(context).pop();
       },
     ),

@@ -2619,4 +2619,66 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get splashTagline => 'Every drop counts';
+
+  @override
+  String get farmerBankAccountHolder => 'Account holder';
+
+  @override
+  String get farmerBankAccountNumber => 'Account number';
+
+  @override
+  String get farmerBankIfsc => 'IFSC';
+
+  @override
+  String get farmerBankName => 'Bank';
+
+  @override
+  String get farmerBankUpi => 'UPI ID';
+
+  @override
+  String get farmerBankEmpty =>
+      'No payout details yet — ask your collection centre operator to add them.';
+
+  @override
+  String get farmerBankFootnote =>
+      'Your milk payments go to this account. To change it, ask your collection centre operator.';
+
+  @override
+  String get farmerReportProblem => 'Report a problem';
+
+  @override
+  String farmerReportPrefill(Object date, Object shift, Object qty) {
+    return 'Hello, I have a question about my milk entry on $date ($shift, $qty).';
+  }
+
+  @override
+  String collectAdvanceChip(Object amount) {
+    return '$amount advance outstanding';
+  }
+
+  @override
+  String get collectShareSummary => 'Share summary';
+
+  @override
+  String collectSummaryMessage(
+    Object node,
+    Object date,
+    Object shift,
+    Object qty,
+    Object count,
+    Object fat,
+    Object snf,
+  ) {
+    return '$node · $date · $shift\nMilk collected: $qty\nFarmers: $count\nAvg FAT $fat · SNF $snf';
+  }
+
+  @override
+  String farmerRateNewNotice(Object date) {
+    return 'New rate in effect since $date';
+  }
+
+  @override
+  String homeCloseShiftNudge(Object shift) {
+    return '$shift collection is still open — close it when you\'re done.';
+  }
 }

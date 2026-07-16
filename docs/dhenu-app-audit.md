@@ -59,14 +59,14 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 
 | # | Status | Finding | Where |
 |---|---|---|---|
-| E1 | ⬜ | **Farmer can't see where their money goes** — "Bank & payout" row is an operator-only dead end for farmers ("Your compensation is set up by your admin") | `profile_tab.dart:204-209`, `bank_payout_screen.dart:21-37` |
-| E2 | ⬜ | **No farmer self-serve statement** — cycle-statement PDF share exists but only on the VMCC side; farmers need statements for loans/records. Plumbing exists | `vmcc/farmer_statement_share.dart` |
-| E3 | ⬜ | **No dispute/recourse affordance** — farmer pour rows aren't tappable, no "this looks wrong", Help routes to tenant support not their own VMCC | `farmer_collections_tab.dart:595-628` |
-| E4 | ⬜ | **Outstanding advance not visible at pour-entry time** — operator tracks farmer debts on paper; ledger balance exists but only in farmer detail | `record_collection.dart:756-792`, `farmer_ledger_sheet.dart` |
-| E5 | ⬜ | **No shift-end shareable summary / per-farmer daily slip** — the WhatsApp shift roundup operators do manually isn't absorbed; reuse the PDF/share path | `record_collection.dart:506-513` |
-| E6 | ⬜ | **Rate-change transparency** — no notice when the chart pricing a farmer's milk changes; no pull-to-refresh on the rate screen | `farmer_rate_chart.dart:151-162` |
-| E7 | ⬜ | Admin's last-operated centre not persisted — cold start always drops to the picker | `centre_switcher.dart:62`, `mp_context_provider.dart` |
-| E8 | ⬜ | No end-of-day unclosed-shift nudge (closing only gates dispatch; nothing reminds) | `record_collection.dart:498-513` |
+| E1 | ✅ | **Farmer can't see where their money goes** — "Bank & payout" row is an operator-only dead end for farmers ("Your compensation is set up by your admin") | `profile_tab.dart:204-209`, `bank_payout_screen.dart:21-37` |
+| E2 | ✅ | **No farmer self-serve statement** — cycle-statement PDF share exists but only on the VMCC side; farmers need statements for loans/records. Plumbing exists | `vmcc/farmer_statement_share.dart` |
+| E3 | ✅ | **No dispute/recourse affordance** — farmer pour rows aren't tappable, no "this looks wrong", Help routes to tenant support not their own VMCC | `farmer_collections_tab.dart:595-628` |
+| E4 | ✅ | **Outstanding advance not visible at pour-entry time** — operator tracks farmer debts on paper; ledger balance exists but only in farmer detail | `record_collection.dart:756-792`, `farmer_ledger_sheet.dart` |
+| E5 | ✅ | **No shift-end shareable summary / per-farmer daily slip** — the WhatsApp shift roundup operators do manually isn't absorbed; reuse the PDF/share path | `record_collection.dart:506-513` |
+| E6 | ✅ | **Rate-change transparency** — no notice when the chart pricing a farmer's milk changes; no pull-to-refresh on the rate screen | `farmer_rate_chart.dart:151-162` |
+| E7 | ✅ | Admin's last-operated centre not persisted — cold start always drops to the picker | `centre_switcher.dart:62`, `mp_context_provider.dart` |
+| E8 | ✅ | No end-of-day unclosed-shift nudge (closing only gates dispatch; nothing reminds) | `record_collection.dart:498-513` |
 
 ## Polish batch (single cleanup PR)
 

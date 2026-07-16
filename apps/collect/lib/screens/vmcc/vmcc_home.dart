@@ -38,6 +38,7 @@ class VmccHome extends ConsumerWidget {
     ref.invalidate(nodeTodayPoursProvider(node.id));
     ref.invalidate(nodeSummaryForDateProvider(_yesterdayKey));
     ref.invalidate(nodeAvailabilityProvider);
+    ref.invalidate(shiftStatusProvider(node.id));
     await Future.wait([
       ref.read(nodeTodaySummaryProvider(node.id).future),
       ref.read(nodeTodayPoursProvider(node.id).future),
@@ -61,6 +62,7 @@ class VmccHome extends ConsumerWidget {
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
           _header(context, ref, t, l, sync),
+          ..._unclosedShiftNudge(context, ref, t, l, summary.asData?.value),
           const SizedBox(height: DhenuSpacing.lg),
           _hero(context, t, l, summary, bands),
           const SizedBox(height: DhenuSpacing.md),
@@ -137,6 +139,46 @@ class VmccHome extends ConsumerWidget {
           ),
         ],
       );
+
+  /// End-of-shift reminder (audit E8): closing is what unlocks dispatch, but
+  /// nothing used to nag an operator who walked away with an open shift. Shows
+  /// once the shift has milk and its window has passed: AM stays nudged all
+  /// afternoon; PM nudges in the evening (20:00+).
+  List<Widget> _unclosedShiftNudge(BuildContext context, WidgetRef ref, DhenuTokens t,
+      AppLocalizations l, MpCollectionSummary? s) {
+    if (s == null) return const [];
+    final status = ref.watch(shiftStatusProvider(node.id)).asData?.value;
+    if (status == null) return const [];
+    final now = DateTime.now();
+    final isPmWindow = shiftFrom(currentShift()) == Shift.pm;
+    final String? shiftLabel;
+    if (isPmWindow && !status.am && s.amQty > 0.05) {
+      shiftLabel = l.shiftAm;
+    } else if (now.hour >= 20 && !status.pm && s.pmQty > 0.05) {
+      shiftLabel = l.shiftPm;
+    } else {
+      return const [];
+    }
+    return [
+      const SizedBox(height: DhenuSpacing.md),
+      DhenuCard(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
+        ),
+        child: Row(children: [
+          Icon(DhenuIcons.warning, size: 18, color: t.gradeB),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Text(
+              l.homeCloseShiftNudge(shiftLabel),
+              style: DhenuText.body.copyWith(color: t.ink),
+            ),
+          ),
+          Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
+        ]),
+      ),
+    ];
+  }
 
   Widget _hero(BuildContext context, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary, QualityBands? bands) {
     return summary.when(

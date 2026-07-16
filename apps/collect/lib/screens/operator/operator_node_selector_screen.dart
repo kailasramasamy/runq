@@ -24,7 +24,7 @@ class OperatorNodeSelectorScreen extends ConsumerWidget {
           const _Header(),
           Expanded(
             child: OperatorNodeList(
-              onPick: (n) => ref.read(mpActiveNodeProvider.notifier).state = n,
+              onPick: (n) => setActiveNode(ref, n),
             ),
           ),
         ]),

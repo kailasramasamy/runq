@@ -2591,4 +2591,66 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get splashTagline => 'ಪ್ರತಿ ಹನಿಯೂ ಮುಖ್ಯ';
+
+  @override
+  String get farmerBankAccountHolder => 'ಖಾತೆದಾರರ ಹೆಸರು';
+
+  @override
+  String get farmerBankAccountNumber => 'ಖಾತೆ ಸಂಖ್ಯೆ';
+
+  @override
+  String get farmerBankIfsc => 'IFSC';
+
+  @override
+  String get farmerBankName => 'ಬ್ಯಾಂಕ್';
+
+  @override
+  String get farmerBankUpi => 'UPI ID';
+
+  @override
+  String get farmerBankEmpty =>
+      'ಪಾವತಿ ವಿವರಗಳು ಇನ್ನೂ ಇಲ್ಲ — ನಿಮ್ಮ ಸಂಗ್ರಹ ಕೇಂದ್ರದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get farmerBankFootnote =>
+      'ನಿಮ್ಮ ಹಾಲಿನ ಪಾವತಿ ಈ ಖಾತೆಗೆ ಹೋಗುತ್ತದೆ. ಬದಲಾಯಿಸಲು ನಿಮ್ಮ ಸಂಗ್ರಹ ಕೇಂದ್ರದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.';
+
+  @override
+  String get farmerReportProblem => 'ಸಮಸ್ಯೆ ವರದಿ ಮಾಡಿ';
+
+  @override
+  String farmerReportPrefill(Object date, Object shift, Object qty) {
+    return 'ನಮಸ್ಕಾರ, $date ($shift, $qty) ರ ನನ್ನ ಹಾಲಿನ ನಮೂದಿನ ಬಗ್ಗೆ ಪ್ರಶ್ನೆ ಇದೆ.';
+  }
+
+  @override
+  String collectAdvanceChip(Object amount) {
+    return '$amount ಮುಂಗಡ ಬಾಕಿ';
+  }
+
+  @override
+  String get collectShareSummary => 'ಸಾರಾಂಶ ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String collectSummaryMessage(
+    Object node,
+    Object date,
+    Object shift,
+    Object qty,
+    Object count,
+    Object fat,
+    Object snf,
+  ) {
+    return '$node · $date · $shift\nಸಂಗ್ರಹಿಸಿದ ಹಾಲು: $qty\nರೈತರು: $count\nಸರಾಸರಿ FAT $fat · SNF $snf';
+  }
+
+  @override
+  String farmerRateNewNotice(Object date) {
+    return '$date ರಿಂದ ಹೊಸ ದರ ಜಾರಿಯಲ್ಲಿದೆ';
+  }
+
+  @override
+  String homeCloseShiftNudge(Object shift) {
+    return '$shift ಸಂಗ್ರಹ ಇನ್ನೂ ತೆರೆದಿದೆ — ಮುಗಿದ ಮೇಲೆ ಮುಚ್ಚಿ.';
+  }
 }

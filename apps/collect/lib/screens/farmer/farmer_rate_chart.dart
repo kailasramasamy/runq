@@ -60,27 +60,34 @@ class FarmerRateChart extends ConsumerWidget {
           ),
         ],
       ),
-      body: detailAsync.when(
-        loading: () => const DhenuLoadingList(),
-        error: (e, _) => DhenuErrorState(
-          onRetry: () => ref.invalidate(activeRateChartDetailProvider),
-        ),
-        data: (detail) {
-          if (detail == null) {
-            return DhenuEmptyState(
-              icon: DhenuIcons.grid,
-              title: l.farmerRateEmptyTitle,
-              subtitle: l.farmerRateEmptySubtitle,
-            );
-          }
-          return _RateChartBody(
-            detail: detail,
-            lastPour: lastPour,
-            lastRate: lastRate,
-            dailyQty: averageDailyQty(monthPours),
-            bands: bands,
-          );
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(activeRateChartDetailProvider);
+          ref.invalidate(farmerLastRateResolutionProvider);
+          await ref.read(activeRateChartDetailProvider.future);
         },
+        child: detailAsync.when(
+          loading: () => const DhenuLoadingList(),
+          error: (e, _) => DhenuErrorState(
+            onRetry: () => ref.invalidate(activeRateChartDetailProvider),
+          ),
+          data: (detail) {
+            if (detail == null) {
+              return DhenuEmptyState(
+                icon: DhenuIcons.grid,
+                title: l.farmerRateEmptyTitle,
+                subtitle: l.farmerRateEmptySubtitle,
+              );
+            }
+            return _RateChartBody(
+              detail: detail,
+              lastPour: lastPour,
+              lastRate: lastRate,
+              dailyQty: averageDailyQty(monthPours),
+              bands: bands,
+            );
+          },
+        ),
       ),
     );
   }
@@ -131,6 +138,7 @@ class _RateChartBody extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final chart = detail.chart;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
         DhenuSpacing.screen,
@@ -140,6 +148,7 @@ class _RateChartBody extends StatelessWidget {
       ),
       children: [
         _header(context, t, chart),
+        ..._newRateNotice(context, t, l, chart),
         const SizedBox(height: DhenuSpacing.lg),
         if (lastPour != null && lastRate != null) ...[
           _lastPourCard(context, t, l),
@@ -192,6 +201,37 @@ class _RateChartBody extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// Rate-change transparency (audit E6): a recently-effective chart gets a
+  /// quiet notice so the price change is announced, not discovered.
+  List<Widget> _newRateNotice(
+      BuildContext context, DhenuTokens t, AppLocalizations l, MpRateChart chart) {
+    final from = chart.effectiveFrom;
+    if (from == null) return const [];
+    final started = DateTime.tryParse(from);
+    if (started == null || DateTime.now().difference(started).inDays > 14) return const [];
+    return [
+      const SizedBox(height: DhenuSpacing.md),
+      Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
+        decoration: BoxDecoration(
+          color: t.brandSubtle,
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+        ),
+        child: Row(children: [
+          Icon(DhenuIcons.trendingUp, size: 14, color: t.brand),
+          const SizedBox(width: DhenuSpacing.xs),
+          Expanded(
+            child: Text(
+              l.farmerRateNewNotice(prettyDate(from)),
+              style: DhenuText.label.copyWith(color: t.brand),
+            ),
+          ),
+        ]),
+      ),
+    ];
   }
 
   Widget _lastPourCard(BuildContext context, DhenuTokens t, AppLocalizations l) {

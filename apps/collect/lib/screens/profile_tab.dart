@@ -10,6 +10,7 @@ import '../providers/mp_context_provider.dart';
 import '../providers/transfer_providers.dart';
 import '../providers/theme_mode_provider.dart';
 import 'settings/about_screen.dart';
+import 'farmer/farmer_bank_screen.dart';
 import 'settings/bank_payout_screen.dart';
 import 'settings/help_support_screen.dart';
 import 'settings/notifications_screen.dart';
@@ -205,7 +206,13 @@ class ProfileTab extends ConsumerWidget {
             context, t,
             icon: DhenuIcons.bank,
             label: l.profileBankPayout,
-            onTap: () => _push(context, const BankPayoutScreen()),
+            // Farmers see where their milk money goes (read-only); operators
+            // keep the compensation-terms screen. Same row, right destination.
+            onTap: () => _push(
+                context,
+                user?.persona == Persona.farmer
+                    ? const FarmerBankScreen()
+                    : const BankPayoutScreen()),
           ),
           _divider(t),
           _settingsRow(

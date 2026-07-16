@@ -205,7 +205,7 @@ class _OperatorSwitcherSheet extends ConsumerWidget {
           child: OperatorNodeList(
             currentId: current?.id,
             onPick: (n) {
-              ref.read(mpActiveNodeProvider.notifier).state = n;
+              setActiveNode(ref, n);
               Navigator.of(context).pop();
             },
           ),

@@ -2,13 +2,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
 import '../api/mp_repo.dart';
 import '../utils/format.dart';
+import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_provider.dart';
 
 /// The centre currently being operated as. Null → show the picker. Used by
 /// admins (owner/accountant/viewer) operating "view as" any centre, AND by
 /// field-operators who are directly assigned to more than one node (they pick
 /// which one to run). A single-node operator never sets this.
+/// Set via [setActiveNode] so the pick survives a cold start (audit E7).
 final mpActiveNodeProvider = StateProvider<MpNode?>((ref) => null);
+
+const _activeNodePrefKey = 'dhenu-active-node';
+
+/// Set (or clear) the operated centre AND persist the choice, so a cold start
+/// resumes the last centre instead of dropping the admin back to the picker.
+void setActiveNode(WidgetRef ref, MpNode? node) {
+  ref.read(mpActiveNodeProvider.notifier).state = node;
+  unawaited(SharedPreferences.getInstance().then((p) =>
+      node == null ? p.remove(_activeNodePrefKey) : p.setString(_activeNodePrefKey, node.id)));
+}
+
+/// One-shot guard: restore applies only once per session, so an explicit
+/// "back to picker" isn't immediately overridden by the saved centre.
+final activeNodeRestoreConsumedProvider = StateProvider<bool>((ref) => false);
+
+/// The persisted last-operated centre, resolved against the live node list —
+/// null when nothing was saved or the node no longer exists/is inactive.
+final restoredActiveNodeProvider = FutureProvider<MpNode?>((ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  final id = prefs.getString(_activeNodePrefKey);
+  if (id == null) return null;
+  final nodes = await mpRepo.nodes(limit: 500);
+  final match = nodes.where((n) => n.id == id && n.isActive);
+  return match.isEmpty ? null : match.first;
+});
 
 /// The farmer an admin is currently "viewing as" — operate the app as that
 /// farmer. Null → not in farmer view. Mirrors [mpActiveNodeProvider] but for the

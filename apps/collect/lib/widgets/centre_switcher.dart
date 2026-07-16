@@ -60,7 +60,7 @@ class CentreSwitcherBar extends ConsumerWidget {
             // active node drops the admin shell back to CentrePickerScreen. Wide
             // padding gives it a comfortable tap target.
             InkWell(
-              onTap: () => ref.read(mpActiveNodeProvider.notifier).state = null,
+              onTap: () => setActiveNode(ref, null),
               borderRadius: BorderRadius.circular(DhenuRadii.card),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -114,7 +114,7 @@ class _CentreSwitcherSheet extends ConsumerWidget {
           child: CentrePickerList(
             currentId: current?.id,
             onPick: (n) {
-              ref.read(mpActiveNodeProvider.notifier).state = n;
+              setActiveNode(ref, n);
               Navigator.of(context).pop();
             },
           ),

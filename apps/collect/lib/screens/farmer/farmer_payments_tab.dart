@@ -14,7 +14,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
+import '../../api/api_client.dart';
 import '../../api/mp_models.dart';
+import '../../api/mp_repo.dart';
+import '../../widgets/dhenu_toast.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -338,6 +342,7 @@ class _HistoryRow extends ConsumerWidget {
               rupees(totalRs),
               style: DhenuText.number(size: 16, w: FontWeight.w800, color: t.ink),
             ),
+            _ShareStatementIcon(period: period),
           ],
         ),
       ),
@@ -365,6 +370,52 @@ class _HistoryRow extends ConsumerWidget {
       _StatusChip(label: label, color: color),
       const SizedBox(width: DhenuSpacing.sm),
     ];
+  }
+}
+
+/// Per-cycle statement share (audit E2) — the same server PDF operators share,
+/// now self-serve: farmers need statements for loans and their own records.
+class _ShareStatementIcon extends ConsumerStatefulWidget {
+  const _ShareStatementIcon({required this.period});
+  final MpCyclePeriod period;
+  @override
+  ConsumerState<_ShareStatementIcon> createState() => _ShareStatementIconState();
+}
+
+class _ShareStatementIconState extends ConsumerState<_ShareStatementIcon> {
+  bool _busy = false;
+
+  Future<void> _share() async {
+    final l = AppLocalizations.of(context);
+    final self = await ref.read(farmerSelfProvider.future);
+    if (!mounted || self == null) return;
+    setState(() => _busy = true);
+    try {
+      final p = widget.period;
+      final bytes = await mpRepo.farmerPourStatementPdf(
+          farmerId: self.id, from: p.start, to: p.end, label: p.label);
+      await Printing.sharePdf(
+          bytes: bytes, filename: 'statement-${self.code}-${p.start}.pdf');
+    } on ApiException catch (e) {
+      if (mounted) {
+        showDhenuToast(context, l.statementGenerateError(e.message),
+            type: DhenuToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return IconButton(
+      onPressed: _busy ? null : _share,
+      tooltip: AppLocalizations.of(context).statementShareButton,
+      icon: _busy
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : Icon(DhenuIcons.share, size: 18, color: t.brand),
+    );
   }
 }
 

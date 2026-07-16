@@ -53,8 +53,23 @@ class _AdminHome extends ConsumerWidget {
     // "View as farmer" takes precedence over any active centre.
     final farmer = ref.watch(mpViewAsFarmerProvider);
     if (farmer != null) return FarmerShell(header: FarmerViewBar(farmer: farmer));
-    final node = ref.watch(mpActiveNodeProvider);
-    if (node == null) return const CentrePickerScreen();
+    var node = ref.watch(mpActiveNodeProvider);
+    if (node == null) {
+      // Cold start: resume the last-operated centre (audit E7) instead of
+      // dropping back to the picker. One-shot per session — an explicit "back
+      // to picker" must not be overridden by the saved pick. While the lookup
+      // runs, hold on the splash so the picker doesn't flash before restore.
+      if (ref.watch(activeNodeRestoreConsumedProvider)) return const CentrePickerScreen();
+      final restored = ref.watch(restoredActiveNodeProvider);
+      if (restored.isLoading) return const SplashScreen(animate: false);
+      final r = restored.asData?.value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(activeNodeRestoreConsumedProvider.notifier).state = true;
+        if (r != null) ref.read(mpActiveNodeProvider.notifier).state = r;
+      });
+      if (r == null) return const CentrePickerScreen();
+      node = r;
+    }
     final header = CentreSwitcherBar(node: node);
     if (node.isPp) return PpShell(node: node, header: header);
     if (node.isCc) return CcShell(node: node, header: header);

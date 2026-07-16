@@ -4621,6 +4621,98 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Every drop counts'**
   String get splashTagline;
+
+  /// No description provided for @farmerBankAccountHolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Account holder'**
+  String get farmerBankAccountHolder;
+
+  /// No description provided for @farmerBankAccountNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Account number'**
+  String get farmerBankAccountNumber;
+
+  /// No description provided for @farmerBankIfsc.
+  ///
+  /// In en, this message translates to:
+  /// **'IFSC'**
+  String get farmerBankIfsc;
+
+  /// No description provided for @farmerBankName.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank'**
+  String get farmerBankName;
+
+  /// No description provided for @farmerBankUpi.
+  ///
+  /// In en, this message translates to:
+  /// **'UPI ID'**
+  String get farmerBankUpi;
+
+  /// No description provided for @farmerBankEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No payout details yet — ask your collection centre operator to add them.'**
+  String get farmerBankEmpty;
+
+  /// No description provided for @farmerBankFootnote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your milk payments go to this account. To change it, ask your collection centre operator.'**
+  String get farmerBankFootnote;
+
+  /// No description provided for @farmerReportProblem.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a problem'**
+  String get farmerReportProblem;
+
+  /// No description provided for @farmerReportPrefill.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello, I have a question about my milk entry on {date} ({shift}, {qty}).'**
+  String farmerReportPrefill(Object date, Object shift, Object qty);
+
+  /// No description provided for @collectAdvanceChip.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} advance outstanding'**
+  String collectAdvanceChip(Object amount);
+
+  /// No description provided for @collectShareSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Share summary'**
+  String get collectShareSummary;
+
+  /// No description provided for @collectSummaryMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{node} · {date} · {shift}\nMilk collected: {qty}\nFarmers: {count}\nAvg FAT {fat} · SNF {snf}'**
+  String collectSummaryMessage(
+    Object node,
+    Object date,
+    Object shift,
+    Object qty,
+    Object count,
+    Object fat,
+    Object snf,
+  );
+
+  /// No description provided for @farmerRateNewNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'New rate in effect since {date}'**
+  String farmerRateNewNotice(Object date);
+
+  /// No description provided for @homeCloseShiftNudge.
+  ///
+  /// In en, this message translates to:
+  /// **'{shift} collection is still open — close it when you\'re done.'**
+  String homeCloseShiftNudge(Object shift);
 }
 
 class _AppLocalizationsDelegate

@@ -752,5 +752,19 @@
   "nodePickerNoMatch": "ಹೊಂದಾಣಿಕೆ ಇಲ್ಲ",
   "voiceFieldDictateTooltip": "ಡಿಕ್ಟೇಟ್ ಮಾಡಿ",
   "voiceFieldReadBackTooltip": "ಮತ್ತೆ ಓದಿ",
-  "splashTagline": "ಪ್ರತಿ ಹನಿಯೂ ಮುಖ್ಯ"
+  "splashTagline": "ಪ್ರತಿ ಹನಿಯೂ ಮುಖ್ಯ",
+  "farmerBankAccountHolder": "ಖಾತೆದಾರರ ಹೆಸರು",
+  "farmerBankAccountNumber": "ಖಾತೆ ಸಂಖ್ಯೆ",
+  "farmerBankIfsc": "IFSC",
+  "farmerBankName": "ಬ್ಯಾಂಕ್",
+  "farmerBankUpi": "UPI ID",
+  "farmerBankEmpty": "ಪಾವತಿ ವಿವರಗಳು ಇನ್ನೂ ಇಲ್ಲ — ನಿಮ್ಮ ಸಂಗ್ರಹ ಕೇಂದ್ರದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.",
+  "farmerBankFootnote": "ನಿಮ್ಮ ಹಾಲಿನ ಪಾವತಿ ಈ ಖಾತೆಗೆ ಹೋಗುತ್ತದೆ. ಬದಲಾಯಿಸಲು ನಿಮ್ಮ ಸಂಗ್ರಹ ಕೇಂದ್ರದ ನಿರ್ವಾಹಕರನ್ನು ಕೇಳಿ.",
+  "farmerReportProblem": "ಸಮಸ್ಯೆ ವರದಿ ಮಾಡಿ",
+  "farmerReportPrefill": "ನಮಸ್ಕಾರ, {date} ({shift}, {qty}) ರ ನನ್ನ ಹಾಲಿನ ನಮೂದಿನ ಬಗ್ಗೆ ಪ್ರಶ್ನೆ ಇದೆ.",
+  "collectAdvanceChip": "{amount} ಮುಂಗಡ ಬಾಕಿ",
+  "collectShareSummary": "ಸಾರಾಂಶ ಹಂಚಿಕೊಳ್ಳಿ",
+  "collectSummaryMessage": "{node} · {date} · {shift}\nಸಂಗ್ರಹಿಸಿದ ಹಾಲು: {qty}\nರೈತರು: {count}\nಸರಾಸರಿ FAT {fat} · SNF {snf}",
+  "farmerRateNewNotice": "{date} ರಿಂದ ಹೊಸ ದರ ಜಾರಿಯಲ್ಲಿದೆ",
+  "homeCloseShiftNudge": "{shift} ಸಂಗ್ರಹ ಇನ್ನೂ ತೆರೆದಿದೆ — ಮುಗಿದ ಮೇಲೆ ಮುಚ್ಚಿ."
 }

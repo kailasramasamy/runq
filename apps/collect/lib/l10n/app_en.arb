@@ -1177,18 +1177,24 @@
   "ccDispatchCloseReceivingShift": "Close {slot} receiving",
   "@ccDispatchCloseReceivingShift": {
     "description": "Close-receiving button for a shift slot",
-    "placeholders": { "slot": {} }
+    "placeholders": {
+      "slot": {}
+    }
   },
   "ccDispatchCloseReceivingToday": "Close today's receiving",
   "ccDispatchUnlocksFor": "Unlocks dispatch to the plant for {slot}.",
   "@ccDispatchUnlocksFor": {
     "description": "Helper text under the close-receiving button",
-    "placeholders": { "slot": {} }
+    "placeholders": {
+      "slot": {}
+    }
   },
   "ccDispatchClosedFor": "Receiving closed for {slot} · ready for dispatch",
   "@ccDispatchClosedFor": {
     "description": "Banner shown once receiving is closed",
-    "placeholders": { "slot": {} }
+    "placeholders": {
+      "slot": {}
+    }
   },
   "ccDispatchSlotToday": "today",
   "ccDispatchSlotPool": "this pool",
@@ -1203,15 +1209,21 @@
   "@ccHomeActiveOfTotal": {
     "description": "CC home hero footer: active VMCCs and litres in transit",
     "placeholders": {
-      "active": { "type": "int" },
-      "total": { "type": "int" },
+      "active": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
       "inTransit": {}
     }
   },
   "ccHomeNextPoolNote": "{amount} collecting for next dispatch",
   "@ccHomeNextPoolNote": {
     "description": "Overnight CC: next pool note",
-    "placeholders": { "amount": {} }
+    "placeholders": {
+      "amount": {}
+    }
   },
   "ccHomeReportLink": "Report",
   "ccHomeQcReportLink": "QC report",
@@ -1223,7 +1235,11 @@
   "ccHomeFarmersCount": "{count} farmers",
   "@ccHomeFarmersCount": {
     "description": "Farmer count under a VMCC row",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "ccHomeMorning": "Morning",
   "ccHomeEvening": "Evening",
@@ -1241,7 +1257,9 @@
   "ccVarianceSuffix": "{value}% var",
   "@ccVarianceSuffix": {
     "description": "Variance percentage suffix, value already signed",
-    "placeholders": { "value": {} }
+    "placeholders": {
+      "value": {}
+    }
   },
   "ccReceiveEditReceipt": "Edit receipt",
   "ccReceiveDeleteReceipt": "Delete receipt",
@@ -1250,7 +1268,10 @@
   "ccReceiveDeleteConfirmBody": "{name} · {qty} will be removed.",
   "@ccReceiveDeleteConfirmBody": {
     "description": "Delete-receipt confirm dialog body",
-    "placeholders": { "name": {}, "qty": {} }
+    "placeholders": {
+      "name": {},
+      "qty": {}
+    }
   },
   "ccReceiveReceiptDeletedToast": "Receipt deleted",
   "ccReceiveNoVmccsLinkedToast": "No VMCCs linked to this CC",
@@ -1258,7 +1279,11 @@
   "ccHistoryVmccCount": "{count, plural, one{{count} VMCC} other{{count} VMCCs}}",
   "@ccHistoryVmccCount": {
     "description": "VMCC count on a collapsed history day row",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "ccHistoryDayLoadError": "Could not load this day",
   "ccDayLabel": "Day",
@@ -1269,8 +1294,12 @@
   "@ccReportSourcesReceipts": {
     "description": "Report footer: source VMCC and receipt counts",
     "placeholders": {
-      "sources": { "type": "int" },
-      "receipts": { "type": "int" }
+      "sources": {
+        "type": "int"
+      },
+      "receipts": {
+        "type": "int"
+      }
     }
   },
   "ccReportAvgFat": "AVG FAT",
@@ -1281,13 +1310,22 @@
   "ccQcHeroLabelAll": "RECEIVED · LAST {days} DAYS",
   "@ccQcHeroLabelAll": {
     "description": "QC report hero label, all VMCCs",
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "ccQcHeroFooterAll": "Qty-weighted quality across all VMCC receipts",
   "ccQcHeroLabelVmcc": "{name} · LAST {days} DAYS",
   "@ccQcHeroLabelVmcc": {
     "description": "QC report hero label, single VMCC",
-    "placeholders": { "name": {}, "days": { "type": "int" } }
+    "placeholders": {
+      "name": {},
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "ccQcHeroFooterVmcc": "Qty-weighted quality received from this VMCC",
   "ccQcEmptySubtitleVmcc": "No milk received from this VMCC in this window",
@@ -1299,7 +1337,11 @@
   "ccQcRangeDays": "{d} days",
   "@ccQcRangeDays": {
     "description": "QC report range chip",
-    "placeholders": { "d": { "type": "int" } }
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
   },
   "ccVmccsSearchHint": "Search VMCCs",
   "ccVmccsNoneAssigned": "No VMCCs assigned",
@@ -1313,18 +1355,26 @@
   "ccManualReceiveNoVmccsShift": "No VMCCs collect in the {shift} shift.",
   "@ccManualReceiveNoVmccsShift": {
     "description": "No VMCCs collecting in the selected shift",
-    "placeholders": { "shift": {} }
+    "placeholders": {
+      "shift": {}
+    }
   },
   "ccManualReceiveReceivedBadge": "{qty} received",
   "@ccManualReceiveReceivedBadge": {
     "description": "Badge on an already-received VMCC tile",
-    "placeholders": { "qty": {} }
+    "placeholders": {
+      "qty": {}
+    }
   },
   "ccManualReceiveCollectionDate": "Collection date",
   "ccManualReceiveDeleteConfirmBody": "{name} · {date} {shift} will be removed.",
   "@ccManualReceiveDeleteConfirmBody": {
     "description": "Delete confirm dialog body for a manual receipt",
-    "placeholders": { "name": {}, "date": {}, "shift": {} }
+    "placeholders": {
+      "name": {},
+      "date": {},
+      "shift": {}
+    }
   },
   "ccManualReceiveErrorMissingFields": "Enter quantity, FAT and SNF",
   "ccMeasuredAtCc": "MEASURED AT CC",
@@ -1352,7 +1402,9 @@
   "ccQcRankingByMetric": "By {metric}",
   "@ccQcRankingByMetric": {
     "description": "Ranking section title, metric name is untranslated (FAT/SNF/Water)",
-    "placeholders": { "metric": {} }
+    "placeholders": {
+      "metric": {}
+    }
   },
   "ccQcRankingHighToLow": "high → low",
   "ccQcRankingLowToHigh": "low → high",
@@ -1360,9 +1412,15 @@
   "@ccQcRankingSummary": {
     "description": "QC ranking summary card",
     "placeholders": {
-      "active": { "type": "int" },
-      "total": { "type": "int" },
-      "days": { "type": "int" }
+      "active": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      }
     }
   },
   "navTankers": "Tankers",
@@ -1373,12 +1431,18 @@
   "ppHomeTankersCount": "{count, plural, one{{count} tanker} other{{count} tankers}}",
   "@ppHomeTankersCount": {
     "description": "Tanker count shown against a CC's flow row on the PP home",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "ppHomeVarianceVsDispatch": "{value}% vs disp.",
   "@ppHomeVarianceVsDispatch": {
     "description": "Hero footer delta; value already carries its +/- sign",
-    "placeholders": { "value": {} }
+    "placeholders": {
+      "value": {}
+    }
   },
   "ppHomeReceivedLabel": "Received",
   "ppHomeInventoryNote": "→ Accepted posts to runq Inventory (raw-milk batch)",
@@ -1387,12 +1451,16 @@
   "ppHomeFlowTransit": "⏳ {amount} transit",
   "@ppHomeFlowTransit": {
     "description": "In-transit flow chip on the PP home CC list",
-    "placeholders": { "amount": {} }
+    "placeholders": {
+      "amount": {}
+    }
   },
   "ppHomeFlowReceived": "✓ {amount} received",
   "@ppHomeFlowReceived": {
     "description": "Received flow chip on the PP home CC list",
-    "placeholders": { "amount": {} }
+    "placeholders": {
+      "amount": {}
+    }
   },
   "ppReceiveNoReceiptsSubtitle": "Tankers you receive from CCs show here",
   "ppReceiveLoadError": "Could not load tankers",
@@ -1419,7 +1487,9 @@
   "adminSwitchVmccsInCc": "VMCCs in {name}",
   "@adminSwitchVmccsInCc": {
     "description": "Section header for VMCCs under a chilling centre in the admin drill sheet",
-    "placeholders": { "name": {} }
+    "placeholders": {
+      "name": {}
+    }
   },
   "adminSwitchSheetTitle": "Switch centre",
   "adminSwitchLoadCentresError": "Could not load centres",
@@ -1428,17 +1498,29 @@
   "adminSwitchCountPp": "{n, plural, one{{n} plant} other{{n} plants}}",
   "@adminSwitchCountPp": {
     "description": "Plant count in the centre switcher tier header",
-    "placeholders": { "n": { "type": "int" } }
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "adminSwitchCountCc": "{n, plural, one{{n} chilling centre} other{{n} chilling centres}}",
   "@adminSwitchCountCc": {
     "description": "Chilling centre count in the centre switcher tier header",
-    "placeholders": { "n": { "type": "int" } }
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "adminSwitchCountVmcc": "{n, plural, one{{n} centre} other{{n} centres}}",
   "@adminSwitchCountVmcc": {
     "description": "VMCC count in the centre switcher tier header",
-    "placeholders": { "n": { "type": "int" } }
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "operatorSwitchRolePp": "Processing plant",
   "operatorSwitchRoleCc": "Chilling centre",
@@ -1453,7 +1535,9 @@
     "description": "VMCC card subtitle on the operator switcher/selector — today's collected litres and farmer count",
     "placeholders": {
       "qty": {},
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "operatorSwitchButton": "Switch",
@@ -1461,7 +1545,9 @@
   "operatorSelectorGreetingNamed": "Namaste, {name}",
   "@operatorSelectorGreetingNamed": {
     "description": "Named greeting on the multi-node operator's landing screen",
-    "placeholders": { "name": {} }
+    "placeholders": {
+      "name": {}
+    }
   },
   "operatorSelectorSubtitle": "Choose a centre to operate",
   "operatorNoAccessTitle": "No Dhenu access yet",
@@ -1478,7 +1564,9 @@
   "authOtpCodeSentTo": "Enter the code sent to {phone}",
   "@authOtpCodeSentTo": {
     "description": "OTP step subtitle — phone is the full number with country code, e.g. +91 98765 43210",
-    "placeholders": { "phone": {} }
+    "placeholders": {
+      "phone": {}
+    }
   },
   "authOtpSignIn": "Sign in",
   "authOtpSmsDelay": "The SMS can take up to a minute to arrive.",
@@ -1486,13 +1574,19 @@
   "authOtpResendIn": "Resend in {seconds}s",
   "@authOtpResendIn": {
     "description": "Resend-OTP cooldown countdown",
-    "placeholders": { "seconds": { "type": "int" } }
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
   },
   "authOtpResendButton": "Resend OTP",
   "authOtpNetworkErrorDebug": "Can't reach the server at {baseUrl}. Is the API running and the phone on the same network?",
   "@authOtpNetworkErrorDebug": {
     "description": "Debug-build network error, shown when the API host is unreachable",
-    "placeholders": { "baseUrl": {} }
+    "placeholders": {
+      "baseUrl": {}
+    }
   },
   "authOtpNetworkErrorProd": "Can't reach the server. Check your connection and try again.",
   "aboutScreenTitle": "About",
@@ -1500,7 +1594,10 @@
   "aboutScreenVersion": "Version {version} ({build})",
   "@aboutScreenVersion": {
     "description": "App version line on the About screen",
-    "placeholders": { "version": {}, "build": {} }
+    "placeholders": {
+      "version": {},
+      "build": {}
+    }
   },
   "aboutScreenPrivacyPolicy": "Privacy Policy",
   "aboutScreenTermsOfService": "Terms of Service",
@@ -1514,14 +1611,18 @@
   "bankPayoutCollectedEstEarning": "{qty} collected · est. earning so far",
   "@bankPayoutCollectedEstEarning": {
     "description": "Bank & payout hero card footer — qty is a formatted litres string",
-    "placeholders": { "qty": {} }
+    "placeholders": {
+      "qty": {}
+    }
   },
   "bankPayoutMethodLabel": "Payout method",
   "bankPayoutRentLabel": "Rent",
   "bankPayoutPerMonth": "{amount} / month",
   "@bankPayoutPerMonth": {
     "description": "Recurring monthly amount — amount is a formatted rupee string",
-    "placeholders": { "amount": {} }
+    "placeholders": {
+      "amount": {}
+    }
   },
   "bankPayoutSinceLabel": "Since",
   "bankPayoutHasAccount": "Payouts go to your registered bank account.",
@@ -1531,7 +1632,9 @@
   "bankPayoutPerLitre": "{rate} / litre",
   "@bankPayoutPerLitre": {
     "description": "Per-litre payout rate — rate is a formatted rupee string",
-    "placeholders": { "rate": {} }
+    "placeholders": {
+      "rate": {}
+    }
   },
   "langPickerTitle": "Choose language",
   "langPickerComingSoon": "Coming soon",
@@ -1548,35 +1651,58 @@
   "dispatchHistoryCount": "{n, plural, one{{n} dispatch} other{{n} dispatches}}",
   "@dispatchHistoryCount": {
     "description": "Collapsed dispatch-history day row — count of dispatch legs",
-    "placeholders": { "n": { "type": "int" } }
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "dispatchHistoryInTransit": "{n} in transit",
   "@dispatchHistoryInTransit": {
     "description": "Collapsed dispatch-history day row — count still in transit",
-    "placeholders": { "n": { "type": "int" } }
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "dispatchHistoryReversed": "⊘ reversed",
   "farmerPoursGradeLabel": "Grade {letter}",
   "@farmerPoursGradeLabel": {
     "description": "Grade pill on a pour card — letter is A/B/C",
-    "placeholders": { "letter": {} }
+    "placeholders": {
+      "letter": {}
+    }
   },
   "collectLowWord": "Low",
   "qcReportLoadError": "Could not load QC data",
   "qcReportHeroLabelFarmer": "{name} · LAST {days} DAYS",
   "@qcReportHeroLabelFarmer": {
     "description": "QC report hero label scoped to one farmer — name is already uppercased",
-    "placeholders": { "name": {}, "days": { "type": "int" } }
+    "placeholders": {
+      "name": {},
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "qcReportHeroLabelAll": "COLLECTED · LAST {days} DAYS",
   "@qcReportHeroLabelAll": {
     "description": "QC report hero label pooled across all farmers",
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "qcReportHeroLabelDays": "LAST {days} DAYS",
   "@qcReportHeroLabelDays": {
     "description": "QC report hero label on the single-farmer QC tab (no name prefix)",
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "qcReportFooterFarmer": "Qty-weighted quality for this farmer",
   "qcReportFooterAll": "Qty-weighted quality across all farmers",
@@ -1589,7 +1715,11 @@
   "qcReportDaysChip": "{d} days",
   "@qcReportDaysChip": {
     "description": "QC report range-selector chip",
-    "placeholders": { "d": { "type": "int" } }
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
   },
   "homeCouldNotLoadCentre": "Could not load your centre",
   "updateRequiredTitle": "Update required",
@@ -1599,5 +1729,52 @@
   "nodePickerNoMatch": "No match",
   "voiceFieldDictateTooltip": "Dictate",
   "voiceFieldReadBackTooltip": "Read back",
-  "splashTagline": "Every drop counts"
+  "splashTagline": "Every drop counts",
+  "farmerBankAccountHolder": "Account holder",
+  "farmerBankAccountNumber": "Account number",
+  "farmerBankIfsc": "IFSC",
+  "farmerBankName": "Bank",
+  "farmerBankUpi": "UPI ID",
+  "farmerBankEmpty": "No payout details yet — ask your collection centre operator to add them.",
+  "farmerBankFootnote": "Your milk payments go to this account. To change it, ask your collection centre operator.",
+  "farmerReportProblem": "Report a problem",
+  "farmerReportPrefill": "Hello, I have a question about my milk entry on {date} ({shift}, {qty}).",
+  "@farmerReportPrefill": {
+    "placeholders": {
+      "date": {},
+      "shift": {},
+      "qty": {}
+    }
+  },
+  "collectAdvanceChip": "{amount} advance outstanding",
+  "@collectAdvanceChip": {
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "collectShareSummary": "Share summary",
+  "collectSummaryMessage": "{node} · {date} · {shift}\nMilk collected: {qty}\nFarmers: {count}\nAvg FAT {fat} · SNF {snf}",
+  "@collectSummaryMessage": {
+    "placeholders": {
+      "node": {},
+      "date": {},
+      "shift": {},
+      "qty": {},
+      "count": {},
+      "fat": {},
+      "snf": {}
+    }
+  },
+  "farmerRateNewNotice": "New rate in effect since {date}",
+  "@farmerRateNewNotice": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "homeCloseShiftNudge": "{shift} collection is still open — close it when you're done.",
+  "@homeCloseShiftNudge": {
+    "placeholders": {
+      "shift": {}
+    }
+  }
 }

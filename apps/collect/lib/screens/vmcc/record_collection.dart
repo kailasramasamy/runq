@@ -4,10 +4,12 @@ import 'package:dhenu/l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../api/mp_repo.dart';
 import '../../providers/mp_context_provider.dart';
+import '../../providers/mp_payout_providers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../services/pour_queue.dart';
 import '../../theme/dhenu_theme.dart';
@@ -671,6 +673,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s), expand: true),
           const SizedBox(height: DhenuSpacing.lg),
           _farmerField(t),
+          ..._advanceChip(t, l),
           const SizedBox(height: DhenuSpacing.lg),
           _milkTypePicker(t),
           const SizedBox(height: DhenuSpacing.lg),
@@ -745,12 +748,47 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         Icon(DhenuIcons.lock, size: 18, color: t.amText),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: Text(msg, style: DhenuText.label.copyWith(color: t.ink))),
+        IconButton(
+          onPressed: _shareShiftSummary,
+          tooltip: l.collectShareSummary,
+          icon: Icon(DhenuIcons.share, size: 18, color: t.brand),
+        ),
         TextButton(
           onPressed: _closingBusy ? null : _reopenShift,
           child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),
         ),
       ]),
     );
+  }
+
+  /// The WhatsApp shift roundup operators used to type by hand (audit E5):
+  /// one tap composes the slot's totals into a share-ready message. Uses the
+  /// wa.me text share (no recipient — WhatsApp shows its own picker), so no
+  /// extra share dependency is needed.
+  Future<void> _shareShiftSummary() async {
+    final l = AppLocalizations.of(context);
+    final pours = [for (final p in _poursForActiveDate()) if (p.shift == _shift) p];
+    final qty = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
+    final farmers = pours.map((p) => p.farmerId).toSet().length;
+    double wsum(double? Function(MpPour) f) {
+      var w = 0.0, q = 0.0;
+      for (final p in pours) {
+        final v = f(p);
+        if (v != null) { w += v * p.qtyLitres; q += p.qtyLitres; }
+      }
+      return q == 0 ? 0 : w / q;
+    }
+    final msg = l.collectSummaryMessage(
+      widget.node.name, prettyDate(_date), _shiftLabel,
+      litres(qty, unit: true), farmers,
+      wsum((p) => p.fat).toStringAsFixed(1), wsum((p) => p.snf).toStringAsFixed(1),
+    );
+    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(msg)}');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      showDhenuToast(context, AppLocalizations.of(context).helpCouldNotOpen,
+          type: DhenuToastType.error);
+    }
   }
 
   /// "Close collection" once the operator is done — freezes the slot and unlocks
@@ -861,6 +899,27 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         ),
       ),
     ]);
+  }
+
+  /// Outstanding advance/feed-loan for the picked farmer (audit E4) — the
+  /// paper ledger operators keep in their head, surfaced at entry time.
+  /// Best-effort: silent while loading/offline, hidden when nothing is owed.
+  List<Widget> _advanceChip(DhenuTokens t, AppLocalizations l) {
+    final farmer = _farmer;
+    if (farmer == null) return const [];
+    final balance = ref.watch(farmerLedgerProvider(farmer.id)).asData?.value.balance ?? 0;
+    if (balance <= 0.5) return const [];
+    return [
+      const SizedBox(height: DhenuSpacing.sm),
+      Row(children: [
+        Icon(DhenuIcons.payments, size: 14, color: t.gradeB),
+        const SizedBox(width: DhenuSpacing.xs),
+        Text(
+          l.collectAdvanceChip(rupees(balance)),
+          style: DhenuText.caption.copyWith(color: t.gradeB, fontWeight: FontWeight.w600),
+        ),
+      ]),
+    ];
   }
 
   Widget _farmerField(DhenuTokens t) => InkWell(

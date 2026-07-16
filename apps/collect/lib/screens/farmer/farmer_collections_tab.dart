@@ -12,6 +12,8 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_charts.dart';
 import '../../widgets/dhenu_states.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../widgets/dhenu_toast.dart';
 import '../../widgets/quality_badge.dart';
 
 /// Collections tab — current-cycle pours, chart overview + day rows (spec §6.2 redesign).
@@ -622,6 +624,7 @@ class _DayRowState extends State<_DayRow> {
                 style: DhenuText.caption.copyWith(color: t.inkSoft)),
           ],
         ),
+        _ReportPourButton(pour: p),
       ]),
     );
   }
@@ -633,4 +636,40 @@ class _DayRowState extends State<_DayRow> {
   }
 
 
+}
+
+/// A farmer's first in-app recourse (audit E3): flag an entry that looks wrong.
+/// Opens the tenant's WhatsApp support line with the pour's details prefilled;
+/// falls back to a phone call when only a phone number is configured.
+class _ReportPourButton extends ConsumerWidget {
+  const _ReportPourButton({required this.pour});
+  final MpPour pour;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    final cfg = ref.watch(supportConfigProvider).asData?.value;
+    final hasContact = cfg?.whatsapp != null || cfg?.phone != null;
+    if (!hasContact) return const SizedBox.shrink();
+    return IconButton(
+      onPressed: () => _report(context, l, cfg!),
+      tooltip: l.farmerReportProblem,
+      icon: Icon(DhenuIcons.flag, size: 16, color: t.inkSoft),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Future<void> _report(BuildContext context, AppLocalizations l, MpSupportConfig cfg) async {
+    final shiftLabel = pour.shift == Shift.am ? l.shiftAm : l.shiftPm;
+    final msg = l.farmerReportPrefill(
+        prettyDate(pour.collectionDate), shiftLabel, litres(pour.qtyLitres, unit: true));
+    final uri = cfg.whatsapp != null
+        ? Uri.parse('https://wa.me/${cfg.whatsapp}?text=${Uri.encodeComponent(msg)}')
+        : Uri.parse('tel:${cfg.phone}');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      showDhenuToast(context, l.helpCouldNotOpen, type: DhenuToastType.error);
+    }
+  }
 }
