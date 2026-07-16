@@ -27,6 +27,8 @@ class DhenuColors {
   // Quality / money semantics — green = good/money-in, red = deduction/poor. §2.1
   static const gradeA = Color(0xFF16A34A);
   static const gradeADark = Color(0xFF34D17B);
+  /// Ink for text sitting ON the fixed amber gradient (both modes).
+  static const amInk = Color(0xFF4A3300);
   static const gradeB = Color(0xFFF59E0B);
   static const gradeBDark = Color(0xFFFBBF4A);
   static const gradeC = Color(0xFFDC2626);

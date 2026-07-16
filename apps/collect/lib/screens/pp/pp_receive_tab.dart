@@ -127,7 +127,7 @@ class PpReceiveTab extends ConsumerWidget {
             style: DhenuText.number(size: 26, color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         Row(children: [
-          _pill(t, l.ccReceivePillInTransit, t.gradeB),
+          _pill(t, l.ccReceivePillInTransit, t.gradeB, icon: DhenuIcons.transit),
           const Spacer(),
           Text(l.ccReceiveTapToReceive, style: DhenuText.caption.copyWith(color: t.brand)),
           Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
@@ -187,13 +187,19 @@ class PpReceiveTab extends ConsumerWidget {
         ])),
       ]);
 
-  Widget _pill(DhenuTokens t, String label, Color color) => Container(
+  Widget _pill(DhenuTokens t, String label, Color color, {IconData? icon}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
         ),
-        child: Text(label, style: DhenuText.label.copyWith(color: color)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(label, style: DhenuText.label.copyWith(color: color)),
+        ]),
       );
 
   Future<void> _openReceive(

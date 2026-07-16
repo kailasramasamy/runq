@@ -117,7 +117,7 @@ class FarmerPoursTab extends ConsumerWidget {
             TextSpan(
                 text: ' L',
                 style: DhenuText.caption
-                    .copyWith(fontSize: 13, color: t.inkSoft, fontWeight: FontWeight.w600)),
+                    .copyWith(color: t.inkSoft, fontWeight: FontWeight.w600)),
           ]),
         ),
         Container(width: 1, height: 40, color: t.hairline),

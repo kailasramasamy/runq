@@ -1195,13 +1195,13 @@ abstract class AppLocalizations {
   /// No description provided for @dispatchStatusTransit.
   ///
   /// In en, this message translates to:
-  /// **'⏳ transit'**
+  /// **'transit'**
   String get dispatchStatusTransit;
 
   /// No description provided for @dispatchStatusReceived.
   ///
   /// In en, this message translates to:
-  /// **'✓ received'**
+  /// **'received'**
   String get dispatchStatusReceived;
 
   /// No description provided for @dispatchAvailableToDispatch.
@@ -3361,7 +3361,7 @@ abstract class AppLocalizations {
   /// No description provided for @ccReceivePillInTransit.
   ///
   /// In en, this message translates to:
-  /// **'⏳ In transit'**
+  /// **'In transit'**
   String get ccReceivePillInTransit;
 
   /// No description provided for @ccReceiveTapToReceive.
@@ -3857,7 +3857,7 @@ abstract class AppLocalizations {
   /// No description provided for @ppHomeInventoryNote.
   ///
   /// In en, this message translates to:
-  /// **'→ Accepted posts to runq Inventory (raw-milk batch)'**
+  /// **'Accepted posts to runq Inventory (raw-milk batch)'**
   String get ppHomeInventoryNote;
 
   /// No description provided for @ppHomeNoCcsTitle.
@@ -3875,13 +3875,13 @@ abstract class AppLocalizations {
   /// In-transit flow chip on the PP home CC list
   ///
   /// In en, this message translates to:
-  /// **'⏳ {amount} transit'**
+  /// **'{amount} transit'**
   String ppHomeFlowTransit(Object amount);
 
   /// Received flow chip on the PP home CC list
   ///
   /// In en, this message translates to:
-  /// **'✓ {amount} received'**
+  /// **'{amount} received'**
   String ppHomeFlowReceived(Object amount);
 
   /// No description provided for @ppReceiveNoReceiptsSubtitle.

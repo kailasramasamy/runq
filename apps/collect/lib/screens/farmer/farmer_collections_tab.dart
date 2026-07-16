@@ -388,6 +388,7 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
   @override
   Widget build(BuildContext context) {
     final poursAsync = ref.watch(farmerCyclePoursProvider(widget.period));
+    if (poursAsync.isLoading) return const DhenuLoadingList(rows: 1);
     final pours = poursAsync.asData?.value ?? const <MpPour>[];
     if (pours.isEmpty) return const SizedBox.shrink();
 

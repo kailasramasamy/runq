@@ -376,12 +376,17 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       return;
     }
     if (!mounted) return;
-    ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
-    ref.invalidate(nodeTodayPoursProvider(widget.node.id));
-    // Back-dated entry: refresh the date-scoped list that the entries section
-    // and the picker's "Recorded" marks read from.
-    if (_date != todayIso()) {
-      ref.invalidate(nodePoursForDateProvider((nodeId: widget.node.id, date: _date)));
+    // Only refetch server-backed providers when the pour actually reached the
+    // server — offline, the refetch itself fails and bounces the entries list
+    // into an error state; the pending strip covers visibility until sync.
+    if (sentNow) {
+      ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
+      ref.invalidate(nodeTodayPoursProvider(widget.node.id));
+      // Back-dated entry: refresh the date-scoped list that the entries section
+      // and the picker's "Recorded" marks read from.
+      if (_date != todayIso()) {
+        ref.invalidate(nodePoursForDateProvider((nodeId: widget.node.id, date: _date)));
+      }
     }
     FocusScope.of(context).unfocus(); // dismiss the keypad between farmers
     _showSavedSnack(name, qtyLabel, sentNow);

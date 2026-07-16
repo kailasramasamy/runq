@@ -622,10 +622,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispatchNoContainerNo => 'No container no.';
 
   @override
-  String get dispatchStatusTransit => '⏳ transit';
+  String get dispatchStatusTransit => 'transit';
 
   @override
-  String get dispatchStatusReceived => '✓ received';
+  String get dispatchStatusReceived => 'received';
 
   @override
   String get dispatchAvailableToDispatch => 'Available to dispatch';
@@ -1854,7 +1854,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ccReceiveHistoryTitle => 'Receive history';
 
   @override
-  String get ccReceivePillInTransit => '⏳ In transit';
+  String get ccReceivePillInTransit => 'In transit';
 
   @override
   String get ccReceiveTapToReceive => 'Tap to receive';
@@ -2153,7 +2153,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ppHomeInventoryNote =>
-      '→ Accepted posts to runq Inventory (raw-milk batch)';
+      'Accepted posts to runq Inventory (raw-milk batch)';
 
   @override
   String get ppHomeNoCcsTitle => 'No CCs dispatching';
@@ -2164,12 +2164,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ppHomeFlowTransit(Object amount) {
-    return '⏳ $amount transit';
+    return '$amount transit';
   }
 
   @override
   String ppHomeFlowReceived(Object amount) {
-    return '✓ $amount received';
+    return '$amount received';
   }
 
   @override

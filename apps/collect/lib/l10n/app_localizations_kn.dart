@@ -619,10 +619,10 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchNoContainerNo => 'ಕಂಟೇನರ್ ಸಂಖ್ಯೆ ಇಲ್ಲ';
 
   @override
-  String get dispatchStatusTransit => '⏳ ಸಾಗಣೆಯಲ್ಲಿ';
+  String get dispatchStatusTransit => 'ಸಾಗಣೆಯಲ್ಲಿ';
 
   @override
-  String get dispatchStatusReceived => '✓ ಸ್ವೀಕರಿಸಲಾಗಿದೆ';
+  String get dispatchStatusReceived => 'ಸ್ವೀಕರಿಸಲಾಗಿದೆ';
 
   @override
   String get dispatchAvailableToDispatch => 'ರವಾನಿಸಲು ಲಭ್ಯ';
@@ -1855,7 +1855,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get ccReceiveHistoryTitle => 'ಸ್ವೀಕೃತಿ ಇತಿಹಾಸ';
 
   @override
-  String get ccReceivePillInTransit => '⏳ ಸಾಗಣೆಯಲ್ಲಿ';
+  String get ccReceivePillInTransit => 'ಸಾಗಣೆಯಲ್ಲಿ';
 
   @override
   String get ccReceiveTapToReceive => 'ಸ್ವೀಕರಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ';
@@ -2141,7 +2141,7 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get ppHomeInventoryNote =>
-      '→ ಅಂಗೀಕರಿಸಿದ್ದು runq ದಾಸ್ತಾನಿಗೆ ಪೋಸ್ಟ್ ಆಗುತ್ತದೆ (ಕಚ್ಚಾ ಹಾಲಿನ ಬ್ಯಾಚ್)';
+      'ಅಂಗೀಕರಿಸಿದ್ದು runq ದಾಸ್ತಾನಿಗೆ ಪೋಸ್ಟ್ ಆಗುತ್ತದೆ (ಕಚ್ಚಾ ಹಾಲಿನ ಬ್ಯಾಚ್)';
 
   @override
   String get ppHomeNoCcsTitle => 'ರವಾನಿಸುತ್ತಿರುವ CCಗಳಿಲ್ಲ';
@@ -2152,12 +2152,12 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String ppHomeFlowTransit(Object amount) {
-    return '⏳ $amount ಸಾಗಣೆಯಲ್ಲಿ';
+    return '$amount ಸಾಗಣೆಯಲ್ಲಿ';
   }
 
   @override
   String ppHomeFlowReceived(Object amount) {
-    return '✓ $amount ಸ್ವೀಕರಿಸಿದ್ದು';
+    return '$amount ಸ್ವೀಕರಿಸಿದ್ದು';
   }
 
   @override

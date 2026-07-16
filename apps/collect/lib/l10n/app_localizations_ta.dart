@@ -627,10 +627,10 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dispatchNoContainerNo => 'கொள்கலன் எண் இல்லை';
 
   @override
-  String get dispatchStatusTransit => '⏳ வழியில்';
+  String get dispatchStatusTransit => 'வழியில்';
 
   @override
-  String get dispatchStatusReceived => '✓ சேர்ந்தது';
+  String get dispatchStatusReceived => 'சேர்ந்தது';
 
   @override
   String get dispatchAvailableToDispatch => 'அனுப்ப கிடைக்கும்';
@@ -1874,7 +1874,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get ccReceiveHistoryTitle => 'பெறுதல் வரலாறு';
 
   @override
-  String get ccReceivePillInTransit => '⏳ போக்குவரத்தில்';
+  String get ccReceivePillInTransit => 'போக்குவரத்தில்';
 
   @override
   String get ccReceiveTapToReceive => 'பெற தட்டவும்';
@@ -2162,7 +2162,7 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get ppHomeInventoryNote =>
-      '→ ஏற்றுக்கொள்ளப்பட்டது runq சரக்கிற்கு பதிவாகும் (மூல பால் தொகுதி)';
+      'ஏற்றுக்கொள்ளப்பட்டது runq சரக்கிற்கு பதிவாகும் (மூல பால் தொகுதி)';
 
   @override
   String get ppHomeNoCcsTitle => 'அனுப்பும் CCக்கள் இல்லை';
@@ -2173,12 +2173,12 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String ppHomeFlowTransit(Object amount) {
-    return '⏳ $amount போக்குவரத்தில்';
+    return '$amount போக்குவரத்தில்';
   }
 
   @override
   String ppHomeFlowReceived(Object amount) {
-    return '✓ $amount பெறப்பட்டது';
+    return '$amount பெறப்பட்டது';
   }
 
   @override

@@ -10,6 +10,7 @@ import '../utils/format.dart';
 import '../widgets/dhenu_card.dart';
 import '../widgets/dhenu_states.dart';
 import '../widgets/source_row.dart';
+import '../widgets/status_glyph.dart';
 
 /// Dispatch history for a VMCC or CC — tankers this node sent onward over the
 /// last 30 days, grouped into per-day sections (newest first). The most recent
@@ -164,9 +165,10 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     if (c.status == 'reversed') {
       return Text(l.dispatchHistoryReversed, style: DhenuText.caption.copyWith(color: t.gradeC));
     }
-    return Text(
-      c.inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
-      style: DhenuText.caption.copyWith(color: c.inTransit ? t.gradeB : t.gradeA),
+    return StatusGlyph(
+      label: c.inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
+      color: c.inTransit ? t.gradeB : t.gradeA,
+      received: !c.inTransit,
     );
   }
 }

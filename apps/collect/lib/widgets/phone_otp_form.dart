@@ -10,6 +10,10 @@ import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import 'otp_field.dart';
 
+/// Dhenu is India-only today; the OTP roster stores national numbers.
+/// Single source for the dial prefix so a future country picker has one seam.
+const kCountryCode = '+91';
+
 typedef PhoneOtpRequest = Future<void> Function(String phone);
 typedef PhoneOtpSubmit = Future<void> Function(String phone, String otp);
 
@@ -182,7 +186,7 @@ class _PhoneOtpFormState extends State<PhoneOtpForm> {
   List<Widget> _otpStep(DhenuTokens t) {
     final l = AppLocalizations.of(context);
     return [
-      Text(l.authOtpCodeSentTo('+91 $_phoneText'), style: DhenuText.body.copyWith(color: t.ink)),
+      Text(l.authOtpCodeSentTo('$kCountryCode $_phoneText'), style: DhenuText.body.copyWith(color: t.ink)),
       const SizedBox(height: DhenuSpacing.lg),
       OtpField(controller: _otp, onCompleted: _busy ? null : _submit, autofocus: true),
       const SizedBox(height: DhenuSpacing.lg),

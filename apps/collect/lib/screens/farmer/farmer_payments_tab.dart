@@ -304,7 +304,12 @@ class _HistoryRow extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(farmerCyclePoursProvider(period));
 
-    if (poursAsync.isLoading) return const SizedBox.shrink();
+    if (poursAsync.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: DhenuSpacing.md),
+        child: DhenuLoadingList(rows: 1),
+      );
+    }
     final pours = poursAsync.asData?.value ?? [];
     if (pours.isEmpty) return const SizedBox.shrink();
 

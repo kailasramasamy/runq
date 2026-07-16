@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
 
@@ -8,9 +9,9 @@ enum SyncState { synced, pending, offline, failed }
 /// Calm tappable chip for the header showing sync state.
 ///
 /// - synced: "● Synced 2m ago" (green dot)
-/// - pending: "⏳ 3 to send" (amber)
-/// - offline: "⚠ Offline — saved on device" (inkSoft)
-/// - failed: "⚠ 1 failed — needs attention" (gradeC) — rejected pours that
+/// - pending: "3 to send" (amber, hourglass icon)
+/// - offline: "Offline — saved on device" (inkSoft, cloud-off icon)
+/// - failed: "1 failed — needs attention" (gradeC, warning icon) — rejected pours that
 ///   will never auto-retry; they stay visible and keep blocking shift close.
 class SyncStatus extends StatelessWidget {
   const SyncStatus({
@@ -59,7 +60,7 @@ class SyncStatus extends StatelessWidget {
     switch (state) {
       case SyncState.failed:
         return [
-          Text('⚠', style: DhenuText.caption.copyWith(color: t.gradeC)),
+          Icon(DhenuIcons.warning, size: 12, color: t.gradeC),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
             l.syncFailedLabel(failedCount),
@@ -86,7 +87,7 @@ class SyncStatus extends StatelessWidget {
 
       case SyncState.pending:
         return [
-          Text('⏳', style: DhenuText.caption),
+          Icon(DhenuIcons.transit, size: 12, color: t.gradeB),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
             l.syncToSendLabel(pendingCount),
@@ -96,7 +97,7 @@ class SyncStatus extends StatelessWidget {
 
       case SyncState.offline:
         return [
-          Text('⚠', style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          Icon(DhenuIcons.cloudOff, size: 12, color: t.inkSoft),
           const SizedBox(width: DhenuSpacing.xs),
           Text(
             l.syncOfflineLabel,

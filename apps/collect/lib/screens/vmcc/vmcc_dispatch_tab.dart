@@ -17,6 +17,7 @@ import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
 import '../dispatch_history.dart';
+import '../../widgets/status_glyph.dart';
 
 /// VMCC Dispatch tab — today's availability + dispatch-to-CC form + outbound.
 /// Mirrors the CC→PP dispatch flow; here the leg is `vmcc_to_cc`.
@@ -431,11 +432,10 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 title: _outboundTitle(l, outbound[i]),
                 subtitle: _outboundSubtitle(outbound[i]),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
-                trailingStatus: Text(
-                  outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
-                  style: DhenuText.caption.copyWith(
-                    color: outbound[i].inTransit ? t.gradeB : t.gradeA,
-                  ),
+                trailingStatus: StatusGlyph(
+                  label: outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
+                  color: outbound[i].inTransit ? t.gradeB : t.gradeA,
+                  received: !outbound[i].inTransit,
                 ),
               ),
             ],

@@ -165,7 +165,7 @@ class VmccPaymentsTab extends ConsumerWidget {
         : (isDark
             ? const [DhenuColors.amDark, DhenuColors.amDeep]
             : const [DhenuColors.am, DhenuColors.amDeep]);
-    final fg = paid ? Colors.white : const Color(0xFF4A3300); // deep amber-brown
+    final fg = paid ? Colors.white : DhenuColors.amInk;
     final faint = fg.withValues(alpha: 0.78);
     return Container(
       decoration: BoxDecoration(

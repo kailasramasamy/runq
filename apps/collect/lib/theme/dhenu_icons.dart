@@ -47,6 +47,7 @@ abstract final class DhenuIcons {
   static const refresh = LucideIcons.refresh_cw;
   static const warning = LucideIcons.triangle_alert;
   static const flag = LucideIcons.flag;
+  static const transit = LucideIcons.hourglass;
 
   // Profile settings
   static const bank = LucideIcons.landmark;

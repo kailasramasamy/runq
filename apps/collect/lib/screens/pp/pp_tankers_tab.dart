@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../utils/friendly_error.dart';
+import '../../widgets/status_glyph.dart';
 
 /// PP Tankers tab — all cc_to_pp consignments to this plant today (any status).
 class PpTankersTab extends ConsumerWidget {
@@ -118,9 +119,10 @@ class PpTankersTab extends ConsumerWidget {
         color: (isReceived ? t.gradeA : t.gradeB).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
-      child: Text(
-        isReceived ? l.dispatchStatusReceived : l.dispatchStatusTransit,
-        style: DhenuText.caption.copyWith(color: isReceived ? t.gradeA : t.gradeB),
+      child: StatusGlyph(
+        label: isReceived ? l.dispatchStatusReceived : l.dispatchStatusTransit,
+        color: isReceived ? t.gradeA : t.gradeB,
+        received: isReceived,
       ),
     );
   }

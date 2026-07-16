@@ -68,7 +68,7 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 | E7 | ✅ | Admin's last-operated centre not persisted — cold start always drops to the picker | `centre_switcher.dart:62`, `mp_context_provider.dart` |
 | E8 | ✅ | No end-of-day unclosed-shift nudge (closing only gates dispatch; nothing reminds) | `record_collection.dart:498-513` |
 
-## Polish batch (single cleanup PR)
+## Polish batch (single cleanup PR) — ✅ done 2026-07-16
 
 - Emoji status glyphs → `DhenuIcons` (`cc_receive_tab.dart:177`, `cc_dispatch_tab.dart:522-524`, `pp_home.dart:210,269-271`)
 - Hardcoded `Color(0xFF3DDC97)` (`farmer_payments_tab.dart:199,207`), `Color(0xFF4A3300)` (`vmcc_payments_tab.dart:168`) → tokens

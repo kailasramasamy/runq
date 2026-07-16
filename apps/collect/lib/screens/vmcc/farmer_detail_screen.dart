@@ -72,8 +72,8 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
       backgroundColor: t.surface,
       appBar: AppBar(
         title: Text(farmerName(context, farmer),
-            style: DhenuText.h2
-                .copyWith(fontSize: 19, fontWeight: FontWeight.w800, color: t.ink, letterSpacing: -0.19)),
+            style: DhenuText.title
+                .copyWith(fontWeight: FontWeight.w800, color: t.ink, letterSpacing: -0.19)),
         actions: [
           IconButton(
             icon: Icon(DhenuIcons.edit, color: t.brand),
@@ -88,8 +88,8 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
           indicatorSize: TabBarIndicatorSize.tab,
           labelColor: t.brand,
           unselectedLabelColor: t.inkSoft,
-          labelStyle: DhenuText.label.copyWith(fontSize: 14.5, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: DhenuText.label.copyWith(fontSize: 14.5, fontWeight: FontWeight.w600),
+          labelStyle: DhenuText.label.copyWith(fontWeight: FontWeight.w700),
+          unselectedLabelStyle: DhenuText.label,
           tabs: [
             Tab(text: l.farmerDetailTabDetails),
             Tab(text: l.farmerDetailTabPours),

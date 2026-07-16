@@ -35,7 +35,14 @@ class FarmerRewards extends ConsumerWidget {
         backgroundColor: t.surface,
         foregroundColor: t.ink,
       ),
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(farmerMonthPoursProvider);
+          ref.invalidate(farmerStreakPoursProvider);
+          await ref.read(farmerStreakPoursProvider.future);
+        },
+        child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(DhenuSpacing.screen),
         children: [
@@ -49,6 +56,7 @@ class FarmerRewards extends ConsumerWidget {
           _referralCard(context, l),
           const SizedBox(height: DhenuSpacing.x4),
         ],
+        ),
       ),
     );
   }

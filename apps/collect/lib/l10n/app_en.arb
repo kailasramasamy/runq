@@ -326,8 +326,8 @@
     }
   },
   "dispatchNoContainerNo": "No container no.",
-  "dispatchStatusTransit": "⏳ transit",
-  "dispatchStatusReceived": "✓ received",
+  "dispatchStatusTransit": "transit",
+  "dispatchStatusReceived": "received",
   "dispatchAvailableToDispatch": "Available to dispatch",
   "dispatchCollectedDispatched": "Collected {collected} · Dispatched {dispatched}",
   "@dispatchCollectedDispatched": {
@@ -1252,7 +1252,7 @@
   "ccReceiveNoReceiptsYet": "No receipts yet",
   "ccReceiveNoReceiptsSubtitle": "Milk you receive from VMCCs shows here",
   "ccReceiveHistoryTitle": "Receive history",
-  "ccReceivePillInTransit": "⏳ In transit",
+  "ccReceivePillInTransit": "In transit",
   "ccReceiveTapToReceive": "Tap to receive",
   "ccVarianceSuffix": "{value}% var",
   "@ccVarianceSuffix": {
@@ -1445,17 +1445,17 @@
     }
   },
   "ppHomeReceivedLabel": "Received",
-  "ppHomeInventoryNote": "→ Accepted posts to runq Inventory (raw-milk batch)",
+  "ppHomeInventoryNote": "Accepted posts to runq Inventory (raw-milk batch)",
   "ppHomeNoCcsTitle": "No CCs dispatching",
   "ppHomeNoCcsSubtitle": "Chilling centres feeding this plant appear here",
-  "ppHomeFlowTransit": "⏳ {amount} transit",
+  "ppHomeFlowTransit": "{amount} transit",
   "@ppHomeFlowTransit": {
     "description": "In-transit flow chip on the PP home CC list",
     "placeholders": {
       "amount": {}
     }
   },
-  "ppHomeFlowReceived": "✓ {amount} received",
+  "ppHomeFlowReceived": "{amount} received",
   "@ppHomeFlowReceived": {
     "description": "Received flow chip on the PP home CC list",
     "placeholders": {
