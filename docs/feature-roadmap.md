@@ -155,15 +155,34 @@
 
 ---
 
-## Won't Build (Tally's Job)
+## Phase 6 — Strategic Candidates (analysis 2026-07-13)
 
-- 🚫 GST return filing (GSTR-1, GSTR-3B)
-- 🚫 E-invoicing IRN generation
-- 🚫 E-way bill generation
-- 🚫 TDS/TCS return filing
-- 🚫 Statutory financial statements (Schedule III P&L, Balance Sheet)
-- 🚫 Audit-ready reports for statutory compliance
-- 🚫 Payroll (PF, ESI, PT — use dedicated payroll software)
+*Ranked by leverage. All ride existing rails (WhatsApp providers, UPI + pending_payments auto-match, AI extraction, agent framework, GL/GST). Full reasoning in the session that produced `store-pos-plan.md`. Not scheduled — dairy (Dhenu), GSTR-3B blockers (May deadline), and Store POS come first.*
+
+### Tier 1 — take seriously
+- ⬜ (#87) **Receivables auto-chase agent** — opt-in dunning: overdue → escalating WhatsApp reminders (7/15/30d) with UPI link → `pending_payments` auto-match on bank import stops the chase automatically. Closes the loop Vyapar can't (they can't *know* the customer paid). Extends existing #25 dunning rules from manual to autonomous. Cheap; natural fit as Store POS Phase 2/3 khata companion.
+- ⬜ (#88) **CA multi-client portal** — one dashboard for a CA across all runq clients: filing readiness (GSTR-1 readiness checker exists), books-health flags, pending recon, review→file. Distinct from #55 (single-client read-only slug). This is a *distribution* play, not a feature — a CA with 50 clients is 50 warm intros; converts "clean books" into a pitch for the person who values it. Deserves a real 2026 roadmap slot. Related: #77 white-label/reseller mode.
+
+### Tier 2 — cheap compounders
+- ⬜ (#89) **WhatsApp-native operations** — (a) inbound: owner WhatsApps purchase-bill photo to a runq number → AI extract → draft AP bill (same flow as share-to-app, zero-install); (b) outbound: 8am owner digest — yesterday's sales, bank balance, receivables due this week, GST deadline countdown. Rides Interakt/Gupshup + AI extraction + report scheduler (#41). Digest = retention; inbound = habit.
+- ⬜ (#90) **"Ask your books" agent on mobile** — extend #69 (web chat assistant) to mobile with action-taking: "how much does X owe me?", "items not moved in 90 days?", "send reminder to overdue customers". Owners can't read a trial balance; they can ask. Demos itself.
+- ⬜ (#91) **Real bank feeds → books that write themselves** — productionize the ICICI CIB aggregator path (see `docs/icici-bank-api/`), and/or Setu AA (#85): daily auto-pull → auto-recon suggestions → owner just approves. End-state promise of the product; each bank added is moat. Slow-burn.
+
+### Tier 3 — long-range, architect toward but don't build
+- ⬜ (#92) **Embedded credit / invoice financing** — verified GST sales + real GL + bank recon + khata history = best-in-segment credit dataset; NBFC partnership for working capital is how Indian billing apps monetize beyond SaaS (Khatabook/BharatPe path). Regulatory + partnership heavy. 2027 option; keep data clean and consented so it stays open.
+
+### Explicitly rejected (2026-07-13)
+- 🚫 More horizontal modules (CRM, projects, e-commerce) — dilutes "daily ops + clean books" identity; already carrying finance/HR/inventory/manufacturing/dairy/store
+- 🚫 Second vertical before dairy proves revenue (pharma distribution is the natural next — batch/expiry/FEFO already built — but *after*)
+
+---
+
+## Won't Build
+
+> **Stale-list cleanup (2026-07-13):** the original "Tally's Job" list predates the strategy shift — GST filing (GSP integration, GSTR-1/3B), payroll (HR & Payroll module), and the mobile app (Flutter, not RN as #73 assumed) have all since been BUILT. Remaining true won't-builds:
+
+- 🚫 Statutory financial statements (Schedule III P&L, Balance Sheet) — CA/Tally's job
+- 🚫 Audit-ready statutory compliance reports
 - 🚫 Full app marketplace (too early — focus on core product)
 - 🚫 Projects / time tracking (niche — let users use Toggl/Clockify)
 
@@ -178,4 +197,7 @@
 | 3 | 12 | 12 | ✅ Done | Banking + collections — daily time-saver |
 | 4 | 26 | 19 | 🔧 In Progress | Financial statements, workflows, vendor management, integrations |
 | 5 | 29 | 10 | 🔧 In Progress | Sales workflow, item master, expense claims, AI chat, vendor portal, webhooks, NEFT export |
-| **Total** | **84** | **58** | | |
+| 6 | 6 | 0 | ⬜ Candidates | Auto-chase, CA multi-client portal, WhatsApp ops, mobile agent, bank feeds, embedded credit |
+| **Total** | **90** | **58** | | |
+
+**Related module plans (separate docs):** `store-pos-plan.md` (Store POS — counter billing), `dairy-sme-plan.md` + `dhenu-feature-roadmap.md` (dairy vertical), `hr-payroll-plan.md`, `inventory-plan.md`, `gst-filing-plan.md`.
