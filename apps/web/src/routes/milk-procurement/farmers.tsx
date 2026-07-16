@@ -20,11 +20,26 @@ const MILK_TYPES = [
   { value: 'mixed', label: 'Mixed' },
 ];
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function Section({ title, hint, children }: {
+  title: string; hint?: string; children: React.ReactNode;
+}) {
   return (
-    <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-      {children}
-    </p>
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2 border-b border-zinc-200 pb-1.5 dark:border-zinc-800">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</h3>
+        {hint && <span className="text-xs text-zinc-400 dark:text-zinc-500">{hint}</span>}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function SocietyToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      This is a society / sub-collector
+    </label>
   );
 }
 
@@ -144,19 +159,20 @@ function initForm(f?: MpFarmer): FarmerFormState {
 function IdentityFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
   const aadhaarError = f.aadhaar && !/^\d{12}$/.test(f.aadhaar) ? 'Must be exactly 12 digits' : undefined;
   return (
-    <>
-      <SectionLabel>Identity</SectionLabel>
-      <Input label="Village" value={f.village} onChange={(e) => setF({ village: e.target.value })} />
+    <Section title="Identity">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Input label="Village" value={f.village} onChange={(e) => setF({ village: e.target.value })} />
+        <Input
+          label="Aadhaar number"
+          value={f.aadhaar}
+          onChange={(e) => setF({ aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+          placeholder="12-digit number"
+          error={aadhaarError}
+          maxLength={12}
+        />
+      </div>
       <Input label="Address" value={f.address} onChange={(e) => setF({ address: e.target.value })} />
-      <Input
-        label="Aadhaar number"
-        value={f.aadhaar}
-        onChange={(e) => setF({ aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
-        placeholder="12-digit number"
-        error={aadhaarError}
-        maxLength={12}
-      />
-    </>
+    </Section>
   );
 }
 
@@ -164,19 +180,20 @@ function IdentityFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<Far
 
 function HerdFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
   return (
-    <>
-      <SectionLabel>Herd</SectionLabel>
-      <Combobox label="Default milk type" value={f.defaultMilkType} onChange={(v) => setF({ defaultMilkType: v })} options={MILK_TYPES} />
+    <Section title="Herd">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Combobox label="Default milk type" value={f.defaultMilkType} onChange={(v) => setF({ defaultMilkType: v })} options={MILK_TYPES} />
+        <Input
+          label="In-milk count"
+          type="number"
+          min={0}
+          value={f.inMilkCount}
+          onChange={(e) => setF({ inMilkCount: e.target.value })}
+          placeholder="0"
+        />
+      </div>
       <BreedCountEditor value={f.cattleBreeds} onChange={(cattleBreeds) => setF({ cattleBreeds })} />
-      <Input
-        label="In-milk count"
-        type="number"
-        min={0}
-        value={f.inMilkCount}
-        onChange={(e) => setF({ inMilkCount: e.target.value })}
-        placeholder="0"
-      />
-    </>
+    </Section>
   );
 }
 
@@ -184,18 +201,17 @@ function HerdFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerF
 
 function PaymentFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
   return (
-    <>
-      <SectionLabel>Payment</SectionLabel>
+    <Section title="Payment" hint="For payouts">
       <Input label="Account holder name" value={f.bankAccountName} onChange={(e) => setF({ bankAccountName: e.target.value })} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <Input label="Bank A/C no." value={f.bankAccountNumber} onChange={(e) => setF({ bankAccountNumber: e.target.value })} />
         <Input label="IFSC" value={f.bankIfsc} onChange={(e) => setF({ bankIfsc: e.target.value.toUpperCase() })} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <Input label="Bank name" value={f.bankName} onChange={(e) => setF({ bankName: e.target.value })} />
         <Input label="UPI ID" value={f.upiId} onChange={(e) => setF({ upiId: e.target.value })} />
       </div>
-    </>
+    </Section>
   );
 }
 
@@ -208,8 +224,7 @@ function PricingFields({ f, setF, currentId }: {
   // active charts, plus the currently-assigned one even if since deactivated
   const charts = (data?.data ?? []).filter((c) => c.isActive || c.id === currentId);
   return (
-    <>
-      <SectionLabel>Pricing</SectionLabel>
+    <Section title="Pricing" hint="Optional override">
       <Combobox
         label="Rate chart override"
         value={f.rateChartId}
@@ -220,7 +235,7 @@ function PricingFields({ f, setF, currentId }: {
         ]}
         placeholder="None"
       />
-    </>
+    </Section>
   );
 }
 
@@ -269,14 +284,15 @@ function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () =>
 
   return (
     <Modal open onClose={onClose} title={`Edit ${farmer.code}`}>
-      <div className="space-y-3">
-        <Input label="Code" value={farmer.code} disabled />
-        <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
-        <Input label="Phone" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <input type="checkbox" checked={f.isSociety} onChange={(e) => patch({ isSociety: e.target.checked })} />
-          This is a society / sub-collector
-        </label>
+      <div className="space-y-6">
+        <Section title="Basics">
+          <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input label="Farmer code" value={farmer.code} disabled />
+            <Input label="Phone" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
+          </div>
+          <SocietyToggle checked={f.isSociety} onChange={(v) => patch({ isSociety: v })} />
+        </Section>
 
         <IdentityFields f={f} setF={patch} />
 
@@ -285,22 +301,21 @@ function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () =>
         <PricingFields f={f} setF={patch} currentId={farmer.rateChartId} />
 
         {farmer.lat != null && farmer.lng != null && (
-          <>
-            <SectionLabel>Location (GPS)</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
+          <Section title="Location (GPS)" hint="Captured by the app">
+            <div className="grid grid-cols-2 gap-3">
               <Input label="Latitude" value={String(farmer.lat)} disabled />
               <Input label="Longitude" value={String(farmer.lng)} disabled />
             </div>
-            <p className="text-xs text-zinc-400">GPS coordinates are captured by the mobile app and cannot be edited here.</p>
-          </>
+          </Section>
         )}
 
         <PaymentFields f={f} setF={patch} />
 
-        <SectionLabel>Profile photo</SectionLabel>
-        <FarmerPhotoUpload farmerId={farmer.id} currentPhotoUrl={farmer.profilePhotoUrl} />
+        <Section title="Profile photo">
+          <FarmerPhotoUpload farmerId={farmer.id} currentPhotoUrl={farmer.profilePhotoUrl} />
+        </Section>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={update.isPending} disabled={!f.name || hasAadhaarError}>Save</Button>
         </div>
@@ -341,16 +356,17 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal open onClose={onClose} title="Add farmer">
-      <div className="space-y-3">
-        <Input label="Code / farmer no. (auto-assigned if blank)" value={f.code} onChange={(e) => patch({ code: e.target.value })} />
-        <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
-        <Input label="Phone (app login + ledger)" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
-        <Combobox label="Primary VMCC" value={f.nodeId} onChange={(v) => patch({ nodeId: v })}
-          options={[{ value: '', label: 'None' }, ...vmccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))]} placeholder="None" />
-        <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-          <input type="checkbox" checked={f.isSociety} onChange={(e) => patch({ isSociety: e.target.checked })} />
-          This is a society / sub-collector
-        </label>
+      <div className="space-y-6">
+        <Section title="Basics">
+          <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input label="Farmer code" placeholder="Auto-assigned if blank" value={f.code} onChange={(e) => patch({ code: e.target.value })} />
+            <Input label="Phone" placeholder="App login + ledger" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
+          </div>
+          <Combobox label="Primary VMCC" required value={f.nodeId} onChange={(v) => patch({ nodeId: v })}
+            options={vmccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))} placeholder="Select a VMCC" />
+          <SocietyToggle checked={f.isSociety} onChange={(v) => patch({ isSociety: v })} />
+        </Section>
 
         <IdentityFields f={f} setF={patch} />
 
@@ -360,9 +376,9 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
 
         <PaymentFields f={f} setF={patch} />
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={create.isPending} disabled={!f.name || hasAadhaarError}>Create</Button>
+          <Button onClick={submit} loading={create.isPending} disabled={!f.name || !f.nodeId || hasAadhaarError}>Create</Button>
         </div>
       </div>
     </Modal>
