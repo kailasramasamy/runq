@@ -277,7 +277,7 @@ function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () =>
       { id: farmer.id, data: formToPayload(f) },
       {
         onSuccess: () => { toast('Farmer updated', 'success'); onClose(); },
-        onError: () => toast('Failed to update farmer', 'error'),
+        onError: (err) => toast(err instanceof ApiClientError ? err.message : 'Failed to update farmer', 'error'),
       },
     );
   };
@@ -349,7 +349,7 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
       },
       {
         onSuccess: () => { toast('Farmer created', 'success'); onClose(); },
-        onError: () => toast('Failed to create farmer', 'error'),
+        onError: (err) => toast(err instanceof ApiClientError ? err.message : 'Failed to create farmer', 'error'),
       },
     );
   };

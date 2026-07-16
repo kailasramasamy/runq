@@ -301,10 +301,18 @@ export class FarmerService {
         .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId))).limit(1);
       if (n?.code) prefix = n.code;
     }
-    const [row] = await this.db.select({ count: sql<number>`count(*)::int` }).from(mpFarmers)
-      .where(and(eq(mpFarmers.tenantId, this.tenantId), ilike(mpFarmers.code, `${prefix}-%`)));
-    let seq = (row?.count ?? 0) + 1;
-    // Skip collisions from manual codes / deleted-row gaps.
+    // Next sequence = highest existing numeric suffix for this prefix + 1, so a
+    // gap left by a deleted farmer is never reused (e.g. 0006 → 0007).
+    const [row] = await this.db.select({
+      maxSeq: sql<number>`COALESCE(MAX((regexp_replace(${mpFarmers.code}, '^.*-', ''))::int), 0)`,
+    }).from(mpFarmers)
+      .where(and(
+        eq(mpFarmers.tenantId, this.tenantId),
+        ilike(mpFarmers.code, `${prefix}-%`),
+        sql`${mpFarmers.code} ~ '-[0-9]+$'`,
+      ));
+    let seq = (row?.maxSeq ?? 0) + 1;
+    // Safety net for odd manual codes that share the prefix.
     while (await this.codeExists(`${prefix}-${String(seq).padStart(4, '0')}`)) seq += 1;
     return `${prefix}-${String(seq).padStart(4, '0')}`;
   }
