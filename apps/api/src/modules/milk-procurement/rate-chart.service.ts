@@ -24,6 +24,7 @@ export interface RateResolution {
   ratePerLitre: number;
   // null on CLR (lactometer) charts — no fat/SNF to grade on.
   grade: Grade | null;
+  pricingMode: PricingMode;
 }
 
 type PricingMode = MpRateChartRow['pricingMode'];
@@ -158,7 +159,48 @@ export class RateChartService {
       bonusPerLitre: round2(bonus),
       ratePerLitre: round2(base + bonus),
       grade,
+      pricingMode: chart.pricingMode,
     };
+  }
+
+  /**
+   * The rate the same FAT/SNF reading would earn under the default MATRIX chart,
+   * ignoring any flat/CLR override on the farmer or node. Powers the flat-rate
+   * transparency nudge on WhatsApp receipts. Resolves node-scoped → tenant-wide
+   * matrix chart; includes the quality bonus but omits cycle volume-slabs (not
+   * comparable for a flat payee). Returns null when FAT/SNF are missing, no
+   * matrix chart is usable, or the reading falls below the matrix floor.
+   */
+  async resolveMatrixReference(input: ResolveRateInput): Promise<RateResolution | null> {
+    if (input.fat == null || input.snf == null) return null;
+    const onDate = input.onDate ?? new Date().toISOString().slice(0, 10);
+    const chart = await this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, ['matrix']);
+    if (!chart) return null;
+    let base: number;
+    try {
+      base = await this.matrixRate(chart.id, input.fat, input.snf);
+    } catch (e) {
+      if (e instanceof NotFoundError) return null; // below the matrix floor — skip the nudge
+      throw e;
+    }
+    const bands = await this.bands.resolve(input.milkType, input.scopeNodeId ?? null);
+    const grade = gradeFromBands(bands, { fat: input.fat, snf: input.snf, clr: input.clr });
+    const bonus = await this.bonusFor(chart.id, grade); // no cycleQty → skip volume slabs
+    return {
+      rateChartId: chart.id,
+      baseRatePerLitre: round2(base),
+      bonusPerLitre: round2(bonus),
+      ratePerLitre: round2(base + bonus),
+      grade,
+      pricingMode: 'matrix',
+    };
+  }
+
+  /** Pricing mode of a specific chart in this tenant (null if it no longer exists). */
+  async pricingModeOf(id: string): Promise<PricingMode | null> {
+    const [c] = await this.db.select({ mode: mpRateCharts.pricingMode }).from(mpRateCharts)
+      .where(and(eq(mpRateCharts.tenantId, this.tenantId), eq(mpRateCharts.id, id))).limit(1);
+    return c?.mode ?? null;
   }
 
   /** Override chain: farmer's chart → VMCC's chart → scoped/tenant default.

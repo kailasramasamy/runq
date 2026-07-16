@@ -222,11 +222,15 @@ export class ConsignmentService {
     milkType: MilkType | null, input: DirectReceiveConsignmentInput, qty: number,
   ): Promise<ReceiptPricing | null> {
     if (milkType == null || input.fat == null || input.snf == null) return null;
+    const rates = new RateChartService(this.db, this.tenantId);
+    const query = { milkType, fat: input.fat, snf: input.snf, scopeNodeId: input.fromNodeId, onDate: input.collectionDate };
     try {
-      const { ratePerLitre } = await new RateChartService(this.db, this.tenantId).resolveRate({
-        milkType, fat: input.fat, snf: input.snf, scopeNodeId: input.fromNodeId, onDate: input.collectionDate,
-      });
-      return { rate: ratePerLitre, total: round2(qty * ratePerLitre) };
+      const { ratePerLitre, pricingMode } = await rates.resolveRate(query);
+      // Flat VMCCs also carry the quality-based (matrix) rate for the nudge.
+      const matrixRate = pricingMode === 'flat'
+        ? (await rates.resolveMatrixReference(query))?.ratePerLitre ?? null
+        : null;
+      return { rate: ratePerLitre, total: round2(qty * ratePerLitre), matrixRate };
     } catch (e) {
       if (e instanceof NotFoundError) return null;
       throw e;
