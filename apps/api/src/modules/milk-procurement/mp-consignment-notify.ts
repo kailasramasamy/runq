@@ -5,9 +5,7 @@ import { getInteraktProvider } from '../../utils/messaging';
 import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
 
 // Rate chart applied to the receipt's QC (null when no chart resolves).
-// `matrixRate` is set only when the VMCC is on a FLAT chart — the quality-based
-// rate it would earn under the matrix chart (drives the flat-rate nudge).
-export interface ReceiptPricing { rate: number; total: number; matrixRate: number | null }
+export interface ReceiptPricing { rate: number; total: number }
 
 // WhatsApp receipt to the VMCC operator when their milk is manually received at
 // a CC (direct-receive). Reuses the milk_collection_receipt template. The rate
@@ -28,28 +26,10 @@ export function directReceiptParams(recipientName: string, c: MpConsignmentRow, 
   };
 }
 
-// Positional body values for milk_collection_receipt_flat ({{1}}…{{7}}): shows
-// the flat rate paid plus the quality-based (matrix) rate the VMCC would earn.
-export function flatDirectReceiptParams(recipientName: string, c: MpConsignmentRow, pricing: ReceiptPricing): Record<string, string> {
-  return {
-    name: nz(recipientName),
-    dateShift: nz(dateShift(c.collectionDate, c.shift)),
-    quantity: nz(trimNum(c.receiptQty)),
-    quality: nz(quality(c.receiptFat, c.receiptSnf, c.receiptWater)),
-    flatRate: nz(money(String(pricing.rate))),
-    matrixRate: pricing.matrixRate != null ? nz(money(String(pricing.matrixRate))) : '-',
-    total: nz(money(String(pricing.total))),
-  };
-}
-
 export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpConsignmentRow, pricing: ReceiptPricing | null): Promise<void> {
   const provider = getInteraktProvider();
   const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_RECEIPT;
   if (!provider || !templateName) return;
-
-  // Flat-rate VMCCs get the comparison template (matrixRate set only when flat).
-  const flatTemplate = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_RECEIPT_FLAT;
-  const useFlat = !!flatTemplate && pricing?.matrixRate != null;
 
   // Only VMCC → CC receipts notify (the source is the VMCC operator's node).
   const [src] = await db.select({ nodeType: mpNodes.nodeType, name: mpNodes.name })
@@ -69,14 +49,8 @@ export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpC
   if (!recipients.length) return;
 
   for (const op of recipients) {
-    const templateParams = useFlat
-      ? flatDirectReceiptParams(op.name ?? src.name, c, pricing!)
-      : directReceiptParams(op.name ?? src.name, c, pricing);
-    const res = await provider.sendWhatsApp({
-      to: op.phone!,
-      templateName: useFlat ? flatTemplate! : templateName,
-      templateParams,
-    });
+    const templateParams = directReceiptParams(op.name ?? src.name, c, pricing);
+    const res = await provider.sendWhatsApp({ to: op.phone!, templateName, templateParams });
     if (!res.success) {
       console.error('Interakt manual-receipt notice failed', { tenantId, consignmentId: c.id, phone: op.phone, error: res.error });
     }
