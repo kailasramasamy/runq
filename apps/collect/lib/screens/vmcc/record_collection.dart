@@ -178,6 +178,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         clr: isLactometer ? clr : null,
         cycleQtyLitres: _qtyVal > 0 ? _qtyVal : null,
         scopeNodeId: widget.node.id,
+        // The farmer's assigned override chart must price the PREVIEW too,
+        // not just the recorded pour — otherwise the operator quotes one rate
+        // and the server pays another.
+        farmerId: _farmer?.id,
         onDate: _collectionDate,
       );
       if (mounted) setState(() => _rate = r);
