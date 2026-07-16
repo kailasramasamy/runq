@@ -211,10 +211,10 @@ export function useUpdateFarmer() {
     },
   });
 }
-export function useDeactivateFarmer() {
+export function useDeleteFarmer() {
   const c = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.post<ApiSuccess<MpFarmer>>(`${BASE}/farmers/${id}/deactivate`, {}),
+    mutationFn: (id: string) => api.delete<void>(`${BASE}/farmers/${id}`),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'farmers'] }),
   });
 }

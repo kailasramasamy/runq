@@ -167,9 +167,10 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
       .header('Content-Disposition', `inline; filename="${fname}"`).send(pdf);
   });
 
-  app.post('/:id/deactivate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+  app.delete('/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
     const { id } = uuidParamSchema.parse(request.params);
     const service = new FarmerService(request.server.db, request.tenantId);
-    return { data: await service.deactivate(id) };
+    await service.remove(id);
+    return reply.code(204).send();
   });
 };

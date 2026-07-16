@@ -1,5 +1,8 @@
 import { and, eq, desc, sql, or, ilike, getTableColumns } from 'drizzle-orm';
-import { mpFarmers, mpFarmerMemberships, mpNodes, vendors } from '@runq/db';
+import {
+  mpFarmers, mpFarmerMemberships, mpNodes, vendors,
+  mpPours, mpPayoutLines, mpFarmerLedger, mpCredentials, mpCredentialIdentities,
+} from '@runq/db';
 import type { Db, MpFarmerRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -225,12 +228,42 @@ export class FarmerService {
       .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.id, vendorId)));
   }
 
-  async deactivate(id: string): Promise<MpFarmerRow> {
-    await this.getById(id);
-    const [row] = await this.db.update(mpFarmers)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, id))).returning();
-    return row!;
+  /**
+   * Hard-delete a farmer: removes the master row plus its login (credentials +
+   * social identities), memberships and linked vendor. Blocked when GL-linked
+   * history exists (pours / payout lines / ledger) — those rows must survive, so
+   * the caller must keep the farmer instead. Everything runs in one transaction.
+   */
+  async remove(id: string): Promise<void> {
+    const farmer = await this.getById(id);
+    if (await this.hasHistory(id)) {
+      throw new ConflictError('This farmer has pours or payouts and can’t be deleted.');
+    }
+    await this.db.transaction(async (tx) => {
+      const creds = await tx.select({ id: mpCredentials.id }).from(mpCredentials)
+        .where(and(eq(mpCredentials.tenantId, this.tenantId), eq(mpCredentials.farmerId, id)));
+      for (const c of creds) {
+        await tx.delete(mpCredentialIdentities).where(eq(mpCredentialIdentities.credentialId, c.id));
+      }
+      await tx.delete(mpCredentials)
+        .where(and(eq(mpCredentials.tenantId, this.tenantId), eq(mpCredentials.farmerId, id)));
+      await tx.delete(mpFarmerMemberships)
+        .where(and(eq(mpFarmerMemberships.tenantId, this.tenantId), eq(mpFarmerMemberships.farmerId, id)));
+      await tx.delete(mpFarmers)
+        .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, id)));
+      await tx.delete(vendors)
+        .where(and(eq(vendors.tenantId, this.tenantId), eq(vendors.id, farmer.vendorId)));
+    });
+  }
+
+  /** True if any GL-linked history references this farmer (blocks hard delete). */
+  private async hasHistory(id: string): Promise<boolean> {
+    for (const table of [mpPours, mpPayoutLines, mpFarmerLedger]) {
+      const [row] = await this.db.select({ id: table.id }).from(table)
+        .where(and(eq(table.tenantId, this.tenantId), eq(table.farmerId, id))).limit(1);
+      if (row) return true;
+    }
+    return false;
   }
 
   private buildWhere(filters: FarmerFilter, principal: MpPrincipal) {

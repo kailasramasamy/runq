@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Pencil, Power } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { ApiClientError } from '@/lib/api-client';
 import {
   PageHeader, Card, CardContent, Button, Badge, Modal, Input, Combobox, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import {
-  useFarmers, useCreateFarmer, useUpdateFarmer, useDeactivateFarmer, useNodes, useRateCharts,
+  useFarmers, useCreateFarmer, useUpdateFarmer, useDeleteFarmer, useNodes, useRateCharts,
   milkTypeLabel, rateChartLabel,
   type MilkType, type MpFarmer, type CattleBreedCount,
 } from '@/hooks/queries/use-milk-procurement';
@@ -31,9 +32,9 @@ export function MpFarmersPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editFarmer, setEditFarmer] = useState<MpFarmer | null>(null);
-  const [deactivateId, setDeactivateId] = useState<string | null>(null);
+  const [deleteFarmer, setDeleteFarmer] = useState<MpFarmer | null>(null);
   const { data, isLoading } = useFarmers({ search: search || undefined, limit: 200 });
-  const deactivate = useDeactivateFarmer();
+  const remove = useDeleteFarmer();
   const { toast } = useToast();
   const farmers = data?.data ?? [];
 
@@ -75,9 +76,7 @@ export function MpFarmersPage() {
                     <TableCell>{f.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => setEditFarmer(f)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                      {f.isActive && (
-                        <Button variant="ghost" size="sm" onClick={() => setDeactivateId(f.id)} title="Deactivate"><Power className="h-4 w-4" /></Button>
-                      )}
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteFarmer(f)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -91,18 +90,18 @@ export function MpFarmersPage() {
       {editFarmer && <EditFarmerModal farmer={editFarmer} onClose={() => setEditFarmer(null)} />}
 
       <ConfirmationDialog
-        open={!!deactivateId}
-        title="Deactivate farmer?"
-        description="They'll be hidden from active lists. Existing pours and payouts are unaffected."
-        confirmLabel="Deactivate"
+        open={!!deleteFarmer}
+        title={`Delete ${deleteFarmer?.name ?? 'farmer'}?`}
+        description="This permanently removes the farmer, their app login and VMCC membership. Farmers with existing pours or payouts can't be deleted."
+        confirmLabel="Delete"
         variant="danger"
-        loading={deactivate.isPending}
-        onClose={() => setDeactivateId(null)}
+        loading={remove.isPending}
+        onClose={() => setDeleteFarmer(null)}
         onConfirm={() => {
-          if (!deactivateId) return;
-          deactivate.mutate(deactivateId, {
-            onSuccess: () => { toast('Farmer deactivated', 'success'); setDeactivateId(null); },
-            onError: () => toast('Failed to deactivate', 'error'),
+          if (!deleteFarmer) return;
+          remove.mutate(deleteFarmer.id, {
+            onSuccess: () => { toast('Farmer deleted', 'success'); setDeleteFarmer(null); },
+            onError: (err) => toast(err instanceof ApiClientError ? err.message : 'Failed to delete', 'error'),
           });
         }}
       />
