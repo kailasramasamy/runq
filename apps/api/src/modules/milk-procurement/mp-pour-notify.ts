@@ -9,7 +9,7 @@ import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
 // fire-and-forgets with .catch). No-op unless Interakt is configured, the node
 // is a VMCC, and the farmer has a phone.
 
-// Positional body values for the milk_collection_receipt template. Key ORDER
+// Positional body values for the milk_collection_notification template. Key ORDER
 // must match {{1}}…{{6}}; the provider sends Object.values() as bodyValues.
 export function pourReceiptParams(farmerName: string, pour: MpPourRow): Record<string, string> {
   return {
@@ -24,7 +24,7 @@ export function pourReceiptParams(farmerName: string, pour: MpPourRow): Record<s
 
 export async function sendPourReceiptWhatsApp(db: Db, tenantId: string, pour: MpPourRow): Promise<void> {
   const provider = getInteraktProvider();
-  const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_RECEIPT;
+  const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_NOTIFICATION;
   if (!provider || !templateName) return;
 
   const [node] = await db.select({ nodeType: mpNodes.nodeType })

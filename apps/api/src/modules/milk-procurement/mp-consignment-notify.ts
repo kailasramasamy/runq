@@ -8,13 +8,13 @@ import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
 export interface ReceiptPricing { rate: number; total: number }
 
 // WhatsApp receipt to the VMCC operator when their milk is manually received at
-// a CC (direct-receive). Reuses the milk_collection_receipt template. The rate
+// a CC (direct-receive). Reuses the milk_collection_notification template. The rate
 // chart values the receipt's QC (rate + total); both stay '-' when no chart
 // applies. Fire-and-forget from ConsignmentService.directReceive(); may throw
 // (caller fire-and-forgets with .catch). No-op unless Interakt is configured,
 // the source node is a VMCC, and an operator has a phone.
 
-// Positional body values for milk_collection_receipt ({{1}}…{{6}}).
+// Positional body values for milk_collection_notification ({{1}}…{{6}}).
 export function directReceiptParams(recipientName: string, c: MpConsignmentRow, pricing: ReceiptPricing | null): Record<string, string> {
   return {
     name: nz(recipientName),
@@ -28,7 +28,7 @@ export function directReceiptParams(recipientName: string, c: MpConsignmentRow, 
 
 export async function sendDirectReceiptWhatsApp(db: Db, tenantId: string, c: MpConsignmentRow, pricing: ReceiptPricing | null): Promise<void> {
   const provider = getInteraktProvider();
-  const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_RECEIPT;
+  const templateName = process.env.INTERAKT_TEMPLATE_MILK_COLLECTION_NOTIFICATION;
   if (!provider || !templateName) return;
 
   // Only VMCC → CC receipts notify (the source is the VMCC operator's node).
