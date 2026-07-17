@@ -3,6 +3,9 @@ import {
   createRateChartSchema,
   rateChartFilterSchema,
   resolveRateSchema,
+  rateAssignmentScopeSchema,
+  assignRateChartSchema,
+  unassignRateChartSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -26,6 +29,35 @@ export const rateChartRoutes: FastifyPluginAsync = async (app) => {
     const input = resolveRateSchema.parse(request.query);
     const service = new RateChartService(request.server.db, request.tenantId);
     return { data: await service.resolveRate(input) };
+  });
+
+  // ── assignments: which chart prices a (scope, milk type, family) ───────────
+  app.get('/assignments', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = rateAssignmentScopeSchema.parse(request.query);
+    const service = new RateChartService(request.server.db, request.tenantId);
+    return { data: await service.listAssignments(q.scopeType, q.scopeId ?? 'tenant') };
+  });
+
+  // what actually prices each slot here, and whether it's inherited
+  app.get('/assignments/effective', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = rateAssignmentScopeSchema.parse(request.query);
+    const service = new RateChartService(request.server.db, request.tenantId);
+    return { data: await service.effectiveAssignments(q.scopeType, q.scopeId ?? 'tenant') };
+  });
+
+  app.put('/assignments', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = assignRateChartSchema.parse(request.body);
+    const service = new RateChartService(request.server.db, request.tenantId);
+    await service.assign(input.scopeType, input.scopeId ?? 'tenant', input.rateChartId);
+    return { data: await service.listAssignments(input.scopeType, input.scopeId ?? 'tenant') };
+  });
+
+  // query, not body — DELETE bodies aren't universally carried by clients
+  app.delete('/assignments', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = unassignRateChartSchema.parse(request.query);
+    const service = new RateChartService(request.server.db, request.tenantId);
+    await service.unassign(input.scopeType, input.scopeId ?? 'tenant', input.milkType, input.pricingFamily);
+    return { data: await service.listAssignments(input.scopeType, input.scopeId ?? 'tenant') };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

@@ -89,6 +89,29 @@ export const resolveRateSchema = z
     path: ['clr'],
   });
 
+/** Who a chart is bound to. `tenant` is the per-milk-type default everything
+ *  inherits; node/farmer are overrides. scopeId is ignored for `tenant`. */
+export const rateScope = z.enum(['tenant', 'node', 'farmer']);
+export const pricingFamily = z.enum(['fat_snf', 'clr']);
+
+export const rateAssignmentScopeSchema = z.object({
+  scopeType: rateScope,
+  scopeId: z.string().uuid().optional(),
+});
+
+/** The slot (milk type + family) is taken from the chart, never from the caller. */
+export const assignRateChartSchema = rateAssignmentScopeSchema.extend({
+  rateChartId: z.string().uuid(),
+});
+
+export const unassignRateChartSchema = rateAssignmentScopeSchema.extend({
+  milkType,
+  pricingFamily,
+});
+
 export type CreateRateChartInput = z.infer<typeof createRateChartSchema>;
 export type RateChartFilter = z.infer<typeof rateChartFilterSchema>;
 export type ResolveRateInput = z.infer<typeof resolveRateSchema>;
+export type AssignRateChartInput = z.infer<typeof assignRateChartSchema>;
+export type UnassignRateChartInput = z.infer<typeof unassignRateChartSchema>;
+export type RateAssignmentScopeInput = z.infer<typeof rateAssignmentScopeSchema>;

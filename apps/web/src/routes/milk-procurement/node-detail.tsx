@@ -8,16 +8,26 @@ import {
 import { Tabs } from '@/components/ar/primitives';
 import {
   useNode, useNodes, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
-  milkTypeLabel, type MpNode, type MpOperator,
+  milkTypeLabel, type MpNode, type MpOperator, type MilkType,
 } from '@/hooks/queries/use-milk-procurement';
 import { NODE_TYPE_META } from './_node-shared';
 import { VMCC_TABS, VmccDashboard } from './node-dashboard-vmcc';
 import { CC_TABS, CcDashboard } from './node-dashboard-cc';
 import { PP_TABS, PpDashboard } from './node-dashboard-pp';
 import { QualityBandsEditor } from './_quality-bands-editor';
-import { RateChartOverrideCard } from './_rate-chart-override-card';
+import { RateChartAssignmentsCard } from './_rate-chart-assignments-card';
+import { SELECTABLE_MILK_TYPES } from './_node-shared';
 
 const SETUP_TAB = { id: 'setup', label: 'Setup' };
+/** A VMCC declares what it accepts; a CC doesn't, so it offers every type its
+ *  VMCCs might collect. Legacy nodes with no list also fall back to all. */
+function assignableMilkTypes(node: MpNode): MilkType[] {
+  const allowed = node.allowedMilkTypes ?? [];
+  return node.nodeType === 'vmcc' && allowed.length > 0
+    ? (allowed as MilkType[])
+    : SELECTABLE_MILK_TYPES;
+}
+
 function tabsForType(t: MpNode['nodeType']) {
   const base = t === 'vmcc' ? VMCC_TABS : t === 'cc' ? CC_TABS : PP_TABS;
   return [...base, SETUP_TAB];
@@ -66,9 +76,19 @@ export function MpNodeDetailPage() {
         <>
           <NodeSummary node={node} />
           <OperatorsSection nodeId={id} />
-          {node.nodeType === 'vmcc' && (
+          {/* CCs set the charts their VMCCs inherit; a VMCC overrides its own.
+              PPs never price milk. */}
+          {node.nodeType !== 'pp' && (
             <div className="mt-4">
-              <RateChartOverrideCard node={node} />
+              <RateChartAssignmentsCard
+                scopeType="node"
+                scopeId={node.id}
+                milkTypes={assignableMilkTypes(node)}
+                title="Rate charts"
+                subtitle={node.nodeType === 'cc'
+                  ? 'Charts set here price every VMCC under this centre, unless the VMCC or farmer overrides them. Leave a slot inheriting to follow the tenant default.'
+                  : 'Charts set here price this VMCC, unless a farmer overrides them. Leave a slot inheriting to follow the CC, then the tenant default.'}
+              />
             </div>
           )}
           <div className="mt-4">

@@ -262,6 +262,56 @@ export function useCreateRateChart() {
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'rate-charts'] }),
   });
 }
+
+// ── rate chart assignments ───────────────────────────────────────────────────
+export type RateScope = 'tenant' | 'node' | 'farmer';
+export type PricingFamily = 'fat_snf' | 'clr';
+/** Where the effective chart came from, relative to the scope being viewed. */
+export type AssignmentSource = 'own' | 'node' | 'parent' | 'tenant';
+
+export interface MpEffectiveAssignment {
+  milkType: MilkType;
+  pricingFamily: PricingFamily;
+  rateChartId: string;
+  chartName: string;
+  pricingMode: 'matrix' | 'flat' | 'clr';
+  chartActive: boolean;
+  source: AssignmentSource;
+}
+
+/** Everything pricing this scope, inherited rows included. */
+export function useEffectiveAssignments(scopeType: RateScope, scopeId?: string) {
+  return useQuery({
+    queryKey: ['mp', 'rate-assign', scopeType, scopeId ?? 'tenant'],
+    queryFn: () => api.get<ApiSuccess<MpEffectiveAssignment[]>>(
+      `${BASE}/rate-charts/assignments/effective${qs({ scopeType, scopeId })}`),
+    enabled: scopeType === 'tenant' || !!scopeId,
+  });
+}
+
+/** Invalidate every assignment view + cached rate previews after a change. */
+function invalidateAssignments(c: ReturnType<typeof useQueryClient>) {
+  c.invalidateQueries({ queryKey: ['mp', 'rate-assign'] });
+  c.invalidateQueries({ queryKey: ['mp', 'rate-charts', 'resolve'] });
+}
+
+export function useAssignRateChart() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: { scopeType: RateScope; scopeId?: string; rateChartId: string }) =>
+      api.put<ApiSuccess<unknown>>(`${BASE}/rate-charts/assignments`, d),
+    onSuccess: () => invalidateAssignments(c),
+  });
+}
+
+export function useUnassignRateChart() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: { scopeType: RateScope; scopeId?: string; milkType: MilkType; pricingFamily: PricingFamily }) =>
+      api.delete<ApiSuccess<unknown>>(`${BASE}/rate-charts/assignments${qs({ ...d })}`),
+    onSuccess: () => invalidateAssignments(c),
+  });
+}
 export function useDeactivateRateChart() {
   const c = useQueryClient();
   return useMutation({

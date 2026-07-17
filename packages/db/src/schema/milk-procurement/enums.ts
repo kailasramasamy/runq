@@ -12,6 +12,15 @@ export const mpMilkType = pgEnum('mp_milk_type', ['cow', 'buffalo', 'mixed', 'co
 // `clr` = lactometer-only pricing: a 1-D CLR→₹/L breakpoint table, for VMCCs
 // without a fat/SNF milk analyzer. See mpMeasurementMode on the node.
 export const mpPricingMode = pgEnum('mp_pricing_mode', ['matrix', 'flat', 'clr']);
+// Which reading a chart prices from — the axis a rate assignment is keyed on.
+// `matrix` and `flat` both read fat/SNF, so they compete for the same slot;
+// `clr` is a separate slot because a lactometer node supplies CLR instead. One
+// scope can therefore need two charts for the same milk type (an analyzer VMCC
+// and a lactometer VMCC under the same CC).
+export const mpPricingFamily = pgEnum('mp_pricing_family', ['fat_snf', 'clr']);
+// Who a rate chart is assigned to. `tenant` is the per-milk-type default that
+// everything inherits; node/farmer are overrides. Most specific wins.
+export const mpRateScope = pgEnum('mp_rate_scope', ['tenant', 'node', 'farmer']);
 // A node's milk-testing capability. `analyzer` → fat/SNF (matrix/flat charts);
 // `lactometer` → CLR-only (clr charts). VMCC-level toggle; CC/PP are analyzer.
 export const mpMeasurementMode = pgEnum('mp_measurement_mode', ['analyzer', 'lactometer']);

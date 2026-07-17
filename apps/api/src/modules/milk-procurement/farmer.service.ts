@@ -12,7 +12,7 @@ import type {
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { MpPrincipal, scopeFarmers } from './access-scope';
 import { upsertCredential } from './credentials.service';
-import { assertAssignableRateChart } from './rate-chart.service';
+import { assertAssignableRateChart, RateChartService } from './rate-chart.service';
 
 export type FarmerWithNode = MpFarmerRow & {
   primaryNodeId: string | null;
@@ -163,6 +163,12 @@ export class FarmerService {
     const code = input.code ?? (await this.generateCode(input.nodeId ?? null));
     await this.assertCodeFree(code);
     if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
+    const farmer = await this.insertFarmer(input, code);
+    if (input.rateChartId) await this.syncRateChartAssignment(farmer.id, input.rateChartId);
+    return farmer;
+  }
+
+  private async insertFarmer(input: CreateFarmerInput, code: string): Promise<MpFarmerRow> {
     return this.db.transaction(async (tx) => {
       // financial identity: link an existing vendor, or auto-create one
       let vendorId = input.vendorId ?? null;
@@ -198,11 +204,29 @@ export class FarmerService {
     });
   }
 
+  /**
+   * The farmer form still carries one "rate chart override" field, but pricing
+   * now reads mp_rate_chart_assignments — so mirror it across or the override
+   * would look saved and never apply. The chart supplies its own slot (milk type
+   * + family); clearing the field clears whatever slot it used to hold.
+   */
+  private async syncRateChartAssignment(farmerId: string, rateChartId: string | null): Promise<void> {
+    const svc = new RateChartService(this.db, this.tenantId);
+    if (rateChartId) {
+      await svc.assign('farmer', farmerId, rateChartId);
+      return;
+    }
+    for (const a of await svc.listAssignments('farmer', farmerId)) {
+      await svc.unassign('farmer', farmerId, a.milkType, a.pricingFamily);
+    }
+  }
+
   async update(id: string, input: UpdateFarmerInput): Promise<FarmerWithNode> {
     const existing = await this.getById(id);
     if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
     await this.db.update(mpFarmers).set(farmerUpdatePatch(input))
       .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, id)));
+    if (input.rateChartId !== undefined) await this.syncRateChartAssignment(id, input.rateChartId ?? null);
     await this.updateVendorBank(existing.vendorId, input);
     // Keep the Dhenu login in sync when phone changes.
     const phone = input.phone !== undefined ? input.phone : existing.phone;

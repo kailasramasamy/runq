@@ -1,5 +1,8 @@
 import { and, eq, desc, sql, lte, gte, isNull, or } from 'drizzle-orm';
-import { mpRateCharts, mpRateChartCells, mpRateChartRules, mpNodes, mpFarmers, tenants } from '@runq/db';
+import {
+  mpRateCharts, mpRateChartCells, mpRateChartRules, mpRateChartAssignments,
+  mpNodes, mpFarmers, mpFarmerMemberships, tenants, pricingFamilyOf,
+} from '@runq/db';
 import type { Db, MpRateChartRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -15,6 +18,34 @@ type Grade = 'a' | 'b' | 'c';
 export interface RateChartDetail extends MpRateChartRow {
   cells: Cell[];
   rules: Rule[];
+}
+
+export type RateScope = 'tenant' | 'node' | 'farmer';
+export type PricingFamily = 'fat_snf' | 'clr';
+type MilkType = ResolveRateInput['milkType'];
+
+/** Where an effective chart came from, relative to the scope being viewed. */
+export type AssignmentSource = 'own' | 'node' | 'parent' | 'tenant';
+
+/** The chart that actually prices a slot here, and why. */
+export interface EffectiveAssignment {
+  milkType: MilkType;
+  pricingFamily: PricingFamily;
+  rateChartId: string;
+  chartName: string;
+  pricingMode: 'matrix' | 'flat' | 'clr';
+  chartActive: boolean;
+  source: AssignmentSource;
+}
+
+/** One filled slot at a scope, with enough of the chart to render it. */
+export interface AssignmentRow {
+  id: string;
+  milkType: MilkType;
+  pricingFamily: PricingFamily;
+  rateChartId: string;
+  chartName: string;
+  pricingMode: 'matrix' | 'flat' | 'clr';
 }
 
 export interface RateResolution {
@@ -131,6 +162,125 @@ export class RateChartService {
     return row!;
   }
 
+  // ── assignments ────────────────────────────────────────────────────────────
+
+  /** Every assignment for a scope, with the chart joined for display. */
+  async listAssignments(scopeType: RateScope, scopeId: string): Promise<AssignmentRow[]> {
+    return this.db.select({
+      id: mpRateChartAssignments.id,
+      milkType: mpRateChartAssignments.milkType,
+      pricingFamily: mpRateChartAssignments.pricingFamily,
+      rateChartId: mpRateChartAssignments.rateChartId,
+      chartName: mpRateCharts.name,
+      pricingMode: mpRateCharts.pricingMode,
+    }).from(mpRateChartAssignments)
+      .innerJoin(mpRateCharts, eq(mpRateCharts.id, mpRateChartAssignments.rateChartId))
+      .where(and(
+        eq(mpRateChartAssignments.tenantId, this.tenantId),
+        eq(mpRateChartAssignments.scopeType, scopeType),
+        eq(mpRateChartAssignments.scopeId, scopeId === 'tenant' ? this.tenantId : scopeId),
+      ));
+  }
+
+  /**
+   * Bind a chart to a scope. The slot (milk type + family) comes from the chart
+   * itself, so a caller can't file a buffalo chart under cow and have it
+   * silently never apply.
+   */
+  async assign(scopeType: RateScope, scopeId: string, rateChartId: string): Promise<void> {
+    const chart = await this.getById(rateChartId);
+    const id = scopeType === 'tenant' ? this.tenantId : scopeId;
+    await this.db.insert(mpRateChartAssignments).values({
+      tenantId: this.tenantId, scopeType, scopeId: id,
+      milkType: chart.milkType, pricingFamily: pricingFamilyOf(chart.pricingMode),
+      rateChartId,
+    }).onConflictDoUpdate({
+      target: [
+        mpRateChartAssignments.tenantId, mpRateChartAssignments.scopeType,
+        mpRateChartAssignments.scopeId, mpRateChartAssignments.milkType,
+        mpRateChartAssignments.pricingFamily,
+      ],
+      set: { rateChartId, updatedAt: new Date() },
+    });
+  }
+
+  /**
+   * What actually prices each (milk type, family) at this scope, and where it
+   * came from. The UI shows inheritance rather than an empty box, so nobody has
+   * to guess whether "no chart here" means unpriced or inherited — the silent
+   * fall-through was the whole complaint.
+   */
+  async effectiveAssignments(scopeType: RateScope, scopeId: string): Promise<EffectiveAssignment[]> {
+    const chain = await this.scopeChain(scopeType, scopeId);
+    const rows = await this.db.select({
+      scopeType: mpRateChartAssignments.scopeType,
+      scopeId: mpRateChartAssignments.scopeId,
+      milkType: mpRateChartAssignments.milkType,
+      pricingFamily: mpRateChartAssignments.pricingFamily,
+      chartId: mpRateCharts.id,
+      chartName: mpRateCharts.name,
+      pricingMode: mpRateCharts.pricingMode,
+      isActive: mpRateCharts.isActive,
+    }).from(mpRateChartAssignments)
+      .innerJoin(mpRateCharts, eq(mpRateCharts.id, mpRateChartAssignments.rateChartId))
+      .where(eq(mpRateChartAssignments.tenantId, this.tenantId));
+    const slots = new Map<string, EffectiveAssignment>();
+    // Walk least-specific → most-specific so a nearer scope overwrites.
+    for (const link of chain) {
+      for (const r of rows) {
+        if (r.scopeType !== link.type || r.scopeId !== link.id) continue;
+        slots.set(`${r.milkType}|${r.pricingFamily}`, {
+          milkType: r.milkType, pricingFamily: r.pricingFamily,
+          rateChartId: r.chartId, chartName: r.chartName, pricingMode: r.pricingMode,
+          chartActive: r.isActive, source: link.source,
+        });
+      }
+    }
+    return [...slots.values()];
+  }
+
+  /** Least-specific → most-specific, so the last write wins. */
+  private async scopeChain(
+    scopeType: RateScope, scopeId: string,
+  ): Promise<{ type: RateScope; id: string; source: AssignmentSource }[]> {
+    const chain: { type: RateScope; id: string; source: AssignmentSource }[] = [
+      { type: 'tenant', id: this.tenantId, source: 'tenant' },
+    ];
+    if (scopeType === 'tenant') return chain;
+    if (scopeType === 'node') {
+      const parent = await this.parentNodeId(scopeId);
+      if (parent) chain.push({ type: 'node', id: parent, source: 'parent' });
+      chain.push({ type: 'node', id: scopeId, source: 'own' });
+      return chain;
+    }
+    // farmer: its VMCC (primary membership) and that VMCC's CC sit in between
+    const [m] = await this.db.select({ nodeId: mpFarmerMemberships.nodeId })
+      .from(mpFarmerMemberships).where(and(
+        eq(mpFarmerMemberships.tenantId, this.tenantId),
+        eq(mpFarmerMemberships.farmerId, scopeId),
+        eq(mpFarmerMemberships.isPrimary, true),
+        isNull(mpFarmerMemberships.leftOn),
+      ));
+    if (m?.nodeId) {
+      const parent = await this.parentNodeId(m.nodeId);
+      if (parent) chain.push({ type: 'node', id: parent, source: 'parent' });
+      chain.push({ type: 'node', id: m.nodeId, source: 'node' });
+    }
+    chain.push({ type: 'farmer', id: scopeId, source: 'own' });
+    return chain;
+  }
+
+  /** Clear one slot — the scope falls back to inheriting again. */
+  async unassign(scopeType: RateScope, scopeId: string, milkType: MilkType, family: PricingFamily): Promise<void> {
+    await this.db.delete(mpRateChartAssignments).where(and(
+      eq(mpRateChartAssignments.tenantId, this.tenantId),
+      eq(mpRateChartAssignments.scopeType, scopeType),
+      eq(mpRateChartAssignments.scopeId, scopeType === 'tenant' ? this.tenantId : scopeId),
+      eq(mpRateChartAssignments.milkType, milkType),
+      eq(mpRateChartAssignments.pricingFamily, family),
+    ));
+  }
+
   /** Resolve the per-litre rate for a pour. Used by the pour-capture path (A3). */
   async resolveRate(input: ResolveRateInput): Promise<RateResolution> {
     const onDate = input.onDate ?? new Date().toISOString().slice(0, 10);
@@ -161,33 +311,53 @@ export class RateChartService {
     };
   }
 
-  /** Override chain: farmer's chart → VMCC's chart → scoped/tenant default.
-   *  A stale or incompatible override silently falls through — never blocks a pour. */
+  /** Assignment chain: farmer → VMCC → its parent CC → tenant default, then the
+   *  legacy tenant-wide scan as a backstop so an unconfigured milk type still
+   *  prices rather than blocking capture. A stale or incompatible assignment
+   *  silently falls through — never blocks a pour. */
   private async pickChart(
     input: ResolveRateInput,
     onDate: string,
     modes: PricingMode[],
   ): Promise<MpRateChartRow | null> {
-    for (const id of await this.overrideChartIds(input.farmerId, input.scopeNodeId)) {
+    for (const id of await this.assignedChartIds(input, modes)) {
       const c = await this.chartIfUsable(id, input.milkType, onDate, modes);
       if (c) return c;
     }
     return this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
   }
 
-  /** Assigned override chart ids in precedence order (farmer first). */
-  private async overrideChartIds(farmerId?: string, nodeId?: string): Promise<string[]> {
-    const [f, n] = await Promise.all([
-      farmerId
-        ? this.db.select({ id: mpFarmers.rateChartId }).from(mpFarmers)
-          .where(and(eq(mpFarmers.tenantId, this.tenantId), eq(mpFarmers.id, farmerId)))
-        : [],
-      nodeId
-        ? this.db.select({ id: mpNodes.rateChartId }).from(mpNodes)
-          .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)))
-        : [],
-    ]);
-    return [f[0]?.id, n[0]?.id].filter((x): x is string => x != null);
+  /**
+   * Assigned chart ids, most specific first. Inheritance is resolved here rather
+   * than copied into each scope, so moving a tenant default moves every scope
+   * that hasn't overridden it.
+   */
+  private async assignedChartIds(input: ResolveRateInput, modes: PricingMode[]): Promise<string[]> {
+    const family = pricingFamilyOf(modes.includes('clr') ? 'clr' : 'matrix');
+    const parentId = input.scopeNodeId ? await this.parentNodeId(input.scopeNodeId) : null;
+    const rows = await this.db.select({
+      scopeType: mpRateChartAssignments.scopeType,
+      scopeId: mpRateChartAssignments.scopeId,
+      chartId: mpRateChartAssignments.rateChartId,
+    }).from(mpRateChartAssignments).where(and(
+      eq(mpRateChartAssignments.tenantId, this.tenantId),
+      eq(mpRateChartAssignments.milkType, input.milkType),
+      eq(mpRateChartAssignments.pricingFamily, family),
+    ));
+    const at = (type: 'tenant' | 'node' | 'farmer', id: string | null | undefined) =>
+      id ? rows.find((r) => r.scopeType === type && r.scopeId === id)?.chartId : undefined;
+    return [
+      at('farmer', input.farmerId),
+      at('node', input.scopeNodeId),
+      at('node', parentId),
+      at('tenant', this.tenantId),
+    ].filter((x): x is string => x != null);
+  }
+
+  private async parentNodeId(nodeId: string): Promise<string | null> {
+    const [n] = await this.db.select({ parentNodeId: mpNodes.parentNodeId }).from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
+    return n?.parentNodeId ?? null;
   }
 
   /** The override chart iff it passes the SAME gate as the normal path:

@@ -4,7 +4,7 @@ import { ArrowLeft, Wand2 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, CardHeader, Button, Input, Combobox, useToast,
 } from '@/components/ui';
-import { useCreateRateChart, useRateChart, useNodes, type MilkType } from '@/hooks/queries/use-milk-procurement';
+import { useCreateRateChart, useRateChart, type MilkType } from '@/hooks/queries/use-milk-procurement';
 import type { CreateRateChartInput } from '@runq/validators';
 
 const MILK_TYPES = [
@@ -42,9 +42,6 @@ export function MpRateChartNewPage() {
   const [flatRate, setFlatRate] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(today);
   const [gradeABonus, setGradeABonus] = useState('');
-  const [scopeNodeId, setScopeNodeId] = useState('');
-  const { data: nodesData } = useNodes({ nodeType: 'vmcc', limit: 300 });
-  const vmccs = nodesData?.data ?? [];
 
   const [fats, setFats] = useState<number[]>([]);
   const [snfs, setSnfs] = useState<number[]>([]);
@@ -62,7 +59,6 @@ export function MpRateChartNewPage() {
     setMilkType(ch.milkType);
     setPricingMode(ch.pricingMode);
     setFlatRate(ch.flatRatePerLitre ?? '');
-    setScopeNodeId(ch.scopeNodeId ?? '');
     const bonus = ch.rules.find((r) => r.ruleType === 'quality_bonus' && r.grade === 'a');
     setGradeABonus(bonus ? bonus.bonusPerLitre : '');
     if (ch.pricingMode === 'clr') {
@@ -123,7 +119,8 @@ export function MpRateChartNewPage() {
     const payload: CreateRateChartInput = {
       name, milkType: milkType as MilkType, pricingMode: pricingMode as 'matrix' | 'flat' | 'clr',
       flatRatePerLitre: pricingMode === 'flat' ? Number(flatRate) : null,
-      scopeNodeId: scopeNodeId || null,
+      // charts are independent now — who uses one is set on the CC / VMCC / farmer
+      scopeNodeId: null,
       effectiveFrom, cells, rules,
     };
     create.mutate(payload, {
@@ -151,17 +148,14 @@ export function MpRateChartNewPage() {
               <Input label="Effective from" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Combobox
-                label="Scope"
-                value={scopeNodeId}
-                onChange={setScopeNodeId}
-                options={[{ value: '', label: 'All VMCCs (tenant-wide)' }, ...vmccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))]}
-                placeholder="All VMCCs (tenant-wide)"
-              />
               <Input label="Grade-A quality bonus (₹/L, optional)" type="number" value={gradeABonus} onChange={(e) => setGradeABonus(e.target.value)} />
             </div>
+            {/* Scope used to live here, which meant a chart both defined rates
+                and decided who got them. Charts are now independent: set who
+                uses one on Rate charts (defaults), or on a CC / VMCC / farmer. */}
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              A VMCC-scoped chart wins over a tenant-wide one for pours at that VMCC. Leave as tenant-wide to apply everywhere.
+              A chart just defines rates. Choose who it prices on the Rate charts page (per-milk-type
+              defaults), or override it on a CC, VMCC, or farmer.
             </p>
           </CardContent>
         </Card>

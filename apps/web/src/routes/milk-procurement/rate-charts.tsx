@@ -7,6 +7,8 @@ import {
 } from '@/components/ui';
 import { useRateCharts, useRateChart, useDeactivateRateChart, useNodes, milkTypeLabel } from '@/hooks/queries/use-milk-procurement';
 import { sharePdf } from '@/lib/share-pdf';
+import { RateChartAssignmentsCard } from './_rate-chart-assignments-card';
+import { SELECTABLE_MILK_TYPES } from './_node-shared';
 
 /** Fetch the rate-chart PDF and share/download it. */
 function downloadRateChartPdf(id: string, name: string): Promise<void> {
@@ -38,10 +40,22 @@ export function MpRateChartsPage() {
     <div>
       <PageHeader
         title="Rate charts"
-        description="FAT/SNF matrix or flat per-litre rates, effective-dated. Supersede by creating a new chart."
+        description="FAT/SNF matrix, CLR breakpoints, or flat per-litre rates, effective-dated. Supersede by creating a new chart."
         fullWidth
         actions={<Button onClick={() => navigate({ to: '/milk-procurement/rate-charts/new' })}><Plus className="h-4 w-4" />Add rate chart</Button>}
       />
+
+      {/* The default per milk type. Everything inherits this unless a CC, VMCC
+          or farmer overrides it — so it's the one place to look when asking
+          "what are we paying for A2?". */}
+      <div className="mb-4">
+        <RateChartAssignmentsCard
+          scopeType="tenant"
+          milkTypes={SELECTABLE_MILK_TYPES}
+          title="Default rate charts"
+          subtitle="What each milk type is priced with when nothing more specific applies. A CC, VMCC or farmer can override any of these."
+        />
+      </div>
 
       <Card>
         <CardContent className="p-0">
