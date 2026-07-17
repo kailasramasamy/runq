@@ -239,6 +239,51 @@ export class RateChartService {
     return [...slots.values()];
   }
 
+  /**
+   * Effective slots for every node at once — the nodes list shows a chart per
+   * row, and resolving them one call per row would be N round-trips. Two queries
+   * total: the tenant's assignments, and the node parents to walk.
+   */
+  async effectiveByNode(): Promise<Record<string, EffectiveAssignment[]>> {
+    const [rows, nodes] = await Promise.all([
+      this.db.select({
+        scopeType: mpRateChartAssignments.scopeType,
+        scopeId: mpRateChartAssignments.scopeId,
+        milkType: mpRateChartAssignments.milkType,
+        pricingFamily: mpRateChartAssignments.pricingFamily,
+        chartId: mpRateCharts.id,
+        chartName: mpRateCharts.name,
+        pricingMode: mpRateCharts.pricingMode,
+        isActive: mpRateCharts.isActive,
+      }).from(mpRateChartAssignments)
+        .innerJoin(mpRateCharts, eq(mpRateCharts.id, mpRateChartAssignments.rateChartId))
+        .where(eq(mpRateChartAssignments.tenantId, this.tenantId)),
+      this.db.select({ id: mpNodes.id, parentNodeId: mpNodes.parentNodeId })
+        .from(mpNodes).where(eq(mpNodes.tenantId, this.tenantId)),
+    ]);
+    const out: Record<string, EffectiveAssignment[]> = {};
+    for (const n of nodes) {
+      const chain: { type: RateScope; id: string; source: AssignmentSource }[] = [
+        { type: 'tenant', id: this.tenantId, source: 'tenant' },
+      ];
+      if (n.parentNodeId) chain.push({ type: 'node', id: n.parentNodeId, source: 'parent' });
+      chain.push({ type: 'node', id: n.id, source: 'own' });
+      const slots = new Map<string, EffectiveAssignment>();
+      for (const link of chain) {
+        for (const r of rows) {
+          if (r.scopeType !== link.type || r.scopeId !== link.id) continue;
+          slots.set(`${r.milkType}|${r.pricingFamily}`, {
+            milkType: r.milkType, pricingFamily: r.pricingFamily,
+            rateChartId: r.chartId, chartName: r.chartName, pricingMode: r.pricingMode,
+            chartActive: r.isActive, source: link.source,
+          });
+        }
+      }
+      out[n.id] = [...slots.values()];
+    }
+    return out;
+  }
+
   /** Least-specific → most-specific, so the last write wins. */
   private async scopeChain(
     scopeType: RateScope, scopeId: string,

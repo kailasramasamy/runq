@@ -38,6 +38,12 @@ export const rateChartRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.listAssignments(q.scopeType, q.scopeId ?? 'tenant') };
   });
 
+  // every node's effective slots in one call — the nodes list renders a chart per row
+  app.get('/assignments/by-node', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const service = new RateChartService(request.server.db, request.tenantId);
+    return { data: await service.effectiveByNode() };
+  });
+
   // what actually prices each slot here, and whether it's inherited
   app.get('/assignments/effective', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const q = rateAssignmentScopeSchema.parse(request.query);

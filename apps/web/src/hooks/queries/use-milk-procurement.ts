@@ -289,6 +289,15 @@ export function useEffectiveAssignments(scopeType: RateScope, scopeId?: string) 
   });
 }
 
+/** Effective slots keyed by node id — one call for a whole list. */
+export function useAssignmentsByNode() {
+  return useQuery({
+    queryKey: ['mp', 'rate-assign', 'by-node'],
+    queryFn: () => api.get<ApiSuccess<Record<string, MpEffectiveAssignment[]>>>(
+      `${BASE}/rate-charts/assignments/by-node`),
+  });
+}
+
 /** Invalidate every assignment view + cached rate previews after a change. */
 function invalidateAssignments(c: ReturnType<typeof useQueryClient>) {
   c.invalidateQueries({ queryKey: ['mp', 'rate-assign'] });
