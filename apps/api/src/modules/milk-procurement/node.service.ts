@@ -1,4 +1,4 @@
-import { and, eq, asc, desc, sql, or, ilike, inArray } from 'drizzle-orm';
+import { and, eq, asc, sql, or, ilike, inArray } from 'drizzle-orm';
 import { mpNodes } from '@runq/db';
 import type { Db, MpNodeRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
