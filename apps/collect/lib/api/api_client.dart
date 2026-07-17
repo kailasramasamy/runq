@@ -76,7 +76,10 @@ class ApiClient {
 
   Future<dynamic> get(String path) => _send('GET', path);
 
-  Future<List<int>> getBytes(String path) async {
+  /// Returns the body plus the server's Content-Disposition filename (null when
+  /// unset), so callers can name a download the way the server named it instead
+  /// of hand-rolling a second scheme.
+  Future<({List<int> bytes, String? filename})> getBytes(String path) async {
     final sentToken = _token;
     final req = http.Request('GET', _uri(path))..headers.addAll(_headers());
     final res = await _roundTrip(() => _inner.send(req), const Duration(seconds: 60));
@@ -85,7 +88,9 @@ class ApiClient {
       _token = null;
       _onUnauthorized?.call();
     }
-    if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return (bytes: res.bodyBytes, filename: _dispositionFilename(res.headers));
+    }
     String message = 'Download failed (${res.statusCode})';
     try {
       final decoded = jsonDecode(utf8.decode(res.bodyBytes));
@@ -99,6 +104,18 @@ class ApiClient {
       }
     } catch (_) {}
     throw ApiException(statusCode: res.statusCode, message: message);
+  }
+
+  /// `attachment; filename="x.pdf"` → `x.pdf`. Null when absent or unparseable.
+  static String? _dispositionFilename(Map<String, String> headers) {
+    final cd = headers['content-disposition'];
+    if (cd == null) return null;
+    final m = RegExp(r'filename\*?=(?:UTF-8'
+            r"''"
+            r')?"?([^";]+)"?')
+        .firstMatch(cd);
+    final name = m?.group(1)?.trim();
+    return (name == null || name.isEmpty) ? null : Uri.decodeComponent(name);
   }
 
   Future<dynamic> upload(

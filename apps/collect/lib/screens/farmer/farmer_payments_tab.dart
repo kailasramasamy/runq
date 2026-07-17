@@ -14,7 +14,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:printing/printing.dart';
 import '../../api/api_client.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
@@ -30,6 +29,7 @@ import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/section_header.dart';
+import '../pdf_viewer_screen.dart';
 import 'farmer_insights.dart';
 
 /// Payments tab — transparent month payout breakdown + history (spec §6.3).
@@ -347,7 +347,7 @@ class _HistoryRow extends ConsumerWidget {
               rupees(totalRs),
               style: DhenuText.number(size: 16, w: FontWeight.w800, color: t.ink),
             ),
-            _ShareStatementIcon(period: period),
+            _DownloadStatementIcon(period: period),
           ],
         ),
       ),
@@ -378,29 +378,37 @@ class _HistoryRow extends ConsumerWidget {
   }
 }
 
-/// Per-cycle statement share (audit E2) — the same server PDF operators share,
-/// now self-serve: farmers need statements for loans and their own records.
-class _ShareStatementIcon extends ConsumerStatefulWidget {
-  const _ShareStatementIcon({required this.period});
+/// Per-cycle statement (audit E2) — the same server PDF operators get, now
+/// self-serve: farmers need statements for loans and their own records. Opens
+/// the statement in-app rather than firing the share sheet blind; sharing is a
+/// choice inside the viewer, once they've seen what they're sending.
+class _DownloadStatementIcon extends ConsumerStatefulWidget {
+  const _DownloadStatementIcon({required this.period});
   final MpCyclePeriod period;
   @override
-  ConsumerState<_ShareStatementIcon> createState() => _ShareStatementIconState();
+  ConsumerState<_DownloadStatementIcon> createState() => _DownloadStatementIconState();
 }
 
-class _ShareStatementIconState extends ConsumerState<_ShareStatementIcon> {
+class _DownloadStatementIconState extends ConsumerState<_DownloadStatementIcon> {
   bool _busy = false;
 
-  Future<void> _share() async {
+  Future<void> _open() async {
     final l = AppLocalizations.of(context);
     final self = await ref.read(farmerSelfProvider.future);
     if (!mounted || self == null) return;
     setState(() => _busy = true);
     try {
       final p = widget.period;
-      final bytes = await mpRepo.farmerPourStatementPdf(
+      final doc = await mpRepo.farmerPourStatementPdf(
           farmerId: self.id, from: p.start, to: p.end, label: p.label);
-      await Printing.sharePdf(
-          bytes: bytes, filename: 'statement-${self.code}-${p.start}.pdf');
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(
+          title: l.statementViewerTitle,
+          bytes: doc.bytes,
+          filename: doc.filename,
+        ),
+      ));
     } on ApiException catch (e) {
       if (mounted) {
         showDhenuToast(context, l.statementGenerateError(e.message),
@@ -415,11 +423,11 @@ class _ShareStatementIconState extends ConsumerState<_ShareStatementIcon> {
   Widget build(BuildContext context) {
     final t = DT(context);
     return IconButton(
-      onPressed: _busy ? null : _share,
-      tooltip: AppLocalizations.of(context).statementShareButton,
+      onPressed: _busy ? null : _open,
+      tooltip: AppLocalizations.of(context).statementDownloadButton,
       icon: _busy
           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(DhenuIcons.share, size: 18, color: t.brand),
+          : Icon(DhenuIcons.download, size: 18, color: t.brand),
     );
   }
 }

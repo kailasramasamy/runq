@@ -1232,6 +1232,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statementShareButton => 'Share cycle statement';
 
   @override
+  String get statementDownloadButton => 'Download cycle statement';
+
+  @override
+  String get statementViewerTitle => 'Cycle statement';
+
+  @override
   String get pickerSearchHint => 'Search farmer by name or code';
 
   @override

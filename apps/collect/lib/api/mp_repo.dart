@@ -90,16 +90,21 @@ class MpRepo {
     return (v is String && v.trim().isNotEmpty) ? v : null;
   }
 
-  /// A farmer's per-cycle milk collection statement as PDF bytes (for sharing).
-  Future<Uint8List> farmerPourStatementPdf({
+  /// A farmer's per-cycle milk collection statement, with the server's own
+  /// download name (farmer · cycle · VMCC) — the client can't build that name
+  /// itself, since a farmer isn't allowed to read /nodes.
+  Future<({Uint8List bytes, String filename})> farmerPourStatementPdf({
     required String farmerId,
     required String from,
     required String to,
     String? label,
   }) async {
     final qs = _qs({'from': from, 'to': to, 'label': label, 'format': 'pdf'});
-    final bytes = await _api.getBytes('$_base/farmers/$farmerId/pour-statement$qs');
-    return Uint8List.fromList(bytes);
+    final res = await _api.getBytes('$_base/farmers/$farmerId/pour-statement$qs');
+    return (
+      bytes: Uint8List.fromList(res.bytes),
+      filename: res.filename ?? 'statement.pdf',
+    );
   }
 
   /// Extract Aadhaar card fields from [image] via AI OCR.

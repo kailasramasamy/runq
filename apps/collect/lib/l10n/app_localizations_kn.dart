@@ -1230,6 +1230,12 @@ class AppLocalizationsKn extends AppLocalizations {
   String get statementShareButton => 'ಚಕ್ರ ವಿವರಣೆ ಹಂಚಿಕೊಳ್ಳಿ';
 
   @override
+  String get statementDownloadButton => 'ಸೈಕಲ್ ಸ್ಟೇಟ್‌ಮೆಂಟ್ ಡೌನ್‌ಲೋಡ್';
+
+  @override
+  String get statementViewerTitle => 'ಸೈಕಲ್ ಸ್ಟೇಟ್‌ಮೆಂಟ್';
+
+  @override
   String get pickerSearchHint => 'ಹೆಸರು ಅಥವಾ ಕೋಡ್‌ನಿಂದ ರೈತರನ್ನು ಹುಡುಕಿ';
 
   @override

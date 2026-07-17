@@ -41,13 +41,12 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
     if (picked == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      final bytes = await mpRepo.farmerPourStatementPdf(
+      final doc = await mpRepo.farmerPourStatementPdf(
         farmerId: widget.farmer.id, from: picked.start, to: picked.end, label: picked.label,
       );
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'statement-${widget.farmer.code}-${picked.start}.pdf',
-      );
+      // Operators keep the straight-to-share flow (they're sending it on, not
+      // reading it), but share the server's name so both surfaces agree.
+      await Printing.sharePdf(bytes: doc.bytes, filename: doc.filename);
     } catch (e) {
       if (mounted) {
         final l2 = AppLocalizations.of(context);

@@ -19,7 +19,7 @@ import { FarmerService } from './farmer.service';
 import { transliterateName } from './transliteration.service';
 import { extractAadhaar, type ImageMime } from './aadhaar-extract.service';
 import { StatementService } from './statement.service';
-import { renderPourStatementHTML } from './statement-template';
+import { renderPourStatementHTML, pourStatementFilename } from './statement-template';
 import { resolveMpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -162,9 +162,13 @@ export const farmerRoutes: FastifyPluginAsync = async (app) => {
     if (q.format === 'html') return reply.type('text/html').send(html);
     const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
     const pdf = await renderHtmlToPdf(html);
-    const fname = `pour-statement-${data.farmer.code}-${q.from}_${q.to}.pdf`.replace(/[^\w.\-]/g, '-');
+    const fname = pourStatementFilename(data);
     return reply.type('application/pdf')
-      .header('Content-Disposition', `inline; filename="${fname}"`).send(pdf);
+      .header('Content-Disposition', `inline; filename="${fname}"`)
+      // Browsers hide non-safelisted headers from JS; the app reads the
+      // filename back so it doesn't have to reinvent one.
+      .header('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(pdf);
   });
 
   app.delete('/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {

@@ -129,6 +129,30 @@ export function renderPourStatementHTML(d: PourStatementData): string {
   </div></body></html>`;
 }
 
+/** One ASCII-safe filename part. Farmer and centre names are often Kannada or
+ * Devanagari, which sanitise away to nothing — hence the fallback. */
+function slug(value: string | null | undefined, fallback = ''): string {
+  const out = (value ?? '')
+    .normalize('NFKD')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return out || fallback;
+}
+
+/** Canonical download name: who, which cycle, which centre — derived here
+ * because the server is the only place that knows all three (a farmer can't
+ * read /nodes). Clients read it back off Content-Disposition rather than each
+ * inventing their own, which is how three different schemes appeared. */
+export function pourStatementFilename(d: PourStatementData): string {
+  const period = d.period.label ?? `${d.period.from}_${d.period.to}`;
+  const parts = [
+    slug(d.farmer.name, d.farmer.code),
+    slug(period, `${d.period.from}_${d.period.to}`),
+    slug(d.farmer.nodeName),
+  ].filter(Boolean);
+  return `${parts.join('_')}.pdf`;
+}
+
 const STYLE = `<style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -154,6 +178,11 @@ const STYLE = `<style>
   tbody tr:nth-child(even) td { background: #FBFAF6; }
   .right { text-align: right; } .center { text-align: center; }
   .empty { text-align: center; color: #5B635C; padding: 20px; }
+  /* Print repeats a real <tfoot> at the foot of every page, so a multi-page
+     statement showed the cycle total once per page as if each were a subtotal.
+     table-row-group makes it an ordinary trailing row: printed once, after the
+     last pour. Keep the tfoot element — it stays correct semantics. */
+  tfoot { display: table-row-group; }
   tfoot td { padding: 8px; border-top: 2px solid #0F7A5A; font-weight: 700; }
   .tfoot-label { color: #5B635C; }
   .grand { color: #0F7A5A; font-size: 13px; }

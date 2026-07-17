@@ -373,6 +373,8 @@
   "statementGenerateError": "அறிக்கையை உருவாக்க முடியவில்லை: {error}",
   "statementPreparing": "தயாரிக்கப்படுகிறது…",
   "statementShareButton": "சுழற்சி அறிக்கையை பகிரவும்",
+  "statementDownloadButton": "சுழற்சி அறிக்கையைப் பதிவிறக்கு",
+  "statementViewerTitle": "சுழற்சி அறிக்கை",
   "pickerSearchHint": "பெயர் அல்லது குறியீட்டால் விவசாயியை தேடவும்",
   "pickerLoadError": "விவசாயிகளை ஏற்ற முடியவில்லை",
   "pickerNoMatch": "பொருத்தமான விவசாயிகள் இல்லை",

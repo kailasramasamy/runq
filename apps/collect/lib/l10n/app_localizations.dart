@@ -2338,6 +2338,18 @@ abstract class AppLocalizations {
   /// **'Share cycle statement'**
   String get statementShareButton;
 
+  /// No description provided for @statementDownloadButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Download cycle statement'**
+  String get statementDownloadButton;
+
+  /// No description provided for @statementViewerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle statement'**
+  String get statementViewerTitle;
+
   /// No description provided for @pickerSearchHint.
   ///
   /// In en, this message translates to:

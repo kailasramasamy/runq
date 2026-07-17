@@ -602,6 +602,8 @@
   },
   "statementPreparing": "Preparing…",
   "statementShareButton": "Share cycle statement",
+  "statementDownloadButton": "Download cycle statement",
+  "statementViewerTitle": "Cycle statement",
   "pickerSearchHint": "Search farmer by name or code",
   "pickerLoadError": "Could not load farmers",
   "pickerNoMatch": "No matching farmers",

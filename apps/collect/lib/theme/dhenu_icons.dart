@@ -36,6 +36,7 @@ abstract final class DhenuIcons {
   static const star = LucideIcons.star;
   static const userPlus = LucideIcons.user_plus; // referrer
   static const share = LucideIcons.share_2;
+  static const download = LucideIcons.download;
   static const plusCircle = LucideIcons.circle_plus; // bonuses
 
   // Chrome / actions

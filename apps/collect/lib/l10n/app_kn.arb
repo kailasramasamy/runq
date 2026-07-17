@@ -373,6 +373,8 @@
   "statementGenerateError": "ಹೇಳಿಕೆ ರಚಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ: {error}",
   "statementPreparing": "ತಯಾರಿಸಲಾಗುತ್ತಿದೆ…",
   "statementShareButton": "ಚಕ್ರ ವಿವರಣೆ ಹಂಚಿಕೊಳ್ಳಿ",
+  "statementDownloadButton": "ಸೈಕಲ್ ಸ್ಟೇಟ್‌ಮೆಂಟ್ ಡೌನ್‌ಲೋಡ್",
+  "statementViewerTitle": "ಸೈಕಲ್ ಸ್ಟೇಟ್‌ಮೆಂಟ್",
   "pickerSearchHint": "ಹೆಸರು ಅಥವಾ ಕೋಡ್‌ನಿಂದ ರೈತರನ್ನು ಹುಡುಕಿ",
   "pickerLoadError": "ರೈತರನ್ನು ಲೋಡ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
   "pickerNoMatch": "ಹೊಂದಾಣಿಕೆಯ ರೈತರು ಇಲ್ಲ",

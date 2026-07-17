@@ -1239,6 +1239,12 @@ class AppLocalizationsTa extends AppLocalizations {
   String get statementShareButton => 'சுழற்சி அறிக்கையை பகிரவும்';
 
   @override
+  String get statementDownloadButton => 'சுழற்சி அறிக்கையைப் பதிவிறக்கு';
+
+  @override
+  String get statementViewerTitle => 'சுழற்சி அறிக்கை';
+
+  @override
   String get pickerSearchHint => 'பெயர் அல்லது குறியீட்டால் விவசாயியை தேடவும்';
 
   @override
