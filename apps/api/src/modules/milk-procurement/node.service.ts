@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, or, ilike, inArray } from 'drizzle-orm';
+import { and, eq, asc, desc, sql, or, ilike, inArray } from 'drizzle-orm';
 import { mpNodes } from '@runq/db';
 import type { Db, MpNodeRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -29,8 +29,11 @@ export class NodeService {
     const { offset } = applyPagination(page, limit);
     const where = this.buildWhere(filters, principal);
     const [rows, countResult] = await Promise.all([
+      // Alphabetical: these are picked by name everywhere (nodes list, billing
+      // and rate-chart pickers, the operator's centre selector), and newest-first
+      // ordering makes a centre's position depend on when it was created.
       this.db.select().from(mpNodes).where(where)
-        .orderBy(desc(mpNodes.createdAt)).limit(limit).offset(offset),
+        .orderBy(asc(mpNodes.name)).limit(limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpNodes).where(where),
     ]);
     const total = countResult[0]?.count ?? 0;
