@@ -12,7 +12,12 @@ import { NotFoundError } from '../../utils/errors';
 
 /** A priced direct-receive group: one VMCC's manual receipt for a (day, milk
  * type), valued via the milk-type rate chart. */
-interface DrGross { fromNodeId: string; toNodeId: string; milkType: string; date: string; shift: 'am' | 'pm'; gross: number }
+export interface DrGross {
+  fromNodeId: string; toNodeId: string; milkType: string; date: string; shift: 'am' | 'pm';
+  gross: number;
+  /** Receipt litres behind [gross] — VMCC billing reports them on the bill. */
+  qty: number;
+}
 
 /** One node's movement on a given day: what came in, what left, what remains. */
 export interface FlowNode {
@@ -320,7 +325,7 @@ export class ReportService {
    * ₹/L; callers sum across shifts for the day's gross. Type-less receipts fall
    * back to the VMCC's default type; groups with no priceable chart or no QC
    * contribute nothing. */
-  private async pricedDrGross(from: string, to: string, nodeId: string | undefined, principal?: MpPrincipal): Promise<DrGross[]> {
+  async pricedDrGross(from: string, to: string, nodeId: string | undefined, principal?: MpPrincipal): Promise<DrGross[]> {
     const conds = this.drBaseConds(from, to, nodeId, principal);
     const rows = await this.db.select({
       fromNodeId: mpConsignments.fromNodeId, toNodeId: mpConsignments.toNodeId,
@@ -346,7 +351,10 @@ export class ReportService {
         }
         if (rate != null) gross = round2(Number(r.qty) * rate);
       }
-      out.push({ fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType, date: r.date, shift: r.shift, gross });
+      out.push({
+        fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType,
+        date: r.date, shift: r.shift, gross, qty: Number(r.qty),
+      });
     }
     return out;
   }

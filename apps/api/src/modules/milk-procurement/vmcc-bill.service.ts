@@ -14,6 +14,7 @@ import { PayoutService } from './payout.service';
 import { nextDocNo } from './numbering';
 import { MpGlPoster } from './gl-poster';
 import { OperatorPayoutService, type OperatorPayoutLine } from './operator-payout.service';
+import { ReportService } from './report.service';
 import { MpPrincipal, assertNodeAccess } from './access-scope';
 
 /** [start, end] ISO dates for a calendar half-month. `first` → 1–15, `second` → 16–EOM. */
@@ -34,7 +35,14 @@ export interface BillableVmcc {
   bill: MpVmccBillRow | null;
 }
 
-interface MilkRollup { milkCost: number; qtyLitres: number; farmerCount: number }
+interface MilkRollup {
+  milkCost: number; qtyLitres: number; farmerCount: number;
+  /** The part of [milkCost] that came from farmer payout lines, and so was
+   * already credited to Farmer Payable at cycle lock. The remainder is bulk
+   * milk bought straight from the VMCC, which never accrued — the two settle to
+   * different accounts. See postBillMilkPayment. */
+  accruedCost: number;
+}
 
 /** One VMCC's direct-to-farmer settlement rollup for a period (payment tracking). */
 export interface DirectPaymentRow {
@@ -94,17 +102,19 @@ export class VmccBillService {
     const vmccs = await this.candidateVmccs(ccNodeId);
     if (!vmccs.length) return [];
     const ids = vmccs.map((v) => v.id);
+    const period = { start: cycle.periodStart, end: cycle.periodEnd };
     const [milk, comp, bills] = await Promise.all([
-      this.milkByVmcc(this.db, cycleId, ids),
+      this.milkByVmcc(this.db, cycleId, ids, period),
       new OperatorPayoutService(this.db, this.tenantId).commissionByNode(ids, cycle.periodStart, cycle.periodEnd),
       this.billsByVmcc(cycleId, ids),
     ]);
     return vmccs.map((v) => {
-      const m = milk.get(v.id) ?? { milkCost: 0, qtyLitres: 0, farmerCount: 0 };
+      const m = milk.get(v.id) ?? { milkCost: 0, qtyLitres: 0, farmerCount: 0, accruedCost: 0 };
       const c = comp.get(v.id) ?? { commission: 0, salary: 0, rent: 0, total: 0, operatorIds: [] };
       return {
         vmccNodeId: v.id, vmccName: v.name, vmccCode: v.code, payeeVendorId: v.payeeVendorId,
-        ...m, commission: c.commission, salary: c.salary, rent: c.rent,
+        milkCost: m.milkCost, qtyLitres: m.qtyLitres, farmerCount: m.farmerCount,
+        commission: c.commission, salary: c.salary, rent: c.rent,
         total: round2(m.milkCost + c.total), bill: bills.get(v.id) ?? null,
       };
     });
@@ -237,15 +247,18 @@ export class VmccBillService {
     return this.db.transaction(async (tx) => {
       const opSvc = new OperatorPayoutService(tx as unknown as Db, this.tenantId);
       // Recompute at pay time (cycle is locked, so lines are stable) — settled truth.
-      const milk = (await this.milkByVmcc(tx, cycle.id, [bill.vmccNodeId])).get(bill.vmccNodeId)
-        ?? { milkCost: 0, qtyLitres: 0, farmerCount: 0 };
+      const milk = (await this.milkByVmcc(tx, cycle.id, [bill.vmccNodeId],
+        { start: cycle.periodStart, end: cycle.periodEnd })).get(bill.vmccNodeId)
+        ?? { milkCost: 0, qtyLitres: 0, farmerCount: 0, accruedCost: 0 };
       const opLines = (await opSvc.compute({ from: cycle.periodStart, to: cycle.periodEnd, nodeId: bill.vmccNodeId })).lines;
       const commission = round2(opLines.reduce((s, l) => s + l.total, 0));
       const total = round2(milk.milkCost + commission);
 
       const paymentId = await this.recordPayment(tx, bill.payeeVendorId!, total, input);
-      const milkJe = await new MpGlPoster(this.tenantId, userId)
-        .postBillMilkPayment(tx, { billId: bill.id, billNo: bill.billNo, date: input.paymentDate, amount: milk.milkCost });
+      const milkJe = await new MpGlPoster(this.tenantId, userId).postBillMilkPayment(tx, {
+        billId: bill.id, billNo: bill.billNo, date: input.paymentDate,
+        amount: milk.milkCost, accrued: milk.accruedCost,
+      });
       const commJe = await new MpGlPoster(this.tenantId, userId)
         .postBillCommission(tx, { billId: bill.id, billNo: bill.billNo, date: input.paymentDate, amount: commission });
       await this.recordOperatorPayouts(tx, opLines, cycle, input);
@@ -541,8 +554,20 @@ export class VmccBillService {
     return rows.filter((r) => (r.payoutMode ?? ccMode) === wanted);
   }
 
-  /** Milk cost per VMCC = Σ net of its farmers' cycle lines, grouped by primary membership. */
-  private async milkByVmcc(db: Db | Tx, cycleId: string, vmccIds: string[]): Promise<Map<string, MilkRollup>> {
+  /**
+   * Milk cost per VMCC, from both ways milk reaches us:
+   *   • farmer-backed — Σ net of its farmers' cycle lines (grouped by primary
+   *     membership). Already accrued to Farmer Payable at cycle lock.
+   *   • bulk — a VMCC with no farmers of its own collects and supplies the CC,
+   *     which logs a manual receipt per delivery. Priced through the same rate
+   *     chart a farmer gets (the VMCC's assigned chart, matrix or flat, via
+   *     scopeNodeId), since that milk exists only as those receipts.
+   * The two can't double-count: pricedDrGross only reads direct_receive rows,
+   * and a farmer-backed dispatch is never one.
+   */
+  private async milkByVmcc(
+    db: Db | Tx, cycleId: string, vmccIds: string[], period: { start: string; end: string },
+  ): Promise<Map<string, MilkRollup>> {
     const rows = await (db as Db).select({
       nodeId: mpFarmerMemberships.nodeId,
       milkCost: sql<string>`coalesce(sum(${mpPayoutLines.netAmount}), 0)`,
@@ -559,9 +584,22 @@ export class VmccBillService {
         eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId),
         inArray(mpFarmerMemberships.nodeId, vmccIds),
       )).groupBy(mpFarmerMemberships.nodeId);
-    return new Map(rows.map((r) => [r.nodeId, {
+    const map = new Map<string, MilkRollup>(rows.map((r) => [r.nodeId, {
       milkCost: Number(r.milkCost), qtyLitres: Number(r.qtyLitres), farmerCount: r.farmerCount,
+      accruedCost: Number(r.milkCost),
     }]));
+    const priced = await new ReportService(db as Db, this.tenantId)
+      .pricedDrGross(period.start, period.end, undefined);
+    const wanted = new Set(vmccIds);
+    for (const g of priced) {
+      if (!wanted.has(g.fromNodeId)) continue;
+      const cur = map.get(g.fromNodeId)
+        ?? { milkCost: 0, qtyLitres: 0, farmerCount: 0, accruedCost: 0 };
+      cur.milkCost = round2(cur.milkCost + g.gross);
+      cur.qtyLitres = round2(cur.qtyLitres + g.qty);
+      map.set(g.fromNodeId, cur);
+    }
+    return map;
   }
 
   private async billsByVmcc(cycleId: string, vmccIds: string[]): Promise<Map<string, MpVmccBillRow>> {

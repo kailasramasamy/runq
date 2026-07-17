@@ -127,18 +127,29 @@ export class MpGlPoster {
    * apart from the cycle-level payment JE. Returns null if nothing to settle.
    */
   async postBillMilkPayment(
-    tx: Tx, p: { billId: string; billNo: string; date: string; amount: number },
+    tx: Tx, p: { billId: string; billNo: string; date: string; amount: number; accrued: number },
   ): Promise<string | null> {
     const amount = round2(p.amount);
     if (amount <= 0) return null;
+    // Farmer-backed milk was credited to Payable at cycle lock, so settling it
+    // clears that liability. Bulk milk — bought from a VMCC that has no farmers
+    // of its own — never accrued, so debiting Payable would drive it negative;
+    // that leg both accrues and settles, as the commission leg does.
+    const accrued = round2(Math.min(Math.max(p.accrued, 0), amount));
+    const unaccrued = round2(amount - accrued);
     const c = await this.resolveCodes(tx);
+    const lines: Line[] = [];
+    if (accrued > 0) {
+      lines.push({ accountCode: c.farmerPayable, debit: accrued, description: 'Farmer payable settled' });
+    }
+    if (unaccrued > 0) {
+      lines.push({ accountCode: c.milkPurchases, debit: unaccrued, description: 'Milk purchased from VMCC' });
+    }
+    lines.push({ accountCode: c.bank, credit: amount, description: 'Cash / bank' });
     return this.post(tx, {
       date: p.date, description: `VMCC bill milk settled — ${p.billNo}`,
       sourceType: 'mp_vmcc_bill_payment', sourceId: p.billId,
-      lines: [
-        { accountCode: c.farmerPayable, debit: amount, description: 'Farmer payable settled' },
-        { accountCode: c.bank, credit: amount, description: 'Cash / bank' },
-      ],
+      lines,
     });
   }
 
