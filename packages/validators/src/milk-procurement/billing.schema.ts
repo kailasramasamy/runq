@@ -20,6 +20,12 @@ export const billingPeriodSchema = z.object({
 
 export type BillingPeriod = z.infer<typeof billingPeriodSchema>;
 
+/** The day-by-day supply behind one VMCC's bill. */
+export const vmccBillDetailSchema = billingPeriodSchema.extend({
+  vmccNodeId: z.string().uuid(),
+});
+export type VmccBillDetailQuery = z.infer<typeof vmccBillDetailSchema>;
+
 /** Generate bills for a half-month period: all via_vmcc VMCCs under a CC, or one. */
 export const generateVmccBillsSchema = billingPeriodSchema.extend({
   ccNodeId: z.string().uuid(),

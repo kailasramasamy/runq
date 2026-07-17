@@ -44,6 +44,30 @@ interface MilkRollup {
   accruedCost: number;
 }
 
+/** One day+shift of a bulk VMCC's supply, priced. */
+export interface VmccBillDetailLine {
+  date: string;
+  shift: 'am' | 'pm';
+  milkType: string;
+  qtyLitres: number;
+  fat: number | null;
+  snf: number | null;
+  water: number | null;
+  /** Null = no chart matched this QC, so the line contributed ₹0. */
+  ratePerLitre: number | null;
+  amount: number;
+}
+
+export interface VmccBillDetail {
+  periodStart: string;
+  periodEnd: string;
+  lines: VmccBillDetailLine[];
+  totalQty: number;
+  totalAmount: number;
+  /** Surfaced rather than hidden: an unpriced day silently lowers the bill. */
+  unpricedLines: number;
+}
+
 /** One VMCC's direct-to-farmer settlement rollup for a period (payment tracking). */
 export interface DirectPaymentRow {
   vmccNodeId: string; vmccName: string; vmccCode: string;
@@ -118,6 +142,35 @@ export class VmccBillService {
         total: round2(m.milkCost + c.total), bill: bills.get(v.id) ?? null,
       };
     });
+  }
+
+  /**
+   * How one VMCC's bill was arrived at: a row per collection day and shift with
+   * the qty-weighted QC, the rate it priced at, and the amount. Bulk VMCCs have
+   * no farmer lines, so the CC's receipts are the only record of the milk — this
+   * is the audit trail behind the bill's milk cost.
+   */
+  async billDetail(
+    sel: BillingPeriod, vmccNodeId: string, principal?: MpPrincipal,
+  ): Promise<VmccBillDetail> {
+    if (principal?.kind === 'operator') assertNodeAccess(principal, vmccNodeId);
+    const { periodStart, periodEnd } = periodFromSelection(sel);
+    const priced = (await new ReportService(this.db, this.tenantId)
+      .pricedDrGross(periodStart, periodEnd, undefined, principal))
+      .filter((g) => g.fromNodeId === vmccNodeId);
+    const lines: VmccBillDetailLine[] = priced
+      .map((g) => ({
+        date: g.date, shift: g.shift, milkType: g.milkType, qtyLitres: g.qty,
+        fat: g.fat, snf: g.snf, water: g.water,
+        ratePerLitre: g.ratePerLitre, amount: g.gross,
+      }))
+      .sort((a, b) => (a.date === b.date ? a.shift.localeCompare(b.shift) : a.date.localeCompare(b.date)));
+    return {
+      periodStart, periodEnd, lines,
+      totalQty: round2(lines.reduce((s, l) => s + l.qtyLitres, 0)),
+      totalAmount: round2(lines.reduce((s, l) => s + l.amount, 0)),
+      unpricedLines: lines.filter((l) => l.ratePerLitre == null).length,
+    };
   }
 
   /**

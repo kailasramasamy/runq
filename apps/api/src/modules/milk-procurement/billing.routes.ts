@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   generateVmccBillsSchema, payVmccBillSchema, settleOperatorSchema, vmccBillFilterSchema,
-  vmccBillablePreviewSchema, paginationSchema, uuidParamSchema,
+  vmccBillablePreviewSchema, vmccBillDetailSchema, paginationSchema, uuidParamSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -26,6 +26,14 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
     return { data: await service.directDetail(sel, ccNodeId, principal) };
+  });
+
+  // the day/shift supply behind one VMCC's bill — how its milk cost was reached
+  app.get('/vmcc-detail', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { vmccNodeId, ...sel } = vmccBillDetailSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new VmccBillService(request.server.db, request.tenantId);
+    return { data: await service.billDetail(sel, vmccNodeId, principal) };
   });
 
   app.post('/regenerate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {

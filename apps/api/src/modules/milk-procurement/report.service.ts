@@ -17,6 +17,13 @@ export interface DrGross {
   gross: number;
   /** Receipt litres behind [gross] — VMCC billing reports them on the bill. */
   qty: number;
+  /** Qty-weighted QC for the group, and the rate it priced at. Null rate = no
+   *  chart matched, so the group contributed nothing to [gross]. Carried so a
+   *  VMCC bill can show how its total was arrived at, shift by shift. */
+  fat: number | null;
+  snf: number | null;
+  water: number | null;
+  ratePerLitre: number | null;
 }
 
 /** One node's movement on a given day: what came in, what left, what remains. */
@@ -333,6 +340,7 @@ export class ReportService {
       qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
       fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
       snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
+      water: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptWater}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptWater} is not null), 0), 2)`,
     }).from(mpConsignments).where(and(...conds))
       .groupBy(mpConsignments.fromNodeId, mpConsignments.toNodeId, mpConsignments.collectionDate, drMilkType, drShift);
     const rates = new RateChartService(this.db, this.tenantId);
@@ -341,6 +349,7 @@ export class ReportService {
     for (const r of rows) {
       const fat = numOrNull2(r.fat), snf = numOrNull2(r.snf);
       let gross = 0;
+      let ratePerLitre: number | null = null;
       if (fat != null && snf != null) {
         // node included: the rate is node-dependent (scoped charts + VMCC overrides)
         const key = `${r.fromNodeId}|${r.milkType}|${fat}|${snf}|${r.date}`;
@@ -349,11 +358,13 @@ export class ReportService {
           rate = await this.resolveRateSafe(rates, r.milkType, fat, snf, r.fromNodeId, r.date);
           cache.set(key, rate);
         }
+        ratePerLitre = rate ?? null;
         if (rate != null) gross = round2(Number(r.qty) * rate);
       }
       out.push({
         fromNodeId: r.fromNodeId, toNodeId: r.toNodeId, milkType: r.milkType,
         date: r.date, shift: r.shift, gross, qty: Number(r.qty),
+        fat, snf, water: numOrNull2(r.water), ratePerLitre,
       });
     }
     return out;

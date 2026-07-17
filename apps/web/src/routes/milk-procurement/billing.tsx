@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Coins, Lock, CheckCircle2, Receipt, RotateCcw } from 'lucide-react';
+import { Coins, Lock, CheckCircle2, Receipt, RotateCcw, Eye } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, StatsCard, Combobox, Modal, Input, DateInput,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, Button, EmptyState, Skeleton,
@@ -9,6 +9,7 @@ import {
   usePayoutCycles, useNodes, useCycleBillingSummary, useBillableVmccs, useDirectDetail, useGlSettings,
   useGenerateVmccBills, usePayVmccBill, useReverseVmccBill,
   useSettleFarmer, useReverseFarmer, useSettleOperator, useReverseOperator, useRegenerateDirect,
+  useVmccBillDetail,
   type MpPayoutCycle, type MpNode, type MpCycleBillingSummary, type MpBillableVmcc,
   type MpDirectPaymentRow, type MpDirectFarmerBill, type MpOperatorPayoutLine,
   type BillingHalf, type BillingPeriodSel, type PayoutMode,
@@ -89,10 +90,84 @@ function billBadge(row: MpBillableVmcc) {
   return <span className="text-xs text-zinc-400">Not generated</span>;
 }
 
-function BillRow({ row, onPay, onReverse }: {
+/**
+ * The day-by-day supply behind one VMCC's milk cost. A bulk VMCC has no farmer
+ * lines, so the CC's receipts are the only record of what it delivered — this is
+ * the whole audit trail for the money.
+ */
+function BillDetailModal({ row, period, onClose }: {
+  row: MpBillableVmcc; period: BillingPeriodSel; onClose: () => void;
+}) {
+  const { data, isLoading } = useVmccBillDetail({ ...period, vmccNodeId: row.vmccNodeId });
+  const d = data?.data;
+  const num = (v: number | null, dp = 1) => (v == null ? '—' : v.toFixed(dp));
+  return (
+    <Modal open onClose={onClose} title={`${row.vmccName} · ${row.vmccCode}`} size="lg">
+      {isLoading || !d ? (
+        <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8 w-full rounded" />)}</div>
+      ) : d.lines.length === 0 ? (
+        <EmptyState icon={Receipt} title="No milk received from this VMCC in this cycle." />
+      ) : (
+        <>
+          <p className="mb-2 text-xs text-zinc-500">
+            {d.periodStart} → {d.periodEnd} · each row is one shift&apos;s receipt at the CC, priced on its
+            quality.
+          </p>
+          {d.unpricedLines > 0 && (
+            <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
+              {d.unpricedLines} shift{d.unpricedLines > 1 ? 's' : ''} could not be priced — no rate chart matched
+              that quality or date, so they add ₹0 to the total below.
+            </p>
+          )}
+          <div className="max-h-[55vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Date</Th><Th>Shift</Th><Th align="right">Qty (L)</Th>
+                  <Th align="right">FAT</Th><Th align="right">SNF</Th><Th align="right">Water</Th>
+                  <Th align="right">₹/L</Th><Th align="right">Amount</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.lines.map((l) => (
+                  <TableRow key={`${l.date}|${l.shift}`}>
+                    <TableCell>{l.date}</TableCell>
+                    <TableCell><Badge>{l.shift.toUpperCase()}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{num(l.qtyLitres)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(l.fat, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(l.snf, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(l.water, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {l.ratePerLitre == null
+                        ? <span className="text-amber-600 dark:text-amber-500">not priced</span>
+                        : num(l.ratePerLitre, 2)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{inr(l.amount)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
+            <span className="text-sm text-zinc-500">{d.totalQty.toFixed(1)} L total</span>
+            <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {inr(d.totalAmount)}
+            </span>
+          </div>
+          <p className="mt-1 text-right text-xs text-zinc-500">
+            Milk cost only — commission is added on the bill.
+          </p>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function BillRow({ row, onPay, onReverse, onView }: {
   row: MpBillableVmcc;
   onPay: (row: MpBillableVmcc) => void;
   onReverse: (row: MpBillableVmcc) => void;
+  onView: (row: MpBillableVmcc) => void;
 }) {
   const bill = row.bill;
   return (
@@ -115,14 +190,21 @@ function BillRow({ row, onPay, onReverse }: {
       <TableCell className="text-right font-medium tabular-nums">{inr(row.total)}</TableCell>
       <TableCell>{billBadge(row)}</TableCell>
       <TableCell className="text-right">
-        {bill?.status === 'generated' && (
-          <Button size="sm" onClick={() => onPay(row)}>Record payment</Button>
-        )}
-        {bill?.status === 'paid' && (
-          <Button size="sm" variant="ghost" onClick={() => onReverse(row)}>
-            <RotateCcw size={14} className="mr-1" /> Reverse
+        <div className="flex items-center justify-end gap-1">
+          {/* Available whether or not a bill exists — the point is to check the
+              milk before billing it, not only after. */}
+          <Button size="sm" variant="ghost" onClick={() => onView(row)}>
+            <Eye size={14} className="mr-1" /> View
           </Button>
-        )}
+          {bill?.status === 'generated' && (
+            <Button size="sm" onClick={() => onPay(row)}>Record payment</Button>
+          )}
+          {bill?.status === 'paid' && (
+            <Button size="sm" variant="ghost" onClick={() => onReverse(row)}>
+              <RotateCcw size={14} className="mr-1" /> Reverse
+            </Button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -191,6 +273,7 @@ function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period: Billi
   const generate = useGenerateVmccBills();
   const reverse = useReverseVmccBill();
   const [payTarget, setPayTarget] = useState<MpBillableVmcc | null>(null);
+  const [viewTarget, setViewTarget] = useState<MpBillableVmcc | null>(null);
   const rows = data?.data ?? [];
   // Anything not already paid can be created/refreshed/revived; paid bills are frozen.
   const actionable = rows.some((r) => (r.milkCost > 0 || r.total > 0) && r.bill?.status !== 'paid');
@@ -240,13 +323,17 @@ function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period: Billi
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <BillRow key={r.vmccNodeId} row={r} onPay={setPayTarget} onReverse={onReverse} />
+                <BillRow key={r.vmccNodeId} row={r} onPay={setPayTarget} onReverse={onReverse}
+                  onView={setViewTarget} />
               ))}
             </TableBody>
           </Table>
         )}
       </CardContent>
       {payTarget && <PayBillModal row={payTarget} onClose={() => setPayTarget(null)} />}
+      {viewTarget && (
+        <BillDetailModal row={viewTarget} period={period} onClose={() => setViewTarget(null)} />
+      )}
     </Card>
   );
 }

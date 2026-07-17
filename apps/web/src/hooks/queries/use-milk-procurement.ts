@@ -289,6 +289,37 @@ export function useEffectiveAssignments(scopeType: RateScope, scopeId?: string) 
   });
 }
 
+/** One day+shift of a bulk VMCC's supply, priced — the audit trail behind a bill. */
+export interface MpVmccBillDetailLine {
+  date: string;
+  shift: 'am' | 'pm';
+  milkType: MilkType;
+  qtyLitres: number;
+  fat: number | null;
+  snf: number | null;
+  water: number | null;
+  ratePerLitre: number | null;
+  amount: number;
+}
+export interface MpVmccBillDetail {
+  periodStart: string;
+  periodEnd: string;
+  lines: MpVmccBillDetailLine[];
+  totalQty: number;
+  totalAmount: number;
+  unpricedLines: number;
+}
+
+export function useVmccBillDetail(
+  params: { year: number; month: number; half: 'first' | 'second'; vmccNodeId: string } | null,
+) {
+  return useQuery({
+    queryKey: ['mp', 'billing', 'vmcc-detail', params],
+    queryFn: () => api.get<ApiSuccess<MpVmccBillDetail>>(`${BASE}/billing/vmcc-detail${qs({ ...params! })}`),
+    enabled: !!params,
+  });
+}
+
 /** Effective slots keyed by node id — one call for a whole list. */
 export function useAssignmentsByNode() {
   return useQuery({
