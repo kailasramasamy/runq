@@ -129,6 +129,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Today\'s collection is closed — ready to dispatch.';
 
   @override
+  String get collectClosedAction => 'Collection closed';
+
+  @override
   String get collectReopen => 'Reopen';
 
   @override
@@ -577,6 +580,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispatchNoDispatchesToday => 'No dispatches today';
 
   @override
+  String dispatchOutboundOn(String date) {
+    return 'Outbound · $date';
+  }
+
+  @override
+  String dispatchNoDispatchesOn(String date) {
+    return 'No dispatches on $date';
+  }
+
+  @override
   String get dispatchNoDispatchesSubtitle =>
       'Use the form above to dispatch a tanker';
 
@@ -639,10 +652,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispatchNoData => 'No data';
 
   @override
-  String get dispatchShiftAm => '☀️ AM';
+  String get dispatchShiftAm => 'AM';
 
   @override
-  String get dispatchShiftPm => '☾ PM';
+  String get dispatchShiftPm => 'PM';
 
   @override
   String get paymentsCouldNotLoadCycles => 'Could not load cycles';
@@ -1409,6 +1422,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerHomeRewards => 'Rewards';
+
+  @override
+  String get farmerHomeQuality => 'Quality';
+
+  @override
+  String get farmerQcTitle => 'My quality';
+
+  @override
+  String farmerQcHeroLabel(int days) {
+    return 'MY QUALITY · LAST $days DAYS';
+  }
+
+  @override
+  String get farmerQcFooter => 'Averaged by the litres you poured';
+
+  @override
+  String get farmerQcEmptySubtitle => 'Pour milk to see your quality trend';
 
   @override
   String get farmerCollectionsTitle => 'Collections';

@@ -87,6 +87,7 @@
     }
   },
   "collectDayClosedBanner": "Today's collection is closed — ready to dispatch.",
+  "collectClosedAction": "Collection closed",
   "collectReopen": "Reopen",
   "collectCloseBlockedPending": "Some pours haven't synced yet — wait for sync, then close.",
   "dispatchCloseFirst": "Close collection for this shift before dispatching.",
@@ -299,6 +300,22 @@
   "dispatchTankerButton": "Dispatch Tanker",
   "dispatchTodaysOutbound": "Today's Outbound",
   "dispatchNoDispatchesToday": "No dispatches today",
+  "dispatchOutboundOn": "Outbound · {date}",
+  "@dispatchOutboundOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dispatchNoDispatchesOn": "No dispatches on {date}",
+  "@dispatchNoDispatchesOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "dispatchNoDispatchesSubtitle": "Use the form above to dispatch a tanker",
   "dispatchSelectDestination": "Select destination centre…",
   "dispatchSearchCentre": "Search centre",
@@ -337,8 +354,8 @@
     }
   },
   "dispatchNoData": "No data",
-  "dispatchShiftAm": "☀️ AM",
-  "dispatchShiftPm": "☾ PM",
+  "dispatchShiftAm": "AM",
+  "dispatchShiftPm": "PM",
   "paymentsCouldNotLoadCycles": "Could not load cycles",
   "paymentsStartNewCycle": "Start new cycle",
   "paymentsNoCyclesTitle": "No cycles yet",
@@ -761,6 +778,18 @@
     "description": "Quick link label for rate chart"
   },
   "farmerHomeRewards": "Rewards",
+  "farmerHomeQuality": "Quality",
+  "farmerQcTitle": "My quality",
+  "farmerQcHeroLabel": "MY QUALITY · LAST {days} DAYS",
+  "@farmerQcHeroLabel": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "farmerQcFooter": "Averaged by the litres you poured",
+  "farmerQcEmptySubtitle": "Pour milk to see your quality trend",
   "@farmerHomeRewards": {
     "description": "Quick link label for rewards"
   },

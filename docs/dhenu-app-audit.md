@@ -42,7 +42,7 @@ Complements `dhenu-feature-roadmap.md` — nothing here duplicates P1–P5 roadm
 | C5 | ✅ | **Farmer picker sorts by name with a text keyboard** — operators call farmers by code/number; no recent-first ordering | `farmer_picker.dart:64-71,86-87` |
 | C6 | ✅ | **Auto-open farmer picker after save** for true rapid-fire queue entry (form resets but focuses nothing) | `record_collection.dart:475-486` |
 | C7 | ✅ | Statement share forces a cycle pick every time — default to latest | `farmer_statement_share.dart:56-97` |
-| C8 | ✅ | Water mandatory in capture but optional in dispatch — blocks entry when analyzer doesn't emit water | `record_collection.dart:136-140` vs `vmcc_dispatch_tab.dart:237` |
+| C8 | ↩️ | ~~Water mandatory in capture but optional in dispatch — blocks entry when analyzer doesn't emit water~~ **Reversed 2026-07-17 on owner call:** water is the adulteration signal, so it is required again and the primary button stays "Next" until it is filled — in VMCC capture (analyzer nodes) and in CC manual receive, which previously only required the field to be *visited*. Lactometer nodes never had the field and are unaffected. If an analyzer-node VMCC cannot emit water, capture there is blocked — switch it to lactometer mode or reopen this. A water reading of `0` is valid and now reaches the server (CC previously dropped it via a `> 0` check). | `record_collection.dart:145-150,238-249`, `manual_receive_screen.dart:266-292` |
 | C9 | ✅ | Plausibility validation missing — FAT 45 / SNF 30 / 500 L pass silently; add upper bounds + large-qty confirm | `record_collection.dart:137-153` |
 
 ## Tier 4 — Language & reach (the audience the app is for)

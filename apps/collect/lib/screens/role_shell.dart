@@ -27,12 +27,20 @@ class RoleShell extends StatefulWidget {
   /// for those indices in [pages].
   final Map<int, VoidCallback> tabActions;
 
+  /// Switch the enclosing shell to [index] — lets a tab's own content link to a
+  /// sibling tab (farmer Home → Collections). Pushing the sibling as a route
+  /// instead would stack a second copy of it with no bottom nav under it.
+  static void goToTab(BuildContext context, int index) =>
+      context.findAncestorStateOfType<_RoleShellState>()?.select(index);
+
   @override
   State<RoleShell> createState() => _RoleShellState();
 }
 
 class _RoleShellState extends State<RoleShell> {
   late int _index = widget.initialIndex;
+
+  void select(int i) => setState(() => _index = i);
 
   void _onTap(int i) {
     final action = widget.tabActions[i];

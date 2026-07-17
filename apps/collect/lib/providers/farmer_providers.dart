@@ -175,7 +175,10 @@ List<MpCyclePeriod> _monthCycles(int year, int month, int n) {
 /// back to whole calendar months when no cadence is configured.
 List<MpCyclePeriod> buildCyclePeriods(MpCycleConfig cfg, DateTime now, int count) {
   final n = cfg.cycleDays;
-  if (n != null) {
+  // `>= 1` is load-bearing, not defensive noise: _monthCycles steps by n, so a 0
+  // would spin forever and hang the app. The API caps it at 1–31, but a hand-run
+  // SQL update on the settings row bypasses that.
+  if (n != null && n >= 1) {
     final today = _isoDate(DateTime(now.year, now.month, now.day));
     final out = <MpCyclePeriod>[];
     var y = now.year, m = now.month;
@@ -226,4 +229,21 @@ final farmerCurrentCyclePoursProvider = FutureProvider<List<MpPour>>((ref) async
   final period = await ref.watch(farmerCurrentCyclePeriodProvider.future);
   if (period == null) return const [];
   return ref.watch(farmerCyclePoursProvider(period).future);
+});
+
+/// The signed-in farmer's recorded pours over the last [days] — backs their
+/// quality report. Deliberately the plain farmer-scoped pours list, not the
+/// /reports rollup: that endpoint exists because a VMCC pools thousands of
+/// pours, whereas one farmer's 90 days is ~180 rows, and QcReportView already
+/// buckets samples into qty-weighted days itself. Keeps farmers off the report
+/// routes entirely.
+final farmerQcPoursProvider =
+    FutureProvider.family<List<MpPour>, int>((ref, days) async {
+  return mpRepo.pours(
+    farmerId: ref.watch(_farmerScopeId),
+    from: isoDaysAgo(days - 1),
+    to: todayIso(),
+    status: 'recorded',
+    limit: 500,
+  );
 });

@@ -22,6 +22,11 @@ class PrimaryAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
+    // An unavailable action goes grey: faded emerald under white text still
+    // reads as tappable, so operators tapped a dead button and saw nothing
+    // happen. Loading keeps the brand fill — that button *is* working.
+    final unavailable = !loading && onPressed == null;
+    final fg = unavailable ? t.inkSoft : Colors.white;
     return SizedBox(
       width: double.infinity,
       height: DhenuSpacing.minTap,
@@ -29,7 +34,8 @@ class PrimaryAction extends StatelessWidget {
         onPressed: loading ? null : onPressed,
         style: FilledButton.styleFrom(
           backgroundColor: t.brand,
-          disabledBackgroundColor: t.brand.withValues(alpha: 0.6),
+          disabledBackgroundColor:
+              unavailable ? t.hairline : t.brand.withValues(alpha: 0.6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(DhenuRadii.button),
           ),
@@ -48,12 +54,12 @@ class PrimaryAction extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, color: Colors.white, size: 20),
+                    Icon(icon, color: fg, size: 20),
                     const SizedBox(width: DhenuSpacing.sm),
                   ],
                   Text(
                     label,
-                    style: DhenuText.button.copyWith(color: Colors.white),
+                    style: DhenuText.button.copyWith(color: fg),
                   ),
                 ],
               ),

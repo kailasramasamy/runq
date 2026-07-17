@@ -95,18 +95,22 @@ function PayoutCard({ settings }: { settings: MpGlSettings | null }) {
 function CycleCard({ settings }: { settings: MpGlSettings | null }) {
   const upsert = useUpsertGlSettings();
   const { toast } = useToast();
-  const [days, setDays] = useState('15');
+  const [days, setDays] = useState('');
   const [anchor, setAnchor] = useState('');
   const [auto, setAuto] = useState('off');
 
+  // Mirror what's stored, blanks included. Defaulting the length to 15 made an
+  // unconfigured tenant look identical to a correctly configured one, so nobody
+  // pressed Save and farmers silently got month labels instead of cycles.
   useEffect(() => {
     if (!settings) return;
-    if (settings.cycleDays) setDays(String(settings.cycleDays));
-    if (settings.cycleAnchorDate) setAnchor(settings.cycleAnchorDate);
+    setDays(settings.cycleDays ? String(settings.cycleDays) : '');
+    setAnchor(settings.cycleAnchorDate ?? '');
     setAuto(settings.autoGenerateCycle ? 'on' : 'off');
   }, [settings]);
 
   const save = () => {
+    if (!days) { toast('Pick a cycle length', 'error'); return; }
     if (auto === 'on' && !anchor) { toast('Pick a cycle start date to auto-generate', 'error'); return; }
     upsert.mutate(
       { cycleDays: Number(days), cycleAnchorDate: anchor || null, autoGenerateCycle: auto === 'on' },
@@ -119,7 +123,8 @@ function CycleCard({ settings }: { settings: MpGlSettings | null }) {
       <CardHeader>Collection &amp; payout cycle</CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <Combobox label="Cycle length" value={days} onChange={setDays} options={CYCLE_LENGTHS} />
+          <Combobox label="Cycle length" value={days} onChange={setDays} options={CYCLE_LENGTHS}
+            placeholder="Not set — farmers see months" />
           <Input label="Bill cycles from" type="date" value={anchor} onChange={(e) => setAnchor(e.target.value)} />
         </div>
         <Combobox label="Generation" value={auto} onChange={setAuto} options={AUTO_MODES} />

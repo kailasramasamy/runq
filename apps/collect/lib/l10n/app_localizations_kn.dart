@@ -129,6 +129,9 @@ class AppLocalizationsKn extends AppLocalizations {
       'ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ — ರವಾನೆಗೆ ಸಿದ್ಧ.';
 
   @override
+  String get collectClosedAction => 'ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ';
+
+  @override
   String get collectReopen => 'ಮರು ತೆರೆಯಿರಿ';
 
   @override
@@ -575,6 +578,16 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchNoDispatchesToday => 'ಇಂದು ರವಾನೆಗಳಿಲ್ಲ';
 
   @override
+  String dispatchOutboundOn(String date) {
+    return 'ಹೊರಗಡೆ · $date';
+  }
+
+  @override
+  String dispatchNoDispatchesOn(String date) {
+    return '$date ರಂದು ರವಾನೆಗಳಿಲ್ಲ';
+  }
+
+  @override
   String get dispatchNoDispatchesSubtitle =>
       'ಟ್ಯಾಂಕರ್ ರವಾನಿಸಲು ಮೇಲಿನ ಫಾರ್ಮ್ ಬಳಸಿ';
 
@@ -636,10 +649,10 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchNoData => 'ಮಾಹಿತಿ ಇಲ್ಲ';
 
   @override
-  String get dispatchShiftAm => '☀️ ಬೆಳಿಗ್ಗೆ';
+  String get dispatchShiftAm => 'ಬೆಳಿಗ್ಗೆ';
 
   @override
-  String get dispatchShiftPm => '☾ ಸಂಜೆ';
+  String get dispatchShiftPm => 'ಸಂಜೆ';
 
   @override
   String get paymentsCouldNotLoadCycles => 'ಚಕ್ರಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
@@ -1410,6 +1423,24 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get farmerHomeRewards => 'ಬಹುಮಾನಗಳು';
+
+  @override
+  String get farmerHomeQuality => 'ಗುಣಮಟ್ಟ';
+
+  @override
+  String get farmerQcTitle => 'ನನ್ನ ಗುಣಮಟ್ಟ';
+
+  @override
+  String farmerQcHeroLabel(int days) {
+    return 'ನನ್ನ ಗುಣಮಟ್ಟ · ಕಳೆದ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get farmerQcFooter => 'ನೀವು ಹಾಕಿದ ಲೀಟರ್ ಆಧಾರದ ಮೇಲೆ ಸರಾಸರಿ';
+
+  @override
+  String get farmerQcEmptySubtitle =>
+      'ನಿಮ್ಮ ಗುಣಮಟ್ಟದ ಪ್ರವೃತ್ತಿ ನೋಡಲು ಹಾಲು ಹಾಕಿ';
 
   @override
   String get farmerCollectionsTitle => 'ಸಂಗ್ರಹಗಳು';

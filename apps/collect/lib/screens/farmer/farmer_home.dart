@@ -17,7 +17,9 @@ import '../../widgets/dhenu_toast.dart';
 import '../../widgets/gradient_hero_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/shift_accent_card.dart';
+import '../role_shell.dart';
 import 'farmer_insights.dart';
+import 'farmer_qc_report.dart';
 import 'farmer_rate_chart.dart';
 import 'farmer_rewards.dart';
 
@@ -26,6 +28,9 @@ import 'farmer_rewards.dart';
 /// quick links — over the current-cycle/today pour providers.
 class FarmerHome extends ConsumerWidget {
   const FarmerHome({super.key});
+
+  /// Collections' index in [FarmerShell]'s tab list.
+  static const _collectionsTab = 1;
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(cycleConfigProvider);
@@ -438,17 +443,33 @@ class FarmerHome extends ConsumerWidget {
   }
 
   // ── Quick links ─────────────────────────────────────────────────────────
-  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(
+  /// 2×2 grid. Collections switches the shell tab rather than pushing, so the
+  /// farmer lands on the real tab (bottom nav intact) instead of a stacked copy.
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Column(
         children: [
-          Expanded(
-            child: _link(context, t, DhenuIcons.grid, t.brand, l.farmerHomeRateChart,
-                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRateChart()))),
-          ),
-          const SizedBox(width: DhenuSpacing.md),
-          Expanded(
-            child: _link(context, t, DhenuIcons.trophy, t.gradeB, l.farmerHomeRewards,
-                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRewards()))),
-          ),
+          Row(children: [
+            Expanded(
+              child: _link(context, t, DhenuIcons.grid, t.brand, l.farmerHomeRateChart,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRateChart()))),
+            ),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(
+              child: _link(context, t, DhenuIcons.trophy, t.gradeB, l.farmerHomeRewards,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerRewards()))),
+            ),
+          ]),
+          const SizedBox(height: DhenuSpacing.md),
+          Row(children: [
+            Expanded(
+              child: _link(context, t, DhenuIcons.collections, t.am, l.navCollections,
+                  () => RoleShell.goToTab(context, _collectionsTab)),
+            ),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(
+              child: _link(context, t, DhenuIcons.beaker, t.gradeA, l.farmerHomeQuality,
+                  () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FarmerQcReport()))),
+            ),
+          ]),
         ],
       );
 

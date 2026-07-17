@@ -226,10 +226,6 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
   final _waterFocus = FocusNode();
   bool _saving = false;
   String? _error;
-  // Water is optional, but we route the operator through it before allowing
-  // save so it isn't silently skipped — "Mark received" appears only once the
-  // water field has been visited (entry or deliberate skip).
-  bool _waterVisited = false;
 
   String _trimNum(double n) =>
       n == n.truncateToDouble() ? n.toInt().toString() : n.toString();
@@ -243,15 +239,10 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
       if (e.receiptFat != null) _fat.text = _trimNum(e.receiptFat!);
       if (e.receiptSnf != null) _snf.text = _trimNum(e.receiptSnf!);
       if (e.receiptWater != null) _water.text = _trimNum(e.receiptWater!);
-      // Editing a saved receipt — values are present, don't re-gate on water.
-      _waterVisited = true;
     }
-    for (final c in [_qty, _fat, _snf]) {
+    for (final c in [_qty, _fat, _snf, _water]) {
       c.addListener(() => setState(() {}));
     }
-    _waterFocus.addListener(() {
-      if (_waterFocus.hasFocus && !_waterVisited) setState(() => _waterVisited = true);
-    });
   }
 
   @override
@@ -272,16 +263,22 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
     return (v != null && v > 0) ? v : null;
   }
 
+  /// Water reading, where 0 is a real answer ("no added water") rather than a
+  /// blank — so it parses on its own instead of going through [_positive].
+  double? get _waterVal {
+    final v = double.tryParse(_water.text);
+    return (v != null && v >= 0) ? v : null;
+  }
+
+  // Water is required alongside the three measures: it is the adulteration
+  // signal, so a blank reading is a gap in the VMCC's quality record.
   bool get _allEntered =>
-      _positive(_qty) != null && _positive(_fat) != null && _positive(_snf) != null;
+      _positive(_qty) != null && _positive(_fat) != null &&
+      _positive(_snf) != null && _waterVal != null;
 
-  // Ready to save once the three required measures are in AND the (optional)
-  // water field has been stepped through.
-  bool get _ready => _allEntered && _waterVisited;
-
-  /// "Next" handler — jump focus to the first measurement still missing, then to
-  /// the water field, so the operator is guided field-by-field (water included)
-  /// instead of hunting for what's blank or skipping water by accident.
+  /// "Next" handler — jump focus to the first field still missing, water
+  /// included, so the operator is guided field-by-field instead of hunting for
+  /// what's blank.
   void _focusNext() {
     if (_positive(_qty) == null) {
       _qtyFocus.requestFocus();
@@ -289,7 +286,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
       _fatFocus.requestFocus();
     } else if (_positive(_snf) == null) {
       _snfFocus.requestFocus();
-    } else if (!_waterVisited) {
+    } else if (_waterVal == null) {
       _waterFocus.requestFocus();
     }
   }
@@ -307,7 +304,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
           'receiptQty': _positive(_qty),
           'receiptFat': _positive(_fat),
           'receiptSnf': _positive(_snf),
-          if (_positive(_water) != null) 'receiptWater': _positive(_water),
+          'receiptWater': _waterVal,
         });
       } else {
         await mpRepo.directReceive({
@@ -318,7 +315,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
           'qty': _positive(_qty),
           'fat': _positive(_fat),
           'snf': _positive(_snf),
-          if (_positive(_water) != null) 'water': _positive(_water),
+          'water': _waterVal,
         });
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -407,11 +404,11 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
             padding: const EdgeInsets.all(DhenuSpacing.screen),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               PrimaryAction(
-                label: _ready
+                label: _allEntered
                     ? (widget.existing != null ? l.ccManualReceiveSaveChanges : l.ccManualReceiveMarkReceived)
                     : l.commonNext,
-                icon: _ready ? DhenuIcons.check : DhenuIcons.chevronRight,
-                onPressed: _ready ? _save : _focusNext,
+                icon: _allEntered ? DhenuIcons.check : DhenuIcons.chevronRight,
+                onPressed: _allEntered ? _save : _focusNext,
                 loading: _saving,
               ),
               if (widget.existing?.directReceive ?? false) ...[

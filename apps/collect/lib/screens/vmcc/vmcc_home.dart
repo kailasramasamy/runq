@@ -37,6 +37,7 @@ class VmccHome extends ConsumerWidget {
     ref.invalidate(nodeTodaySummaryProvider(node.id));
     ref.invalidate(nodeTodayPoursProvider(node.id));
     ref.invalidate(nodeSummaryForDateProvider(_yesterdayKey));
+    ref.invalidate(nodePoursForDateProvider(_yesterdayKey));
     ref.invalidate(nodeAvailabilityProvider);
     ref.invalidate(shiftStatusProvider(node.id));
     await Future.wait([
@@ -83,7 +84,7 @@ class VmccHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.xl),
           Text(l.homeYesterday, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _yesterday(context, ref, t, l),
+          _YesterdayCollection(node: node),
           const SizedBox(height: DhenuSpacing.md),
           _historyLink(context, t, l),
         ],
@@ -279,42 +280,6 @@ class VmccHome extends ConsumerWidget {
       );
 
 
-  /// Compact rollup of yesterday's collection: litres headline, farmer count,
-  /// AM/PM split, and qty-weighted FAT/SNF. Quietly collapses to a one-line
-  /// caption when yesterday had no milk.
-  Widget _yesterday(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
-    final summary = ref.watch(nodeSummaryForDateProvider(_yesterdayKey));
-    return summary.when(
-      loading: () => const DhenuLoadingList(rows: 1),
-      error: (e, _) => Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
-      data: (s) {
-        if (s == null || s.totalQty <= 0.05) {
-          return Text(l.homeNoCollectionYesterday,
-              style: DhenuText.body.copyWith(color: t.inkSoft));
-        }
-        return DhenuCard(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Text(litres(s.totalQty, unit: true), style: DhenuText.title.copyWith(color: t.ink)),
-              const Spacer(),
-              Text(l.homeFarmerCount(s.farmerCount),
-                  style: DhenuText.body.copyWith(color: t.inkSoft)),
-            ]),
-            const SizedBox(height: DhenuSpacing.sm),
-            Row(children: [
-              Text('${l.shiftAm} ${litres(s.amQty, unit: true)} · ${l.shiftPm} ${litres(s.pmQty, unit: true)}',
-                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
-              const Spacer(),
-              if (s.avgFat > 0)
-                Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
-                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            ]),
-          ]),
-        );
-      },
-    );
-  }
-
   /// Full-width tappable row into the collection history screen.
   Widget _historyLink(BuildContext context, DhenuTokens t, AppLocalizations l) => DhenuCard(
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -383,5 +348,105 @@ class VmccHome extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+/// Yesterday's collection: a rollup card (litres, farmer count, AM/PM split,
+/// qty-weighted FAT/SNF) that expands into every farmer's pours, PM then AM.
+/// Its own widget so Home stays a [ConsumerWidget] and only this card rebuilds
+/// on expand; the pour list is watched lazily, so an operator who never opens it
+/// still costs Home a single summary call.
+class _YesterdayCollection extends ConsumerStatefulWidget {
+  const _YesterdayCollection({required this.node});
+
+  final MpNode node;
+
+  @override
+  ConsumerState<_YesterdayCollection> createState() => _YesterdayCollectionState();
+}
+
+class _YesterdayCollectionState extends ConsumerState<_YesterdayCollection> {
+  bool _expanded = false;
+
+  NodeDateKey get _key => (nodeId: widget.node.id, date: isoDaysAgo(1));
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return ref.watch(nodeSummaryForDateProvider(_key)).when(
+          loading: () => const DhenuLoadingList(rows: 1),
+          error: (e, _) =>
+              Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
+          data: (s) {
+            // Nothing to expand into on a dry day — stay a plain caption.
+            if (s == null || s.totalQty <= 0.05) {
+              return Text(l.homeNoCollectionYesterday,
+                  style: DhenuText.body.copyWith(color: t.inkSoft));
+            }
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _summaryCard(t, l, s),
+              if (_expanded) ...[
+                const SizedBox(height: DhenuSpacing.sm),
+                _pours(context, t, l),
+              ],
+            ]);
+          },
+        );
+  }
+
+  Widget _summaryCard(DhenuTokens t, AppLocalizations l, MpCollectionSummary s) => DhenuCard(
+        selected: _expanded,
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text(litres(s.totalQty, unit: true), style: DhenuText.title.copyWith(color: t.ink)),
+            const Spacer(),
+            Text(l.homeFarmerCount(s.farmerCount),
+                style: DhenuText.body.copyWith(color: t.inkSoft)),
+            const SizedBox(width: DhenuSpacing.sm),
+            Icon(_expanded ? DhenuIcons.chevronUp : DhenuIcons.chevronDown,
+                color: t.inkSoft, size: 20),
+          ]),
+          const SizedBox(height: DhenuSpacing.sm),
+          Row(children: [
+            Text('${l.shiftAm} ${litres(s.amQty, unit: true)} · ${l.shiftPm} ${litres(s.pmQty, unit: true)}',
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            const Spacer(),
+            if (s.avgFat > 0)
+              Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ]),
+        ]),
+      );
+
+  /// The expanded body: the same shift-grouped farmer rows Home shows for today,
+  /// tapping through to the pour detail sheet (and on to an edit).
+  Widget _pours(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
+    final byId = {for (final f in farmers) f.id: f};
+    return ref.watch(nodePoursForDateProvider(_key)).when(
+          loading: () => const DhenuLoadingList(),
+          error: (e, _) =>
+              Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
+          data: (pours) => pours.isEmpty
+              ? Text(l.homeNoCollectionYesterday, style: DhenuText.body.copyWith(color: t.inkSoft))
+              : ShiftGroupedPours(
+                  pours: pours,
+                  farmersById: byId,
+                  bands: ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull,
+                  showAvatar: false,
+                  onTapPour: (p, farmer) => showPourDetailSheet(
+                    context,
+                    pour: p,
+                    node: widget.node,
+                    farmer: farmer,
+                    onModify: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          RecordCollectionScreen(node: widget.node, seedPour: p, seedFarmer: farmer),
+                    )),
+                  ),
+                ),
+        );
   }
 }

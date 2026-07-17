@@ -142,12 +142,13 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // edits keep the original collection date; fresh entries default to today
   // but can be back-dated via the date picker.
   String get _collectionDate => _date;
-  // Water is optional (matches dispatch entry) — not every analyzer emits it,
-  // and requiring it blocked capture entirely at those VMCCs (audit C8).
+  // Water is required wherever it is captured: it is the adulteration signal, so
+  // a blank reading is a gap in the farmer's quality record, not a neutral skip.
+  // Lactometer nodes have no water field at all — they stay gated on CLR alone.
   bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
-          : _fatVal != null && _snfVal != null);
+          : _fatVal != null && _snfVal != null && _waterVal != null);
 
   void _onFieldChanged() {
     setState(() {});
@@ -243,6 +244,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     } else {
       if (_fatVal == null) { _fatFocus.requestFocus(); return; }
       if (_snfVal == null) { _snfFocus.requestFocus(); return; }
+      if (_waterVal == null) { _waterFocus.requestFocus(); return; }
     }
     _save();
   }
@@ -364,7 +366,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       'milkType': milkTypeToApi(_milkType),
       'qtyLitres': _qtyVal,
       if (widget.node.isLactometer) 'clr': _clrVal
-      else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
+      else ...{'fat': _fatVal, 'snf': _snfVal, 'water': _waterVal},
       'asNewLot': asNewLot,
     };
     final bool sentNow;
@@ -470,7 +472,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         'milkType': milkTypeToApi(_milkType),
         'qtyLitres': _qtyVal,
         if (widget.node.isLactometer) 'clr': _clrVal
-        else ...{'fat': _fatVal, 'snf': _snfVal, if (_waterVal != null) 'water': _waterVal},
+        else ...{'fat': _fatVal, 'snf': _snfVal, 'water': _waterVal},
         'asNewLot': true,
       });
       if (!mounted) return;
@@ -727,8 +729,15 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           child: Padding(
             padding: const EdgeInsets.all(DhenuSpacing.screen),
             child: PrimaryAction(
-              label: _canSave ? l.collectSaveAndNext : l.commonNext,
-              icon: _canSave ? DhenuIcons.check : DhenuIcons.arrowRight,
+              // Closed says so on the button itself: the action is unreachable
+              // until Reopen in the banner, and a greyed "Next" alone doesn't
+              // explain why nothing happens.
+              label: closed
+                  ? l.collectClosedAction
+                  : (_canSave ? l.collectSaveAndNext : l.commonNext),
+              icon: closed
+                  ? DhenuIcons.lock
+                  : (_canSave ? DhenuIcons.check : DhenuIcons.arrowRight),
               loading: _saving,
               onPressed: (_saving || closed) ? null : _onPrimary,
             ),

@@ -262,7 +262,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           _dispatchedCard(t, l, availAsync, outboundAsync),
         ],
         const SizedBox(height: DhenuSpacing.xl),
-        Text(l.dispatchTodaysOutbound, style: DhenuText.title.copyWith(color: t.ink)),
+        Text(_outboundHeading(l), style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         _outboundList(t, l, outboundAsync),
         _seeDispatchHistoryLink(context, t, l),
@@ -406,6 +406,23 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     return c.shift == Shift.am ? l.dispatchShiftAm : l.dispatchShiftPm;
   }
 
+  /// Pooled (BMC) consignments are titled by their number and carry no shift.
+  IconData? _outboundIcon(MpConsignment c) => switch (c.shift) {
+        Shift.am => DhenuIcons.sun,
+        Shift.pm => DhenuIcons.moon,
+        null => null,
+      };
+
+  /// The outbound list follows the date stepper, so its heading has to move off
+  /// "Today" whenever a past day is selected.
+  String _outboundHeading(AppLocalizations l) => _date == todayIso()
+      ? l.dispatchTodaysOutbound
+      : l.dispatchOutboundOn(prettyDate(_date));
+
+  String _outboundEmptyTitle(AppLocalizations l) => _date == todayIso()
+      ? l.dispatchNoDispatchesToday
+      : l.dispatchNoDispatchesOn(prettyDate(_date));
+
   /// Full consignment id shown below the shift label so it never truncates.
   String? _outboundSubtitle(MpConsignment c) =>
       c.shift == null ? null : c.consignmentNo;
@@ -419,7 +436,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         if (outbound.isEmpty) {
           return DhenuEmptyState(
             icon: DhenuIcons.truck,
-            title: l.dispatchNoDispatchesToday,
+            title: _outboundEmptyTitle(l),
             subtitle: l.dispatchNoDispatchesSubtitle,
           );
         }
@@ -430,6 +447,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
               if (i > 0) Divider(height: 1, color: t.hairline),
               SourceRow(
                 title: _outboundTitle(l, outbound[i]),
+                titleIcon: _outboundIcon(outbound[i]),
                 subtitle: _outboundSubtitle(outbound[i]),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
                 trailingStatus: StatusGlyph(

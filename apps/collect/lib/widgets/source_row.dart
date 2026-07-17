@@ -12,6 +12,7 @@ class SourceRow extends StatelessWidget {
   const SourceRow({
     super.key,
     required this.title,
+    this.titleIcon,
     this.subtitle,
     this.leadingInitials,
     this.farmer,
@@ -26,6 +27,11 @@ class SourceRow extends StatelessWidget {
 
   /// Display name.
   final String title;
+
+  /// Optional glyph before [title] — e.g. the shift's sun/moon. Keeps shift
+  /// marks as themed Lucide icons rather than literal ☀/☾ characters baked into
+  /// translated strings, which render in the system font and ignore the theme.
+  final IconData? titleIcon;
 
   /// Optional small secondary line under the title (e.g. full consignment id).
   final String? subtitle;
@@ -85,12 +91,20 @@ class SourceRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      style: DhenuText.title.copyWith(color: t.ink),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (titleIcon != null) ...[
+                        Icon(titleIcon, size: 15, color: t.inkSoft),
+                        const SizedBox(width: DhenuSpacing.sm),
+                      ],
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: DhenuText.title.copyWith(color: t.ink),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ]),
                     if (subtitle != null) ...[
                       const SizedBox(height: DhenuSpacing.xs),
                       Text(

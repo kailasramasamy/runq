@@ -131,6 +131,9 @@ class AppLocalizationsTa extends AppLocalizations {
       'இன்றைய சேகரிப்பு மூடப்பட்டது — அனுப்புவதற்கு தயார்.';
 
   @override
+  String get collectClosedAction => 'சேகரிப்பு மூடப்பட்டது';
+
+  @override
   String get collectReopen => 'மீண்டும் திற';
 
   @override
@@ -582,6 +585,16 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dispatchNoDispatchesToday => 'இன்று அனுப்புதல்கள் இல்லை';
 
   @override
+  String dispatchOutboundOn(String date) {
+    return 'வெளிச்செல்லும் சரக்கு · $date';
+  }
+
+  @override
+  String dispatchNoDispatchesOn(String date) {
+    return '$date அன்று அனுப்புதல்கள் இல்லை';
+  }
+
+  @override
   String get dispatchNoDispatchesSubtitle =>
       'டேங்கரை அனுப்ப மேலே உள்ள படிவத்தை பயன்படுத்தவும்';
 
@@ -644,10 +657,10 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dispatchNoData => 'தரவு இல்லை';
 
   @override
-  String get dispatchShiftAm => '☀️ காலை';
+  String get dispatchShiftAm => 'காலை';
 
   @override
-  String get dispatchShiftPm => '☾ மாலை';
+  String get dispatchShiftPm => 'மாலை';
 
   @override
   String get paymentsCouldNotLoadCycles => 'சுழற்சிகளை ஏற்ற முடியவில்லை';
@@ -1420,6 +1433,23 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get farmerHomeRewards => 'வெகுமதிகள்';
+
+  @override
+  String get farmerHomeQuality => 'தரம்';
+
+  @override
+  String get farmerQcTitle => 'என் தரம்';
+
+  @override
+  String farmerQcHeroLabel(int days) {
+    return 'என் தரம் · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get farmerQcFooter => 'நீங்கள் ஊற்றிய லிட்டர் அடிப்படையில் சராசரி';
+
+  @override
+  String get farmerQcEmptySubtitle => 'உங்கள் தர போக்கைக் காண பால் ஊற்றுங்கள்';
 
   @override
   String get farmerCollectionsTitle => 'சேகரிப்புகள்';

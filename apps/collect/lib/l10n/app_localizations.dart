@@ -310,6 +310,12 @@ abstract class AppLocalizations {
   /// **'Today\'s collection is closed — ready to dispatch.'**
   String get collectDayClosedBanner;
 
+  /// No description provided for @collectClosedAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection closed'**
+  String get collectClosedAction;
+
   /// No description provided for @collectReopen.
   ///
   /// In en, this message translates to:
@@ -1120,6 +1126,18 @@ abstract class AppLocalizations {
   /// **'No dispatches today'**
   String get dispatchNoDispatchesToday;
 
+  /// No description provided for @dispatchOutboundOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Outbound · {date}'**
+  String dispatchOutboundOn(String date);
+
+  /// No description provided for @dispatchNoDispatchesOn.
+  ///
+  /// In en, this message translates to:
+  /// **'No dispatches on {date}'**
+  String dispatchNoDispatchesOn(String date);
+
   /// No description provided for @dispatchNoDispatchesSubtitle.
   ///
   /// In en, this message translates to:
@@ -1225,13 +1243,13 @@ abstract class AppLocalizations {
   /// No description provided for @dispatchShiftAm.
   ///
   /// In en, this message translates to:
-  /// **'☀️ AM'**
+  /// **'AM'**
   String get dispatchShiftAm;
 
   /// No description provided for @dispatchShiftPm.
   ///
   /// In en, this message translates to:
-  /// **'☾ PM'**
+  /// **'PM'**
   String get dispatchShiftPm;
 
   /// No description provided for @paymentsCouldNotLoadCycles.
@@ -2625,6 +2643,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rewards'**
   String get farmerHomeRewards;
+
+  /// No description provided for @farmerHomeQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality'**
+  String get farmerHomeQuality;
+
+  /// No description provided for @farmerQcTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My quality'**
+  String get farmerQcTitle;
+
+  /// No description provided for @farmerQcHeroLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'MY QUALITY · LAST {days} DAYS'**
+  String farmerQcHeroLabel(int days);
+
+  /// No description provided for @farmerQcFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Averaged by the litres you poured'**
+  String get farmerQcFooter;
+
+  /// No description provided for @farmerQcEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pour milk to see your quality trend'**
+  String get farmerQcEmptySubtitle;
 
   /// Collections tab sticky header title
   ///

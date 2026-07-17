@@ -312,7 +312,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           _dispatchedCard(t, l, availAsync, outboundAsync),
         ],
         const SizedBox(height: DhenuSpacing.xl),
-        Text(l.dispatchTodaysOutbound, style: DhenuText.title.copyWith(color: t.ink)),
+        Text(_outboundHeading(l), style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         _outboundList(t, l, outboundAsync, ppNames),
         _seeDispatchHistoryLink(context, t, l),
@@ -391,6 +391,16 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   String _slotLabel(AppLocalizations l) => _overnight
       ? l.ccDispatchSlotPool
       : (_perShift ? (_shift == Shift.am ? l.shiftAm : l.shiftPm) : l.ccDispatchSlotToday);
+
+  /// The outbound list follows the date stepper, so its heading has to move off
+  /// "Today" whenever a past day is selected.
+  String _outboundHeading(AppLocalizations l) => _date == todayIso()
+      ? l.dispatchTodaysOutbound
+      : l.dispatchOutboundOn(prettyDate(_date));
+
+  String _outboundEmptyTitle(AppLocalizations l) => _date == todayIso()
+      ? l.dispatchNoDispatchesToday
+      : l.dispatchNoDispatchesOn(prettyDate(_date));
 
   /// Receiving-close control gating onward dispatch. Open → an action button
   /// that closes the slot and unlocks dispatch; closed → a confirmation with a
@@ -513,7 +523,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         if (outbound.isEmpty) {
           return DhenuEmptyState(
             icon: DhenuIcons.truck,
-            title: l.dispatchNoDispatchesToday,
+            title: _outboundEmptyTitle(l),
             subtitle: l.dispatchNoDispatchesSubtitle,
           );
         }
