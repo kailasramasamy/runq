@@ -210,9 +210,6 @@ function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period: Billi
     });
   }
 
-  if (!ccNodeId) {
-    return <EmptyState icon={Receipt} title="Pick a chilling centre to bill its VMCCs." />;
-  }
   return (
     <Card>
       <CardContent className="pt-4">
@@ -426,7 +423,6 @@ function DirectPaymentSection({ ccNodeId, period }: { ccNodeId: string; period: 
     );
   }
 
-  if (!ccNodeId) return <EmptyState icon={Receipt} title="Pick a chilling centre to see its payments." />;
   if (isLoading) {
     return <SectionCard title="Direct farmer payments"><div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full rounded" />)}</div></SectionCard>;
   }
@@ -437,7 +433,9 @@ function DirectPaymentSection({ ccNodeId, period }: { ccNodeId: string; period: 
   const opBusy = settleOperator.isPending ? settleOperator.variables?.operatorId ?? null : reverseOperator.isPending ? reverseOperator.variables?.operatorId ?? null : null;
   return (
     <div className="space-y-4">
-      <SectionCard title="VMCC totals" subtitle="This centre pays farmers directly — settle each farmer and operator below.">
+      {/* Scoped to "these VMCCs", not "this centre": a centre can hold both
+          modes, and the via-VMCC ones are billed in the section above. */}
+      <SectionCard title="VMCC totals" subtitle="These VMCCs' farmers are paid directly — settle each farmer and operator below.">
         <VmccTotalsTable rows={detail.vmccs} />
       </SectionCard>
       <SectionCard title="Farmer bills" subtitle="Amount payable to each farmer this cycle — Pay records the payment (GL + txn) as you disburse."
@@ -568,12 +566,22 @@ export function MpBillingPage() {
   const { data: nodesData } = useNodes({ limit: 500 });
   const { data: glData } = useGlSettings();
   const cycles = cyclesData?.data ?? [];
-  const ccs = (nodesData?.data ?? []).filter((n) => n.nodeType === 'cc');
+  const nodes = nodesData?.data ?? [];
+  const ccs = nodes.filter((n) => n.nodeType === 'cc');
   const [ccNodeId, setCc] = useState('');
   const [period, setPeriod] = useState<BillingPeriodSel>(currentPeriod);
-  // Effective mode of the selected CC = its own mode ?? tenant default.
+  // Payout mode is per VMCC (vmcc ?? its CC ?? tenant default), so one centre can
+  // hold both kinds — and does. Branching the whole page on the CC's own mode hid
+  // every via-VMCC bill under a CC that inherited direct_to_farmer, which is why
+  // those bills were never generated. Decide per section instead, mirroring
+  // vmccsByMode() on the server.
   const tenantDefault: PayoutMode = glData?.data?.defaultPayoutMode ?? 'direct_to_farmer';
   const ccMode: PayoutMode = ccs.find((c) => c.id === ccNodeId)?.payoutMode ?? tenantDefault;
+  const vmccModes = nodes
+    .filter((n) => n.nodeType === 'vmcc' && n.parentNodeId === ccNodeId && n.isActive)
+    .map((v) => v.payoutMode ?? ccMode);
+  const hasVia = vmccModes.includes('via_vmcc');
+  const hasDirect = vmccModes.includes('direct_to_farmer');
 
   return (
     <div className="space-y-4">
@@ -589,9 +597,12 @@ export function MpBillingPage() {
           <BillingControls ccNodeId={ccNodeId} ccs={ccs} period={period} onCc={setCc} onPeriod={setPeriod} />
         </CardContent>
       </Card>
-      {ccMode === 'direct_to_farmer'
-        ? <DirectPaymentSection ccNodeId={ccNodeId} period={period} />
-        : <VmccBillSection ccNodeId={ccNodeId} period={period} />}
+      {!ccNodeId && <EmptyState icon={Receipt} title="Pick a chilling centre to bill its VMCCs." />}
+      {ccNodeId && !hasVia && !hasDirect && (
+        <EmptyState icon={Receipt} title="No active VMCCs under this centre." />
+      )}
+      {ccNodeId && hasVia && <VmccBillSection ccNodeId={ccNodeId} period={period} />}
+      {ccNodeId && hasDirect && <DirectPaymentSection ccNodeId={ccNodeId} period={period} />}
     </div>
   );
 }
