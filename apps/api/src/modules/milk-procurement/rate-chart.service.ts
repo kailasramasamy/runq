@@ -243,8 +243,11 @@ export class RateChartService {
   private async scopeChain(
     scopeType: RateScope, scopeId: string,
   ): Promise<{ type: RateScope; id: string; source: AssignmentSource }[]> {
+    // Viewed from the tenant scope, the tenant's own row IS its own — labelling
+    // it 'tenant' made the defaults screen read every saved default as inherited
+    // from somewhere else, so it showed "None" over a chart that was set.
     const chain: { type: RateScope; id: string; source: AssignmentSource }[] = [
-      { type: 'tenant', id: this.tenantId, source: 'tenant' },
+      { type: 'tenant', id: this.tenantId, source: scopeType === 'tenant' ? 'own' : 'tenant' },
     ];
     if (scopeType === 'tenant') return chain;
     if (scopeType === 'node') {
