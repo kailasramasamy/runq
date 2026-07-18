@@ -34,6 +34,11 @@ class _ShareIntakeHostState extends ConsumerState<ShareIntakeHost> {
 
   StreamSubscription<List<SharedMediaFile>>? _sub;
 
+  /// Paths handled recently, used to swallow duplicate deliveries of a single
+  /// cold-start share (see [_handlePath]).
+  final Map<String, DateTime> _recentShares = {};
+  static const _shareDedupeWindow = Duration(seconds: 10);
+
   @override
   void initState() {
     super.initState();
@@ -75,11 +80,24 @@ class _ShareIntakeHostState extends ConsumerState<ShareIntakeHost> {
     // still restoring, logged out, or expired. Otherwise the destination
     // screen 401s and the shared file (the whole point) is silently lost. The
     // authProvider listener in build() replays it once the session is valid.
+    // Stashing is idempotent, so it needs no de-dupe (and the replay re-enters
+    // _handlePath with the same path — de-duping here would drop it).
     final auth = ref.read(authProvider);
     if (auth.isLoading || !auth.isAuthenticated) {
       _PendingShare.stash(path);
       return;
     }
+
+    // Cold-start shares get delivered more than once: getInitialMedia() and the
+    // media stream both fire for the same file, and iOS can re-forward it. A
+    // duplicate would pop a SECOND destination sheet over the user's first pick
+    // — wiping their selection and forcing them to re-share. Drop repeats of the
+    // same file within a short window; a deliberate re-share later still passes
+    // once the entry ages out.
+    final now = DateTime.now();
+    _recentShares.removeWhere((_, t) => now.difference(t) > _shareDedupeWindow);
+    if (_recentShares.containsKey(path)) return;
+    _recentShares[path] = now;
 
     _present(file);
   }
