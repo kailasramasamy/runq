@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import {
-  PageHeader, Card, CardContent, Button, Badge,
+  PageHeader, Card, CardContent, Button, Badge, Input,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton,
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
@@ -81,6 +82,7 @@ export function MpNodesPage() {
     type === 'vmcc' || type === 'cc' || type === 'pp' ? type : '';
   const setTypeFilter = (t: '' | NodeType) =>
     navigate({ to: '/milk-procurement/nodes', search: t ? { type: t } : {}, replace: true });
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useNodes({ limit: 300 });
   const { data: opsData } = useOperators({ limit: 200 });
   // One call for the whole table — per-row lookups would be N round-trips.
@@ -88,7 +90,11 @@ export function MpNodesPage() {
   const slotsByNode = slotsData?.data ?? {};
   // Fetch every node once; the tab filters client-side so tab counts are exact.
   const allNodes = data?.data ?? [];
-  const nodes = typeFilter ? allNodes.filter((n) => n.nodeType === typeFilter) : allNodes;
+  const byType = typeFilter ? allNodes.filter((n) => n.nodeType === typeFilter) : allNodes;
+  const q = search.trim().toLowerCase();
+  const nodes = q
+    ? byType.filter((n) => n.name.toLowerCase().includes(q) || n.code.toLowerCase().includes(q))
+    : byType;
   const typeCount = (t: NodeType) => allNodes.filter((n) => n.nodeType === t).length;
   // Active operator count per node.
   const opCount = new Map<string, number>();
@@ -126,6 +132,10 @@ export function MpNodesPage() {
         ]}
       />
 
+      <div className="mb-3 w-72">
+        <Input placeholder="Search by name or code…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -138,7 +148,7 @@ export function MpNodesPage() {
               {isLoading ? (
                 <TableSkeleton rows={5} cols={7} />
               ) : nodes.length === 0 ? (
-                <TableEmpty colSpan={7} message="No nodes yet — add your first VMCC." />
+                <TableEmpty colSpan={7} message={q ? `No nodes match “${search.trim()}”.` : 'No nodes yet — add your first VMCC.'} />
               ) : (
                 nodes.map((n) => (
                   <TableRow
