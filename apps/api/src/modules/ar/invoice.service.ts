@@ -308,14 +308,16 @@ export class InvoiceService {
         options?.explicitInvoiceNumber ?? (await this.resolveInvoiceNumber(tx));
       const gst = await this.computeGstForInvoice(tx, input.customerId, input.items, input.reverseCharge);
 
-      // Honor the totals the caller passed in. The PO-approval flow finalises
-      // subtotal / taxAmount / totalAmount on the review screen against the
-      // printed PO (which often has GST baked into the rate), so re-deriving
-      // here would double-count tax and break PO ↔ invoice reconciliation.
-      // Per-line cgst/sgst/igst columns still come from `gst` so reports work.
-      const subtotal = input.subtotal ?? gst.summary.subtotal;
-      const taxAmount = input.taxAmount ?? gst.summary.taxAmount;
-      const totalAmount = input.totalAmount;
+      // Totals are derived server-side from the same per-line tax that gets
+      // persisted to sales_invoice_items, so the header ALWAYS reconciles with
+      // the sum of its lines. Callers send line `amount` GST-exclusive (qty ×
+      // ex-GST rate); tax is added on top per line, rounded once, then summed.
+      // Client-sent subtotal/taxAmount/totalAmount are advisory only (used for
+      // the pre-save credit check) — never persisted, so a client that skips
+      // per-line rounding can't drift the stored header off its lines.
+      const subtotal = gst.summary.subtotal;
+      const taxAmount = gst.summary.taxAmount;
+      const totalAmount = gst.summary.totalAmount;
 
       const [invoice] = await tx
         .insert(salesInvoices)

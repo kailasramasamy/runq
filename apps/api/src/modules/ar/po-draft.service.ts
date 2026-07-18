@@ -828,6 +828,10 @@ export class PoDraftService {
       // captured from the PO (resolvedUom = items.unit when matched, or
       // rawUom from the LLM extraction).
       const uom = r.itemUnit ?? r.line.resolvedUom ?? r.line.rawUom ?? null;
+      // GST rate is the master's source of truth. A 0% rate means the good is
+      // exempt (e.g. fresh milk) — tag it 'exempt' so GSTR-1 buckets it as a
+      // nil/exempt supply, not a taxable supply that inflates turnover.
+      const rate = r.itemGstRate != null ? Number(r.itemGstRate) : 0;
       return {
         // Persist the link back to the items master so the invoice's edit
         // form can restore the picker and reports can group by SKU.
@@ -838,8 +842,8 @@ export class PoDraftService {
         unitPrice,
         amount,
         hsnSacCode: r.itemHsn ?? null,
-        taxCategory: 'taxable' as const,
-        taxRate: r.itemGstRate != null ? Number(r.itemGstRate) : 0,
+        taxCategory: rate > 0 ? ('taxable' as const) : ('exempt' as const),
+        taxRate: rate,
       };
     });
 
@@ -858,7 +862,10 @@ export class PoDraftService {
     for (const it of invoiceItems) {
       subtotalSum += it.amount;
       const rate = it.taxRate ?? 0;
-      if (rate > 0) taxSum += it.amount * rate / 100;
+      // Round each line's tax to paise before summing, matching how
+      // InvoiceService persists per-line CGST/SGST — so this advisory total
+      // (used for the credit check) agrees with the invoice the server stores.
+      if (rate > 0) taxSum += Math.round(it.amount * rate) / 100;
     }
     const finalSubtotal = Number(subtotalSum.toFixed(2));
     const finalTax = Number(taxSum.toFixed(2));

@@ -218,10 +218,13 @@ export function InvoiceForm({ onSubmit, onCancel, isLoading, initialData, submit
   }, [customerId]);
 
   const subtotal = lines.reduce((sum, l) => sum + lineAmount(l), 0);
+  // Round each line's tax to paise before summing — this mirrors how the
+  // server persists per-line CGST/SGST, so the preview total matches the saved
+  // invoice instead of drifting a paisa on lines with an odd half-paisa tax.
   const tax = lines.reduce((sum, l) => {
     const cat = l.taxCategory;
     if (cat === 'exempt' || cat === 'nil_rated' || cat === 'zero_rated') return sum;
-    return sum + lineAmount(l) * (parseFloat(l.taxRate) || 0) / 100;
+    return sum + Math.round(lineAmount(l) * (parseFloat(l.taxRate) || 0)) / 100;
   }, 0);
   const total = Math.round((subtotal + tax) * 100) / 100;
 

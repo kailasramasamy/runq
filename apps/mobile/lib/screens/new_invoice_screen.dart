@@ -45,7 +45,9 @@ class _LineItem {
   double get taxAmount {
     final r = taxRate;
     if (r == null || r <= 0) return 0;
-    return amount * r / 100;
+    // Round to paise per line, matching the server's per-line CGST/SGST, so
+    // the previewed total ties to the saved invoice.
+    return (amount * r).roundToDouble() / 100;
   }
 }
 
