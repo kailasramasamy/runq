@@ -11,10 +11,10 @@ import {
   usePayoutCycles, useNodes, useCycleBillingSummary, useBillableVmccs, useDirectDetail, useGlSettings,
   useGenerateVmccBills, usePayVmccBill, useReverseVmccBill,
   useSettleFarmer, useReverseFarmer, useSettleOperator, useReverseOperator, useRegenerateDirect,
-  useVmccBillDetail, useFarmerBillPours,
+  useVmccBillDetail, useFarmerBillPours, milkTypeLabel,
   type MpPayoutCycle, type MpNode, type MpCycleBillingSummary, type MpBillableVmcc,
   type MpDirectPaymentRow, type MpDirectFarmerBill, type MpOperatorPayoutLine,
-  type BillingHalf, type BillingPeriodSel, type PayoutMode,
+  type BillingHalf, type BillingPeriodSel, type PayoutMode, type MilkType,
 } from '@/hooks/queries/use-milk-procurement';
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
@@ -33,6 +33,12 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+/** 'YYYY-MM-DD' → 'D Mon' (e.g. '2026-07-18' → '18 Jul'), matching the PDF. */
+function fmtDay(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return `${Number(d)} ${MONTH_NAMES[Number(m) - 1]?.slice(0, 3) ?? m}`;
+}
 
 /** Months with the current month first, then descending (wrapping) — recent first. */
 function monthOptions(): { value: string; label: string }[] {
@@ -163,6 +169,7 @@ function BillDetailModal({ row, period, onClose }: {
   const { data, isLoading } = useVmccBillDetail({ ...period, vmccNodeId: row.vmccNodeId });
   const d = data?.data;
   const num = (v: number | null, dp = 1) => (v == null ? '—' : v.toFixed(dp));
+  const commission = row.commission + row.salary + row.rent;
   return (
     <Modal open onClose={onClose} title={`${row.vmccName} · ${row.vmccCode}`} size="lg">
       {isLoading || !d ? (
@@ -171,30 +178,39 @@ function BillDetailModal({ row, period, onClose }: {
         <EmptyState icon={Receipt} title="No milk received from this VMCC in this cycle." />
       ) : (
         <>
+          {/* Same breakup as the downloaded bill: milk cost + commission = net payable. */}
+          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatsCard title="Total milk" value={row.qtyLitres} icon={Receipt} size="compact"
+              formatValue={(v) => `${v.toLocaleString('en-IN', { maximumFractionDigits: 1 })} L`} />
+            <StatsCard title="Milk cost" value={row.milkCost} icon={Coins} size="compact" />
+            {commission > 0 && <StatsCard title="Commission" value={commission} icon={Coins} size="compact" />}
+            <StatsCard title="Net payable" value={row.total} icon={CheckCircle2} size="compact" />
+          </div>
           <p className="mb-2 text-xs text-zinc-500">
-            {d.periodStart} → {d.periodEnd} · each row is one shift&apos;s receipt at the CC, priced on its
-            quality.
+            {fmtDay(d.periodStart)} → {fmtDay(d.periodEnd)} · each row is one shift&apos;s receipt at the CC,
+            priced on its quality.
           </p>
           {d.unpricedLines > 0 && (
             <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
               {d.unpricedLines} shift{d.unpricedLines > 1 ? 's' : ''} could not be priced — no rate chart matched
-              that quality or date, so they add ₹0 to the total below.
+              that quality or date, so they add ₹0 to the milk cost.
             </p>
           )}
-          <div className="max-h-[55vh] overflow-auto">
+          <div className="max-h-[45vh] overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <Th>Date</Th><Th>Shift</Th><Th align="right">Qty (L)</Th>
+                  <Th>Date</Th><Th>Shift</Th><Th>Type</Th><Th align="right">Qty (L)</Th>
                   <Th align="right">FAT</Th><Th align="right">SNF</Th><Th align="right">Water</Th>
                   <Th align="right">₹/L</Th><Th align="right">Amount</Th>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {d.lines.map((l) => (
-                  <TableRow key={`${l.date}|${l.shift}`}>
-                    <TableCell>{l.date}</TableCell>
+                  <TableRow key={`${l.date}|${l.shift}|${l.milkType}`}>
+                    <TableCell>{fmtDay(l.date)}</TableCell>
                     <TableCell><Badge>{l.shift.toUpperCase()}</Badge></TableCell>
+                    <TableCell className="text-xs text-zinc-500">{milkTypeLabel(l.milkType as MilkType)}</TableCell>
                     <TableCell className="text-right tabular-nums">{num(l.qtyLitres)}</TableCell>
                     <TableCell className="text-right tabular-nums">{num(l.fat, 2)}</TableCell>
                     <TableCell className="text-right tabular-nums">{num(l.snf, 2)}</TableCell>
@@ -210,7 +226,7 @@ function BillDetailModal({ row, period, onClose }: {
               </TableBody>
             </Table>
           </div>
-          <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-800">
             <DownloadBillButton options={{
               path: '/milk-procurement/billing/vmcc-detail',
               params: { year: String(period.year), month: String(period.month), half: period.half,
@@ -218,16 +234,10 @@ function BillDetailModal({ row, period, onClose }: {
               filename: `${row.vmccName}-${d.periodStart}.pdf`,
               title: `${row.vmccName} bill`,
             }} />
-            <div className="text-right">
-              <span className="mr-3 text-sm text-zinc-500">{d.totalQty.toFixed(1)} L total</span>
-              <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                {inr(d.totalAmount)}
-              </span>
-            </div>
+            <p className="text-right text-xs text-zinc-500">
+              Rows total the milk cost{commission > 0 ? '; commission is added to reach the net payable above.' : '.'}
+            </p>
           </div>
-          <p className="mt-1 text-right text-xs text-zinc-500">
-            Milk cost only — commission is added on the downloaded bill.
-          </p>
         </>
       )}
     </Modal>
