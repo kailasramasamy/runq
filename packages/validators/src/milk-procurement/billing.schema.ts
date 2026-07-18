@@ -20,9 +20,11 @@ export const billingPeriodSchema = z.object({
 
 export type BillingPeriod = z.infer<typeof billingPeriodSchema>;
 
-/** The day-by-day supply behind one VMCC's bill. */
+/** The day-by-day supply behind one VMCC's bill. `format=pdf` returns the
+ *  official bill document instead of JSON. */
 export const vmccBillDetailSchema = billingPeriodSchema.extend({
   vmccNodeId: z.string().uuid(),
+  format: z.enum(['json', 'pdf']).default('json'),
 });
 export type VmccBillDetailQuery = z.infer<typeof vmccBillDetailSchema>;
 

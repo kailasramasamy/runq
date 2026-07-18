@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Coins, Lock, CheckCircle2, Receipt, RotateCcw, Eye } from 'lucide-react';
+import { Coins, Lock, CheckCircle2, Receipt, RotateCcw, Eye, Download } from 'lucide-react';
+import { sharePdf } from '@/lib/share-pdf';
 import {
   PageHeader, Card, CardContent, StatsCard, Combobox, Modal, Input, DateInput,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, Button, EmptyState, Skeleton,
@@ -9,7 +10,7 @@ import {
   usePayoutCycles, useNodes, useCycleBillingSummary, useBillableVmccs, useDirectDetail, useGlSettings,
   useGenerateVmccBills, usePayVmccBill, useReverseVmccBill,
   useSettleFarmer, useReverseFarmer, useSettleOperator, useReverseOperator, useRegenerateDirect,
-  useVmccBillDetail,
+  useVmccBillDetail, useFarmerBillPours,
   type MpPayoutCycle, type MpNode, type MpCycleBillingSummary, type MpBillableVmcc,
   type MpDirectPaymentRow, type MpDirectFarmerBill, type MpOperatorPayoutLine,
   type BillingHalf, type BillingPeriodSel, type PayoutMode,
@@ -149,13 +150,24 @@ function BillDetailModal({ row, period, onClose }: {
             </Table>
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
-            <span className="text-sm text-zinc-500">{d.totalQty.toFixed(1)} L total</span>
-            <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {inr(d.totalAmount)}
-            </span>
+            <Button size="sm" variant="ghost" onClick={() => sharePdf({
+              path: '/milk-procurement/billing/vmcc-detail',
+              params: { year: String(period.year), month: String(period.month), half: period.half,
+                vmccNodeId: row.vmccNodeId, format: 'pdf' },
+              filename: `${row.vmccName}-${d.periodStart}.pdf`,
+              title: `${row.vmccName} bill`,
+            }).catch(() => {})}>
+              <Download size={14} className="mr-1" /> Download bill
+            </Button>
+            <div className="text-right">
+              <span className="mr-3 text-sm text-zinc-500">{d.totalQty.toFixed(1)} L total</span>
+              <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                {inr(d.totalAmount)}
+              </span>
+            </div>
           </div>
           <p className="mt-1 text-right text-xs text-zinc-500">
-            Milk cost only — commission is added on the bill.
+            Milk cost only — commission is added on the downloaded bill.
           </p>
         </>
       )}
@@ -400,11 +412,94 @@ function ActionButton({ paid, busy, onSettle, onReverse }: {
     : <Button size="sm" disabled={busy} onClick={onSettle}>Pay</Button>;
 }
 
-function FarmerBillsTable({ rows, onSettle, onReverse, busyId }: {
-  rows: MpDirectFarmerBill[]; onSettle: (f: MpDirectFarmerBill) => void;
+/**
+ * A farmer's daily pours behind their bill — date, shift, quality, the recorded
+ * rate and amount, then the cycle total. Uses the actual pour records (a farmer
+ * has real pours), so it shows exactly what was captured, not a re-price.
+ */
+function FarmerBillDetailModal({ bill, period, onClose }: {
+  bill: MpDirectFarmerBill; period: { periodStart: string; periodEnd: string }; onClose: () => void;
+}) {
+  const { data, isLoading } = useFarmerBillPours({
+    farmerId: bill.farmerId, from: period.periodStart, to: period.periodEnd,
+  });
+  const pours = (data?.data ?? [])
+    .slice()
+    .sort((a, b) => (a.collectionDate === b.collectionDate
+      ? a.shift.localeCompare(b.shift) : a.collectionDate.localeCompare(b.collectionDate)));
+  const gross = pours.reduce((s, p) => s + Number(p.lineAmount), 0);
+  const qty = pours.reduce((s, p) => s + Number(p.qtyLitres), 0);
+  const n = (v: string | number | null, dp = 1) =>
+    (v == null || v === '' ? '—' : Number(v).toFixed(dp));
+  return (
+    <Modal open onClose={onClose} title={`${bill.farmerName} · ${bill.farmerCode}`} size="lg">
+      {isLoading ? (
+        <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-8 w-full rounded" />)}</div>
+      ) : pours.length === 0 ? (
+        <EmptyState icon={Receipt} title="No pours for this farmer in this cycle." />
+      ) : (
+        <>
+          <p className="mb-2 text-xs text-zinc-500">
+            {period.periodStart} → {period.periodEnd} · {bill.vmccName} · each row is one recorded pour.
+          </p>
+          <div className="max-h-[55vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Date</Th><Th>Shift</Th><Th align="right">Qty (L)</Th>
+                  <Th align="right">FAT</Th><Th align="right">SNF</Th><Th align="right">Water</Th>
+                  <Th align="right">₹/L</Th><Th align="right">Amount</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pours.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.collectionDate}</TableCell>
+                    <TableCell><Badge>{p.shift.toUpperCase()}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{n(p.qtyLitres)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{n(p.fat, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{n(p.snf, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{n(p.water, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{n(p.ratePerLitre, 2)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{inr(Number(p.lineAmount))}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
+            <Button size="sm" variant="ghost" onClick={() => sharePdf({
+              path: `/milk-procurement/farmers/${bill.farmerId}/pour-statement`,
+              params: { from: period.periodStart, to: period.periodEnd, format: 'pdf' },
+              filename: `${bill.farmerName}-${period.periodStart}.pdf`,
+              title: `${bill.farmerName} statement`,
+            }).catch(() => {})}>
+              <Download size={14} className="mr-1" /> Download bill
+            </Button>
+            <div className="text-right">
+              <span className="mr-3 text-sm text-zinc-500">{qty.toFixed(1)} L total</span>
+              <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{inr(gross)}</span>
+            </div>
+          </div>
+          {bill.deductionTotal > 0 && (
+            <p className="mt-1 text-right text-xs text-zinc-500">
+              Gross of pours — {inr(bill.deductionTotal)} in deductions brings net payable to {inr(bill.netAmount)}.
+            </p>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function FarmerBillsTable({ rows, period, onSettle, onReverse, busyId }: {
+  rows: MpDirectFarmerBill[]; period: { periodStart: string; periodEnd: string };
+  onSettle: (f: MpDirectFarmerBill) => void;
   onReverse: (f: MpDirectFarmerBill) => void; busyId: string | null;
 }) {
+  const [viewTarget, setViewTarget] = useState<MpDirectFarmerBill | null>(null);
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
@@ -427,12 +522,21 @@ function FarmerBillsTable({ rows, onSettle, onReverse, busyId }: {
             <TableCell className="text-right tabular-nums font-medium">{inr(f.netAmount)}</TableCell>
             <TableCell>{f.paid ? <Badge variant="success">Paid</Badge> : <Badge variant="warning">Pending</Badge>}</TableCell>
             <TableCell className="text-right">
-              <ActionButton paid={f.paid} busy={busyId === f.lineId} onSettle={() => onSettle(f)} onReverse={() => onReverse(f)} />
+              <div className="flex items-center justify-end gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setViewTarget(f)}>
+                  <Eye size={14} className="mr-1" /> View
+                </Button>
+                <ActionButton paid={f.paid} busy={busyId === f.lineId} onSettle={() => onSettle(f)} onReverse={() => onReverse(f)} />
+              </div>
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
+    {viewTarget && (
+      <FarmerBillDetailModal bill={viewTarget} period={period} onClose={() => setViewTarget(null)} />
+    )}
+    </>
   );
 }
 
@@ -527,7 +631,9 @@ function DirectPaymentSection({ ccNodeId, period }: { ccNodeId: string; period: 
       </SectionCard>
       <SectionCard title="Farmer bills" subtitle="Amount payable to each farmer this cycle — Pay records the payment (GL + txn) as you disburse."
         action={<Button size="sm" variant="ghost" onClick={onRegenerate} disabled={regenerate.isPending}>Regenerate</Button>}>
-        <FarmerBillsTable rows={detail.farmers} onSettle={setFarmerTarget} onReverse={onReverseFarmer} busyId={farmerBusy} />
+        <FarmerBillsTable rows={detail.farmers}
+          period={{ periodStart: detail.periodStart, periodEnd: detail.periodEnd }}
+          onSettle={setFarmerTarget} onReverse={onReverseFarmer} busyId={farmerBusy} />
       </SectionCard>
       {detail.operators.length > 0 && (
         <SectionCard title="Operator commission & salary" subtitle="Paid to VMCC operators separately from farmer payments.">

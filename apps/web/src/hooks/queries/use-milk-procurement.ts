@@ -380,6 +380,19 @@ export function usePours(filters?: {
     queryFn: () => api.get<PaginatedResponse<MpPour>>(`${BASE}/pours${qs({ ...filters })}`),
   });
 }
+/** A farmer's recorded pours over a window — backs the farmer bill's View.
+ *  Unlike a bulk VMCC, a farmer has real pours, so each pour is a line already. */
+export function useFarmerBillPours(
+  params: { farmerId: string; from: string; to: string } | null,
+) {
+  return useQuery({
+    queryKey: MP_KEYS.pours({ ...params, status: 'recorded' }),
+    queryFn: () => api.get<PaginatedResponse<MpPour>>(
+      `${BASE}/pours${qs({ ...params!, status: 'recorded', limit: 500 })}`),
+    enabled: !!params,
+  });
+}
+
 export function useRecordPour() {
   const c = useQueryClient();
   return useMutation({

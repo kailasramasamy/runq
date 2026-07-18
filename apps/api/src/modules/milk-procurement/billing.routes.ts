@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { VmccBillService } from './vmcc-bill.service';
+import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './statement-template';
 import { resolveMpPrincipal } from './access-scope';
 
 // A CC/PP manager (field_operator) may bill VMCCs in their own subtree; the
@@ -28,12 +29,33 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.directDetail(sel, ccNodeId, principal) };
   });
 
-  // the day/shift supply behind one VMCC's bill — how its milk cost was reached
-  app.get('/vmcc-detail', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
-    const { vmccNodeId, ...sel } = vmccBillDetailSchema.parse(request.query);
+  // the day/shift supply behind one VMCC's bill — how its milk cost was reached.
+  // format=pdf returns the official bill document (same layout as the Dhenu app).
+  app.get('/vmcc-detail', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
+    const { vmccNodeId, format, ...sel } = vmccBillDetailSchema.parse(request.query);
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
-    return { data: await service.billDetail(sel, vmccNodeId, principal) };
+    if (format !== 'pdf') {
+      return { data: await service.billDetail(sel, vmccNodeId, principal) };
+    }
+    const s = await service.billStatementData(sel, vmccNodeId, principal);
+    const data: VmccBillStatementData = {
+      tenantName: s.tenantName, vmcc: s.vmcc,
+      period: { from: s.detail.periodStart, to: s.detail.periodEnd },
+      lines: s.detail.lines.map((l) => ({
+        collectionDate: l.date, shift: l.shift, milkType: l.milkType, qtyLitres: l.qtyLitres,
+        fat: l.fat, snf: l.snf, water: l.water, ratePerLitre: l.ratePerLitre, amount: l.amount,
+      })),
+      totals: { litres: s.detail.totalQty, amount: s.detail.totalAmount, unpricedLines: s.detail.unpricedLines },
+      commission: s.commission,
+      generatedAt: new Date().toISOString(),
+    };
+    const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
+    const pdf = await renderHtmlToPdf(renderVmccBillHTML(data));
+    return reply.type('application/pdf')
+      .header('Content-Disposition', `inline; filename="${vmccBillFilename(data)}"`)
+      .header('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(pdf);
   });
 
   app.post('/regenerate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {

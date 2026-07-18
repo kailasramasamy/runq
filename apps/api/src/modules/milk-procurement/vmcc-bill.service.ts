@@ -1,7 +1,7 @@
 import { and, eq, sql, inArray, isNull, desc, gte, lte, ne } from 'drizzle-orm';
 import {
   mpVmccBills, mpPayoutCycles, mpPayoutLines, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings,
-  mpNodeOperators, mpOperatorPayouts, payments,
+  mpNodeOperators, mpOperatorPayouts, payments, tenants,
 } from '@runq/db';
 import type { Db, MpVmccBillRow, MpPayoutCycleRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -170,6 +170,38 @@ export class VmccBillService {
       totalQty: round2(lines.reduce((s, l) => s + l.qtyLitres, 0)),
       totalAmount: round2(lines.reduce((s, l) => s + l.amount, 0)),
       unpricedLines: lines.filter((l) => l.ratePerLitre == null).length,
+    };
+  }
+
+  /**
+   * The same detail plus the header a bill PDF needs: VMCC + CC names, tenant
+   * name, and the operator commission folded into a via_vmcc bill. Kept separate
+   * from [billDetail] so the on-screen modal stays a lean query.
+   */
+  async billStatementData(sel: BillingPeriod, vmccNodeId: string, principal?: MpPrincipal) {
+    const detail = await this.billDetail(sel, vmccNodeId, principal);
+    const [vmcc] = await this.db.select({
+      name: mpNodes.name, code: mpNodes.code, parentNodeId: mpNodes.parentNodeId,
+    }).from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, vmccNodeId)));
+    const [cc] = vmcc?.parentNodeId
+      ? await this.db.select({ name: mpNodes.name }).from(mpNodes)
+        .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, vmcc.parentNodeId)))
+      : [undefined];
+    const [tenant] = await this.db.select({ name: tenants.name }).from(tenants)
+      .where(eq(tenants.id, this.tenantId));
+    // Commission is only part of the bill for a via_vmcc VMCC; a direct one pays
+    // its operators separately, so it stays off this document.
+    const wanted = await this.vmccsByMode(vmcc?.parentNodeId ?? '', 'via_vmcc');
+    const isViaVmcc = wanted.some((v) => v.id === vmccNodeId);
+    const commission = isViaVmcc
+      ? round2((await new OperatorPayoutService(this.db, this.tenantId)
+          .compute({ from: detail.periodStart, to: detail.periodEnd, nodeId: vmccNodeId })).lines
+          .reduce((s, l) => s + l.total, 0))
+      : 0;
+    return {
+      tenantName: tenant?.name ?? 'runq',
+      vmcc: { name: vmcc?.name ?? '', code: vmcc?.code ?? '', ccName: cc?.name ?? null },
+      detail, commission,
     };
   }
 
