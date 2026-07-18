@@ -1,4 +1,4 @@
-import { and, eq, desc, ne, or, sql, gte, lte, inArray, isNull } from 'drizzle-orm';
+import { and, eq, desc, ne, or, sql, gte, lte, inArray, isNull, getTableColumns } from 'drizzle-orm';
 import {
   mpPayoutCycles, mpPayoutLines, mpPayoutDeductions, mpFarmerLedger,
   mpPours, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings, mpVmccBills, payments,
@@ -13,13 +13,21 @@ import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors
 import { nextDocNo } from './numbering';
 import { MpGlPoster } from './gl-poster';
 import { MpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
+import { sendFarmerBillNotifications, directModeVmccIds } from './mp-bill-notify';
+import { sendCyclePaymentNotifications } from './mp-payment-notify';
 
 type LedgerRow = typeof mpFarmerLedger.$inferSelect;
 type DeductionRow = typeof mpPayoutDeductions.$inferSelect;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export interface CycleDetail extends MpPayoutCycleRow {
-  lines: (MpPayoutLineRow & { deductions: DeductionRow[] })[];
+  lines: (MpPayoutLineRow & {
+    deductions: DeductionRow[];
+    farmerName: string; farmerCode: string;
+    vmccNodeId: string | null; vmccName: string | null;
+    /** true = farmer is settled through a VMCC bill, not payable individually here. */
+    viaVmcc: boolean;
+  })[];
 }
 
 /** Per-cycle line roll-up returned with each row in the cycle list. */
@@ -277,7 +285,19 @@ export class PayoutService {
       .where(and(eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, id)));
     if (!cycle) throw new NotFoundError('Payout cycle not found');
     if (principal?.kind === 'operator') assertNodeAccess(principal, cycle.scopeNodeId ?? '');
-    const lines = await this.db.select().from(mpPayoutLines)
+    // Enrich each line with who it's for (farmer) and which VMCC they supply, so
+    // the cycle page can list them without a second round of lookups.
+    const lines = await this.db.select({
+      ...getTableColumns(mpPayoutLines),
+      farmerName: mpFarmers.name, farmerCode: mpFarmers.code,
+      vmccNodeId: mpFarmerMemberships.nodeId, vmccName: mpNodes.name,
+    }).from(mpPayoutLines)
+      .innerJoin(mpFarmers, eq(mpFarmers.id, mpPayoutLines.farmerId))
+      .leftJoin(mpFarmerMemberships, and(
+        eq(mpFarmerMemberships.farmerId, mpPayoutLines.farmerId), eq(mpFarmerMemberships.tenantId, this.tenantId),
+        eq(mpFarmerMemberships.isPrimary, true), isNull(mpFarmerMemberships.leftOn),
+      ))
+      .leftJoin(mpNodes, eq(mpNodes.id, mpFarmerMemberships.nodeId))
       .where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, id)));
     const lineIds = lines.map((l) => l.id);
     const deds = lineIds.length
@@ -285,7 +305,14 @@ export class PayoutService {
       : [];
     const byLine = new Map<string, DeductionRow[]>();
     for (const d of deds) byLine.set(d.payoutLineId, [...(byLine.get(d.payoutLineId) ?? []), d]);
-    return { ...cycle, lines: lines.map((l) => ({ ...l, deductions: byLine.get(l.id) ?? [] })) };
+    const directIds = await directModeVmccIds(this.db, this.tenantId);
+    return {
+      ...cycle,
+      lines: lines.map((l) => ({
+        ...l, deductions: byLine.get(l.id) ?? [],
+        viaVmcc: l.vmccNodeId ? !directIds.has(l.vmccNodeId) : false,
+      })),
+    };
   }
 
   async lockCycle(id: string, principal?: MpPrincipal): Promise<MpPayoutCycleRow> {
@@ -297,7 +324,7 @@ export class PayoutService {
       qty: a.qty + Number(l.qtyLitres), gross: a.gross + Number(l.grossAmount),
       ded: a.ded + Number(l.deductionTotal), net: a.net + Number(l.netAmount),
     }), { qty: 0, gross: 0, ded: 0, net: 0 });
-    return this.db.transaction(async (tx) => {
+    const locked = await this.db.transaction(async (tx) => {
       const recovered = await this.postRepayments(tx, cycle, lines);
       // Accrue the milk cost: Dr Milk Purchases / Cr Payable + Cr recovered advances/loans.
       const journalEntryId = await new MpGlPoster(this.tenantId).postAccrual(tx, {
@@ -312,6 +339,11 @@ export class PayoutService {
       }).where(and(eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, id))).returning();
       return updated!;
     });
+    // Cycle is now frozen — notify each direct-mode farmer with their statement.
+    // Fire-and-forget; no-ops unless the farmer-bill template is configured.
+    void sendFarmerBillNotifications(this.db, this.tenantId, id)
+      .catch((e) => console.error('Farmer bill WhatsApp failed:', e));
+    return locked;
   }
 
   async payCycle(id: string, principal?: MpPrincipal, userId?: string): Promise<MpPayoutCycleRow> {
@@ -334,7 +366,8 @@ export class PayoutService {
       ));
     const mode = await this.resolvePayoutMode(cycle.scopeNodeId);
     const paidTotal = lines.reduce((s, l) => s + Math.max(0, Number(l.netAmount)), 0);
-    return this.db.transaction(async (tx) => {
+    const paidLineIds = lines.map((l) => l.lineId);
+    const paid = await this.db.transaction(async (tx) => {
       if (mode === 'via_vmcc') await this.payViaVmcc(tx, cycle, lines);
       else await this.payDirect(tx, cycle, lines);
       // Cash out settles the payable accrued at lock: Dr Farmer Payable / Cr Bank.
@@ -353,6 +386,11 @@ export class PayoutService {
         .where(and(eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, id))).returning();
       return updated!;
     });
+    // Confirm the disbursement to each farmer just paid. Fire-and-forget; no-ops
+    // unless the farmer-payment template is configured.
+    void sendCyclePaymentNotifications(this.db, this.tenantId, id, paidLineIds)
+      .catch((e) => console.error('Cycle payment WhatsApp failed:', e));
+    return paid;
   }
 
   /**

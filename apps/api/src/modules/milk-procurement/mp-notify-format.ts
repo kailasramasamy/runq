@@ -45,3 +45,27 @@ export function quality(fat: string | null, snf: string | null, water: string | 
 export function nz(v: string): string {
   return v.trim().length ? v : '-';
 }
+
+// "16–31 Jul 2026" when one month, else "16 Jul 2026 – 03 Aug 2026".
+export function cycleLabel(from: string, to: string): string {
+  const mf = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from);
+  const mt = /^(\d{4})-(\d{2})-(\d{2})$/.exec(to);
+  if (!mf || !mt) return `${from} – ${to}`;
+  const [, yf, mof, df] = mf;
+  const [, yt, mot, dt] = mt;
+  if (yf === yt && mof === mot) return `${Number(df)}–${Number(dt)} ${MONTHS[Number(mof) - 1] ?? mof} ${yf}`;
+  return `${formatDate(from)} – ${formatDate(to)}`;
+}
+
+// Whole-rupee amount, Indian grouping ("117850" → "1,17,850"). '-' when absent.
+export function rupees(v: string | number | null): string {
+  const n = Number(v ?? '');
+  return Number.isFinite(n) ? Math.round(n).toLocaleString('en-IN') : '-';
+}
+
+const MODE_LABELS: Record<string, string> = {
+  bank_transfer: 'Bank transfer', upi: 'UPI', cash: 'Cash', cheque: 'Cheque', other: 'Other',
+};
+export function paymentModeLabel(m: string): string {
+  return MODE_LABELS[m] ?? m;
+}

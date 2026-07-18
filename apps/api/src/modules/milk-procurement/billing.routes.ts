@@ -8,6 +8,8 @@ import { rbacHook } from '../../hooks/rbac';
 import { VmccBillService } from './vmcc-bill.service';
 import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './statement-template';
 import { resolveMpPrincipal } from './access-scope';
+import { sendVmccBillWhatsApp } from './mp-bill-notify';
+import { sendVmccPaymentWhatsApp, sendFarmerPaymentWhatsApp } from './mp-payment-notify';
 
 // A CC/PP manager (field_operator) may bill VMCCs in their own subtree; the
 // service scopes every op to the node they're assigned to (see access-scope.ts).
@@ -92,7 +94,12 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const input = generateVmccBillsSchema.parse(request.body);
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
-    return reply.status(201).send({ data: await service.generate(input, principal, request.user?.userId) });
+    const bills = await service.generate(input, principal, request.user?.userId);
+    for (const bill of bills) {
+      void sendVmccBillWhatsApp(request.server.db, request.tenantId, bill, input)
+        .catch((e) => console.error('VMCC bill WhatsApp failed:', e));
+    }
+    return reply.status(201).send({ data: bills });
   });
 
   app.post('/bills/:id/pay', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
@@ -100,7 +107,10 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const input = payVmccBillSchema.parse(request.body);
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
-    return { data: await service.pay(id, input, principal, request.user?.userId) };
+    const bill = await service.pay(id, input, principal, request.user?.userId);
+    void sendVmccPaymentWhatsApp(request.server.db, request.tenantId, bill, input)
+      .catch((e) => console.error('VMCC payment WhatsApp failed:', e));
+    return { data: bill };
   });
 
   app.post('/bills/:id/reverse', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
@@ -117,6 +127,8 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
     await service.settleFarmer(id, input, principal, request.user?.userId);
+    void sendFarmerPaymentWhatsApp(request.server.db, request.tenantId, id, input)
+      .catch((e) => console.error('Farmer payment WhatsApp failed:', e));
     return { data: { ok: true } };
   });
 

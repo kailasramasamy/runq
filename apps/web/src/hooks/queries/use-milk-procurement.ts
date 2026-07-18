@@ -641,12 +641,19 @@ export interface MpPayoutLine {
   id: string; farmerId: string; qtyLitres: string; grossAmount: string; bonusAmount: string;
   deductionTotal: string; netAmount: string; paymentId: string | null; settledViaNodeId: string | null;
   statementNo: string | null; deductions: { id: string; deductionType: string; amount: string }[];
+  paidAt: string | null; billId: string | null;
+  farmerName: string; farmerCode: string;
+  vmccNodeId: string | null; vmccName: string | null; viaVmcc: boolean;
 }
 export interface MpCycleDetail extends MpPayoutCycle { lines: MpPayoutLine[] }
+/** Cycle list row = the cycle plus its payment roll-up (paid vs pending). */
+export interface MpPayoutCycleListRow extends MpPayoutCycle {
+  lineCount: number; paidCount: number; netTotal: number; paidTotal: number;
+}
 export function usePayoutCycles(filters?: { status?: string; limit?: number }) {
   return useQuery({
     queryKey: ['mp', 'cycles', filters],
-    queryFn: () => api.get<PaginatedResponse<MpPayoutCycle>>(`${BASE}/payouts/cycles${qs({ ...filters })}`),
+    queryFn: () => api.get<PaginatedResponse<MpPayoutCycleListRow>>(`${BASE}/payouts/cycles${qs({ ...filters })}`),
   });
 }
 export function usePayoutCycle(id: string) {

@@ -25,7 +25,8 @@ export class InteraktProvider implements MessageProvider {
       template: {
         name: params.templateName,
         languageCode: 'en',
-        headerValues: [],
+        // A document/media header takes the file URL here; empty for text headers.
+        headerValues: params.mediaUrl ? [params.mediaUrl] : [],
         bodyValues: Object.values(params.templateParams),
         buttonValues: {},
       },

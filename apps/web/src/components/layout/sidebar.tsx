@@ -341,7 +341,6 @@ export const MILK_NAV_GROUPS: NavGroup[] = [
     label: 'Bill',
     items: [
       { key: 'mp-billing', label: 'Billing', icon: Receipt, path: '/milk-procurement/billing' },
-      { key: 'mp-payouts', label: 'Payouts', icon: Coins, path: '/milk-procurement/payouts' },
       { key: 'mp-operators', label: 'Operators', icon: HardHat, path: '/milk-procurement/operators' },
     ],
   },

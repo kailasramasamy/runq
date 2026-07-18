@@ -227,7 +227,7 @@ import { MpRateChartsPage } from './milk-procurement/rate-charts';
 import { MpRateChartNewPage } from './milk-procurement/rate-charts-new';
 import { MpCollectionPage } from './milk-procurement/collection';
 import { MpConsignmentsPage } from './milk-procurement/consignments';
-import { MpPayoutsPage } from './milk-procurement/payouts';
+import { MpCycleDetailPage } from './milk-procurement/cycle-payout';
 import { MpPersonasPage } from './milk-procurement/personas';
 import { MpOperatorsPage } from './milk-procurement/operators';
 import { MpSettingsPage } from './milk-procurement/settings';
@@ -2673,7 +2673,8 @@ const mpCollectionRoute = createRoute({ getParentRoute: () => milkProcurementRou
 const mpCollectionHistoryRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/collection/history', component: () => <MpCollectionPage tab="history" /> });
 const mpConsignmentsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/consignments', component: () => <MpConsignmentsPage view="operate" /> });
 const mpConsignmentHistoryRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/consignments/history', component: () => <MpConsignmentsPage view="history" /> });
-const mpPayoutsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/payouts', component: MpPayoutsPage });
+const mpPayoutsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/payouts', component: () => <Navigate to="/milk-procurement/billing" /> });
+const mpCyclePayoutRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/billing/cycles/$cycleId', component: MpCycleDetailPage });
 const mpPersonasRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/personas', component: MpPersonasPage });
 const mpOperatorsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/operators', component: MpOperatorsPage });
 const mpSettingsRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/settings', component: MpSettingsPage });
@@ -2943,6 +2944,7 @@ export const routeTree = rootRoute.addChildren([
       mpConsignmentsRoute,
       mpConsignmentHistoryRoute,
       mpPayoutsRoute,
+      mpCyclePayoutRoute,
       mpPersonasRoute,
       mpOperatorsRoute,
       mpSettingsRoute,
