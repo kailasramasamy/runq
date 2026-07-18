@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   recordPourSchema,
+  correctPourSchema,
   pourFilterSchema,
   paginationSchema,
   uuidParamSchema,
@@ -41,5 +42,15 @@ export const pourRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new PourService(request.server.db, request.tenantId);
     return { data: await service.reverse(id, principal) };
+  });
+
+  // Fix an operator's mistake: reverse this pour and insert a re-priced
+  // replacement (audited via reversalOf). Blocked once the slot is closed.
+  app.post('/:id/correct', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const input = correctPourSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new PourService(request.server.db, request.tenantId);
+    return { data: await service.correct(id, input, request.user?.userId, principal) };
   });
 };

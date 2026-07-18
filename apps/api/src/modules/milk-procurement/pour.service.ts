@@ -3,7 +3,7 @@ import { mpPours, mpSequences } from '@runq/db';
 import type { Db, MpPourRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
-import type { RecordPourInput, PourFilter } from '@runq/validators';
+import type { RecordPourInput, CorrectPourInput, PourFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { RateChartService } from './rate-chart.service';
 import { isShiftClosed } from './shift-closure.queries';
@@ -131,6 +131,66 @@ export class PourService {
         .catch((err) => console.error('pour WhatsApp receipt failed:', err));
     }
     return saved;
+  }
+
+  /**
+   * Correct a recorded pour's readings in place of the operator's mistake. One
+   * transaction: reverse the original (kept as audit) and insert a re-priced
+   * replacement with the same identity, linked via reversalOf. Re-prices on the
+   * pour's own collectionDate, and — unlike record(asNewLot:false) — targets
+   * this pour by id, so a sibling lot in the same slot is left untouched.
+   */
+  async correct(
+    id: string, input: CorrectPourInput, userId: string | undefined, principal: MpPrincipal,
+  ): Promise<MpPourRow> {
+    const existing = await this.getById(id, principal);
+    assertNodeAccess(principal, existing.nodeId);
+    if (existing.status !== 'recorded') throw new ConflictError('Pour is not active');
+    const res = await this.rates.resolveRate({
+      milkType: existing.milkType,
+      fat: input.fat ?? undefined, snf: input.snf ?? undefined, clr: input.clr ?? undefined,
+      scopeNodeId: existing.nodeId, farmerId: existing.farmerId, onDate: existing.collectionDate,
+    });
+    const qty = input.qtyLitres;
+    return this.db.transaction(async (tx) => {
+      if (await isShiftClosed(tx, {
+        tenantId: this.tenantId, nodeId: existing.nodeId,
+        collectionDate: existing.collectionDate, shift: existing.shift,
+      })) {
+        throw new ConflictError('Shift is closed — reopen it to edit pours');
+      }
+      // Reverse only this pour (id-targeted), guarding against a concurrent edit.
+      const reversed = await tx.update(mpPours).set({ status: 'reversed' })
+        .where(and(
+          eq(mpPours.tenantId, this.tenantId), eq(mpPours.id, id), eq(mpPours.status, 'recorded'),
+        )).returning({ id: mpPours.id });
+      if (!reversed.length) throw new ConflictError('Pour is not active');
+      const receiptNo = await this.nextReceiptNo(tx, existing.collectionDate);
+      const [pour] = await tx.insert(mpPours).values({
+        tenantId: this.tenantId,
+        nodeId: existing.nodeId,
+        farmerId: existing.farmerId,
+        collectionDate: existing.collectionDate,
+        shift: existing.shift,
+        milkType: existing.milkType,
+        qtyLitres: String(qty),
+        fat: numOrNull(input.fat), snf: numOrNull(input.snf), clr: numOrNull(input.clr),
+        water: numOrNull(input.water),
+        qualityGrade: res.grade,
+        rateChartId: res.rateChartId,
+        ratePerLitre: String(res.ratePerLitre),
+        baseAmount: String(round2(qty * res.baseRatePerLitre)),
+        bonusAmount: String(round2(qty * res.bonusPerLitre)),
+        lineAmount: String(round2(qty * res.ratePerLitre)),
+        captureSource: 'manual',
+        receiptNo,
+        status: 'recorded',
+        reversalOf: id,
+        recordedBy: userId ?? null,
+        syncedAt: new Date(),
+      }).returning();
+      return pour!;
+    });
   }
 
   async reverse(id: string, principal: MpPrincipal): Promise<MpPourRow> {

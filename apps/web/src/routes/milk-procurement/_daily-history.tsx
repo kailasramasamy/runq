@@ -1,6 +1,7 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Pencil } from 'lucide-react';
 import {
-  Card, CardContent, Combobox, Input, Pagination,
+  Card, CardContent, Combobox, Input, Pagination, Button,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
@@ -253,8 +254,10 @@ export function DailyQualityCharts({ rows }: { rows: MpDailyRow[] }) {
 }
 
 /** Client-paginated daily table, 25 rows/page. */
-export function DailyTable({ rows, page, setPage }: {
+export function DailyTable({ rows, page, setPage, onEditDay }: {
   rows: MpDailyRow[]; page: number; setPage: (p: number) => void;
+  /** When set, shows an Edit action per day (correct that day's pours). */
+  onEditDay?: (date: string) => void;
 }) {
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -275,13 +278,14 @@ export function DailyTable({ rows, page, setPage }: {
               <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
+              {onEditDay && <Th align="right">Action</Th>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={10} message="No pours in the selected window." />
+              <TableEmpty colSpan={onEditDay ? 11 : 10} message="No pours in the selected window." />
             ) : (
-              pageRows.map((r) => <DayRow key={r.date} r={r} />)
+              pageRows.map((r) => <DayRow key={r.date} r={r} onEdit={onEditDay && (() => onEditDay(r.date))} />)
             )}
           </TableBody>
         </Table>
@@ -302,8 +306,10 @@ export interface MpNodeDailyRow extends MpDailyRow { nodeId: string; nodeName: s
 
 /** Per-(day, node) table with a node column — the "All VMCCs / All CCs" view.
  * Rows arrive pre-sorted; paginated 25/page like DailyTable. */
-export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
+export function NodeDailyTable({ rows, page, setPage, nodeLabel, onEditRow }: {
   rows: MpNodeDailyRow[]; page: number; setPage: (p: number) => void; nodeLabel: string;
+  /** When set, shows an Edit action per (node, day). */
+  onEditRow?: (nodeId: string, date: string) => void;
 }) {
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -325,11 +331,12 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
               <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
+              {onEditRow && <Th align="right">Action</Th>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={11} message="No pours in the selected window." />
+              <TableEmpty colSpan={onEditRow ? 12 : 11} message="No pours in the selected window." />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.nodeId}`}>
@@ -344,6 +351,13 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
                   <TableCell align="right" numeric>{shiftPair(r.amWater, r.pmWater)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
+                  {onEditRow && (
+                    <TableCell align="right">
+                      <Button size="sm" variant="ghost" onClick={() => onEditRow(r.nodeId, r.date)}>
+                        <Pencil size={14} className="mr-1" />Edit
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
@@ -360,7 +374,7 @@ export function NodeDailyTable({ rows, page, setPage, nodeLabel }: {
   );
 }
 
-function DayRow({ r }: { r: MpDailyRow }) {
+function DayRow({ r, onEdit }: { r: MpDailyRow; onEdit?: () => void }) {
   return (
     <TableRow>
       <TableCell className="tabular-nums">{shortDate(r.date)}</TableCell>
@@ -373,6 +387,11 @@ function DayRow({ r }: { r: MpDailyRow }) {
       <TableCell align="right" numeric>{q1(r.avgWater)}</TableCell>
       <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
       <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
+      {onEdit && (
+        <TableCell align="right">
+          <Button size="sm" variant="ghost" onClick={onEdit}><Pencil size={14} className="mr-1" />Edit</Button>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

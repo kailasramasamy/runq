@@ -1,7 +1,7 @@
 import { and, eq, sql, inArray, isNull, desc, gte, lte, ne } from 'drizzle-orm';
 import {
   mpVmccBills, mpPayoutCycles, mpPayoutLines, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings,
-  mpNodeOperators, mpOperatorPayouts, payments, tenants,
+  mpNodeOperators, mpOperatorPayouts, mpPours, payments, tenants,
 } from '@runq/db';
 import type { Db, MpVmccBillRow, MpPayoutCycleRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -97,6 +97,28 @@ export interface CycleBillingSummary {
   cycleId: string; cycleNo: string; periodStart: string; periodEnd: string;
   cycleStatus: string; billCount: number; paidBillCount: number;
   billedTotal: number; paidTotal: number; pendingTotal: number;
+}
+
+export type SanitySeverity = 'error' | 'warning';
+export type SanityCode = 'unpriced_receipt' | 'orphan_pour' | 'no_payee_vendor' | 'operator_payout_overlap';
+
+/** One problem found by the pre-generation sanity check. */
+export interface SanityIssue {
+  code: SanityCode;
+  severity: SanitySeverity;
+  vmccNodeId: string | null;
+  label: string;   // VMCC or farmer name the issue is about
+  detail: string;  // human-readable explanation
+  count: number;   // affected rows (receipts / farmers)
+  qtyLitres: number;
+  amount: number;  // ₹ at risk, 0 when unknown
+}
+
+/** Read-only pre-flight report for a CC + period, run before generating bills. */
+export interface SanityReport {
+  cycleStatus: string | null; // null = no recorded collections / cycle yet
+  checkedVmccs: number;
+  issues: SanityIssue[];
 }
 
 /**
@@ -270,6 +292,111 @@ export class VmccBillService {
     const { lines } = await new OperatorPayoutService(this.db, this.tenantId).compute({ from, to });
     const wanted = new Set(nodeIds);
     return lines.filter((l) => wanted.has(l.nodeId) && l.total > 0);
+  }
+
+  /**
+   * Pre-generation sanity check for a CC + period. Read-only: surfaces problems
+   * that would silently under-bill or block settlement, WITHOUT generating.
+   *   • errors  — manual VMCC receipts that priced ₹0 (no rate-chart match), and
+   *     recorded pours whose farmer isn't a member under this CC (never billed);
+   *   • warnings — a billable VMCC with no payee vendor, or one whose commission
+   *     is already recorded as a manual operator payout (pay would be rejected).
+   */
+  async sanityCheck(sel: BillingPeriod, ccNodeId: string, principal?: MpPrincipal): Promise<SanityReport> {
+    if (principal?.kind === 'operator') assertNodeAccess(principal, ccNodeId);
+    const { periodStart, periodEnd } = periodFromSelection(sel);
+    const vmccs = await this.activeVmccs(ccNodeId);
+    const ids = vmccs.map((v) => v.id);
+    const cycle = await this.resolveCycle(sel, { lock: false });
+    const billable = await this.listBillable(sel, ccNodeId, principal);
+    const [unpriced, orphans, overlaps] = await Promise.all([
+      this.checkUnpricedReceipts(periodStart, periodEnd, vmccs, principal),
+      this.checkOrphanPours(periodStart, periodEnd, ids),
+      this.checkOperatorOverlap(billable, periodStart, periodEnd),
+    ]);
+    return {
+      cycleStatus: cycle?.status ?? null,
+      checkedVmccs: vmccs.length,
+      issues: [...unpriced, ...orphans, ...this.checkNoPayee(billable), ...overlaps],
+    };
+  }
+
+  /** Active VMCCs directly under a CC (both payout modes). */
+  private async activeVmccs(ccNodeId: string): Promise<{ id: string; name: string; code: string }[]> {
+    return this.db.select({ id: mpNodes.id, name: mpNodes.name, code: mpNodes.code }).from(mpNodes).where(and(
+      eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.parentNodeId, ccNodeId),
+      eq(mpNodes.nodeType, 'vmcc'), eq(mpNodes.isActive, true),
+    ));
+  }
+
+  /** Manual (direct-receive) VMCC collections in the period that matched no rate
+   *  chart, so they priced ₹0 and silently lowered the bill. */
+  private async checkUnpricedReceipts(
+    from: string, to: string, vmccs: { id: string; name: string }[], principal?: MpPrincipal,
+  ): Promise<SanityIssue[]> {
+    const nameById = new Map(vmccs.map((v) => [v.id, v.name]));
+    const priced = await new ReportService(this.db, this.tenantId).pricedDrGross(from, to, undefined, principal);
+    const agg = new Map<string, { count: number; qty: number }>();
+    for (const g of priced) {
+      if (g.ratePerLitre != null || !nameById.has(g.fromNodeId)) continue;
+      const cur = agg.get(g.fromNodeId) ?? { count: 0, qty: 0 };
+      cur.count += 1; cur.qty = round2(cur.qty + g.qty);
+      agg.set(g.fromNodeId, cur);
+    }
+    return [...agg].map(([id, a]) => ({
+      code: 'unpriced_receipt' as const, severity: 'error' as const, vmccNodeId: id, label: nameById.get(id)!,
+      detail: `${a.count} manual collection${a.count > 1 ? 's' : ''} (${a.qty} L) matched no rate chart and priced ₹0`,
+      count: a.count, qtyLitres: a.qty, amount: 0,
+    }));
+  }
+
+  /** Recorded pours whose farmer has no active primary membership under this CC —
+   *  their milk rolls into no VMCC bill, so it never gets billed. */
+  private async checkOrphanPours(from: string, to: string, ccVmccIds: string[]): Promise<SanityIssue[]> {
+    if (!ccVmccIds.length) return [];
+    const members = await this.db.select({ farmerId: mpFarmerMemberships.farmerId }).from(mpFarmerMemberships).where(and(
+      eq(mpFarmerMemberships.tenantId, this.tenantId), eq(mpFarmerMemberships.isPrimary, true),
+      isNull(mpFarmerMemberships.leftOn), inArray(mpFarmerMemberships.nodeId, ccVmccIds),
+    ));
+    const memberSet = new Set(members.map((m) => m.farmerId));
+    const rows = await this.db.select({
+      farmerId: mpPours.farmerId, name: mpFarmers.name, code: mpFarmers.code,
+      qty: sql<string>`sum(${mpPours.qtyLitres})`, gross: sql<string>`sum(${mpPours.lineAmount})`,
+    }).from(mpPours).innerJoin(mpFarmers, eq(mpFarmers.id, mpPours.farmerId)).where(and(
+      eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
+      gte(mpPours.collectionDate, from), lte(mpPours.collectionDate, to), inArray(mpPours.nodeId, ccVmccIds),
+    )).groupBy(mpPours.farmerId, mpFarmers.name, mpFarmers.code);
+    return rows.filter((r) => !memberSet.has(r.farmerId)).map((r) => ({
+      code: 'orphan_pour' as const, severity: 'error' as const, vmccNodeId: null, label: `${r.name} (${r.code})`,
+      detail: `Poured ${round2(Number(r.qty))} L but isn't an active member of any VMCC under this centre — won't be billed`,
+      count: 1, qtyLitres: round2(Number(r.qty)), amount: round2(Number(r.gross)),
+    }));
+  }
+
+  /** Billable via_vmcc VMCCs with no payee vendor set — pay() would reject them. */
+  private checkNoPayee(billable: BillableVmcc[]): SanityIssue[] {
+    return billable.filter((b) => b.total > 0 && !b.payeeVendorId && b.bill?.status !== 'paid').map((b) => ({
+      code: 'no_payee_vendor' as const, severity: 'warning' as const, vmccNodeId: b.vmccNodeId, label: b.vmccName,
+      detail: 'Has a billable amount but no payee vendor — set one on the node before paying',
+      count: 1, qtyLitres: b.qtyLitres, amount: b.total,
+    }));
+  }
+
+  /** Billable VMCCs whose commission is already booked as a manual operator payout
+   *  for an overlapping period — pay() is blocked by the double-pay guard. */
+  private async checkOperatorOverlap(billable: BillableVmcc[], from: string, to: string): Promise<SanityIssue[]> {
+    const nameById = new Map(billable.filter((b) => b.total > 0).map((b) => [b.vmccNodeId, b.vmccName]));
+    if (!nameById.size) return [];
+    const rows = await this.db.selectDistinct({ nodeId: mpOperatorPayouts.nodeId }).from(mpOperatorPayouts).where(and(
+      eq(mpOperatorPayouts.tenantId, this.tenantId), inArray(mpOperatorPayouts.nodeId, [...nameById.keys()]),
+      lte(mpOperatorPayouts.periodStart, to), gte(mpOperatorPayouts.periodEnd, from),
+    ));
+    return rows.map((r) => ({
+      code: 'operator_payout_overlap' as const, severity: 'warning' as const, vmccNodeId: r.nodeId,
+      label: nameById.get(r.nodeId) ?? '',
+      detail: 'Commission already recorded as a manual operator payout for this period — reverse it before paying this bill',
+      count: 1, qtyLitres: 0, amount: 0,
+    }));
   }
 
   /**

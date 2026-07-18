@@ -37,6 +37,26 @@ export const recordPourSchema = z
     path: ['clr'],
   });
 
+/**
+ * Correct a recorded pour's readings (a tenant fixing an operator's mistake).
+ * Identity — node, farmer, date, shift, milk type — is fixed and taken from the
+ * existing pour; only the measured values change. The server reverses the
+ * original and inserts a re-priced replacement, so the correction is audited,
+ * not overwritten.
+ */
+export const correctPourSchema = z
+  .object({
+    qtyLitres: z.number().positive(),
+    fat: z.number().min(0).max(15).nullish(),
+    snf: z.number().min(0).max(15).nullish(),
+    clr: z.number().min(0).max(40).nullish(),
+    water: z.number().min(0).max(100).nullish(),
+  })
+  .refine((d) => d.clr != null || (d.fat != null && d.snf != null), {
+    message: 'provide clr (lactometer) or fat+snf (analyzer)',
+    path: ['clr'],
+  });
+
 export const pourFilterSchema = z.object({
   nodeId: z.string().uuid().optional(),
   farmerId: z.string().uuid().optional(),
@@ -48,4 +68,5 @@ export const pourFilterSchema = z.object({
 });
 
 export type RecordPourInput = z.infer<typeof recordPourSchema>;
+export type CorrectPourInput = z.infer<typeof correctPourSchema>;
 export type PourFilter = z.infer<typeof pourFilterSchema>;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Coins, Lock, CheckCircle2, Receipt, RotateCcw, Eye, Download } from 'lucide-react';
 import { sharePdf } from '@/lib/share-pdf';
+import { SanityCheckPanel } from './_billing-sanity';
 import {
   PageHeader, Card, CardContent, StatsCard, Combobox, Modal, Input, DateInput,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, Button, EmptyState, Skeleton,
@@ -851,6 +852,7 @@ export function MpBillingPage() {
       {ccNodeId && !hasVia && !hasDirect && (
         <EmptyState icon={Receipt} title="No active VMCCs under this centre." />
       )}
+      {ccNodeId && (hasVia || hasDirect) && <SanityCheckPanel ccNodeId={ccNodeId} period={period} />}
       {ccNodeId && hasVia && <VmccBillSection ccNodeId={ccNodeId} period={period} />}
       {ccNodeId && hasDirect && <DirectPaymentSection ccNodeId={ccNodeId} period={period} />}
     </div>

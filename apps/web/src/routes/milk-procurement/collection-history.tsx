@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Droplets, TrendingUp, Users, Coins } from 'lucide-react';
+import { Droplets, TrendingUp, Users, Coins, Pencil } from 'lucide-react';
 import {
-  Card, CardContent, Combobox, Pagination, StatsCard,
+  Card, CardContent, Combobox, Pagination, StatsCard, Button,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import { useNodes, useFarmers, useFarmerDaily, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
+import { DayPoursEditModal } from './_pour-edit-modal';
 import { DailyQtyChart, DailyQualityCharts, sumDailyByDate, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
 
 type Scope = 'farmer' | 'vmcc' | 'cc';
@@ -106,6 +107,7 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const [edit, setEdit] = useState<MpFarmerDayRow | null>(null);
   return (
     <Card>
       <CardContent className="p-0">
@@ -122,11 +124,12 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
               <Th align="right">Water AM/PM</Th>
               <Th align="right">₹/L AM/PM</Th>
               <Th align="right">Gross payable</Th>
+              <Th align="right">Action</Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={10} message="No pours for these filters." />
+              <TableEmpty colSpan={11} message="No pours for these filters." />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={`${r.date}|${r.farmerId}|${r.nodeId}`}>
@@ -143,11 +146,23 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
                   <TableCell align="right" numeric>{shiftPair(r.amWater, r.pmWater)}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amRate, r.pmRate)}</TableCell>
                   <TableCell align="right" numeric>{formatINR(r.grossAmount)}</TableCell>
+                  <TableCell align="right">
+                    <Button size="sm" variant="ghost" onClick={() => setEdit(r)}>
+                      <Pencil size={14} className="mr-1" />Edit
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+        {edit && (
+          <DayPoursEditModal
+            filter={{ nodeId: edit.nodeId, farmerId: edit.farmerId, collectionDate: edit.date }}
+            title={`${farmerMeta(edit.farmerId).name} · ${shortDate(edit.date)}`}
+            onClose={() => setEdit(null)}
+          />
+        )}
         {totalPages > 1 && (
           <div className="border-t border-zinc-100 p-3 dark:border-zinc-800">
             <Pagination page={safePage} totalPages={totalPages} total={rows.length} limit={PAGE_SIZE} onPageChange={setPage} />

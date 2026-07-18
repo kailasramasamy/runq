@@ -22,6 +22,15 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.listBillable(sel, ccNodeId, principal) };
   });
 
+  // Read-only pre-flight run before generating: unbilled pours, unpriced manual
+  // VMCC collections, and settlement blockers — surfaced up front, not as a toast.
+  app.get('/sanity', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { ccNodeId, ...sel } = vmccBillablePreviewSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new VmccBillService(request.server.db, request.tenantId);
+    return { data: await service.sanityCheck(sel, ccNodeId, principal) };
+  });
+
   app.get('/direct', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const { ccNodeId, ...sel } = vmccBillablePreviewSchema.parse(request.query);
     const principal = await resolveMpPrincipal(request);

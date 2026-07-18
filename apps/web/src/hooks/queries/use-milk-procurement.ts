@@ -83,7 +83,7 @@ export interface MpRateResolution {
 export interface MpPour {
   id: string; nodeId: string; farmerId: string; collectionDate: string;
   shift: 'am' | 'pm'; milkType: MilkType; qtyLitres: string; fat: string | null; snf: string | null;
-  water: number | null;
+  clr: string | null; water: number | null;
   qualityGrade: string | null; ratePerLitre: string; lineAmount: string; receiptNo: string | null;
   status: 'recorded' | 'reversed';
 }
@@ -400,6 +400,22 @@ export function useRecordPour() {
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'pours'] }),
   });
 }
+export interface CorrectPourBody {
+  qtyLitres: number; fat?: number | null; snf?: number | null;
+  clr?: number | null; water?: number | null;
+}
+export function useCorrectPour() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CorrectPourBody }) =>
+      api.post<ApiSuccess<MpPour>>(`${BASE}/pours/${id}/correct`, data),
+    // a correction reverses+repriced → refresh pour lists and the daily reports
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'pours'] });
+      c.invalidateQueries({ queryKey: ['mp', 'reports'] });
+    },
+  });
+}
 
 // ── shift close (per-slot collection close + dispatch gate) ──────────────────
 export interface MpShiftStatus { am: boolean; pm: boolean }
@@ -589,6 +605,19 @@ export function useReceiveConsignment() {
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'consignments'] }),
   });
 }
+/** Correct a received consignment's receipt figures — the "daily data" for a
+ *  bulk VMCC that supplies the CC directly (no farmer pours). */
+export function useEditReceipt() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ReceiveConsignmentInput }) =>
+      api.post<ApiSuccess<MpConsignment>>(`${BASE}/consignments/${id}/edit-receipt`, data),
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'consignments'] });
+      c.invalidateQueries({ queryKey: ['mp', 'reports'] });
+    },
+  });
+}
 export interface MpAvailability {
   nodeId: string; collectionDate: string; nodeType: NodeType;
   collected: number; dispatched: number; available: number;
@@ -770,6 +799,24 @@ export function useBillableVmccs(q: BillingPeriodSel & { ccNodeId: string }, ena
   return useQuery({
     queryKey: ['mp', 'vmcc-bills', 'billable', q],
     queryFn: () => api.get<ApiSuccess<MpBillableVmcc[]>>(`${BASE}/billing/billable${qs({ ...q })}`),
+    enabled: enabled && !!q.ccNodeId && !!q.year && !!q.month && !!q.half,
+  });
+}
+export type MpSanitySeverity = 'error' | 'warning';
+export type MpSanityCode = 'unpriced_receipt' | 'orphan_pour' | 'no_payee_vendor' | 'operator_payout_overlap';
+export interface MpSanityIssue {
+  code: MpSanityCode; severity: MpSanitySeverity;
+  vmccNodeId: string | null; label: string; detail: string;
+  count: number; qtyLitres: number; amount: number;
+}
+export interface MpSanityReport {
+  cycleStatus: string | null; checkedVmccs: number; issues: MpSanityIssue[];
+}
+/** Read-only pre-flight before generating bills — unbilled pours, unpriced collections, blockers. */
+export function useBillingSanityCheck(q: BillingPeriodSel & { ccNodeId: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['mp', 'vmcc-bills', 'sanity', q],
+    queryFn: () => api.get<ApiSuccess<MpSanityReport>>(`${BASE}/billing/sanity${qs({ ...q })}`),
     enabled: enabled && !!q.ccNodeId && !!q.year && !!q.month && !!q.half,
   });
 }

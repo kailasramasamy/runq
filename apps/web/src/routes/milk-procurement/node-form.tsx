@@ -9,6 +9,7 @@ import {
   type NodeType, type MeasurementMode, type MilkType, type MpNode,
   type CreateNodeBody, type UpdateNodeBody,
 } from '@/hooks/queries/use-milk-procurement';
+import { useVendors } from '@/hooks/queries/use-vendors';
 import {
   NODE_TYPE_META, PAYOUT_MODES, MEASUREMENT_MODES, COLLECTION_SHIFTS, SELECTABLE_MILK_TYPES,
   VmccMilkTypeFields,
@@ -65,11 +66,18 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
   const update = useUpdateNode(nodeType);
   const { data: nodesData } = useNodes({ limit: 300 });
   const allNodes = nodesData?.data ?? [];
+  // Payee vendor is the AP vendor a via_vmcc bill is settled against; only VMCCs need it.
+  const { data: vendorsData } = useVendors({ limit: 500 });
+  const vendorOptions = [
+    { value: '', label: 'None' },
+    ...(vendorsData?.data ?? []).map((v) => ({ value: v.id, label: v.name })),
+  ];
 
   const [f, setF] = useState({
     code: node?.code ?? '', name: node?.name ?? '',
     parentNodeId: node?.parentNodeId ?? '',
     capacityLitres: node?.capacityLitres ?? '', payoutMode: node?.payoutMode ?? '',
+    payeeVendorId: node?.payeeVendorId ?? '',
     hasBmc: node?.hasBmc ?? false, overnightPooling: node?.overnightPooling ?? false,
     measurementMode: node?.measurementMode ?? 'analyzer',
     collectionShifts: node?.collectionShifts ?? 'both',
@@ -130,6 +138,12 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
           )}
           {nodeType === 'vmcc' && (
             <>
+              <Combobox label="Payee vendor" value={f.payeeVendorId} onChange={(v) => setF({ ...f, payeeVendorId: v })}
+                options={vendorOptions} placeholder="None" />
+              <p className="-mt-1 text-xs text-zinc-500">
+                The AP vendor this VMCC's bill is paid to (via-VMCC mode). Required before a generated bill can be
+                settled. Create one under AP → Vendors if it isn't listed.
+              </p>
               <Combobox label="Milk testing" value={f.measurementMode} onChange={(v) => setF({ ...f, measurementMode: v as MeasurementMode })} options={MEASUREMENT_MODES} />
               <Combobox label="Collects shifts" value={f.collectionShifts} onChange={(v) => setF({ ...f, collectionShifts: v as 'both' | 'am' | 'pm' })} options={COLLECTION_SHIFTS} />
               <VmccMilkTypeFields allowed={allowedMilkTypes} defaultType={defaultMilkType}
@@ -150,7 +164,7 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
 
 type FormState = {
   code: string; name: string; parentNodeId: string; capacityLitres: string | number;
-  payoutMode: string; hasBmc: boolean; overnightPooling: boolean;
+  payoutMode: string; payeeVendorId: string; hasBmc: boolean; overnightPooling: boolean;
   measurementMode: string; collectionShifts: string;
 };
 
@@ -164,7 +178,7 @@ function buildBody(nodeType: NodeType, f: FormState, allowedMilkTypes: MilkType[
   };
   if (nodeType === 'vmcc') {
     return {
-      ...base, hasBmc: f.hasBmc,
+      ...base, hasBmc: f.hasBmc, payeeVendorId: f.payeeVendorId || null,
       measurementMode: f.measurementMode as MeasurementMode,
       collectionShifts: f.collectionShifts as 'both' | 'am' | 'pm',
       allowedMilkTypes: allowedMilkTypes.length > 0 ? allowedMilkTypes : null,

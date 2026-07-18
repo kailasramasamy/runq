@@ -3,6 +3,7 @@ import { PageHeader, EmptyState, Combobox, StatsCard } from '@/components/ui';
 import { Droplets, TrendingUp, Building2, Coins } from 'lucide-react';
 import { useNodeDaily, type MpNodeDayRow } from '@/hooks/queries/use-milk-procurement';
 import { DailyTable, NodeDailyTable, DailyQtyChart, DailyQualityCharts, CycleFilter, cycleRange, defaultCycleState, sumDailyByDate, type CycleState } from './_daily-history';
+import { DayPoursEditModal } from './_pour-edit-modal';
 
 const fmt1 = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 
@@ -58,6 +59,7 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
   const [cyc, setCyc] = useState<CycleState>(defaultCycleState);
   const [nodeId, setNodeId] = useState('');
   const [page, setPage] = useState(1);
+  const [edit, setEdit] = useState<{ nodeId: string; date: string } | null>(null);
 
   const { data } = useNodeDaily({ ...cycleRange(cyc), groupBy });
   const rows = data?.data ?? [];
@@ -100,11 +102,20 @@ export function NodeHistoryBody({ groupBy, nodeLabel }: { groupBy: 'vmcc' | 'cc'
           <DailyQtyChart rows={chartRows} />
           <DailyQualityCharts rows={chartRows} />
           {activeId ? (
-            <DailyTable rows={nodeRows} page={page} setPage={setPage} />
+            <DailyTable rows={nodeRows} page={page} setPage={setPage}
+              onEditDay={(date) => setEdit({ nodeId: activeId, date })} />
           ) : (
-            <NodeDailyTable rows={allRows} page={page} setPage={setPage} nodeLabel={nodeLabel} />
+            <NodeDailyTable rows={allRows} page={page} setPage={setPage} nodeLabel={nodeLabel}
+              onEditRow={(nid, date) => setEdit({ nodeId: nid, date })} />
           )}
         </>
+      )}
+      {edit && (
+        <DayPoursEditModal
+          filter={{ nodeId: edit.nodeId, collectionDate: edit.date }}
+          title={`${nodeLabel} · ${edit.date}`}
+          onClose={() => setEdit(null)}
+        />
       )}
     </div>
   );

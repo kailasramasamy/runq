@@ -1,5 +1,5 @@
 import { and, eq, asc, sql, or, ilike, inArray } from 'drizzle-orm';
-import { mpNodes } from '@runq/db';
+import { mpNodes, vendors } from '@runq/db';
 import type { Db, MpNodeRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -50,31 +50,43 @@ export class NodeService {
   async create(input: CreateNodeInput): Promise<MpNodeRow> {
     await this.assertCodeFree(input.code);
     if (input.rateChartId) await assertAssignableRateChart(this.db, this.tenantId, input.rateChartId);
-    const [row] = await this.db.insert(mpNodes).values({
-      tenantId: this.tenantId,
-      code: input.code,
-      name: input.name,
-      nodeType: input.nodeType,
-      parentNodeId: input.parentNodeId ?? null,
-      hasBmc: input.hasBmc,
-      overnightPooling: input.overnightPooling,
-      measurementMode: input.measurementMode,
-      collectionShifts: input.collectionShifts,
-      allowedMilkTypes: input.allowedMilkTypes ?? null,
-      defaultMilkType: input.defaultMilkType ?? null,
-      capacityLitres: num(input.capacityLitres),
-      payoutMode: input.payoutMode ?? null,
-      payeeVendorId: input.payeeVendorId ?? null,
-      rateChartId: input.rateChartId ?? null,
-      addressLine1: input.addressLine1 ?? null,
-      addressLine2: input.addressLine2 ?? null,
-      city: input.city ?? null,
-      state: input.state ?? null,
-      pincode: input.pincode ?? null,
-      lat: num(input.lat),
-      lng: num(input.lng),
-    }).returning();
-    return row!;
+    return this.db.transaction(async (tx) => {
+      // A via-VMCC bill settles against an AP vendor. Auto-provision one for a new
+      // VMCC (as farmers do) so billing never dead-ends on a missing payee; an
+      // explicitly supplied vendor still wins.
+      let payeeVendorId = input.payeeVendorId ?? null;
+      if (!payeeVendorId && input.nodeType === 'vmcc') {
+        const [v] = await tx.insert(vendors).values({
+          tenantId: this.tenantId, name: input.name, category: 'vmcc',
+        }).returning({ id: vendors.id });
+        payeeVendorId = v!.id;
+      }
+      const [row] = await tx.insert(mpNodes).values({
+        tenantId: this.tenantId,
+        code: input.code,
+        name: input.name,
+        nodeType: input.nodeType,
+        parentNodeId: input.parentNodeId ?? null,
+        hasBmc: input.hasBmc,
+        overnightPooling: input.overnightPooling,
+        measurementMode: input.measurementMode,
+        collectionShifts: input.collectionShifts,
+        allowedMilkTypes: input.allowedMilkTypes ?? null,
+        defaultMilkType: input.defaultMilkType ?? null,
+        capacityLitres: num(input.capacityLitres),
+        payoutMode: input.payoutMode ?? null,
+        payeeVendorId,
+        rateChartId: input.rateChartId ?? null,
+        addressLine1: input.addressLine1 ?? null,
+        addressLine2: input.addressLine2 ?? null,
+        city: input.city ?? null,
+        state: input.state ?? null,
+        pincode: input.pincode ?? null,
+        lat: num(input.lat),
+        lng: num(input.lng),
+      }).returning();
+      return row!;
+    });
   }
 
   async update(id: string, input: UpdateNodeInput): Promise<MpNodeRow> {
