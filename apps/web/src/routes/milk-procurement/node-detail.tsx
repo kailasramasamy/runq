@@ -8,7 +8,7 @@ import {
 import { Tabs } from '@/components/ar/primitives';
 import {
   useNode, useNodes, useDeactivateNode, useOperators, useDeactivateOperator, useDeleteOperator,
-  milkTypeLabel, type MpNode, type MpOperator, type MilkType,
+  type MpNode, type MpOperator, type MilkType,
 } from '@/hooks/queries/use-milk-procurement';
 import { NODE_TYPE_META } from './_node-shared';
 import { VMCC_TABS, VmccDashboard } from './node-dashboard-vmcc';
@@ -16,6 +16,7 @@ import { CC_TABS, CcDashboard } from './node-dashboard-cc';
 import { PP_TABS, PpDashboard } from './node-dashboard-pp';
 import { QualityBandsEditor } from './_quality-bands-editor';
 import { RateChartAssignmentsCard } from './_rate-chart-assignments-card';
+import { NodeConfigForm } from './node-form';
 import { SELECTABLE_MILK_TYPES } from './_node-shared';
 
 const SETUP_TAB = { id: 'setup', label: 'Setup' };
@@ -61,7 +62,8 @@ export function MpNodeDetailPage() {
         fullWidth
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => navigate({ to: '/milk-procurement/nodes/$id/edit', params: { id } })}>
+            {/* Config is edited inline on the Setup tab — this just takes you there. */}
+            <Button variant="secondary" onClick={() => setTab('setup')}>
               <Pencil className="h-4 w-4" />Edit
             </Button>
             {node.isActive && (
@@ -74,7 +76,9 @@ export function MpNodeDetailPage() {
       <Tabs active={tab} onChange={setTab} tabs={tabsForType(node.nodeType)} />
       {tab === 'setup' ? (
         <>
-          <NodeSummary node={node} />
+          <div className="mb-4">
+            <NodeConfigForm nodeType={node.nodeType} node={node} title="Configuration" onSaved={() => {}} />
+          </div>
           <OperatorsSection nodeId={id} />
           {/* CCs set the charts their VMCCs inherit; a VMCC overrides its own.
               PPs never price milk. */}
@@ -140,36 +144,6 @@ function NodeBreadcrumb({ node, allNodes }: { node: MpNode; allNodes: MpNode[] }
       <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
       <span className="font-medium text-zinc-700 dark:text-zinc-300">{node.name}</span>
     </nav>
-  );
-}
-
-function NodeSummary({ node }: { node: MpNode }) {
-  const rows: [string, string][] = [
-    ['Status', node.isActive ? 'Active' : 'Inactive'],
-    ['BMC', node.hasBmc ? 'Yes' : '—'],
-    ['Capacity', node.capacityLitres ? `${node.capacityLitres} L` : '—'],
-    ['Payout', node.payoutMode ?? 'Tenant default'],
-  ];
-  if (node.nodeType === 'cc') rows.push(['Overnight pooling', node.overnightPooling ? 'Yes' : '—']);
-  if (node.nodeType === 'vmcc') {
-    rows.push(['Milk testing', node.measurementMode === 'lactometer' ? 'Lactometer (CLR)' : 'Analyzer']);
-    rows.push(['Shifts', node.collectionShifts === 'both' ? 'AM + PM' : node.collectionShifts.toUpperCase()]);
-    rows.push(['Milk types', node.allowedMilkTypes?.map(milkTypeLabel).join(', ') || 'All']);
-  }
-  return (
-    <Card className="mb-4">
-      <CardHeader>Configuration</CardHeader>
-      <CardContent>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-3">
-          {rows.map(([k, v]) => (
-            <div key={k}>
-              <dt className="text-zinc-500">{k}</dt>
-              <dd className="text-zinc-800 dark:text-zinc-200">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </CardContent>
-    </Card>
   );
 }
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 import {
-  PageHeader, Card, CardContent, Button, Input, Combobox, useToast,
+  PageHeader, Card, CardHeader, CardContent, Button, Input, Combobox, useToast,
 } from '@/components/ui';
 import {
   useNode, useCreateNode, useUpdateNode, useNodes,
@@ -18,6 +18,7 @@ const NODE_TYPES: NodeType[] = ['vmcc', 'cc', 'pp'];
 
 /** Create (/nodes/new/$type) and edit (/nodes/$id/edit) share this page. */
 export function MpNodeFormPage() {
+  const navigate = useNavigate();
   const params = useParams({ strict: false }) as { id?: string; type?: string };
   const editId = params.id;
   const { data: nodeData, isLoading } = useNode(editId ?? '');
@@ -28,12 +29,37 @@ export function MpNodeFormPage() {
   if (!nodeType || !NODE_TYPES.includes(nodeType)) {
     return <PageHeader title="Unknown node type" description="Pick a node type from the Network page." fullWidth />;
   }
-  return <NodeForm key={node?.id ?? nodeType} nodeType={nodeType} node={node} />;
+  return (
+    <div>
+      <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/milk-procurement/nodes', search: { type: nodeType } })} className="mb-2">
+        <ArrowLeft className="h-4 w-4" />Network
+      </Button>
+      <PageHeader title={node ? `Edit ${node.code}` : `Add ${NODE_TYPE_META[nodeType].label}`} fullWidth />
+      <NodeConfigForm
+        key={node?.id ?? nodeType}
+        nodeType={nodeType}
+        node={node}
+        onSaved={(id) => navigate({ to: '/milk-procurement/nodes/$id', params: { id } })}
+        onCancel={() => navigate({ to: '/milk-procurement/nodes', search: { type: nodeType } })}
+      />
+    </div>
+  );
 }
 
-function NodeForm({ nodeType, node }: { nodeType: NodeType; node: MpNode | null }) {
+/**
+ * The node's core configuration form. Embeddable: the create/edit page wraps it
+ * with a header + back link, and the node detail's Setup tab renders it inline —
+ * so "Setup" and "Edit" are one surface, not two. [onCancel] is shown only when
+ * provided (a full-page form has somewhere to go back to; the inline one doesn't).
+ */
+export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
+  nodeType: NodeType; node: MpNode | null;
+  onSaved: (id: string) => void; onCancel?: () => void;
+  /** Optional card header — used inline on the Setup tab; the full page relies on
+   *  its own PageHeader instead. */
+  title?: string;
+}) {
   const isEdit = !!node;
-  const navigate = useNavigate();
   const { toast } = useToast();
   const create = useCreateNode(nodeType);
   const update = useUpdateNode(nodeType);
@@ -58,30 +84,25 @@ function NodeForm({ nodeType, node }: { nodeType: NodeType; node: MpNode | null 
     ...allNodes.filter((n) => n.id !== node?.id)
       .map((n) => ({ value: n.id, label: `${n.code} · ${n.name} (${n.nodeType.toUpperCase()})` })),
   ];
-  // Return to this node type's tab, not the default "all".
-  const back = () => navigate({ to: '/milk-procurement/nodes', search: { type: nodeType } });
-
   const submit = () => {
     const body = buildBody(nodeType, f, allowedMilkTypes, defaultMilkType);
     if (isEdit) {
       const { code: _c, ...patch } = body;
       update.mutate({ id: node.id, data: patch as UpdateNodeBody }, {
-        onSuccess: () => { toast('Node updated', 'success'); navigate({ to: '/milk-procurement/nodes/$id', params: { id: node.id } }); },
+        onSuccess: () => { toast('Node updated', 'success'); onSaved(node.id); },
         onError: () => toast('Failed to update node', 'error'),
       });
     } else {
       create.mutate(body as CreateNodeBody, {
-        onSuccess: (res) => { toast('Node created', 'success'); navigate({ to: '/milk-procurement/nodes/$id', params: { id: res.data.id } }); },
+        onSuccess: (res) => { toast('Node created', 'success'); onSaved(res.data.id); },
         onError: () => toast('Failed to create node', 'error'),
       });
     }
   };
 
   return (
-    <div>
-      <Button variant="ghost" size="sm" onClick={back} className="mb-2"><ArrowLeft className="h-4 w-4" />Network</Button>
-      <PageHeader title={isEdit ? `Edit ${node.code}` : `Add ${NODE_TYPE_META[nodeType].label}`} fullWidth />
-      <Card>
+    <Card>
+        {title && <CardHeader>{title}</CardHeader>}
         <CardContent className="max-w-xl space-y-3">
           <Input label="Code" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} disabled={isEdit} required />
           <Input label="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required />
@@ -117,14 +138,13 @@ function NodeForm({ nodeType, node }: { nodeType: NodeType; node: MpNode | null 
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={back}>Cancel</Button>
+            {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
             <Button onClick={submit} loading={create.isPending || update.isPending} disabled={!f.code || !f.name}>
               {isEdit ? 'Save' : 'Create'}
             </Button>
           </div>
         </CardContent>
       </Card>
-    </div>
   );
 }
 
