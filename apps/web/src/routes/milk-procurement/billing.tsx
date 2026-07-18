@@ -81,7 +81,67 @@ function MoneyStrip({ cycles, isLoading }: { cycles: MpPayoutCycle[]; isLoading:
   );
 }
 
+/**
+ * Download-a-PDF button that shows its own progress. The fetch can take a
+ * second (Puppeteer renders it), so without a spinner a second click fires a
+ * second render; this disables + spins while in flight and toasts on failure
+ * rather than swallowing it.
+ */
+function DownloadBillButton({ options, label = 'Download bill' }: {
+  options: Parameters<typeof sharePdf>[0]; label?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const run = async () => {
+    setBusy(true);
+    try {
+      await sharePdf(options);
+    } catch {
+      toast('Could not generate the PDF', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button size="sm" loading={busy} onClick={run}>
+      {!busy && <Download size={14} className="mr-1" />}
+      {busy ? 'Preparing…' : label}
+    </Button>
+  );
+}
+
 // ── VMCC billing ─────────────────────────────────────────────────────────────
+
+/**
+ * The whole CC's bill for the selected cycle, rolled up across its VMCCs —
+ * the via_vmcc counterpart of the "VMCC totals" strip on the direct side. Gives
+ * the one number the CC owes before drilling into any single VMCC.
+ */
+function CcTotals({ rows }: { rows: MpBillableVmcc[] }) {
+  const litres = rows.reduce((s, r) => s + r.qtyLitres, 0);
+  const milkCost = rows.reduce((s, r) => s + r.milkCost, 0);
+  const commission = rows.reduce((s, r) => s + r.commission + r.salary + r.rent, 0);
+  const net = rows.reduce((s, r) => s + r.total, 0);
+  const paid = rows.filter((r) => r.bill?.status === 'paid').length;
+  const generated = rows.filter((r) => r.bill?.status === 'generated').length;
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">CC totals</h2>
+        <span className="text-xs text-zinc-500">
+          {rows.length} VMCC{rows.length === 1 ? '' : 's'} · {paid} paid · {generated} generated
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatsCard title="Total milk" value={litres} icon={Receipt} size="compact"
+          formatValue={(v) => `${v.toLocaleString('en-IN', { maximumFractionDigits: 1 })} L`} />
+        <StatsCard title="Milk cost" value={milkCost} icon={Coins} size="compact" />
+        <StatsCard title="Commission" value={commission} icon={Coins} size="compact" />
+        <StatsCard title="Net payable" value={net} icon={CheckCircle2} size="compact" />
+      </div>
+    </div>
+  );
+}
 
 function billBadge(row: MpBillableVmcc) {
   const status = row.bill?.status;
@@ -150,15 +210,13 @@ function BillDetailModal({ row, period, onClose }: {
             </Table>
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
-            <Button size="sm" variant="ghost" onClick={() => sharePdf({
+            <DownloadBillButton options={{
               path: '/milk-procurement/billing/vmcc-detail',
               params: { year: String(period.year), month: String(period.month), half: period.half,
                 vmccNodeId: row.vmccNodeId, format: 'pdf' },
               filename: `${row.vmccName}-${d.periodStart}.pdf`,
               title: `${row.vmccName} bill`,
-            }).catch(() => {})}>
-              <Download size={14} className="mr-1" /> Download bill
-            </Button>
+            }} />
             <div className="text-right">
               <span className="mr-3 text-sm text-zinc-500">{d.totalQty.toFixed(1)} L total</span>
               <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
@@ -308,6 +366,7 @@ function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period: Billi
   return (
     <Card>
       <CardContent className="pt-4">
+        {rows.length > 0 && <CcTotals rows={rows} />}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">VMCC bills</h2>
@@ -468,14 +527,12 @@ function FarmerBillDetailModal({ bill, period, onClose }: {
             </Table>
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-zinc-200 pt-3 dark:border-zinc-800">
-            <Button size="sm" variant="ghost" onClick={() => sharePdf({
+            <DownloadBillButton options={{
               path: `/milk-procurement/farmers/${bill.farmerId}/pour-statement`,
               params: { from: period.periodStart, to: period.periodEnd, format: 'pdf' },
               filename: `${bill.farmerName}-${period.periodStart}.pdf`,
               title: `${bill.farmerName} statement`,
-            }).catch(() => {})}>
-              <Download size={14} className="mr-1" /> Download bill
-            </Button>
+            }} />
             <div className="text-right">
               <span className="mr-3 text-sm text-zinc-500">{qty.toFixed(1)} L total</span>
               <span className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{inr(gross)}</span>

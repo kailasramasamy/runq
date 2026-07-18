@@ -58,7 +58,8 @@ function NodeForm({ nodeType, node }: { nodeType: NodeType; node: MpNode | null 
     ...allNodes.filter((n) => n.id !== node?.id)
       .map((n) => ({ value: n.id, label: `${n.code} · ${n.name} (${n.nodeType.toUpperCase()})` })),
   ];
-  const back = () => navigate({ to: '/milk-procurement/nodes' });
+  // Return to this node type's tab, not the default "all".
+  const back = () => navigate({ to: '/milk-procurement/nodes', search: { type: nodeType } });
 
   const submit = () => {
     const body = buildBody(nodeType, f, allowedMilkTypes, defaultMilkType);

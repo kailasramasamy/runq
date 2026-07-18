@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createNodeOperatorSchema,
+  updateNodeOperatorSchema,
   nodeOperatorFilterSchema,
   operatorCompQuerySchema,
   paginationSchema,
@@ -45,6 +46,14 @@ export const operatorRoutes: FastifyPluginAsync = async (app) => {
     const input = createNodeOperatorSchema.parse(request.body);
     const service = new NodeOperatorService(request.server.db, request.tenantId);
     return reply.status(201).send({ data: await service.create(input) });
+  });
+
+  // Edit a term in place — 409 if it already has payout history (supersede instead).
+  app.put('/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const input = updateNodeOperatorSchema.parse(request.body);
+    const service = new NodeOperatorService(request.server.db, request.tenantId);
+    return { data: await service.update(id, input) };
   });
 
   app.post('/:id/deactivate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {

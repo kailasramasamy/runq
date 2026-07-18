@@ -4,7 +4,7 @@ import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import type {
-  CreateNodeOperatorInput, NodeOperatorFilter, OperatorCompQuery,
+  CreateNodeOperatorInput, UpdateNodeOperatorInput, NodeOperatorFilter, OperatorCompQuery,
 } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { upsertCredential } from './credentials.service';
@@ -154,6 +154,44 @@ export class NodeOperatorService {
         await upsertCredential(tx, {
           tenantId: this.tenantId, phone: input.loginPhone,
           role: 'field_operator', userId: input.userId ?? null,
+        });
+      }
+      return row!;
+    });
+  }
+
+  /**
+   * Edit a comp term in place. Allowed only while the term has no payout history
+   * — once it's been billed, editing would retroactively change past commission,
+   * so the caller must supersede it with a new effective term instead (the same
+   * guard [remove] uses). Only supplied fields change; a new loginPhone syncs the
+   * Dhenu credential as create does.
+   */
+  async update(id: string, input: UpdateNodeOperatorInput): Promise<OperatorRow> {
+    const existing = await this.getById(id);
+    const [payout] = await this.db.select({ id: mpOperatorPayouts.id }).from(mpOperatorPayouts)
+      .where(and(eq(mpOperatorPayouts.tenantId, this.tenantId), eq(mpOperatorPayouts.operatorId, id))).limit(1);
+    if (payout) throw new ConflictError('Operator has payout history — add a new term instead of editing');
+    return this.db.transaction(async (tx) => {
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (input.userId !== undefined) patch.userId = input.userId ?? null;
+      if (input.name !== undefined) patch.name = input.name ?? null;
+      if (input.payeeVendorId !== undefined) patch.payeeVendorId = input.payeeVendorId ?? null;
+      if (input.loginPhone !== undefined) patch.phone = input.loginPhone ?? null;
+      if (input.role !== undefined) patch.role = input.role;
+      if (input.compType !== undefined) patch.compType = input.compType;
+      if (input.ratePerLitre !== undefined) patch.ratePerLitre = numOrNull(input.ratePerLitre);
+      if (input.monthlySalary !== undefined) patch.monthlySalary = numOrNull(input.monthlySalary);
+      if (input.rentAmount !== undefined) patch.rentAmount = numOrNull(input.rentAmount);
+      if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom;
+      if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo ?? null;
+      const [row] = await tx.update(mpNodeOperators).set(patch)
+        .where(and(eq(mpNodeOperators.tenantId, this.tenantId), eq(mpNodeOperators.id, id))).returning();
+      const phone = input.loginPhone !== undefined ? input.loginPhone : existing.phone;
+      if (phone) {
+        await upsertCredential(tx, {
+          tenantId: this.tenantId, phone,
+          role: 'field_operator', userId: (patch.userId as string | null) ?? existing.userId ?? null,
         });
       }
       return row!;

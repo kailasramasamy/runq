@@ -33,6 +33,29 @@ export const createNodeOperatorSchema = z
     { message: 'per_litre_commission needs ratePerLitre; fixed_salary needs monthlySalary', path: ['compType'] },
   );
 
+// Edit a term in place — allowed only while it has no payout history (the
+// service enforces this). nodeId is fixed; everything else is editable. The
+// same comp-consistency rule as create applies.
+export const updateNodeOperatorSchema = z
+  .object({
+    userId: z.string().uuid().nullish(),
+    name: z.string().max(255).nullish(),
+    payeeVendorId: z.string().uuid().nullish(),
+    loginPhone: z.string().max(20).nullish(),
+    role: z.enum(['operator', 'owner']).optional(),
+    compType: z.enum(['per_litre_commission', 'fixed_salary']).optional(),
+    ratePerLitre: z.number().nonnegative().nullish(),
+    monthlySalary: z.number().nonnegative().nullish(),
+    rentAmount: z.number().nonnegative().nullish(),
+    effectiveFrom: z.string().date().optional(),
+    effectiveTo: z.string().date().nullish(),
+  })
+  .refine(
+    (d) => d.compType == null
+      || (d.compType === 'per_litre_commission' ? d.ratePerLitre != null : d.monthlySalary != null),
+    { message: 'per_litre_commission needs ratePerLitre; fixed_salary needs monthlySalary', path: ['compType'] },
+  );
+
 export const nodeOperatorFilterSchema = z.object({
   nodeId: z.string().uuid().optional(),
   isActive: boolFilter.optional(),
@@ -45,5 +68,6 @@ export const operatorCompQuerySchema = z.object({
 });
 
 export type CreateNodeOperatorInput = z.infer<typeof createNodeOperatorSchema>;
+export type UpdateNodeOperatorInput = z.infer<typeof updateNodeOperatorSchema>;
 export type NodeOperatorFilter = z.infer<typeof nodeOperatorFilterSchema>;
 export type OperatorCompQuery = z.infer<typeof operatorCompQuerySchema>;

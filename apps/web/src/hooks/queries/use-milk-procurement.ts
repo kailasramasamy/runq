@@ -7,7 +7,7 @@ import type {
   CreateFarmerInput, UpdateFarmerInput,
   CreateRateChartInput, RecordPourInput, CreateLedgerEntryInput,
   CreateConsignmentInput, ReceiveConsignmentInput, CreatePayoutCycleInput,
-  CreateNodeOperatorInput, UpsertGlSettingsInput, CreateOperatorPayoutInput,
+  CreateNodeOperatorInput, UpdateNodeOperatorInput, UpsertGlSettingsInput, CreateOperatorPayoutInput,
   CloseShiftInput, ReopenShiftInput,
 } from '@runq/validators';
 
@@ -664,6 +664,14 @@ export function useCreateOperator() {
   const c = useQueryClient();
   return useMutation({
     mutationFn: (d: CreateNodeOperatorInput) => api.post<ApiSuccess<MpOperator>>(`${BASE}/operators`, d),
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'operators'] }),
+  });
+}
+export function useUpdateOperator() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateNodeOperatorInput }) =>
+      api.put<ApiSuccess<MpOperator>>(`${BASE}/operators/${id}`, data),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'operators'] }),
   });
 }

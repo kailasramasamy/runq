@@ -2633,7 +2633,14 @@ const milkProcurementRoute = createRoute({
   component: BusinessModuleGuard,
 });
 const mpIndexRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/', component: MilkProcurementHomePage });
-const mpNodesRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes', component: MpNodesPage });
+const mpNodesRoute = createRoute({
+  getParentRoute: () => milkProcurementRoute, path: '/nodes',
+  // active tab lives in the URL so leaving to a node and coming back (breadcrumb
+  // or browser Back) returns to the same tab.
+  validateSearch: (s: Record<string, unknown>): { type?: string } =>
+    ({ type: typeof s.type === 'string' ? s.type : undefined }),
+  component: MpNodesPage,
+});
 // Dedicated per-type create + node detail/edit + node-scoped operator add.
 const mpNodeNewRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes/new/$type', component: MpNodeFormPage });
 const mpNodeDetailRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/nodes/$id', component: MpNodeDetailPage });
@@ -2641,7 +2648,10 @@ const mpNodeEditRoute = createRoute({ getParentRoute: () => milkProcurementRoute
 const mpNodeOperatorNewRoute = createRoute({
   getParentRoute: () => milkProcurementRoute,
   path: '/nodes/$id/operators/new',
-  validateSearch: (s: Record<string, unknown>): { from?: string } => ({ from: typeof s.from === 'string' ? s.from : undefined }),
+  validateSearch: (s: Record<string, unknown>): { from?: string; edit?: string } => ({
+    from: typeof s.from === 'string' ? s.from : undefined,
+    edit: typeof s.edit === 'string' ? s.edit : undefined,
+  }),
   component: MpOperatorFormPage,
 });
 const mpFarmersRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/farmers', component: MpFarmersPage });

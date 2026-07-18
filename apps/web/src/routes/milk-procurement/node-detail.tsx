@@ -129,7 +129,8 @@ function NodeBreadcrumb({ node, allNodes }: { node: MpNode; allNodes: MpNode[] }
   }
   return (
     <nav className="mb-2 flex flex-wrap items-center gap-1 text-sm text-zinc-500">
-      <Link to="/milk-procurement/nodes" className="hover:underline">Network</Link>
+      {/* Return to the tab this node lives in, not the default "all". */}
+      <Link to="/milk-procurement/nodes" search={{ type: node.nodeType }} className="hover:underline">Network</Link>
       {chain.map((n) => (
         <span key={n.id} className="flex items-center gap-1">
           <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
@@ -185,6 +186,8 @@ function OperatorsSection({ nodeId }: { nodeId: string }) {
   const addOperator = () => navigate({ to: '/milk-procurement/nodes/$id/operators/new', params: { id: nodeId } });
   const newTerm = (o: MpOperator) =>
     navigate({ to: '/milk-procurement/nodes/$id/operators/new', params: { id: nodeId }, search: { from: o.id } });
+  const editOperator = (o: MpOperator) =>
+    navigate({ to: '/milk-procurement/nodes/$id/operators/new', params: { id: nodeId }, search: { edit: o.id } });
 
   return (
     <Card>
@@ -216,7 +219,8 @@ function OperatorsSection({ nodeId }: { nodeId: string }) {
                   <TableCell className="text-right">{o.rentAmount ?? '—'}</TableCell>
                   <TableCell>{o.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => newTerm(o)} title="New effective term"><Copy className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => editOperator(o)} title="Edit — corrects this term in place (before it's billed)"><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => newTerm(o)} title="New effective term — supersede with a rate change from a date"><Copy className="h-4 w-4" /></Button>
                     {o.isActive && (
                       <Button variant="ghost" size="sm" onClick={() => setEndId(o.id)} title="End term"><Power className="h-4 w-4" /></Button>
                     )}

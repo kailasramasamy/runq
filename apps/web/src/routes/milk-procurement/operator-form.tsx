@@ -5,7 +5,7 @@ import {
   PageHeader, Card, CardContent, Button, Input, Combobox, useToast,
 } from '@/components/ui';
 import {
-  useNode, useOperators, useCreateOperator, type MpOperator,
+  useNode, useOperators, useCreateOperator, useUpdateOperator, type MpOperator,
 } from '@/hooks/queries/use-milk-procurement';
 import { COMP_TYPES, ROLES } from './_node-shared';
 
@@ -15,22 +15,31 @@ type OperatorForm = {
   loginPhone: string;
 };
 
-/** Dedicated "add operator" page for a node (/nodes/$id/operators/new). */
+/**
+ * Add / edit an operator for a node (/nodes/$id/operators/new).
+ *   ?from=<id> — start a new comp term prefilled from that operator (supersede)
+ *   ?edit=<id> — correct that term in place (only while it has no payout history)
+ */
 export function MpOperatorFormPage() {
   const { id: nodeId } = useParams({ strict: false }) as { id: string };
-  const { from } = useSearch({ strict: false }) as { from?: string };
+  const { from, edit } = useSearch({ strict: false }) as { from?: string; edit?: string };
   const { data: nodeData } = useNode(nodeId);
   const { data: opsData } = useOperators({ nodeId, limit: 100 });
-  const source = from ? opsData?.data.find((o) => o.id === from) : undefined;
+  const sourceId = edit ?? from;
+  const source = sourceId ? opsData?.data.find((o) => o.id === sourceId) : undefined;
   const nodeName = nodeData?.data?.name ?? '';
   // key on the source so the prefilled form mounts once the operator loads.
-  return <OperatorForm key={source?.id ?? 'blank'} nodeId={nodeId} nodeName={nodeName} source={source} />;
+  return <OperatorForm key={source?.id ?? 'blank'} nodeId={nodeId} nodeName={nodeName}
+    source={source} editing={!!edit} />;
 }
 
-function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: string; source?: MpOperator }) {
+function OperatorForm({ nodeId, nodeName, source, editing }: {
+  nodeId: string; nodeName: string; source?: MpOperator; editing: boolean;
+}) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const create = useCreateOperator();
+  const update = useUpdateOperator();
   const today = new Date().toISOString().slice(0, 10);
   const back = () => navigate({ to: '/milk-procurement/nodes/$id', params: { id: nodeId } });
 
@@ -38,32 +47,43 @@ function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: 
     name: source?.name ?? '', role: source?.role ?? 'operator',
     compType: source?.compType ?? 'per_litre_commission',
     ratePerLitre: source?.ratePerLitre ?? '', monthlySalary: source?.monthlySalary ?? '',
-    rentAmount: source?.rentAmount ?? '', effectiveFrom: today,
+    rentAmount: source?.rentAmount ?? '',
+    // Editing keeps the term's own start; a new term (or add) starts today.
+    effectiveFrom: editing ? (source?.effectiveFrom ?? today) : today,
     loginPhone: source?.phone ?? '',
   });
 
-  const submit = () => {
-    create.mutate(
-      {
-        nodeId, name: f.name || null, role: f.role as 'operator' | 'owner',
-        compType: f.compType as 'per_litre_commission' | 'fixed_salary',
-        ratePerLitre: f.compType === 'per_litre_commission' && f.ratePerLitre ? Number(f.ratePerLitre) : null,
-        monthlySalary: f.compType === 'fixed_salary' && f.monthlySalary ? Number(f.monthlySalary) : null,
-        rentAmount: f.rentAmount ? Number(f.rentAmount) : null,
-        effectiveFrom: f.effectiveFrom,
-        loginPhone: f.loginPhone || null,
-      },
-      {
-        onSuccess: () => { toast(source ? 'New term added' : 'Operator added', 'success'); back(); },
-        onError: () => toast('Failed to add operator', 'error'),
-      },
-    );
+  const payload = {
+    name: f.name || null, role: f.role as 'operator' | 'owner',
+    compType: f.compType as 'per_litre_commission' | 'fixed_salary',
+    ratePerLitre: f.compType === 'per_litre_commission' && f.ratePerLitre ? Number(f.ratePerLitre) : null,
+    monthlySalary: f.compType === 'fixed_salary' && f.monthlySalary ? Number(f.monthlySalary) : null,
+    rentAmount: f.rentAmount ? Number(f.rentAmount) : null,
+    effectiveFrom: f.effectiveFrom,
+    loginPhone: f.loginPhone || null,
   };
+
+  const submit = () => {
+    if (editing && source) {
+      update.mutate({ id: source.id, data: payload }, {
+        onSuccess: () => { toast('Operator updated', 'success'); back(); },
+        onError: (e) => toast(e instanceof Error ? e.message : 'Failed to update operator', 'error'),
+      });
+      return;
+    }
+    create.mutate({ nodeId, ...payload }, {
+      onSuccess: () => { toast(source ? 'New term added' : 'Operator added', 'success'); back(); },
+      onError: () => toast('Failed to add operator', 'error'),
+    });
+  };
+
+  const title = editing ? 'Edit operator' : source ? 'New operator term' : 'Add operator';
+  const saving = editing ? update.isPending : create.isPending;
 
   return (
     <div>
       <Button variant="ghost" size="sm" onClick={back} className="mb-2"><ArrowLeft className="h-4 w-4" />{nodeName || 'Node'}</Button>
-      <PageHeader title={source ? 'New operator term' : 'Add operator'} description={nodeName} fullWidth />
+      <PageHeader title={title} description={nodeName} fullWidth />
       <Card>
         <CardContent className="max-w-xl space-y-3">
           <Input label="Person name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
@@ -86,7 +106,7 @@ function OperatorForm({ nodeId, nodeName, source }: { nodeId: string; nodeName: 
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={back}>Cancel</Button>
-            <Button onClick={submit} loading={create.isPending}>Add</Button>
+            <Button onClick={submit} loading={saving}>{editing ? 'Save changes' : 'Add'}</Button>
           </div>
         </CardContent>
       </Card>

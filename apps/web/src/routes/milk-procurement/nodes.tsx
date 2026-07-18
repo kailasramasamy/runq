@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Button, Badge,
@@ -75,7 +74,13 @@ function RateChartCell({ node, slots }: { node: MpNode; slots: MpEffectiveAssign
 
 export function MpNodesPage() {
   const navigate = useNavigate();
-  const [typeFilter, setTypeFilter] = useState<'' | NodeType>('');
+  const { type } = useSearch({ strict: false }) as { type?: string };
+  // Tab lives in the URL (?type=vmcc) so it survives leaving to a node detail
+  // and returning. Empty/unknown → the "all" tab.
+  const typeFilter: '' | NodeType =
+    type === 'vmcc' || type === 'cc' || type === 'pp' ? type : '';
+  const setTypeFilter = (t: '' | NodeType) =>
+    navigate({ to: '/milk-procurement/nodes', search: t ? { type: t } : {}, replace: true });
   const { data, isLoading } = useNodes({ limit: 300 });
   const { data: opsData } = useOperators({ limit: 200 });
   // One call for the whole table — per-row lookups would be N round-trips.
