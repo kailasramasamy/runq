@@ -130,6 +130,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Money in',
     items: [
       { key: 'invoices', label: 'Invoices', icon: FileText, path: '/finance/ar/invoices' },
+      { key: 'customer-po', label: 'Customer PO', icon: Inbox, path: '/finance/ar/customer-orders' },
       { key: 'quick-invoice', label: 'Quick invoice', icon: Zap, path: '/finance/ar/quick-templates' },
       { key: 'quotes-orders', label: 'Quotes & orders', icon: ClipboardList, path: '/finance/ar/quotes' },
       { key: 'creditnotes', label: 'Credit notes', icon: FileMinus, path: '/finance/ar/credit-notes' },
