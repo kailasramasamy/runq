@@ -336,18 +336,20 @@ export class VmccBillService {
   ): Promise<SanityIssue[]> {
     const nameById = new Map(vmccs.map((v) => [v.id, v.name]));
     const priced = await new ReportService(this.db, this.tenantId).pricedDrGross(from, to, undefined, principal);
-    const agg = new Map<string, { count: number; qty: number }>();
-    for (const g of priced) {
-      if (g.ratePerLitre != null || !nameById.has(g.fromNodeId)) continue;
-      const cur = agg.get(g.fromNodeId) ?? { count: 0, qty: 0 };
-      cur.count += 1; cur.qty = round2(cur.qty + g.qty);
-      agg.set(g.fromNodeId, cur);
-    }
-    return [...agg].map(([id, a]) => ({
-      code: 'unpriced_receipt' as const, severity: 'error' as const, vmccNodeId: id, label: nameById.get(id)!,
-      detail: `${a.count} manual collection${a.count > 1 ? 's' : ''} (${a.qty} L) matched no rate chart and priced ₹0`,
-      count: a.count, qtyLitres: a.qty, amount: 0,
-    }));
+    // One issue per day+shift so the operator knows exactly which receipt to fix.
+    return priced
+      .filter((g) => g.ratePerLitre == null && g.qty > 0 && nameById.has(g.fromNodeId))
+      .map((g) => {
+        const reason = g.fat == null || g.snf == null
+          ? 'no fat/SNF recorded'
+          : `fat ${g.fat} / SNF ${g.snf} matched no rate chart`;
+        return {
+          code: 'unpriced_receipt' as const, severity: 'error' as const, vmccNodeId: g.fromNodeId,
+          label: nameById.get(g.fromNodeId)!,
+          detail: `${fmtDay(g.date)} · ${g.shift.toUpperCase()} · ${round2(g.qty)} L · ${reason} → priced ₹0`,
+          count: 1, qtyLitres: round2(g.qty), amount: 0,
+        };
+      });
   }
 
   /** Recorded pours whose farmer has no active primary membership under this CC —
@@ -913,6 +915,14 @@ export class VmccBillService {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'YYYY-MM-DD' → 'D Mon' (e.g. '2026-07-18' → '18 Jul'). Parses the parts to
+ *  stay timezone-safe — no Date construction. */
+function fmtDay(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1] ?? m}`;
 }
 
 /** Fold per-farmer bills into per-VMCC owed/paid/pending totals. Pure. */

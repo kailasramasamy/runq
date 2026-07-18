@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ShieldCheck } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { AlertTriangle, ArrowUpRight, ChevronDown, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, Badge, Skeleton } from '@/components/ui';
 import {
   useBillingSanityCheck, type BillingPeriodSel, type MpSanityIssue,
@@ -81,6 +82,12 @@ function IssueRow({ issue }: { issue: MpSanityIssue }) {
             <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{issue.label}</span>
           </div>
           <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">{issue.detail}</p>
+          {issue.vmccNodeId && (
+            <Link to="/milk-procurement/nodes/$id" params={{ id: issue.vmccNodeId }}
+              className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+              Open VMCC<ArrowUpRight className="h-3 w-3" />
+            </Link>
+          )}
         </div>
         {issue.amount > 0 && (
           <span className="shrink-0 tabular-nums text-xs font-medium text-zinc-700 dark:text-zinc-300">{inr(issue.amount)}</span>
