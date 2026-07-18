@@ -102,47 +102,84 @@ class _ShareIntakeHostState extends ConsumerState<ShareIntakeHost> {
     _present(file);
   }
 
-  /// Ask which pipeline the share belongs to, then route it there.
+  /// Present the sheet once the app has settled on a real screen.
+  ///
+  /// Splash navigates to /home with context.go only after auth AND a role
+  /// network call resolve — the same auth-ready trigger that replays the share.
+  /// Presenting before that lands lets the go() replace the route stack and
+  /// dismiss the sheet a frame after it opens (flash, then home). The role
+  /// fetch makes the wait variable, so we drive off router navigation events
+  /// rather than racing or polling: present the moment we leave splash/sign-in.
   void _present(File file) {
-    // Defer until the navigator is mounted — covers the cold-start case where
-    // initial media arrives before the splash → home redirect lands.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final ctx = rootKey.currentContext;
-      if (ctx == null) return;
+    final info = ref.read(routerProvider).routeInformationProvider;
+    var done = false;
+    Timer? poll;
 
-      // Bills (AP) and customer POs (AR) use completely different
-      // pipelines — items master matching, GL posting, document type. Ask
-      // the user which one they shared rather than guessing.
-      final dest = await showShareDestinationSheet(ctx);
-      if (dest == null) return; // user dismissed
-      if (!ctx.mounted) return;
-
-      switch (dest) {
-        case ShareDestination.vendorBill:
-          final prepared = await _prepareForBill(ctx, file);
-          if (!ctx.mounted || prepared == null) return;
-          ctx.push('/bills/extract', extra: prepared);
-          break;
-        case ShareDestination.customerPo:
-          openOrderProcessing(ctx, file, source: 'share_sheet');
-          break;
-        case ShareDestination.quickPayment:
-          // Pass the original file (colour screenshot) straight through — the
-          // payment-made screen OCRs it to pre-fill, and keeps it as proof.
-          ctx.push('/payment-made', extra: file);
-          break;
-        case ShareDestination.receiveAgainstPo:
-          // Compress images the same way the bill flow does — the scan
-          // endpoint accepts both PDF and JPEG, so this just keeps
-          // uploads small.
-          final prepared = await _prepareForBill(ctx, file);
-          if (!ctx.mounted || prepared == null) return;
-          final poId = await showOpenPoPickerSheet(ctx);
-          if (poId == null || !ctx.mounted) return;
-          ctx.push('/purchase/pos/$poId/scan-receive', extra: prepared);
-          break;
+    void check() {
+      if (done) return;
+      if (!mounted) {
+        done = true;
+        poll?.cancel();
+        info.removeListener(check);
+        return;
       }
+      // info.value updates synchronously on context.go, so this reads the live
+      // location whether we're driven by the listener or the poll.
+      final loc = info.value.uri.path;
+      if (loc == '/splash' || loc == '/signin') return; // not landed yet
+      done = true;
+      poll?.cancel();
+      info.removeListener(check);
+      // Defer one frame: the router notification fires mid-navigation, before
+      // the destination page is built — showing a sheet there is a silent
+      // no-op (the bug). A postFrame guarantees a stable navigator to host it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = rootKey.currentContext;
+        if (mounted && ctx != null) unawaited(_showDestination(ctx, file));
+      });
+    }
+
+    info.addListener(check);
+    // Poll as a fallback in case the navigation notification is missed; capped
+    // so a user who never gets past sign-in doesn't spin forever.
+    poll = Timer.periodic(const Duration(milliseconds: 250), (t) {
+      if (done || t.tick > 80) t.cancel(); // ~20s ceiling
+      check();
     });
+    check();
+  }
+
+  /// Bills (AP) and customer POs (AR) use completely different pipelines —
+  /// items master matching, GL posting, document type. Ask which one they
+  /// shared rather than guessing, then route.
+  Future<void> _showDestination(BuildContext ctx, File file) async {
+    final dest = await showShareDestinationSheet(ctx);
+    if (dest == null || !ctx.mounted) return; // user dismissed
+
+    switch (dest) {
+      case ShareDestination.vendorBill:
+        final prepared = await _prepareForBill(ctx, file);
+        if (!ctx.mounted || prepared == null) return;
+        ctx.push('/bills/extract', extra: prepared);
+        break;
+      case ShareDestination.customerPo:
+        openOrderProcessing(ctx, file, source: 'share_sheet');
+        break;
+      case ShareDestination.quickPayment:
+        // Pass the original file (colour screenshot) straight through — the
+        // payment-made screen OCRs it to pre-fill, and keeps it as proof.
+        ctx.push('/payment-made', extra: file);
+        break;
+      case ShareDestination.receiveAgainstPo:
+        // Compress images the same way the bill flow does — the scan endpoint
+        // accepts both PDF and JPEG, so this just keeps uploads small.
+        final prepared = await _prepareForBill(ctx, file);
+        if (!ctx.mounted || prepared == null) return;
+        final poId = await showOpenPoPickerSheet(ctx);
+        if (poId == null || !ctx.mounted) return;
+        ctx.push('/purchase/pos/$poId/scan-receive', extra: prepared);
+        break;
+    }
   }
 
   /// Shared images (WhatsApp, Photos, etc.) come in as full-resolution colour
