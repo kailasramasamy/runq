@@ -803,7 +803,8 @@ export function useBillableVmccs(q: BillingPeriodSel & { ccNodeId: string }, ena
   });
 }
 export type MpSanitySeverity = 'error' | 'warning';
-export type MpSanityCode = 'unpriced_receipt' | 'orphan_pour' | 'no_payee_vendor' | 'operator_payout_overlap';
+export type MpSanityCode =
+  | 'unpriced_receipt' | 'orphan_pour' | 'qty_spike' | 'no_payee_vendor' | 'operator_payout_overlap';
 export interface MpSanityIssue {
   code: MpSanityCode; severity: MpSanitySeverity;
   vmccNodeId: string | null; label: string; detail: string;

@@ -1,4 +1,4 @@
-import { and, eq, sql, inArray, isNull, desc, gte, lte, ne } from 'drizzle-orm';
+import { and, eq, sql, inArray, isNull, desc, gte, lte, lt, ne } from 'drizzle-orm';
 import {
   mpVmccBills, mpPayoutCycles, mpPayoutLines, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings,
   mpNodeOperators, mpOperatorPayouts, mpPours, payments, tenants,
@@ -100,7 +100,8 @@ export interface CycleBillingSummary {
 }
 
 export type SanitySeverity = 'error' | 'warning';
-export type SanityCode = 'unpriced_receipt' | 'orphan_pour' | 'no_payee_vendor' | 'operator_payout_overlap';
+export type SanityCode =
+  | 'unpriced_receipt' | 'orphan_pour' | 'qty_spike' | 'no_payee_vendor' | 'operator_payout_overlap';
 
 /** One problem found by the pre-generation sanity check. */
 export interface SanityIssue {
@@ -309,15 +310,16 @@ export class VmccBillService {
     const ids = vmccs.map((v) => v.id);
     const cycle = await this.resolveCycle(sel, { lock: false });
     const billable = await this.listBillable(sel, ccNodeId, principal);
-    const [unpriced, orphans, overlaps] = await Promise.all([
+    const [unpriced, orphans, spikes, overlaps] = await Promise.all([
       this.checkUnpricedReceipts(periodStart, periodEnd, vmccs, principal),
       this.checkOrphanPours(periodStart, periodEnd, ids),
+      this.checkQtySpikes(periodStart, periodEnd, ids),
       this.checkOperatorOverlap(billable, periodStart, periodEnd),
     ]);
     return {
       cycleStatus: cycle?.status ?? null,
       checkedVmccs: vmccs.length,
-      issues: [...unpriced, ...orphans, ...this.checkNoPayee(billable), ...overlaps],
+      issues: [...unpriced, ...orphans, ...spikes, ...this.checkNoPayee(billable), ...overlaps],
     };
   }
 
@@ -373,6 +375,46 @@ export class VmccBillService {
       detail: `Poured ${round2(Number(r.qty))} L but isn't an active member of any VMCC under this centre — won't be billed`,
       count: 1, qtyLitres: round2(Number(r.qty)), amount: round2(Number(r.gross)),
     }));
+  }
+
+  /** Recorded pours whose qty is a large outlier vs the farmer's own recent norm —
+   *  a likely data-entry error (misplaced decimal, extra digit). Warn-only: needs a
+   *  baseline of prior pours, so brand-new farmers are skipped. */
+  private async checkQtySpikes(from: string, to: string, ccVmccIds: string[]): Promise<SanityIssue[]> {
+    if (!ccVmccIds.length) return [];
+    const lookbackStart = isoDaysBefore(from, SPIKE_LOOKBACK_DAYS);
+    const baseRows = await this.db.select({
+      farmerId: mpPours.farmerId,
+      median: sql<string>`percentile_cont(0.5) within group (order by ${mpPours.qtyLitres})`,
+      n: sql<number>`count(*)::int`,
+    }).from(mpPours).where(and(
+      eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'), inArray(mpPours.nodeId, ccVmccIds),
+      gte(mpPours.collectionDate, lookbackStart), lt(mpPours.collectionDate, from),
+    )).groupBy(mpPours.farmerId);
+    const base = new Map(baseRows.map((b) => [b.farmerId, { median: Number(b.median), n: b.n }]));
+    const pours = await this.db.select({
+      farmerId: mpPours.farmerId, name: mpFarmers.name, code: mpFarmers.code, nodeId: mpPours.nodeId,
+      date: mpPours.collectionDate, shift: mpPours.shift, qty: mpPours.qtyLitres, amount: mpPours.lineAmount,
+    }).from(mpPours).innerJoin(mpFarmers, eq(mpFarmers.id, mpPours.farmerId)).where(and(
+      eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'), inArray(mpPours.nodeId, ccVmccIds),
+      gte(mpPours.collectionDate, from), lte(mpPours.collectionDate, to),
+    ));
+    const hits: { issue: SanityIssue; ratio: number }[] = [];
+    for (const p of pours) {
+      const b = base.get(p.farmerId);
+      const qty = Number(p.qty);
+      if (!b || b.n < SPIKE_MIN_HISTORY || b.median <= 0) continue;
+      if (qty < b.median * SPIKE_FACTOR || qty - b.median < SPIKE_MIN_DELTA_L) continue;
+      hits.push({
+        ratio: qty / b.median,
+        issue: {
+          code: 'qty_spike', severity: 'warning', vmccNodeId: p.nodeId, label: `${p.name} (${p.code})`,
+          detail: `${fmtDay(p.date)} · ${p.shift.toUpperCase()} · ${round2(qty)} L vs usual ~${round2(b.median)} L (${Math.round(qty / b.median)}× normal) — check for a typo`,
+          count: 1, qtyLitres: round2(qty), amount: round2(Number(p.amount)),
+        },
+      });
+    }
+    return hits.sort((a, b) => b.ratio - a.ratio).slice(0, SPIKE_MAX_ISSUES).map((h) => h.issue);
   }
 
   /** Billable via_vmcc VMCCs with no payee vendor set — pay() would reject them. */
@@ -924,6 +966,21 @@ function fmtDay(iso: string): string {
   const [, m, d] = iso.split('-');
   return `${Number(d)} ${MONTHS[Number(m) - 1] ?? m}`;
 }
+
+/** 'YYYY-MM-DD' shifted back by [days], in UTC (dates are calendar-only here). */
+function isoDaysBefore(iso: string, days: number): string {
+  const t = Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+  return new Date(t - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+// Qty-spike detection: flag a pour ≥ SPIKE_FACTOR× the farmer's trailing-median
+// per-pour litres (and at least SPIKE_MIN_DELTA_L above it, so small numbers don't
+// trip it). Needs SPIKE_MIN_HISTORY prior pours for a trustworthy baseline.
+const SPIKE_LOOKBACK_DAYS = 60;
+const SPIKE_MIN_HISTORY = 5;
+const SPIKE_FACTOR = 3;
+const SPIKE_MIN_DELTA_L = 15;
+const SPIKE_MAX_ISSUES = 50;
 
 /** Fold per-farmer bills into per-VMCC owed/paid/pending totals. Pure. */
 function rollupFarmerBills(

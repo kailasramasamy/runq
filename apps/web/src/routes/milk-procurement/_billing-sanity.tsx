@@ -11,6 +11,7 @@ const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const TITLES: Record<MpSanityIssue['code'], string> = {
   unpriced_receipt: 'Unpriced collection',
   orphan_pour: 'Unbilled pours',
+  qty_spike: 'Unusual quantity',
   no_payee_vendor: 'No payee vendor',
   operator_payout_overlap: 'Commission already recorded',
 };
