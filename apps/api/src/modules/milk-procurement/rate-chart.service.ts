@@ -63,6 +63,16 @@ type PricingMode = MpRateChartRow['pricingMode'];
 export class RateChartService {
   private readonly bands: QualityBandService;
 
+  // Per-instance memo of the invariant lookups behind resolveRate. A billing
+  // rollup prices hundreds of receipt groups through one service instance, and
+  // the chart, its cells/rules, and the bands don't change with fat/snf — so
+  // without this each group re-ran the same ~7 queries. Instances are per-request
+  // (or per rollup run) and short-lived, so there's no staleness window.
+  private readonly _chartMemo = new Map<string, MpRateChartRow | null>();
+  private readonly _cellsMemo = new Map<string, Cell[]>();
+  private readonly _rulesMemo = new Map<string, Rule[]>();
+  private readonly _bandsMemo = new Map<string, Awaited<ReturnType<QualityBandService['resolve']>>>();
+
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
@@ -347,7 +357,7 @@ export class RateChartService {
         : await this.matrixRate(chart.id, input.fat!, input.snf!);
     // Grade from configurable bands: milk-type aware, and now grades CLR
     // (lactometer) pours too instead of leaving them ungraded.
-    const bands = await this.bands.resolve(input.milkType, input.scopeNodeId ?? null);
+    const bands = await this.bandsFor(input.milkType, input.scopeNodeId ?? null);
     const grade = gradeFromBands(bands, { fat: input.fat, snf: input.snf, clr: input.clr });
     const bonus = await this.bonusFor(chart.id, grade, input.cycleQtyLitres);
     return {
@@ -368,11 +378,48 @@ export class RateChartService {
     onDate: string,
     modes: PricingMode[],
   ): Promise<MpRateChartRow | null> {
+    // The chosen chart depends on scope + milk type + date + family — never on
+    // fat/snf — so memo by exactly that.
+    const key = `${input.farmerId ?? ''}|${input.scopeNodeId ?? ''}|${input.milkType}|${onDate}|${modes.includes('clr')}`;
+    const hit = this._chartMemo.get(key);
+    if (hit !== undefined) return hit;
+    let chart: MpRateChartRow | null = null;
     for (const id of await this.assignedChartIds(input, modes)) {
       const c = await this.chartIfUsable(id, input.milkType, onDate, modes);
-      if (c) return c;
+      if (c) { chart = c; break; }
     }
-    return this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
+    chart ??= await this.findActiveChart(input.milkType, onDate, input.scopeNodeId ?? null, modes);
+    this._chartMemo.set(key, chart);
+    return chart;
+  }
+
+  /** A chart's cells, loaded once per chart. */
+  private async chartCells(chartId: string): Promise<Cell[]> {
+    const hit = this._cellsMemo.get(chartId);
+    if (hit) return hit;
+    const cells = await this.db.select().from(mpRateChartCells)
+      .where(eq(mpRateChartCells.rateChartId, chartId));
+    this._cellsMemo.set(chartId, cells);
+    return cells;
+  }
+
+  /** A chart's bonus/slab rules, loaded once per chart. */
+  private async chartRules(chartId: string): Promise<Rule[]> {
+    const hit = this._rulesMemo.get(chartId);
+    if (hit) return hit;
+    const rules = await this.db.select().from(mpRateChartRules)
+      .where(eq(mpRateChartRules.rateChartId, chartId));
+    this._rulesMemo.set(chartId, rules);
+    return rules;
+  }
+
+  private async bandsFor(milkType: MilkType, scopeNodeId: string | null) {
+    const key = `${milkType}|${scopeNodeId ?? ''}`;
+    const hit = this._bandsMemo.get(key);
+    if (hit) return hit;
+    const bands = await this.bands.resolve(milkType, scopeNodeId);
+    this._bandsMemo.set(key, bands);
+    return bands;
   }
 
   /**
@@ -449,28 +496,25 @@ export class RateChartService {
 
   /** CLR (lactometer) nearest-floor: largest cell with clr ≤ input. Top cell caps. */
   private async clrRate(chartId: string, clr: number): Promise<number> {
-    const [cell] = await this.db.select().from(mpRateChartCells).where(and(
-      eq(mpRateChartCells.rateChartId, chartId),
-      lte(mpRateChartCells.clr, String(clr)),
-    )).orderBy(desc(mpRateChartCells.clr)).limit(1);
+    // nearest-floor: largest cell with clr ≤ input (top cell caps).
+    const cell = (await this.chartCells(chartId))
+      .filter((c) => c.clr != null && Number(c.clr) <= clr)
+      .sort((a, b) => Number(b.clr) - Number(a.clr))[0];
     if (!cell) throw new NotFoundError(`No CLR rate cell for clr=${clr}`);
     return Number(cell.ratePerLitre);
   }
 
   private async matrixRate(chartId: string, fat: number, snf: number): Promise<number> {
-    // nearest-floor: largest cell with fat ≤ input and snf ≤ input
-    const [cell] = await this.db.select().from(mpRateChartCells).where(and(
-      eq(mpRateChartCells.rateChartId, chartId),
-      lte(mpRateChartCells.fat, String(fat)),
-      lte(mpRateChartCells.snf, String(snf)),
-    )).orderBy(desc(mpRateChartCells.fat), desc(mpRateChartCells.snf)).limit(1);
+    // nearest-floor: largest cell with fat ≤ input and snf ≤ input.
+    const cell = (await this.chartCells(chartId))
+      .filter((c) => c.fat != null && c.snf != null && Number(c.fat) <= fat && Number(c.snf) <= snf)
+      .sort((a, b) => Number(b.fat) - Number(a.fat) || Number(b.snf) - Number(a.snf))[0];
     if (!cell) throw new NotFoundError(`No rate cell for fat=${fat}, snf=${snf}`);
     return Number(cell.ratePerLitre);
   }
 
   private async bonusFor(chartId: string, grade: Grade | null, cycleQty?: number): Promise<number> {
-    const rules: Rule[] = await this.db.select().from(mpRateChartRules)
-      .where(eq(mpRateChartRules.rateChartId, chartId));
+    const rules = await this.chartRules(chartId);
     let bonus = 0;
     for (const r of rules) {
       if (r.ruleType === 'quality_bonus' && r.grade === grade) bonus += Number(r.bonusPerLitre);
