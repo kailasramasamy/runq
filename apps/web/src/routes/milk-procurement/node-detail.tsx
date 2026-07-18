@@ -75,30 +75,7 @@ export function MpNodeDetailPage() {
 
       <Tabs active={tab} onChange={setTab} tabs={tabsForType(node.nodeType)} />
       {tab === 'setup' ? (
-        <>
-          <div className="mb-4">
-            <NodeConfigForm nodeType={node.nodeType} node={node} title="Configuration" onSaved={() => {}} />
-          </div>
-          <OperatorsSection nodeId={id} />
-          {/* CCs set the charts their VMCCs inherit; a VMCC overrides its own.
-              PPs never price milk. */}
-          {node.nodeType !== 'pp' && (
-            <div className="mt-4">
-              <RateChartAssignmentsCard
-                scopeType="node"
-                scopeId={node.id}
-                milkTypes={assignableMilkTypes(node)}
-                title="Rate charts"
-                subtitle={node.nodeType === 'cc'
-                  ? 'Charts set here price every VMCC under this centre, unless the VMCC or farmer overrides them. Leave a slot inheriting to follow the tenant default.'
-                  : 'Charts set here price this VMCC, unless a farmer overrides them. Leave a slot inheriting to follow the CC, then the tenant default.'}
-              />
-            </div>
-          )}
-          <div className="mt-4">
-            <QualityBandsEditor nodeId={id} title="Quality bands (node override)" />
-          </div>
-        </>
+        <SetupPanel node={node} />
       ) : (
         <DashboardForType node={node} tab={tab} />
       )}
@@ -116,6 +93,44 @@ export function MpNodeDetailPage() {
           onError: () => toast('Failed to deactivate', 'error'),
         })}
       />
+    </div>
+  );
+}
+
+/**
+ * The Setup tab, split into its own sub-tabs so the page isn't one long scroll:
+ * Configuration, Operators, Rate charts (priced node types only), Quality bands.
+ */
+function SetupPanel({ node }: { node: MpNode }) {
+  const priced = node.nodeType !== 'pp';
+  const tabs = [
+    { id: 'config', label: 'Configuration' },
+    { id: 'operators', label: 'Operators' },
+    ...(priced ? [{ id: 'charts', label: 'Rate charts' }] : []),
+    { id: 'bands', label: 'Quality bands' },
+  ];
+  const [sub, setSub] = useState('config');
+
+  return (
+    <div>
+      <Tabs active={sub} onChange={setSub} tabs={tabs} />
+      {sub === 'config' && (
+        <NodeConfigForm nodeType={node.nodeType} node={node} title="Configuration" onSaved={() => {}} />
+      )}
+      {sub === 'operators' && <OperatorsSection nodeId={node.id} />}
+      {sub === 'charts' && priced && (
+        // CCs set the charts their VMCCs inherit; a VMCC overrides its own.
+        <RateChartAssignmentsCard
+          scopeType="node"
+          scopeId={node.id}
+          milkTypes={assignableMilkTypes(node)}
+          title="Rate charts"
+          subtitle={node.nodeType === 'cc'
+            ? 'Charts set here price every VMCC under this centre, unless the VMCC or farmer overrides them. Leave a slot inheriting to follow the tenant default.'
+            : 'Charts set here price this VMCC, unless a farmer overrides them. Leave a slot inheriting to follow the CC, then the tenant default.'}
+        />
+      )}
+      {sub === 'bands' && <QualityBandsEditor nodeId={node.id} title="Quality bands (node override)" />}
     </div>
   );
 }
