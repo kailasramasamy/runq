@@ -26,6 +26,7 @@ Output rules:
 - "customerSourceName" is the BUYER (the party being billed), not the seller. Look for "Billed to:", "Bill To", "Buyer", "Consignee", "Party".
 - "customerSourceGstin" is the buyer's GSTIN if shown (15 chars, starts with 2 digits). Strip any "GSTN:" / "GSTIN:" prefix.
 - "invoiceNumber" is the invoice/bill/voucher number, not the PO number.
+- If the document is a Purchase Order (titled "Purchase Order"/"PO", showing a PO number but NO separate invoice/bill/voucher number), set "poNumber" to that PO number and also copy it into "invoiceNumber" (the system replaces it with its own number on import).
 - "lineTotal" is the line subtotal (qty × unitPrice). If only the post-tax line total is shown, still compute lineTotal as qty × unitPrice.
 - "sourceGrandTotal" is the post-tax invoice total as printed.
 

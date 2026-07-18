@@ -262,9 +262,17 @@ export class InvoiceImportService {
         reverseCharge: false,
       };
 
+      // A purchase-order PDF has a PO number but no invoice number of its own,
+      // so the extractor falls back to the PO number for `invoiceNumber`.
+      // Don't stamp that onto the sales invoice — mint the next system number
+      // and keep the PO number only as a reference (already on createInput).
+      const invoiceNumberIsPoNumber =
+        !!inv.poNumber &&
+        inv.invoiceNumber.trim().toUpperCase() === inv.poNumber.trim().toUpperCase();
+
       try {
         const created = await invoiceService.create(createInput, userId, {
-          explicitInvoiceNumber: inv.invoiceNumber,
+          explicitInvoiceNumber: invoiceNumberIsPoNumber ? undefined : inv.invoiceNumber,
           skipCreditCheck: true,
         });
         result.created.push({
