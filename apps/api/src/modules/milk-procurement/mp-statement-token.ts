@@ -43,10 +43,16 @@ export function verifyStatementToken(token: string): StatementTokenData | null {
 }
 
 /** Absolute public URL Interakt fetches the PDF from. Null when the signing
- *  secret or the public base URL isn't configured (so the caller no-ops). */
-export function statementPdfUrl(payload: VmccBillTokenData | FarmerStmtTokenData): string | null {
+ *  secret or the public base URL isn't configured (so the caller no-ops).
+ *  An optional `filename` becomes a trailing path segment — WhatsApp/Meta shows
+ *  the URL basename as the document title, so this is what the recipient sees.
+ *  It's cosmetic: the token alone authorizes and identifies the document. */
+export function statementPdfUrl(
+  payload: VmccBillTokenData | FarmerStmtTokenData, filename?: string,
+): string | null {
   const token = signStatementToken(payload);
   const base = process.env.APP_BASE_URL;
   if (!token || !base) return null;
-  return `${base.replace(/\/+$/, '')}/api/v1/mp/statement/${token}`;
+  const suffix = filename ? `/${encodeURIComponent(filename)}` : '';
+  return `${base.replace(/\/+$/, '')}/api/v1/mp/statement/${token}${suffix}`;
 }

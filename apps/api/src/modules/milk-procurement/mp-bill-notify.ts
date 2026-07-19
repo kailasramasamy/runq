@@ -5,7 +5,7 @@ import type { BillingPeriod } from '@runq/validators';
 import { getInteraktProvider } from '../../utils/messaging';
 import { statementPdfUrl } from './mp-statement-token';
 import { payeeVendorPhone } from './mp-notify-lookup';
-import { cycleLabel, trimNum, rupees, nz } from './mp-notify-format';
+import { cycleLabel, trimNum, rupees, nz, pdfName } from './mp-notify-format';
 
 // WhatsApp "bill ready" notices with the statement PDF attached (document header).
 // A via_vmcc VMCC bill goes to the payee vendor's phone when generated; direct
@@ -20,9 +20,6 @@ export async function sendVmccBillWhatsApp(
   const provider = getInteraktProvider();
   const templateName = process.env.INTERAKT_TEMPLATE_VMCC_BILL;
   if (!provider || !templateName) return;
-  // A document-header template can't be sent without the PDF, so bail if unsigned.
-  const url = statementPdfUrl({ k: 'vb', t: tenantId, n: bill.vmccNodeId, y: period.year, m: period.month, h: period.half });
-  if (!url) return;
   const phone = await payeeVendorPhone(db, tenantId, bill.vmccNodeId);
   if (!phone) return;
 
@@ -31,10 +28,17 @@ export async function sendVmccBillWhatsApp(
   const [cycle] = await db.select({ from: mpPayoutCycles.periodStart, to: mpPayoutCycles.periodEnd })
     .from(mpPayoutCycles).where(eq(mpPayoutCycles.id, bill.payoutCycleId)).limit(1);
   if (!vmcc || !cycle) return;
+  const periodLabel = cycleLabel(cycle.from, cycle.to);
+  // A document-header template can't be sent without the PDF, so bail if unsigned.
+  const url = statementPdfUrl(
+    { k: 'vb', t: tenantId, n: bill.vmccNodeId, y: period.year, m: period.month, h: period.half },
+    pdfName('VMCC bill', vmcc.name, periodLabel),
+  );
+  if (!url) return;
   const commission = Number(bill.commission) + Number(bill.salary) + Number(bill.rent);
   // Body vars for mp_vmcc_bill_notification ({{1}}..{{7}}), in template order.
   const templateParams = {
-    name: nz(vmcc.name), period: nz(cycleLabel(cycle.from, cycle.to)), code: nz(vmcc.code),
+    name: nz(vmcc.name), period: nz(periodLabel), code: nz(vmcc.code),
     litres: nz(trimNum(bill.qtyLitres)), milkCost: nz(rupees(bill.milkCost)),
     commission: nz(rupees(commission)), net: nz(rupees(bill.totalAmount)),
   };
@@ -68,7 +72,10 @@ export async function sendFarmerBillNotifications(db: Db, tenantId: string, cycl
 
   for (const r of rows) {
     if (!r.phone || !directIds.has(r.nodeId)) continue;
-    const url = statementPdfUrl({ k: 'fs', t: tenantId, f: r.farmerId, from: cycle.from, to: cycle.to });
+    const url = statementPdfUrl(
+      { k: 'fs', t: tenantId, f: r.farmerId, from: cycle.from, to: cycle.to },
+      pdfName('Milk statement', r.name, period),
+    );
     if (!url) continue;
     // Body vars for mp_farmer_bill_notification ({{1}}..{{6}}), in template order.
     const templateParams = {

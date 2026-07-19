@@ -46,6 +46,19 @@ export function nz(v: string): string {
   return v.trim().length ? v : '-';
 }
 
+// Human-readable PDF file name — the trailing URL segment WhatsApp/Meta shows as
+// the document title (they use the URL basename, not Content-Disposition). Each
+// part is reduced to letters/digits joined by '-', parts joined by '_', e.g.
+// pdfName('Milk statement', 'S16 Santhosh', '1–15 Jul 2026')
+//   → "Milk-statement_S16-Santhosh_1-15-Jul-2026.pdf".
+export function pdfName(...parts: string[]): string {
+  const base = parts
+    .map((p) => p.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, ''))
+    .filter(Boolean)
+    .join('_');
+  return `${base || 'statement'}.pdf`;
+}
+
 // "16–31 Jul 2026" when one month, else "16 Jul 2026 – 03 Aug 2026".
 export function cycleLabel(from: string, to: string): string {
   const mf = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from);

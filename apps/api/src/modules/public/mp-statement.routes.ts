@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyStatementToken } from '../milk-procurement/mp-statement-token';
 import { VmccBillService } from '../milk-procurement/vmcc-bill.service';
 import { StatementService } from '../milk-procurement/statement.service';
@@ -12,7 +12,11 @@ import {
 // the HMAC token IS the authorization, scoped to a single document and expiring.
 // No listing, no tenant enumeration — an invalid/expired token just 404s.
 export const mpStatementRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/statement/:token', async (request, reply) => {
+  // Two shapes for the same document: bare token, and token + a cosmetic
+  // filename segment (…/statement/<token>/Milk-statement_Farmer_Period.pdf) so
+  // WhatsApp shows a meaningful document title. The filename is ignored here —
+  // the token is the sole authorization and identifier.
+  const serve = async (request: FastifyRequest, reply: FastifyReply) => {
     const { token } = request.params as { token: string };
     const payload = verifyStatementToken(token);
     if (!payload) return reply.status(404).send({ error: 'Invalid or expired link' });
@@ -46,5 +50,8 @@ export const mpStatementRoutes: FastifyPluginAsync = async (app) => {
       .header('Content-Disposition', `inline; filename="${pourStatementFilename(data)}"`)
       .header('Access-Control-Expose-Headers', 'Content-Disposition')
       .send(pdf);
-  });
+  };
+
+  app.get('/statement/:token', serve);
+  app.get('/statement/:token/:filename', serve);
 };
