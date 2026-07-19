@@ -28,6 +28,33 @@ function currentCyclePeriod(cycleDays: number, today: string): { start: string; 
   return { start: iso(start), end: iso(end) };
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** The defined cycle windows from the tenant cadence, most-recent first — the
+ *  next window plus the last `months` months' worth — so the New-cycle picker
+ *  offers named cycles ("16–31 Jul 2026") instead of raw date entry. */
+function listCyclePeriods(cycleDays: number, today: string, months = 6): { start: string; end: string; label: string }[] {
+  if (cycleDays < 1) return [];
+  const [ty, tm] = today.split('-').map(Number);
+  if (!ty || !tm) return [];
+  const out: { start: string; end: string; label: string }[] = [];
+  for (let off = 1; off >= -months; off -= 1) {
+    const dt = new Date(Date.UTC(ty, tm - 1 + off, 1));
+    const y = dt.getUTCFullYear(), m = dt.getUTCMonth() + 1;
+    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const threshold = Math.min(30, daysInMonth);
+    const starts: number[] = [];
+    for (let s = 1; s <= threshold; s += cycleDays) starts.push(s);
+    const iso = (day: number) => `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    for (let i = 0; i < starts.length; i += 1) {
+      const sd = starts[i]!;
+      const ed = i < starts.length - 1 ? starts[i + 1]! - 1 : daysInMonth;
+      out.push({ start: iso(sd), end: iso(ed), label: `${sd}–${ed} ${MONTH_ABBR[m - 1]} ${y}` });
+    }
+  }
+  return out.sort((a, b) => (a.start < b.start ? 1 : -1));
+}
+
 const LEDGER_TYPES = [
   { value: 'advance_given', label: 'Advance given' },
   { value: 'feed_loan_given', label: 'Cattle-feed loan given' },
@@ -174,6 +201,7 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const today = new Date().toISOString().slice(0, 10);
   const s = settingsData?.data;
   const seed = s?.cycleDays ? currentCyclePeriod(s.cycleDays, today) : null;
+  const periods = s?.cycleDays ? listCyclePeriods(s.cycleDays, today) : [];
   const ccs = nodes.filter((n) => n.nodeType === 'cc');
   const [f, setF] = useState({
     scopeNodeId: '', periodStart: seed?.start ?? today, periodEnd: seed?.end ?? today,
@@ -197,10 +225,18 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <Combobox label="Chilling centre" value={f.scopeNodeId} onChange={(v) => setF({ ...f, scopeNodeId: v })}
           options={ccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))}
           placeholder="Select centre…" />
-        <div className="grid grid-cols-2 gap-2">
-          <Input label="Period start" type="date" value={f.periodStart} onChange={(e) => setF({ ...f, periodStart: e.target.value })} />
-          <Input label="Period end" type="date" value={f.periodEnd} onChange={(e) => setF({ ...f, periodEnd: e.target.value })} />
-        </div>
+        {periods.length ? (
+          <Combobox label="Cycle" value={`${f.periodStart}|${f.periodEnd}`}
+            onChange={(v) => { const [start, end] = v.split('|'); setF({ ...f, periodStart: start!, periodEnd: end! }); }}
+            options={periods.map((p) => ({ value: `${p.start}|${p.end}`, label: p.label }))}
+            placeholder="Select cycle…" />
+        ) : (
+          // Cadence not configured in settings — fall back to manual dates.
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Period start" type="date" value={f.periodStart} onChange={(e) => setF({ ...f, periodStart: e.target.value })} />
+            <Input label="Period end" type="date" value={f.periodEnd} onChange={(e) => setF({ ...f, periodEnd: e.target.value })} />
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} loading={create.isPending} disabled={!f.scopeNodeId}>Generate</Button>
