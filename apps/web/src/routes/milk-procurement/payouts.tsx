@@ -31,14 +31,15 @@ function currentCyclePeriod(cycleDays: number, today: string): { start: string; 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** The defined cycle windows from the tenant cadence, most-recent first — the
- *  next window plus the last `months` months' worth — so the New-cycle picker
- *  offers named cycles ("16–31 Jul 2026") instead of raw date entry. */
+ *  current window plus the last `months` months' worth — so the New-cycle picker
+ *  offers named cycles ("16–31 Jul 2026") instead of raw date entry. Future
+ *  windows (start after today) are excluded — you only bill closed/current ones. */
 function listCyclePeriods(cycleDays: number, today: string, months = 6): { start: string; end: string; label: string }[] {
   if (cycleDays < 1) return [];
   const [ty, tm] = today.split('-').map(Number);
   if (!ty || !tm) return [];
   const out: { start: string; end: string; label: string }[] = [];
-  for (let off = 1; off >= -months; off -= 1) {
+  for (let off = 0; off >= -months; off -= 1) {
     const dt = new Date(Date.UTC(ty, tm - 1 + off, 1));
     const y = dt.getUTCFullYear(), m = dt.getUTCMonth() + 1;
     const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -52,7 +53,7 @@ function listCyclePeriods(cycleDays: number, today: string, months = 6): { start
       out.push({ start: iso(sd), end: iso(ed), label: `${sd}–${ed} ${MONTH_ABBR[m - 1]} ${y}` });
     }
   }
-  return out.sort((a, b) => (a.start < b.start ? 1 : -1));
+  return out.filter((p) => p.start <= today).sort((a, b) => (a.start < b.start ? 1 : -1));
 }
 
 const LEDGER_TYPES = [
@@ -201,11 +202,19 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const today = new Date().toISOString().slice(0, 10);
   const s = settingsData?.data;
   const seed = s?.cycleDays ? currentCyclePeriod(s.cycleDays, today) : null;
-  const periods = s?.cycleDays ? listCyclePeriods(s.cycleDays, today) : [];
+  const allPeriods = s?.cycleDays ? listCyclePeriods(s.cycleDays, today) : [];
   const ccs = nodes.filter((n) => n.nodeType === 'cc');
+  const { data: cyclesData } = usePayoutCycles({ limit: 200 });
   const [f, setF] = useState({
     scopeNodeId: '', periodStart: seed?.start ?? today, periodEnd: seed?.end ?? today,
   });
+  // Hide periods that already have a (live) cycle for the chosen centre.
+  const takenForCc = new Set(
+    (cyclesData?.data ?? [])
+      .filter((c) => c.status !== 'reversed' && c.scopeNodeId === f.scopeNodeId)
+      .map((c) => c.periodStart),
+  );
+  const periods = f.scopeNodeId ? allPeriods.filter((p) => !takenForCc.has(p.start)) : allPeriods;
 
   const submit = () => {
     if (!f.scopeNodeId) return;
