@@ -71,7 +71,9 @@ export function MpCycleDetailPage() {
       <TotalsStrip cycle={cycle} />
       <Tabs active={tab} onChange={setTab}
         tabs={[{ id: 'vmcc', label: 'VMCC bills' }, { id: 'farmers', label: 'Farmers' }]} />
-      {tab === 'vmcc' ? <VmccTab period={periodOf(cycle)} locked={cycle.status !== 'open'} /> : <FarmersTab cycle={cycle} />}
+      {tab === 'vmcc'
+        ? <VmccTab period={periodOf(cycle)} locked={cycle.status !== 'open'} ccNodeId={cycle.scopeNodeId} />
+        : <FarmersTab cycle={cycle} />}
     </div>
   );
 }
@@ -92,31 +94,57 @@ function TotalsStrip({ cycle }: { cycle: MpCycleDetail }) {
   );
 }
 
-function VmccTab({ period, locked }: { period: BillingPeriodSel; locked: boolean }) {
+/** One CC's VMCC-bill section: header + sanity check + the bill table. */
+function CcVmccSection({ cc, period, locked }: { cc: MpNode; period: BillingPeriodSel; locked: boolean }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        {cc.name}<span className="ml-1 text-xs font-normal text-zinc-500">{cc.code}</span>
+      </h3>
+      <SanityCheckPanel ccNodeId={cc.id} period={period} />
+      <VmccBillSection ccNodeId={cc.id} period={period} locked={locked} />
+    </div>
+  );
+}
+
+/**
+ * Cycles are now CC-scoped (one cycle per CC per period), so this renders only
+ * the cycle's own CC. `ccNodeId` is the cycle's `scopeNodeId`; a null value means
+ * a legacy whole-tenant cycle from before the CC-scoped rollout, so we fall back
+ * to the old behavior of listing every via-VMCC CC.
+ */
+function VmccTab({ period, locked, ccNodeId }: { period: BillingPeriodSel; locked: boolean; ccNodeId: string | null }) {
   const { data: nodesData } = useNodes({ limit: 500 });
   const { data: glData } = useGlSettings();
   const nodes = nodesData?.data ?? [];
   const tenantDefault: PayoutMode = glData?.data?.defaultPayoutMode ?? 'direct_to_farmer';
+
+  const lockBanner = !locked && (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+      Lock the cycle first to finalize farmer payouts — then generate VMCC bills against the frozen figures.
+    </div>
+  );
+
+  if (ccNodeId) {
+    const cc = nodes.find((n) => n.id === ccNodeId);
+    if (!cc) return null; // nodes still loading
+    return (
+      <div className="space-y-6">
+        {lockBanner}
+        <CcVmccSection cc={cc} period={period} locked={locked} />
+      </div>
+    );
+  }
+
+  // Legacy whole-tenant cycle: keep showing every via-VMCC CC.
   const ccs = ccsWithViaVmccs(nodes, tenantDefault);
   if (!ccs.length) {
     return <EmptyState icon={Receipt} title="No via-VMCC VMCCs — nothing to bill for this cycle." />;
   }
   return (
     <div className="space-y-6">
-      {!locked && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-          Lock the cycle first to finalize farmer payouts — then generate VMCC bills against the frozen figures.
-        </div>
-      )}
-      {ccs.map((cc) => (
-        <div key={cc.id} className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {cc.name}<span className="ml-1 text-xs font-normal text-zinc-500">{cc.code}</span>
-          </h3>
-          <SanityCheckPanel ccNodeId={cc.id} period={period} />
-          <VmccBillSection ccNodeId={cc.id} period={period} locked={locked} />
-        </div>
-      ))}
+      {lockBanner}
+      {ccs.map((cc) => <CcVmccSection key={cc.id} cc={cc} period={period} locked={locked} />)}
     </div>
   );
 }

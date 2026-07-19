@@ -45,6 +45,12 @@ export function CyclesList() {
   const [showCreate, setShowCreate] = useState(false);
   const { data, isLoading } = usePayoutCycles({ limit: 100 });
   const cycles = data?.data ?? [];
+  // Cycles are CC-scoped; the list itself has no node join, so resolve the CC
+  // name client-side from the nodes already needed by the create modal.
+  const { data: nodesData } = useNodes({ limit: 300 });
+  const nodeNameById = new Map((nodesData?.data ?? []).map((n) => [n.id, n.name]));
+  const scopeLabel = (scopeNodeId: string | null) =>
+    scopeNodeId ? (nodeNameById.get(scopeNodeId) ?? scopeNodeId.slice(0, 8)) : 'Whole tenant';
   const goToCycle = (id: string) =>
     navigate({ to: '/milk-procurement/billing/cycles/$cycleId', params: { cycleId: id } });
 
@@ -59,14 +65,14 @@ export function CyclesList() {
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
-              <Th>Cycle</Th><Th>Period</Th><Th align="right">Net ₹</Th>
+              <Th>Cycle</Th><Th>Centre</Th><Th>Period</Th><Th align="right">Net ₹</Th>
               <Th align="right">Paid</Th><Th align="right">Balance ₹</Th><Th>Status</Th>
             </TableRow></TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={4} cols={6} />
+                <TableSkeleton rows={4} cols={7} />
               ) : cycles.length === 0 ? (
-                <TableEmpty colSpan={6} message="No cycles yet." />
+                <TableEmpty colSpan={7} message="No cycles yet." />
               ) : (
                 cycles.map((c) => {
                   // Payment status only applies once the cycle is locked; open cycles show —.
@@ -75,6 +81,13 @@ export function CyclesList() {
                   return (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => goToCycle(c.id)}>
                       <TableCell className="font-medium">{c.cycleNo}</TableCell>
+                      <TableCell>
+                        {c.scopeNodeId ? (
+                          <span className="text-sm text-zinc-900 dark:text-zinc-100">{scopeLabel(c.scopeNodeId)}</span>
+                        ) : (
+                          <Badge>Whole tenant</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-zinc-500">{c.periodStart} → {c.periodEnd}</TableCell>
                       <TableCell className="text-right tabular-nums">{inr(c.netTotal)}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs text-zinc-500">{settled ? `${c.paidCount}/${c.lineCount}` : '—'}</TableCell>
@@ -161,13 +174,15 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const today = new Date().toISOString().slice(0, 10);
   const s = settingsData?.data;
   const seed = s?.cycleDays ? currentCyclePeriod(s.cycleDays, today) : null;
+  const ccs = nodes.filter((n) => n.nodeType === 'cc');
   const [f, setF] = useState({
     scopeNodeId: '', periodStart: seed?.start ?? today, periodEnd: seed?.end ?? today,
   });
 
   const submit = () => {
+    if (!f.scopeNodeId) return;
     create.mutate(
-      { scopeNodeId: f.scopeNodeId || null, periodStart: f.periodStart, periodEnd: f.periodEnd },
+      { scopeNodeId: f.scopeNodeId, periodStart: f.periodStart, periodEnd: f.periodEnd },
       {
         onSuccess: (res) => { toast(`Cycle ${res.data.cycleNo} generated`, 'success'); onCreated(res.data.id); },
         onError: () => toast('Failed — no recorded collections in this period/scope?', 'error'),
@@ -178,16 +193,17 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <Modal open onClose={onClose} title="New payout cycle">
       <div className="space-y-3">
-        <Combobox label="Scope (VMCC) — optional" value={f.scopeNodeId} onChange={(v) => setF({ ...f, scopeNodeId: v })}
-          options={[{ value: '', label: 'Whole tenant' }, ...nodes.filter((n) => n.nodeType === 'vmcc').map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))]}
-          placeholder="Whole tenant" />
+        {/* Cycles are CC-scoped — one cycle per (CC, period), so a centre must be picked. */}
+        <Combobox label="Chilling centre" value={f.scopeNodeId} onChange={(v) => setF({ ...f, scopeNodeId: v })}
+          options={ccs.map((n) => ({ value: n.id, label: `${n.code} · ${n.name}` }))}
+          placeholder="Select centre…" />
         <div className="grid grid-cols-2 gap-2">
           <Input label="Period start" type="date" value={f.periodStart} onChange={(e) => setF({ ...f, periodStart: e.target.value })} />
           <Input label="Period end" type="date" value={f.periodEnd} onChange={(e) => setF({ ...f, periodEnd: e.target.value })} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={create.isPending}>Generate</Button>
+          <Button onClick={submit} loading={create.isPending} disabled={!f.scopeNodeId}>Generate</Button>
         </div>
       </div>
     </Modal>

@@ -236,6 +236,18 @@ export class PayoutService {
     // VMCC bills. Still create the cycle so those bills have a home.
     const scopeIsCc = scopeNodeId ? await this.isCcNode(scopeNodeId) : false;
     if (!aggregates.length && !scopeIsCc) throw new ConflictError('No recorded collections in this period/scope');
+    // Guard every caller (not just operators) against a duplicate cycle for the
+    // same scope+period — two cycles over one CC would double the farmer lines
+    // and the lock accrual. Scope-specific (not tenant-inclusive), so a CC cycle
+    // is never blocked by a legacy whole-tenant cycle during cutover.
+    if (scopeNodeId) {
+      const [dup] = await this.db.select({ cycleNo: mpPayoutCycles.cycleNo }).from(mpPayoutCycles).where(and(
+        eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.scopeNodeId, scopeNodeId),
+        ne(mpPayoutCycles.status, 'reversed'),
+        lte(mpPayoutCycles.periodStart, input.periodEnd), gte(mpPayoutCycles.periodEnd, input.periodStart),
+      )).limit(1);
+      if (dup) throw new ConflictError(`Cycle ${dup.cycleNo} already covers this centre and period`);
+    }
     const cycleId = await this.db.transaction(async (tx) => {
       const cycleNo = await nextDocNo(tx, this.tenantId, 'cycle', input.periodStart, 'CYC');
       const [cycle] = await tx.insert(mpPayoutCycles).values({

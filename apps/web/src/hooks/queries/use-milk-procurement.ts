@@ -794,6 +794,8 @@ export interface MpCycleBillingSummary {
   cycleId: string; cycleNo: string; periodStart: string; periodEnd: string;
   cycleStatus: string; billCount: number; paidBillCount: number;
   billedTotal: number; paidTotal: number; pendingTotal: number;
+  /** The CC this cycle is scoped to, or null for a legacy whole-tenant cycle. */
+  scopeNodeId: string | null; scopeName: string | null;
 }
 export function useCycleBillingSummary(limit = 5) {
   return useQuery({
