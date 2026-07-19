@@ -296,7 +296,7 @@ function PayBillModal({ row, onClose }: { row: MpBillableVmcc; onClose: () => vo
   );
 }
 
-export function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period: BillingPeriodSel }) {
+export function VmccBillSection({ ccNodeId, period, locked = true }: { ccNodeId: string; period: BillingPeriodSel; locked?: boolean }) {
   const { toast } = useToast();
   const { data, isLoading } = useBillableVmccs({ ...period, ccNodeId });
   const generate = useGenerateVmccBills();
@@ -334,7 +334,8 @@ export function VmccBillSection({ ccNodeId, period }: { ccNodeId: string; period
             )}
           </div>
           {actionable && (
-            <Button size="sm" onClick={generateAll} disabled={generate.isPending}>
+            <Button size="sm" onClick={generateAll} disabled={generate.isPending || !locked}
+              title={locked ? undefined : 'Lock the cycle first'}>
               {hasExisting ? 'Regenerate bills' : 'Generate bills'}
             </Button>
           )}

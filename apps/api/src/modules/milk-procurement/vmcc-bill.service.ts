@@ -452,13 +452,19 @@ export class VmccBillService {
    *   • paid bill → skip (frozen — reverse it first to change it).
    */
   async generate(input: GenerateVmccBillsInput, principal?: MpPrincipal, userId?: string): Promise<MpVmccBillRow[]> {
-    const open = await this.resolveCycle(input, { lock: false });
-    if (!open) throw new ConflictError('No recorded collections in this period');
+    const cycle = await this.resolveCycle(input, { lock: false });
+    if (!cycle) throw new ConflictError('No recorded collections in this period');
+    // VMCC billing and farmer payouts are separate steps. Locking the cycle is
+    // what finalizes farmer amounts and notifies farmers — a deliberate action
+    // taken on the Farmers side. VMCC bills bill against those frozen figures, so
+    // generate never locks (that would silently notify farmers); it requires the
+    // cycle to already be locked.
+    if (cycle.status === 'open') {
+      throw new ConflictError('Lock the cycle first to finalize farmer payouts, then generate VMCC bills.');
+    }
     // Refresh unpaid farmer lines from current pours (milk-data corrections);
     // paid farmers stay frozen, GL adjusted by the delta.
-    await new PayoutService(this.db, this.tenantId).rebuildCycleLines(open.id, userId);
-    const cycle = await this.resolveCycle(input, { lock: true, userId });
-    if (!cycle) throw new ConflictError('No recorded collections in this period');
+    await new PayoutService(this.db, this.tenantId).rebuildCycleLines(cycle.id, userId);
     const rows = (await this.listBillable(input, input.ccNodeId, principal))
       .filter((r) => (input.vmccNodeId ? r.vmccNodeId === input.vmccNodeId : true));
     return this.db.transaction(async (tx) => {

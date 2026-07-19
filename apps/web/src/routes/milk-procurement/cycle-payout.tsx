@@ -71,7 +71,7 @@ export function MpCycleDetailPage() {
       <TotalsStrip cycle={cycle} />
       <Tabs active={tab} onChange={setTab}
         tabs={[{ id: 'vmcc', label: 'VMCC bills' }, { id: 'farmers', label: 'Farmers' }]} />
-      {tab === 'vmcc' ? <VmccTab period={periodOf(cycle)} /> : <FarmersTab cycle={cycle} />}
+      {tab === 'vmcc' ? <VmccTab period={periodOf(cycle)} locked={cycle.status !== 'open'} /> : <FarmersTab cycle={cycle} />}
     </div>
   );
 }
@@ -92,7 +92,7 @@ function TotalsStrip({ cycle }: { cycle: MpCycleDetail }) {
   );
 }
 
-function VmccTab({ period }: { period: BillingPeriodSel }) {
+function VmccTab({ period, locked }: { period: BillingPeriodSel; locked: boolean }) {
   const { data: nodesData } = useNodes({ limit: 500 });
   const { data: glData } = useGlSettings();
   const nodes = nodesData?.data ?? [];
@@ -103,13 +103,18 @@ function VmccTab({ period }: { period: BillingPeriodSel }) {
   }
   return (
     <div className="space-y-6">
+      {!locked && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+          Lock the cycle first to finalize farmer payouts — then generate VMCC bills against the frozen figures.
+        </div>
+      )}
       {ccs.map((cc) => (
         <div key={cc.id} className="space-y-3">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {cc.name}<span className="ml-1 text-xs font-normal text-zinc-500">{cc.code}</span>
           </h3>
           <SanityCheckPanel ccNodeId={cc.id} period={period} />
-          <VmccBillSection ccNodeId={cc.id} period={period} />
+          <VmccBillSection ccNodeId={cc.id} period={period} locked={locked} />
         </div>
       ))}
     </div>
