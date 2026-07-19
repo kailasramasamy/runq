@@ -351,11 +351,17 @@ export class PayoutService {
     }), { qty: 0, gross: 0, ded: 0, net: 0 });
     const locked = await this.db.transaction(async (tx) => {
       const recovered = await this.postRepayments(tx, cycle, lines);
-      // Accrue the milk cost: Dr Milk Purchases / Cr Payable + Cr recovered advances/loans.
-      const journalEntryId = await new MpGlPoster(this.tenantId).postAccrual(tx, {
-        cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
-        net: totals.net, advance: recovered.advance, feedLoan: recovered.feedLoan,
-      });
+      // Accrue the farmer milk cost: Dr Milk Purchases / Cr Payable + Cr recovered
+      // advances/loans. A via_vmcc-only CC cycle has no farmer lines — that milk is
+      // GL'd through the per-VMCC bills, not here — so there's nothing to accrue.
+      // Skip the JE then (a single zero line would fail the ≥2-lines rule).
+      const accrue = totals.net + recovered.advance + recovered.feedLoan > 0;
+      const journalEntryId = accrue
+        ? await new MpGlPoster(this.tenantId).postAccrual(tx, {
+            cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
+            net: totals.net, advance: recovered.advance, feedLoan: recovered.feedLoan,
+          })
+        : null;
       const [updated] = await tx.update(mpPayoutCycles).set({
         status: 'locked', lockedAt: new Date(), journalEntryId,
         totalQty: String(round3(totals.qty)), totalGross: String(round2(totals.gross)),
