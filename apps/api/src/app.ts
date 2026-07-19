@@ -60,7 +60,10 @@ import { hrHelpdeskWsRoutes } from './modules/hr/agent/ws';
 import { adminRoutes } from './modules/admin/routes';
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  // maxParamLength defaults to 100; the signed MP statement-PDF token (the
+  // WhatsApp document link Interakt fetches) is ~250 chars in a single :token
+  // path param, so a lower limit makes find-my-way 404 the route entirely.
+  const app = Fastify({ logger: true, maxParamLength: 1024 });
 
   // CORS
   const corsOrigin = process.env.CORS_ORIGIN
