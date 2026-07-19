@@ -264,6 +264,9 @@ export class PayoutService {
         }).returning({ id: mpPayoutLines.id });
         await this.insertDeductions(tx, line!.id, ded);
       }
+      // Roll the header totals up from the lines so an open cycle shows its
+      // provisional Gross/Deductions/Net immediately (not just after lock).
+      await this.updateCycleTotals(tx, cycle!.id);
       return cycle!.id;
     });
     return this.getCycle(cycleId);
