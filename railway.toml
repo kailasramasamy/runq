@@ -17,6 +17,9 @@
 #   SMTP_SECURE      — true
 #   MAIL_FROM        — sender email address
 #   CORS_ORIGIN      — https://runq.in
+#   APP_BASE_URL     — https://runq.in (public host; used to sign the WhatsApp
+#                      statement-PDF links Interakt fetches — MUST be the public
+#                      Caddy domain, not api.railway.internal, or notices no-op)
 #
 # Environment variables needed for Frontend service:
 #   SITE_ADDRESS     — runq.in (Railway provides this via custom domain)
