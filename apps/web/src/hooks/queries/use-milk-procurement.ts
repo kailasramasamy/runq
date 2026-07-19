@@ -645,10 +645,16 @@ export interface MpPayoutLine {
   farmerName: string; farmerCode: string;
   vmccNodeId: string | null; vmccName: string | null; viaVmcc: boolean;
 }
-export interface MpCycleDetail extends MpPayoutCycle { lines: MpPayoutLine[] }
-/** Cycle list row = the cycle plus its payment roll-up (paid vs pending). */
+export interface MpCycleDetail extends MpPayoutCycle {
+  lines: MpPayoutLine[];
+  // VMCC-bill roll-up — pooled centres have no farmer lines, so their payable
+  // shows through these.
+  billTotal: number; billPaidTotal: number;
+}
+/** Cycle list row = the cycle plus its farmer-line and VMCC-bill roll-ups. */
 export interface MpPayoutCycleListRow extends MpPayoutCycle {
   lineCount: number; paidCount: number; netTotal: number; paidTotal: number;
+  billCount: number; billPaidCount: number; billTotal: number; billPaidTotal: number;
 }
 export function usePayoutCycles(filters?: { status?: string; limit?: number }) {
   return useQuery({

@@ -28,6 +28,10 @@ export interface CycleDetail extends MpPayoutCycleRow {
     /** true = farmer is settled through a VMCC bill, not payable individually here. */
     viaVmcc: boolean;
   })[];
+  /** VMCC-bill roll-up so a pooled (via_vmcc) cycle, which has no farmer lines,
+   *  still shows a meaningful payable/paid on the detail cards. */
+  billTotal: number;
+  billPaidTotal: number;
 }
 
 /** Per-cycle line roll-up returned with each row in the cycle list. */
@@ -38,7 +42,15 @@ export interface CycleLineAgg {
   paidTotal: number;
 }
 
-export type CycleListRow = MpPayoutCycleRow & CycleLineAgg;
+/** Per-cycle VMCC-bill roll-up (pooled centres settle via these, not farmer lines). */
+export interface CycleBillAgg {
+  billCount: number;
+  billPaidCount: number;
+  billTotal: number;
+  billPaidTotal: number;
+}
+
+export type CycleListRow = MpPayoutCycleRow & CycleLineAgg & CycleBillAgg;
 
 /** A farmer's payout line flattened with its cycle's window and status. */
 export type FarmerLineRow = MpPayoutLineRow & {
@@ -193,10 +205,12 @@ export class PayoutService {
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpPayoutCycles).where(where),
     ]);
     const total = countResult[0]?.count ?? 0;
-    const aggByCycle = await this.lineAggregates(rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const [aggByCycle, billByCycle] = await Promise.all([this.lineAggregates(ids), this.billAggregates(ids)]);
     const data = rows.map((r) => ({
       ...r,
       ...(aggByCycle.get(r.id) ?? { lineCount: 0, paidCount: 0, netTotal: 0, paidTotal: 0 }),
+      ...(billByCycle.get(r.id) ?? { billCount: 0, billPaidCount: 0, billTotal: 0, billPaidTotal: 0 }),
     }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
@@ -218,6 +232,30 @@ export class PayoutService {
       map.set(r.cycleId, {
         lineCount: r.lineCount, paidCount: r.paidCount,
         netTotal: Number(r.netTotal), paidTotal: Number(r.paidTotal),
+      });
+    }
+    return map;
+  }
+
+  /** Per-cycle VMCC-bill roll-ups: bill count, paid count, ₹ billed & ₹ paid. */
+  private async billAggregates(cycleIds: string[]): Promise<Map<string, CycleBillAgg>> {
+    const map = new Map<string, CycleBillAgg>();
+    if (!cycleIds.length) return map;
+    const rows = await this.db.select({
+      cycleId: mpVmccBills.payoutCycleId,
+      billCount: sql<number>`count(*)::int`,
+      billPaidCount: sql<number>`(count(*) filter (where ${mpVmccBills.status} = 'paid'))::int`,
+      billTotal: sql<string>`coalesce(sum(${mpVmccBills.totalAmount}), 0)`,
+      billPaidTotal: sql<string>`coalesce(sum(${mpVmccBills.totalAmount}) filter (where ${mpVmccBills.status} = 'paid'), 0)`,
+    }).from(mpVmccBills)
+      .where(and(
+        eq(mpVmccBills.tenantId, this.tenantId), inArray(mpVmccBills.payoutCycleId, cycleIds),
+        ne(mpVmccBills.status, 'reversed'),
+      )).groupBy(mpVmccBills.payoutCycleId);
+    for (const r of rows) {
+      map.set(r.cycleId, {
+        billCount: r.billCount, billPaidCount: r.billPaidCount,
+        billTotal: Number(r.billTotal), billPaidTotal: Number(r.billPaidTotal),
       });
     }
     return map;
@@ -334,12 +372,15 @@ export class PayoutService {
     const byLine = new Map<string, DeductionRow[]>();
     for (const d of deds) byLine.set(d.payoutLineId, [...(byLine.get(d.payoutLineId) ?? []), d]);
     const directIds = await directModeVmccIds(this.db, this.tenantId);
+    const bill = (await this.billAggregates([id])).get(id);
     return {
       ...cycle,
       lines: lines.map((l) => ({
         ...l, deductions: byLine.get(l.id) ?? [],
         viaVmcc: l.vmccNodeId ? !directIds.has(l.vmccNodeId) : false,
       })),
+      billTotal: bill?.billTotal ?? 0,
+      billPaidTotal: bill?.billPaidTotal ?? 0,
     };
   }
 

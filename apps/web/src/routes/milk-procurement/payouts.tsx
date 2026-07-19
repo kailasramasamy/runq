@@ -103,9 +103,15 @@ export function CyclesList() {
                 <TableEmpty colSpan={7} message="No cycles yet." />
               ) : (
                 cycles.map((c) => {
+                  // Net/paid combine farmer payouts (direct centres) and VMCC bills
+                  // (pooled centres) — a cycle is one or the other, or a mix.
+                  const net = c.netTotal + c.billTotal;
+                  const paidAmt = c.paidTotal + c.billPaidTotal;
+                  const paidCount = c.paidCount + c.billPaidCount;
+                  const totalCount = c.lineCount + c.billCount;
                   // Payment status only applies once the cycle is locked; open cycles show —.
                   const settled = c.status === 'locked' || c.status === 'paid';
-                  const balance = c.netTotal - c.paidTotal;
+                  const balance = net - paidAmt;
                   return (
                     <TableRow key={c.id} className="cursor-pointer" onClick={() => goToCycle(c.id)}>
                       <TableCell className="font-medium">{c.cycleNo}</TableCell>
@@ -117,8 +123,8 @@ export function CyclesList() {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-zinc-500">{c.periodStart} → {c.periodEnd}</TableCell>
-                      <TableCell className="text-right tabular-nums">{inr(c.netTotal)}</TableCell>
-                      <TableCell className="text-right tabular-nums text-xs text-zinc-500">{settled ? `${c.paidCount}/${c.lineCount}` : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums">{inr(net)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-xs text-zinc-500">{settled ? `${paidCount}/${totalCount}` : '—'}</TableCell>
                       <TableCell className="text-right tabular-nums font-medium">{settled && balance > 0 ? inr(balance) : '—'}</TableCell>
                       <TableCell><Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge></TableCell>
                     </TableRow>

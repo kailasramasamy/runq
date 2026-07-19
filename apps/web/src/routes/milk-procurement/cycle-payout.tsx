@@ -85,11 +85,17 @@ function TotalsStrip({ cycle }: { cycle: MpCycleDetail }) {
       <div className={`text-lg font-semibold tabular-nums ${accent ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>₹{value}</div>
     </CardContent></Card>
   );
+  // Combine farmer payouts (direct centres) and VMCC bills (pooled centres) so a
+  // pooled cycle — which has no farmer lines — still shows its real payable.
+  const farmerPaid = cycle.lines.reduce((s, l) => s + (l.paidAt ? Number(l.netAmount) : 0), 0);
+  const net = Number(cycle.totalNet) + cycle.billTotal;
+  const paid = farmerPaid + cycle.billPaidTotal;
+  const money = (n: number) => n.toFixed(2);
   return (
     <div className="mb-4 grid grid-cols-3 gap-3">
-      {tile('Gross', cycle.totalGross)}
-      {tile('Deductions', cycle.totalDeductions)}
-      {tile('Net', cycle.totalNet, true)}
+      {tile('Net payable', money(net))}
+      {tile('Paid', money(paid))}
+      {tile('Balance', money(net - paid), true)}
     </div>
   );
 }
