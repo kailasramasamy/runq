@@ -8,8 +8,8 @@ import {
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import {
-  usePayoutCycle, useCycleAction, useSettleFarmer, useNodes, useGlSettings,
-  type MpPayoutLine, type MpCycleDetail, type MpNode, type BillingPeriodSel, type PayoutMode,
+  usePayoutCycle, useCycleAction, useSettleFarmer, useNodes, useGlSettings, useBillableVmccs,
+  type MpPayoutLine, type MpCycleDetail, type MpNode, type MpBillableVmcc, type BillingPeriodSel, type PayoutMode,
 } from '@/hooks/queries/use-milk-procurement';
 import { VmccBillSection } from './billing';
 import { SanityCheckPanel } from './_billing-sanity';
@@ -50,6 +50,13 @@ export function MpCycleDetailPage() {
   const lock = useCycleAction('lock');
   const [tab, setTab] = useState<'vmcc' | 'farmers'>('vmcc');
   const cycle = data?.data;
+  // Billable preview for the cycle's CC — a pooled centre's payable comes from
+  // its VMCC bills (or their provisional estimate before they're generated),
+  // not farmer lines. Enabled only for CC-scoped cycles.
+  const period = cycle ? periodOf(cycle) : { year: 0, month: 0, half: 'first' as const };
+  const { data: billableData } = useBillableVmccs(
+    { ...period, ccNodeId: cycle?.scopeNodeId ?? '' }, !!cycle?.scopeNodeId,
+  );
   if (isLoading || !cycle) return <PageHeader title="Loading…" fullWidth />;
 
   return (
@@ -68,7 +75,7 @@ export function MpCycleDetailPage() {
           })}>Lock cycle</Button>
         ) : undefined}
       />
-      <TotalsStrip cycle={cycle} />
+      <TotalsStrip cycle={cycle} billable={billableData?.data ?? []} />
       <Tabs active={tab} onChange={setTab}
         tabs={[{ id: 'vmcc', label: 'VMCC bills' }, { id: 'farmers', label: 'Farmers' }]} />
       {tab === 'vmcc'
@@ -78,18 +85,21 @@ export function MpCycleDetailPage() {
   );
 }
 
-function TotalsStrip({ cycle }: { cycle: MpCycleDetail }) {
+function TotalsStrip({ cycle, billable }: { cycle: MpCycleDetail; billable: MpBillableVmcc[] }) {
   const tile = (label: string, value: string, accent = false) => (
     <Card><CardContent className="py-3">
       <div className="text-xs text-zinc-500">{label}</div>
       <div className={`text-lg font-semibold tabular-nums ${accent ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>₹{value}</div>
     </CardContent></Card>
   );
-  // Combine farmer payouts (direct centres) and VMCC bills (pooled centres) so a
-  // pooled cycle — which has no farmer lines — still shows its real payable.
+  // Combine farmer payouts (direct centres) with the VMCC-bill payable (pooled
+  // centres). The pooled figure uses the billable preview so it shows before the
+  // bills are generated; `paid` counts only bills actually settled.
   const farmerPaid = cycle.lines.reduce((s, l) => s + (l.paidAt ? Number(l.netAmount) : 0), 0);
-  const net = Number(cycle.totalNet) + cycle.billTotal;
-  const paid = farmerPaid + cycle.billPaidTotal;
+  const pooledPayable = billable.reduce((s, r) => s + r.total, 0);
+  const pooledPaid = billable.reduce((s, r) => s + (r.bill?.status === 'paid' ? r.total : 0), 0);
+  const net = Number(cycle.totalNet) + pooledPayable;
+  const paid = farmerPaid + pooledPaid;
   const money = (n: number) => n.toFixed(2);
   return (
     <div className="mb-4 grid grid-cols-3 gap-3">
