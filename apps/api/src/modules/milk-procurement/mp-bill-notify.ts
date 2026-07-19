@@ -4,7 +4,7 @@ import type { Db, MpVmccBillRow } from '@runq/db';
 import type { BillingPeriod } from '@runq/validators';
 import { getInteraktProvider } from '../../utils/messaging';
 import { statementPdfUrl } from './mp-statement-token';
-import { payeeVendorPhone, tenantDisplayName } from './mp-notify-lookup';
+import { payeeVendorPhone } from './mp-notify-lookup';
 import { cycleLabel, trimNum, rupees, nz } from './mp-notify-format';
 
 // WhatsApp "bill ready" notices with the statement PDF attached (document header).
@@ -31,12 +31,12 @@ export async function sendVmccBillWhatsApp(
   const [cycle] = await db.select({ from: mpPayoutCycles.periodStart, to: mpPayoutCycles.periodEnd })
     .from(mpPayoutCycles).where(eq(mpPayoutCycles.id, bill.payoutCycleId)).limit(1);
   if (!vmcc || !cycle) return;
-  const tenant = await tenantDisplayName(db, tenantId);
   const commission = Number(bill.commission) + Number(bill.salary) + Number(bill.rent);
+  // Body vars for mp_vmcc_bill_notification ({{1}}..{{7}}), in template order.
   const templateParams = {
     name: nz(vmcc.name), period: nz(cycleLabel(cycle.from, cycle.to)), code: nz(vmcc.code),
     litres: nz(trimNum(bill.qtyLitres)), milkCost: nz(rupees(bill.milkCost)),
-    commission: nz(rupees(commission)), net: nz(rupees(bill.totalAmount)), tenant: nz(tenant),
+    commission: nz(rupees(commission)), net: nz(rupees(bill.totalAmount)),
   };
   const res = await provider.sendWhatsApp({ to: phone, templateName, templateParams, mediaUrl: url });
   if (!res.success) console.error('Interakt VMCC bill notice failed', { tenantId, billId: bill.id, error: res.error });
@@ -52,7 +52,6 @@ export async function sendFarmerBillNotifications(db: Db, tenantId: string, cycl
   if (!cycle) return;
   const directIds = await directModeVmccIds(db, tenantId);
   if (!directIds.size) return;
-  const tenant = await tenantDisplayName(db, tenantId);
   const period = cycleLabel(cycle.from, cycle.to);
 
   const rows = await db.select({
@@ -71,9 +70,10 @@ export async function sendFarmerBillNotifications(db: Db, tenantId: string, cycl
     if (!r.phone || !directIds.has(r.nodeId)) continue;
     const url = statementPdfUrl({ k: 'fs', t: tenantId, f: r.farmerId, from: cycle.from, to: cycle.to });
     if (!url) continue;
+    // Body vars for mp_farmer_bill_notification ({{1}}..{{6}}), in template order.
     const templateParams = {
       name: nz(r.name), period: nz(period), litres: nz(trimNum(r.qty)),
-      gross: nz(rupees(r.gross)), deductions: nz(rupees(r.ded)), net: nz(rupees(r.net)), tenant: nz(tenant),
+      gross: nz(rupees(r.gross)), deductions: nz(rupees(r.ded)), net: nz(rupees(r.net)),
     };
     const res = await provider.sendWhatsApp({ to: r.phone, templateName, templateParams, mediaUrl: url });
     if (!res.success) console.error('Interakt farmer bill notice failed', { tenantId, farmerId: r.farmerId, error: res.error });

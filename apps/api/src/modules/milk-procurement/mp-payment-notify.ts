@@ -3,7 +3,7 @@ import { mpNodes, mpPayoutCycles, mpPayoutLines, mpFarmers } from '@runq/db';
 import type { Db, MpVmccBillRow } from '@runq/db';
 import type { PayVmccBillInput } from '@runq/validators';
 import { getInteraktProvider } from '../../utils/messaging';
-import { payeeVendorPhone, tenantDisplayName } from './mp-notify-lookup';
+import { payeeVendorPhone } from './mp-notify-lookup';
 import { cycleLabel, formatDate, rupees, paymentModeLabel, nz } from './mp-notify-format';
 
 // WhatsApp "payment made" confirmations. Text-only (no PDF) — the recipient
@@ -25,11 +25,11 @@ export async function sendVmccPaymentWhatsApp(
   const [cycle] = await db.select({ from: mpPayoutCycles.periodStart, to: mpPayoutCycles.periodEnd })
     .from(mpPayoutCycles).where(eq(mpPayoutCycles.id, bill.payoutCycleId)).limit(1);
   if (!vmcc || !cycle) return;
-  const tenant = await tenantDisplayName(db, tenantId);
+  // Body vars for mp_vmcc_payment_confirmation ({{1}}..{{7}}), in template order.
   const templateParams = {
     name: nz(vmcc.name), period: nz(cycleLabel(cycle.from, cycle.to)), code: nz(vmcc.code),
     amount: nz(rupees(bill.totalAmount)), date: nz(formatDate(input.paymentDate)),
-    mode: nz(paymentModeLabel(input.paymentMode)), reference: nz(input.txnReference ?? '-'), tenant: nz(tenant),
+    mode: nz(paymentModeLabel(input.paymentMode)), reference: nz(input.txnReference ?? '-'),
   };
   const res = await provider.sendWhatsApp({ to: phone, templateName, templateParams });
   if (!res.success) console.error('Interakt VMCC payment notice failed', { tenantId, billId: bill.id, error: res.error });
@@ -51,11 +51,11 @@ export async function sendFarmerPaymentWhatsApp(
     .innerJoin(mpPayoutCycles, eq(mpPayoutCycles.id, mpPayoutLines.payoutCycleId))
     .where(and(eq(mpPayoutLines.tenantId, tenantId), eq(mpPayoutLines.id, lineId))).limit(1);
   if (!row?.phone) return;
-  const tenant = await tenantDisplayName(db, tenantId);
+  // Body vars for mp_farmer_payment_confirmation ({{1}}..{{6}}), in template order.
   const templateParams = {
     name: nz(row.name), period: nz(cycleLabel(row.from, row.to)), amount: nz(rupees(row.net)),
     date: nz(formatDate(input.paymentDate)), mode: nz(paymentModeLabel(input.paymentMode)),
-    reference: nz(input.txnReference ?? '-'), tenant: nz(tenant),
+    reference: nz(input.txnReference ?? '-'),
   };
   const res = await provider.sendWhatsApp({ to: row.phone, templateName, templateParams });
   if (!res.success) console.error('Interakt farmer payment notice failed', { tenantId, lineId, error: res.error });
@@ -79,13 +79,13 @@ export async function sendCyclePaymentNotifications(
     .innerJoin(mpPayoutCycles, eq(mpPayoutCycles.id, mpPayoutLines.payoutCycleId))
     .where(and(eq(mpPayoutLines.tenantId, tenantId), inArray(mpPayoutLines.id, lineIds)));
   if (!rows.length) return;
-  const tenant = await tenantDisplayName(db, tenantId);
   const today = new Date().toISOString().slice(0, 10);
   for (const r of rows) {
     if (!r.phone) continue;
+    // Body vars for mp_farmer_payment_confirmation ({{1}}..{{6}}), in template order.
     const templateParams = {
       name: nz(r.name), period: nz(cycleLabel(r.from, r.to)), amount: nz(rupees(r.net)),
-      date: nz(formatDate(today)), mode: nz(paymentModeLabel('bank_transfer')), reference: '-', tenant: nz(tenant),
+      date: nz(formatDate(today)), mode: nz(paymentModeLabel('bank_transfer')), reference: '-',
     };
     const res = await provider.sendWhatsApp({ to: r.phone, templateName, templateParams });
     if (!res.success) console.error('Interakt cycle payment notice failed', { tenantId, cycleId, error: res.error });
