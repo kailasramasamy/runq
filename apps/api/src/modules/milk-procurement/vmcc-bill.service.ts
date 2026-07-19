@@ -97,6 +97,8 @@ export interface CycleBillingSummary {
   cycleId: string; cycleNo: string; periodStart: string; periodEnd: string;
   cycleStatus: string; billCount: number; paidBillCount: number;
   billedTotal: number; paidTotal: number; pendingTotal: number;
+  // CC-scoped cycle: the CC it settles (null for legacy tenant-wide cycles).
+  scopeNodeId: string | null; scopeName: string | null;
 }
 
 export type SanitySeverity = 'error' | 'warning';
@@ -143,7 +145,7 @@ export class VmccBillService {
    */
   async listBillable(sel: BillingPeriod, ccNodeId: string, principal?: MpPrincipal): Promise<BillableVmcc[]> {
     if (principal?.kind === 'operator') assertNodeAccess(principal, ccNodeId);
-    const cycle = await this.resolveCycle(sel, { lock: false });
+    const cycle = await this.resolveCycle(sel, ccNodeId, { lock: false });
     if (!cycle) return [];
     const cycleId = cycle.id;
     const vmccs = await this.candidateVmccs(ccNodeId);
@@ -239,7 +241,7 @@ export class VmccBillService {
     const vmccs = await this.vmccsByMode(ccNodeId, 'direct_to_farmer');
     if (!vmccs.length) return { cycleId: null, periodStart, periodEnd, vmccs: [], farmers: [], operators: [] };
     const ids = vmccs.map((v) => v.id);
-    const cycle = await this.resolveCycle(sel, { lock: false });
+    const cycle = await this.resolveCycle(sel, ccNodeId, { lock: false });
     const [farmers, operators] = await Promise.all([
       cycle ? this.farmerBills(cycle.id, vmccs) : Promise.resolve([]),
       this.operatorComp(ids, periodStart, periodEnd),
@@ -254,7 +256,7 @@ export class VmccBillService {
    */
   async regenerateDirect(sel: BillingPeriod, ccNodeId: string, principal?: MpPrincipal, userId?: string): Promise<{ rebuilt: boolean }> {
     if (principal?.kind === 'operator') assertNodeAccess(principal, ccNodeId);
-    const cycle = await this.resolveCycle(sel, { lock: false });
+    const cycle = await this.resolveCycle(sel, ccNodeId, { lock: false });
     if (!cycle) return { rebuilt: false };
     const rebuilt = await new PayoutService(this.db, this.tenantId).rebuildCycleLines(cycle.id, userId);
     return { rebuilt };
@@ -308,7 +310,7 @@ export class VmccBillService {
     const { periodStart, periodEnd } = periodFromSelection(sel);
     const vmccs = await this.activeVmccs(ccNodeId);
     const ids = vmccs.map((v) => v.id);
-    const cycle = await this.resolveCycle(sel, { lock: false });
+    const cycle = await this.resolveCycle(sel, ccNodeId, { lock: false });
     const billable = await this.listBillable(sel, ccNodeId, principal);
     const [unpriced, orphans, spikes, overlaps] = await Promise.all([
       this.checkUnpricedReceipts(periodStart, periodEnd, vmccs, principal),
@@ -452,7 +454,7 @@ export class VmccBillService {
    *   • paid bill → skip (frozen — reverse it first to change it).
    */
   async generate(input: GenerateVmccBillsInput, principal?: MpPrincipal, userId?: string): Promise<MpVmccBillRow[]> {
-    const cycle = await this.resolveCycle(input, { lock: false });
+    const cycle = await this.resolveCycle(input, input.ccNodeId, { lock: false });
     if (!cycle) throw new ConflictError('No recorded collections in this period');
     // VMCC billing and farmer payouts are separate steps. Locking the cycle is
     // what finalizes farmer amounts and notifies farmers — a deliberate action
@@ -568,10 +570,15 @@ export class VmccBillService {
    * — the "where do we stand on clearance" strip on the billing page.
    */
   async cycleBillingSummary(limit: number): Promise<CycleBillingSummary[]> {
-    const cycles = await this.db.select().from(mpPayoutCycles).where(and(
-      eq(mpPayoutCycles.tenantId, this.tenantId), isNull(mpPayoutCycles.scopeNodeId),
-      ne(mpPayoutCycles.status, 'reversed'),
-    )).orderBy(desc(mpPayoutCycles.periodStart)).limit(limit);
+    const cycles = await this.db.select({
+      id: mpPayoutCycles.id, cycleNo: mpPayoutCycles.cycleNo,
+      periodStart: mpPayoutCycles.periodStart, periodEnd: mpPayoutCycles.periodEnd,
+      status: mpPayoutCycles.status, scopeNodeId: mpPayoutCycles.scopeNodeId, scopeName: mpNodes.name,
+    }).from(mpPayoutCycles)
+      .leftJoin(mpNodes, eq(mpNodes.id, mpPayoutCycles.scopeNodeId))
+      .where(and(
+        eq(mpPayoutCycles.tenantId, this.tenantId), ne(mpPayoutCycles.status, 'reversed'),
+      )).orderBy(desc(mpPayoutCycles.periodStart)).limit(limit);
     if (!cycles.length) return [];
     const ids = cycles.map((c) => c.id);
     const agg = await this.db.select({
@@ -592,6 +599,7 @@ export class VmccBillService {
         cycleId: c.id, cycleNo: c.cycleNo, periodStart: c.periodStart, periodEnd: c.periodEnd,
         cycleStatus: c.status, billCount: a?.billCount ?? 0, paidBillCount: a?.paidBillCount ?? 0,
         billedTotal: billed, paidTotal: paid, pendingTotal: round2(billed - paid),
+        scopeNodeId: c.scopeNodeId, scopeName: c.scopeName,
       };
     });
   }
@@ -749,19 +757,22 @@ export class VmccBillService {
   // ── helpers ──────────────────────────────────────────────────────────
 
   /**
-   * Find (or create) the tenant-wide cycle for a half-month period. `open` on
-   * creation (no GL); `lock: true` locks it if not already, posting the accrual.
-   * Returns null when the period has no recorded collections. Refuses to create
-   * if a conflicting cycle already overlaps the period (would double-accrue).
+   * Find (or create) the cycle for one CC and a half-month period. Cycles are
+   * CC-scoped (scopeNodeId = the CC), so lock/pay/notify stay within the CC.
+   * `open` on creation (no GL); `lock: true` locks it if not already, posting the
+   * accrual. Returns null when the period has no collections for this CC. Refuses
+   * to create if a live cycle for this CC already overlaps the period.
    */
-  async resolveCycle(sel: BillingPeriod, opts: { lock: boolean; userId?: string }): Promise<MpPayoutCycleRow | null> {
+  async resolveCycle(
+    sel: BillingPeriod, ccNodeId: string, opts: { lock: boolean; userId?: string },
+  ): Promise<MpPayoutCycleRow | null> {
     const { periodStart, periodEnd } = periodFromSelection(sel);
     const payout = new PayoutService(this.db, this.tenantId);
-    let cycle = await this.findTenantCycle(periodStart, periodEnd);
+    let cycle = await this.findScopedCycle(ccNodeId, periodStart, periodEnd);
     if (!cycle) {
-      await this.assertNoOverlap(periodStart, periodEnd);
+      await this.assertNoOverlap(ccNodeId, periodStart, periodEnd);
       try {
-        const created = await payout.createCycle({ scopeNodeId: null, periodStart, periodEnd });
+        const created = await payout.createCycle({ scopeNodeId: ccNodeId, periodStart, periodEnd });
         cycle = created as MpPayoutCycleRow;
       } catch (e) {
         if (e instanceof ConflictError) return null; // no recorded collections
@@ -774,22 +785,25 @@ export class VmccBillService {
     return cycle;
   }
 
-  private async findTenantCycle(periodStart: string, periodEnd: string): Promise<MpPayoutCycleRow | null> {
+  private async findScopedCycle(
+    scopeNodeId: string, periodStart: string, periodEnd: string,
+  ): Promise<MpPayoutCycleRow | null> {
     const [row] = await this.db.select().from(mpPayoutCycles).where(and(
-      eq(mpPayoutCycles.tenantId, this.tenantId), isNull(mpPayoutCycles.scopeNodeId),
+      eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.scopeNodeId, scopeNodeId),
       eq(mpPayoutCycles.periodStart, periodStart), eq(mpPayoutCycles.periodEnd, periodEnd),
       ne(mpPayoutCycles.status, 'reversed'),
     )).limit(1);
     return row ?? null;
   }
 
-  /** Reject creating a period cycle when a live cycle already overlaps it. */
-  private async assertNoOverlap(periodStart: string, periodEnd: string): Promise<void> {
+  /** Reject creating a cycle when a live cycle for the same CC already overlaps. */
+  private async assertNoOverlap(scopeNodeId: string, periodStart: string, periodEnd: string): Promise<void> {
     const [existing] = await this.db.select({ cycleNo: mpPayoutCycles.cycleNo }).from(mpPayoutCycles).where(and(
-      eq(mpPayoutCycles.tenantId, this.tenantId), ne(mpPayoutCycles.status, 'reversed'),
+      eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.scopeNodeId, scopeNodeId),
+      ne(mpPayoutCycles.status, 'reversed'),
       lte(mpPayoutCycles.periodStart, periodEnd), gte(mpPayoutCycles.periodEnd, periodStart),
     )).limit(1);
-    if (existing) throw new ConflictError(`Cycle ${existing.cycleNo} already overlaps this period`);
+    if (existing) throw new ConflictError(`Cycle ${existing.cycleNo} already overlaps this period for this centre`);
   }
 
   /** Active VMCCs under a CC whose effective payout mode is `via_vmcc`. */
