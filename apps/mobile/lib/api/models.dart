@@ -1369,10 +1369,16 @@ class CustomerOrderLine {
   /// the resolved unit persisted on the line, then whatever the parser saw.
   String? get displayUom => matchedItemUnit ?? resolvedUom ?? rawUom;
 
-  /// Effective GST rate to use for this line: prefer the parser-captured
-  /// `taxRatePct` (the rate printed on the PO itself), fall back to the
-  /// matched item master's rate. Null when neither is known.
-  double? get effectiveGstRate => taxRatePct ?? matchedItemGstRate;
+  /// Effective GST rate to use for this line: the matched item master's rate
+  /// is the source of truth, falling back to the parser-captured `taxRatePct`
+  /// (the rate printed on the PO itself) only while the line is unmatched.
+  /// Null when neither is known.
+  ///
+  /// Master-first matters because `approve` builds the invoice from the
+  /// master's `itemGstRate` alone. Preferring the PO's rate here let a
+  /// customer's own GST mistake into the preview and made it disagree with
+  /// the invoice that actually got saved.
+  double? get effectiveGstRate => matchedItemGstRate ?? taxRatePct;
 
   /// Per-unit landing price (inclusive of GST). Used for the line list so
   /// the user sees what the PO says the customer will pay per unit.

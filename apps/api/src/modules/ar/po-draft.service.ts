@@ -571,16 +571,22 @@ export class PoDraftService {
       resolvedRate = newItemId ? (line.resolvedRate != null ? Number(line.resolvedRate) : null) : null;
     }
 
-    // Pull UOM + alias text from the items master if the item changed
+    // Pull UOM + GST + alias text from the items master if the item changed
     let aliasItemId: string | null = null;
+    let taxRatePct: string | null = line.taxRatePct;
     if (itemChanged && newItemId) {
       const [it] = await this.db
-        .select({ unit: items.unit })
+        .select({ unit: items.unit, gstRate: items.gstRate })
         .from(items)
         .where(and(eq(items.id, newItemId), eq(items.tenantId, this.tenantId)))
         .limit(1);
       if (!it) throw new NotFoundError('Item');
       resolvedUom = it.unit ?? line.resolvedUom;
+      // Re-stamp the master's rate. Without this the line keeps whatever GST
+      // the PO printed (or null) while its rate/amount get re-resolved, so the
+      // draft's tax_total drifts away from the invoice `approve` will build —
+      // which reads items.gstRate and ignores this column entirely.
+      taxRatePct = it.gstRate ?? null;
       aliasItemId = newItemId;
     }
 
@@ -605,6 +611,7 @@ export class PoDraftService {
         rawQty: input.quantity !== undefined ? (input.quantity != null ? String(input.quantity) : null) : line.rawQty,
         resolvedRate: resolvedRate != null ? String(resolvedRate) : null,
         resolvedUom,
+        taxRatePct,
         amount: amount != null ? String(amount) : null,
         reviewFlag: newItemId ? null : 'unmatched',
         updatedAt: new Date(),

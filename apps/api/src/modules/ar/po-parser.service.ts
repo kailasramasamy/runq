@@ -860,17 +860,25 @@ function applyTemplateHints(po: ExtractedPo, hints: PoTemplateHints): ExtractedP
 
 /**
  * Pick the GST rate to attach to a draft line, in priority order:
- *   1. Per-line taxRatePct from the PO (when the customer's PO has a GST%
- *      column per line — most B2B SaaS POs).
- *   2. Per-line taxAmount ÷ taxableAmount when both are printed and the rate
+ *   1. items.gstRate from the master (when the line is matched). This is the
+ *      authoritative rate for invoicing — `approve` builds the invoice from
+ *      it and nothing else — so the draft must agree with it or the review
+ *      screen previews a total the saved invoice won't match.
+ *   2. Per-line taxRatePct from the PO (when the customer's PO has a GST%
+ *      column per line — most B2B SaaS POs). Only for unmatched lines, so the
+ *      UI can still show "subtotal + GST = total" before an item is picked.
+ *   3. Per-line taxAmount ÷ taxableAmount when both are printed and the rate
  *      isn't.
- *   3. items.gstRate from the master (when the line is matched). This is the
- *      authoritative rate for invoicing; storing it on the draft line means
- *      the UI can show a consistent "subtotal + GST = total" breakdown even
- *      before the item is invoiced.
  *   4. null — leave for the user to fill in during review.
+ *
+ * The customer's printed rate is deliberately NOT trusted over our own master:
+ * POs routinely carry the wrong GST treatment (e.g. a 5% good billed as
+ * exempt), and honouring that would let their mistake set our output tax.
  */
 function pickTaxRatePct(line: ExtractedItem, itemGstRate: number | null): number | null {
+  if (itemGstRate != null && Number.isFinite(itemGstRate) && itemGstRate >= 0) {
+    return Number(itemGstRate.toFixed(2));
+  }
   if (line.taxRatePct != null && Number.isFinite(line.taxRatePct) && line.taxRatePct >= 0) {
     return Number(line.taxRatePct.toFixed(2));
   }
@@ -882,9 +890,6 @@ function pickTaxRatePct(line: ExtractedItem, itemGstRate: number | null): number
     if (Number.isFinite(pct) && pct >= 0 && pct < 100) {
       return Number(pct.toFixed(2));
     }
-  }
-  if (itemGstRate != null && Number.isFinite(itemGstRate) && itemGstRate >= 0) {
-    return Number(itemGstRate.toFixed(2));
   }
   return null;
 }
