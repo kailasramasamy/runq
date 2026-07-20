@@ -83,6 +83,45 @@ describe('reconcileQuantities', () => {
     expect(out.unreconciled).toEqual([]);
   });
 
+  // The flag is null far more often than not: this PO heads its rate column
+  // "Rate (Incl GST)" and also prints per-line Base/GST columns, so the
+  // extractor can't call the style. Rates here are the 2dp values
+  // resolved_rate actually stored, not full-precision.
+  it('recovers 5% lines when the PO tax basis is undeterminable', () => {
+    const items = [
+      item({ description: 'Coconut oil', quantity: 100, uom: 'ml', rate: 37.4, amount: 74.8 }),
+      item({ description: 'Mustard oil 100ml', quantity: 34, rate: 2, amount: 68 }),
+      item({ description: 'Sunflower oil100ml', quantity: 34, rate: 1, amount: 34 }),
+    ];
+    const matches = [match(35.62, 5), match(32.38, 5), match(32.38, 5)];
+
+    const out = reconcileQuantities(items, matches, null);
+
+    expect(out.items.map((i) => i.quantity)).toEqual([2, 2, 1]);
+    expect(out.unreconciled).toEqual([]);
+  });
+
+  it('refuses to guess when both tax bases divide cleanly but disagree', () => {
+    // 21 units pre-tax reads as 20 inclusive — both whole, genuinely ambiguous.
+    const out = reconcileQuantities(
+      [item({ quantity: 999, rate: 100, amount: 2100 })],
+      [match(100, 5)],
+      null,
+    );
+    expect(out.items[0].quantity).toBe(999);
+    expect(out.unreconciled).toEqual([0]);
+  });
+
+  it('uses the document flag to break that tie when it is known', () => {
+    const out = reconcileQuantities(
+      [item({ quantity: 999, rate: 100, amount: 2100 })],
+      [match(100, 5)],
+      false,
+    );
+    expect(out.items[0].quantity).toBe(21);
+    expect(out.unreconciled).toEqual([]);
+  });
+
   it('grosses up our pre-tax rate before dividing a GST-inclusive total', () => {
     // 74.80 inclusive ÷ (35.619 × 1.05) = 2. Dividing by the base rate alone
     // would give 2.1 and reconcile to nothing.

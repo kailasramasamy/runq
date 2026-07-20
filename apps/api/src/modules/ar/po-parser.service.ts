@@ -943,27 +943,52 @@ export function reconcileQuantities(
     if (!match?.itemId || match.resolvedRate == null || match.resolvedRate <= 0) return item;
     if (item.amount == null || item.amount <= 0) return item;
 
-    // `amount` is printed on the PO's tax basis; resolvedRate is always
-    // pre-tax, so gross it up before comparing against a Type A total.
-    const unitPrice =
-      pricesIncludeTax === true
-        ? match.resolvedRate * (1 + (match.itemGstRate ?? 0) / 100)
-        : match.resolvedRate;
-    if (unitPrice <= 0) return item;
+    // `amount` is printed on the PO's tax basis and resolvedRate is always
+    // pre-tax, so we need to know which basis to compare on. The document
+    // flag can't be relied on for this — a PO that heads its rate column
+    // "Rate (Incl GST)" while also printing per-line Base/GST columns fits
+    // both styles, and the extractor returns null. So try both bases and
+    // keep whichever divides into a whole quantity. At 0% the two bases are
+    // the same number, so only one is worth testing.
+    const gstRate = match.itemGstRate ?? 0;
+    const bases =
+      gstRate > 0
+        ? [
+            { unit: match.resolvedRate * (1 + gstRate / 100), inclusive: true },
+            { unit: match.resolvedRate, inclusive: false },
+          ]
+        : [{ unit: match.resolvedRate, inclusive: false }];
 
-    const implied = item.amount / unitPrice;
-    if (!Number.isFinite(implied) || implied <= 0) {
+    const candidates = bases
+      .filter((b) => b.unit > 0)
+      .map((b) => ({ ...b, implied: item.amount! / b.unit }))
+      .filter((c) => Number.isFinite(c.implied) && c.implied > 0);
+
+    // Already consistent on either basis — covers legitimately fractional
+    // quantities (2.5 kg) that the extractor read correctly.
+    if (candidates.some((c) => Math.abs(c.implied - item.quantity) <= QTY_TOLERANCE)) return item;
+
+    const whole = candidates
+      .map((c) => ({ ...c, nearest: Math.round(c.implied) }))
+      .filter((c) => c.nearest >= 1 && Math.abs(c.implied - c.nearest) <= QTY_TOLERANCE);
+
+    const distinct = new Set(whole.map((c) => c.nearest));
+    if (whole.length === 0) {
       unreconciled.push(i);
       return item;
     }
-    // Already consistent — covers legitimately fractional quantities (2.5 kg)
-    // that the extractor read correctly.
-    if (Math.abs(implied - item.quantity) <= QTY_TOLERANCE) return item;
-
-    const nearest = Math.round(implied);
-    if (nearest >= 1 && Math.abs(implied - nearest) <= QTY_TOLERANCE) {
+    if (distinct.size === 1) {
       corrected.push(i);
-      return { ...item, quantity: nearest };
+      return { ...item, quantity: whole[0]!.nearest };
+    }
+
+    // Both bases divide cleanly but disagree — only happens when the true
+    // quantity is a multiple of 21 at 5% GST. The document flag is the only
+    // thing that can break the tie; without it, don't guess a quantity.
+    const byFlag = whole.find((c) => c.inclusive === pricesIncludeTax);
+    if (pricesIncludeTax != null && byFlag) {
+      corrected.push(i);
+      return { ...item, quantity: byFlag.nearest };
     }
     unreconciled.push(i);
     return item;
