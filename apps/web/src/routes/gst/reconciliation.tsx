@@ -337,7 +337,7 @@ export function ReconciliationPage() {
   ];
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <PageHeader
         title="GSTR-2B reconciliation"
         description="Match your purchase invoices against supplier-reported data in GSTR-2B."
