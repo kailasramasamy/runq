@@ -24,17 +24,27 @@ export class Gstr3bGenerator {
    * Generates GSTR-3B from GSTR-1 data (outward) + purchase invoices (ITC).
    * If gstr1Data is provided, uses it directly. Otherwise queries sales invoices.
    */
-  async generate(periodStart: string, periodEnd: string, gstr1Data?: Gstr1Data, itcFrom2b?: Gstr3bData['table4'] | null): Promise<Gstr3bData> {
+  async generate(
+    periodStart: string,
+    periodEnd: string,
+    gstr1Data?: Gstr1Data,
+    itcFrom2b?: Gstr3bData['table4'] | null,
+    rcmSupplies?: Gstr3bData['table31']['inwardReverseCharge'] | null,
+  ): Promise<Gstr3bData> {
     const outward = gstr1Data
       ? this.computeOutwardFromGstr1(gstr1Data)
       : await this.computeOutwardFromInvoices(periodStart, periodEnd);
 
+    // Table 3.1(d) is an INWARD figure — it comes from 2B (the supplier
+    // declares a supply is RCM), never from our own outward data.
+    const table31 = { ...outward.table31, inwardReverseCharge: rcmSupplies ?? undefined };
+
     const itc = itcFrom2b ?? await this.computeItc(periodStart, periodEnd);
     const exempt = await this.computeExemptInward(periodStart, periodEnd);
-    const liability = this.computeLiability(outward, itc);
+    const liability = this.computeLiability({ table31 }, itc);
 
     return {
-      table31: outward.table31,
+      table31,
       table32: outward.table32,
       table4: itc,
       table5: exempt,
@@ -282,6 +292,11 @@ export class Gstr3bGenerator {
     itc: Gstr3bData['table4'],
   ): Gstr3bData['table61'] {
     const t = outward.table31;
+    // Reverse-charge liability (3.1(d)) is payable in CASH — Sec 49(4) bars
+    // paying it from the credit ledger. So it is excluded from the Rule 88A
+    // utilization below and added straight back onto cashPaid; only outward
+    // liability is offsettable.
+    const rcm = t.inwardReverseCharge ?? { igst: 0, cgst: 0, sgst: 0, cess: 0 };
     const payable = {
       igst: round2(t.outwardTaxableInterState.igst + t.zeroRatedSupplies.igst),
       cgst: round2(t.outwardTaxableIntraState.cgst),
@@ -339,24 +354,24 @@ export class Gstr3bGenerator {
 
     return {
       igst: {
-        payable: payable.igst,
+        payable: round2(payable.igst + rcm.igst),
         itcUsed: round2(igstUsedForIgst + cgstUsedForIgst + sgstUsedForIgst),
-        cashPaid: round2(Math.max(0, payable.igst - igstUsedForIgst - cgstUsedForIgst - sgstUsedForIgst)),
+        cashPaid: round2(Math.max(0, payable.igst - igstUsedForIgst - cgstUsedForIgst - sgstUsedForIgst) + rcm.igst),
       },
       cgst: {
-        payable: payable.cgst,
+        payable: round2(payable.cgst + rcm.cgst),
         itcUsed: round2(igstUsedForCgst + cgstUsedForCgst),
-        cashPaid: round2(Math.max(0, payable.cgst - igstUsedForCgst - cgstUsedForCgst)),
+        cashPaid: round2(Math.max(0, payable.cgst - igstUsedForCgst - cgstUsedForCgst) + rcm.cgst),
       },
       sgst: {
-        payable: payable.sgst,
+        payable: round2(payable.sgst + rcm.sgst),
         itcUsed: round2(igstUsedForSgst + sgstUsedForSgst),
-        cashPaid: round2(Math.max(0, payable.sgst - igstUsedForSgst - sgstUsedForSgst)),
+        cashPaid: round2(Math.max(0, payable.sgst - igstUsedForSgst - sgstUsedForSgst) + rcm.sgst),
       },
       cess: {
-        payable: payable.cess,
+        payable: round2(payable.cess + rcm.cess),
         itcUsed: round2(cessUsed),
-        cashPaid: round2(Math.max(0, payable.cess - cessUsed)),
+        cashPaid: round2(Math.max(0, payable.cess - cessUsed) + rcm.cess),
       },
     };
   }

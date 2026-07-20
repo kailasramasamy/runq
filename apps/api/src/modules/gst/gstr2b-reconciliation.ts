@@ -39,10 +39,18 @@ const subTax = (a: TaxTotals, b: TaxTotals): TaxTotals => ({
   igst: a.igst - b.igst, cgst: a.cgst - b.cgst, sgst: a.sgst - b.sgst, cess: a.cess - b.cess,
 });
 
+/**
+ * Reverse-charge flag on a 2B document. GSTR-2B uses `rev`; `rchrg` is the
+ * GSTR-1 spelling and is accepted only so hand-built fixtures keep working.
+ */
+const isReverseCharge = (doc: { rev?: string; rchrg?: string; reverseCharge?: boolean }): boolean =>
+  doc.rev === 'Y' || doc.rchrg === 'Y' || doc.reverseCharge === true;
+
 export type Itc2bEntry = {
   supplierGstin: string;
   invoiceNumber: string;
   reverseCharge: boolean;
+  taxableValue: number;
   igstAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -55,6 +63,7 @@ export type Itc2bEntry = {
 export type Itc2bCreditNote = {
   supplierGstin: string;
   reverseCharge: boolean;
+  taxableValue: number;
   igstAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -72,6 +81,42 @@ export type Itc2bCreditNote = {
  * so a fully-ineligible supplier still nets to zero. Net ITC (4C) = available −
  * reversed. Pure & deterministic — no DB, no rounding.
  */
+/**
+ * Build GSTR-3B Table 3.1(d) — inward supplies liable to reverse charge — from
+ * the same parsed 2B entries Table 4 uses, so the declared liability and the
+ * 4(A)(3) credit are always drawn from one source and cannot drift apart.
+ *
+ * This is a LIABILITY, not a credit: the recipient owes this tax to the
+ * government in cash (ITC cannot offset it), and separately claims it back as
+ * ITC in 4(A)(3) the same period. Credit notes net off, mirroring Table 4.
+ * Ineligibility flags are deliberately ignored — flagging a supply as
+ * ineligible reverses the *credit*, it does not cancel the RCM *liability*.
+ */
+export function buildRcmSupplies(
+  entries: Itc2bEntry[],
+  creditNotes: Itc2bCreditNote[],
+): NonNullable<Gstr3bData['table31']['inwardReverseCharge']> {
+  const total = { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 };
+  for (const e of entries) {
+    if (!e.reverseCharge) continue;
+    total.taxableValue += e.taxableValue;
+    total.igst += e.igstAmount;
+    total.cgst += e.cgstAmount;
+    total.sgst += e.sgstAmount;
+    total.cess += e.cessAmount;
+  }
+  // Credit-note amounts are stored as ITC *reductions*, so they subtract.
+  for (const c of creditNotes) {
+    if (!c.reverseCharge) continue;
+    total.taxableValue -= c.taxableValue;
+    total.igst -= c.igstAmount;
+    total.cgst -= c.cgstAmount;
+    total.sgst -= c.sgstAmount;
+    total.cess -= c.cessAmount;
+  }
+  return total;
+}
+
 export function buildItcTable4(
   entries: Itc2bEntry[],
   creditNotes: Itc2bCreditNote[],
@@ -176,7 +221,10 @@ export class Gstr2bReconciliationService {
 
   // ── Compute ITC from stored 2B data for GSTR-3B Table 4 ─────────────
 
-  async computeItcFrom2b(period: string): Promise<Gstr3bData['table4'] | null> {
+  async computeItcFrom2b(period: string): Promise<{
+    table4: Gstr3bData['table4'];
+    rcmSupplies: NonNullable<Gstr3bData['table31']['inwardReverseCharge']>;
+  } | null> {
     const stored = await this.get2b(period);
     if (!stored) return null;
 
@@ -191,7 +239,10 @@ export class Gstr2bReconciliationService {
     const ineligibleReasonByKey = new Map<string, ItcIneligReason>(
       decisions.map((d) => [this.matchKey(d.supplierGstin, d.docNo), d.reason as ItcIneligReason]),
     );
-    return buildItcTable4(entries, creditNotes, ineligibleReasonByKey, (g, i) => this.matchKey(g, i));
+    return {
+      table4: buildItcTable4(entries, creditNotes, ineligibleReasonByKey, (g, i) => this.matchKey(g, i)),
+      rcmSupplies: buildRcmSupplies(entries, creditNotes),
+    };
   }
 
   // ── ITC eligibility decisions ────────────────────────────────────────
@@ -812,7 +863,11 @@ export class Gstr2bReconciliationService {
           cessAmount: cess,
           gstRate: rate,
           placeOfSupply: inv.pos || '',
-          reverseCharge: (inv.rchrg === 'Y' || inv.reverseCharge === true),
+          // GSTR-2B flags reverse charge as `rev`; `rchrg` is the GSTR-1 field
+          // name and never appears in a 2B payload. Reading only `rchrg` made
+          // every 2B line look forward-charge, so Table 3.1(d) uploaded as nil
+          // and RCM credit landed in 4(A)(5) instead of 4(A)(3).
+          reverseCharge: isReverseCharge(inv),
         });
       }
     }
@@ -855,7 +910,8 @@ export class Gstr2bReconciliationService {
         }
         notes.push({
           supplierGstin: gstin,
-          reverseCharge: (nt.rchrg === 'Y' || nt.reverseCharge === true),
+          taxableValue: sign * (nt.txval || nt.taxableValue || 0),
+          reverseCharge: isReverseCharge(nt),
           igstAmount: sign * igst,
           cgstAmount: sign * cgst,
           sgstAmount: sign * sgst,

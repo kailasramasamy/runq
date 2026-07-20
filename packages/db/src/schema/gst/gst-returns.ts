@@ -154,6 +154,11 @@ export type Gstr3bData = {
     zeroRatedSupplies: { taxableValue: number; igst: number; cess: number };
     nilRatedExempt: { taxableValue: number };
     nonGstOutward: { taxableValue: number };
+    // Table 3.1(d): inward supplies liable to reverse charge. Sourced from
+    // GSTR-2B (supplier-declared `rev: 'Y'`), not from our own bills — the
+    // supplier is the one who decides a supply is RCM. Optional because rows
+    // filed before this field existed don't carry it.
+    inwardReverseCharge?: { taxableValue: number; igst: number; cgst: number; sgst: number; cess: number };
   };
   table32: Array<{
     placeOfSupply: string;

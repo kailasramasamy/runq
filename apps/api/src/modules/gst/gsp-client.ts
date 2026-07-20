@@ -906,14 +906,20 @@ export class WhiteBooksGspClient implements GspClient {
         },
         osup_nil_exmp: { txval: r(data.table31.nilRatedExempt.taxableValue) },
         osup_nongst: { txval: r(data.table31.nonGstOutward.taxableValue) },
-        // Table 3.1(d): Inward supplies liable to reverse charge
-        isup_rev: {
-          txval: 0,
-          iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst),
-          camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst),
-          samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst),
-          csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess),
-        },
+        // Table 3.1(d): Inward supplies liable to reverse charge. Read from
+        // table31, which carries the taxable value — table4's RCM node holds
+        // only the 4(A)(3) credit, so sourcing txval from it forced a nil.
+        isup_rev: (() => {
+          const rcm = data.table31.inwardReverseCharge
+            ?? { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 };
+          return {
+            txval: r(rcm.taxableValue),
+            iamt: r(rcm.igst),
+            camt: r(rcm.cgst),
+            samt: r(rcm.sgst),
+            csamt: r(rcm.cess),
+          };
+        })(),
       },
       // Table 3.2: Inter-state supplies to unregistered/composition/UIN.
       // GSTN rejects rows with empty pos or zero values — only emit per

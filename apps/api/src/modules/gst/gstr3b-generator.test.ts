@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Gstr1Data, Gstr3bData } from '@runq/db';
+import { Gstr3bGenerator } from './gstr3b-generator';
 
 // We test the ITC utilization logic by importing the class and calling private method via prototype
 // Instead, let's test the public generate path by providing GSTR-1 data and checking output shape
@@ -171,5 +172,55 @@ describe('GSTR-3B generation logic', () => {
     expect(cashCgst).toBe(850);
     expect(cashSgst).toBe(850);
     expect(cashIgst + cashCgst + cashSgst).toBe(3300);
+  });
+});
+
+describe('Table 3.1(d) reverse-charge liability', () => {
+  // computeLiability is pure — no `this`, no DB — so call the real shipped
+  // method rather than re-implementing it here.
+  const computeLiability = (
+    table31: Gstr3bData['table31'],
+    netItc: { igst: number; cgst: number; sgst: number; cess: number },
+  ): Gstr3bData['table61'] =>
+    (Gstr3bGenerator.prototype as any).computeLiability.call(
+      null,
+      { table31 },
+      { netItc } as Gstr3bData['table4'],
+    );
+
+  const table31 = (rcm?: Gstr3bData['table31']['inwardReverseCharge']): Gstr3bData['table31'] => ({
+    outwardTaxableInterState: { taxableValue: 0, igst: 0, cess: 0 },
+    outwardTaxableIntraState: { taxableValue: 290372.87, cgst: 7317.30, sgst: 7315.86, cess: 0 },
+    zeroRatedSupplies: { taxableValue: 0, igst: 0, cess: 0 },
+    nilRatedExempt: { taxableValue: 2114906.03 },
+    nonGstOutward: { taxableValue: 0 },
+    inwardReverseCharge: rcm,
+  });
+
+  // Vrindavan June 062026: ample ITC, but the RCM tax is still cash-only.
+  const AMPLE_ITC = { igst: 4427.72, cgst: 7711.30, sgst: 7711.30, cess: 0 };
+  const RCM = { taxableValue: 62500, igst: 0, cgst: 1562.50, sgst: 1562.50, cess: 0 };
+
+  it('adds reverse-charge tax to payable', () => {
+    const t61 = computeLiability(table31(RCM), AMPLE_ITC);
+    expect(t61.cgst.payable).toBeCloseTo(7317.30 + 1562.50, 2);
+    expect(t61.sgst.payable).toBeCloseTo(7315.86 + 1562.50, 2);
+  });
+
+  it('never offsets reverse-charge tax with ITC, even when credit is ample (Sec 49(4))', () => {
+    const t61 = computeLiability(table31(RCM), AMPLE_ITC);
+    // Outward liability is fully covered by credit...
+    expect(t61.cgst.itcUsed).toBeCloseTo(7317.30, 2);
+    // ...but the RCM tax still goes out in cash.
+    expect(t61.cgst.cashPaid).toBeCloseTo(1562.50, 2);
+    expect(t61.sgst.cashPaid).toBeCloseTo(1562.50, 2);
+    expect(t61.cgst.cashPaid + t61.sgst.cashPaid).toBeCloseTo(3125, 2);
+  });
+
+  it('is a no-op for periods with no reverse-charge supplies', () => {
+    const t61 = computeLiability(table31(undefined), AMPLE_ITC);
+    expect(t61.cgst.payable).toBeCloseTo(7317.30, 2);
+    expect(t61.cgst.cashPaid).toBe(0);
+    expect(t61.sgst.cashPaid).toBe(0);
   });
 });

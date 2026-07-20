@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildItcTable4, type Itc2bEntry, type Itc2bCreditNote, type ItcIneligReason } from './gstr2b-reconciliation';
+import { buildItcTable4, buildRcmSupplies, type Itc2bEntry, type Itc2bCreditNote, type ItcIneligReason } from './gstr2b-reconciliation';
 
 // Mirror the service's normalization closely enough for the test: strip
 // separators + lowercase. buildItcTable4 only requires the SAME keyer be used
@@ -9,6 +9,16 @@ const keyOf = (gstin: string, inv: string) => `${gstin}|${inv.replace(/[\s\-/]/g
 function entry(p: Partial<Itc2bEntry> & { supplierGstin: string; invoiceNumber: string }): Itc2bEntry {
   return {
     reverseCharge: false,
+    taxableValue: 0,
+    igstAmount: 0, cgstAmount: 0, sgstAmount: 0, cessAmount: 0,
+    ...p,
+  };
+}
+
+function note(p: Partial<Itc2bCreditNote> & { supplierGstin: string }): Itc2bCreditNote {
+  return {
+    reverseCharge: false,
+    taxableValue: 0,
     igstAmount: 0, cgstAmount: 0, sgstAmount: 0, cessAmount: 0,
     ...p,
   };
@@ -94,7 +104,7 @@ describe('buildItcTable4', () => {
   it('nets a credit note from an ELIGIBLE supplier off 4(A) and net, not the reversal (real Sanathana case)', () => {
     // Sanathana (eligible) issued a CN of 110.59 cgst/sgst — GSTN nets it against b2b.
     const cn: Itc2bCreditNote[] = [
-      { supplierGstin: '29ABDCS3593F1Z1', reverseCharge: false, igstAmount: 0, cgstAmount: 110.59, sgstAmount: 110.59, cessAmount: 0 },
+      note({ supplierGstin: '29ABDCS3593F1Z1', cgstAmount: 110.59, sgstAmount: 110.59 }),
     ];
     const flagged = new Map<string, ItcIneligReason>(
       INELIGIBLE.map((e) => [keyOf(e.supplierGstin, e.invoiceNumber), 'not_our_supply']),
@@ -115,7 +125,7 @@ describe('buildItcTable4', () => {
     const supplier = '29ZZINELIG0Z1Z9';
     const entries: Itc2bEntry[] = [entry({ supplierGstin: supplier, invoiceNumber: 'INV-1', cgstAmount: 100, sgstAmount: 100 })];
     const cn: Itc2bCreditNote[] = [
-      { supplierGstin: supplier, reverseCharge: false, igstAmount: 0, cgstAmount: 20, sgstAmount: 20, cessAmount: 0 },
+      note({ supplierGstin: supplier, cgstAmount: 20, sgstAmount: 20 }),
     ];
     const flagged = new Map<string, ItcIneligReason>([[keyOf(supplier, 'INV-1'), 'not_our_supply']]);
     const t4 = buildItcTable4(entries, cn, flagged, keyOf);
@@ -127,11 +137,55 @@ describe('buildItcTable4', () => {
 
   it('a debit note (typ D, passed as negative amounts) increases ITC', () => {
     const cn: Itc2bCreditNote[] = [
-      { supplierGstin: '29AANCR6717K1ZN', reverseCharge: false, igstAmount: 0, cgstAmount: -50, sgstAmount: -50, cessAmount: 0 },
+      note({ supplierGstin: '29AANCR6717K1ZN', cgstAmount: -50, sgstAmount: -50 }),
     ];
     const t4 = buildItcTable4(ELIGIBLE, cn, new Map(), keyOf);
     // 1778.61 + 50 = 1828.61
     expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(1828.61, 2);
     expect(t4.netItc.cgst).toBeCloseTo(1828.61, 2);
+  });
+
+  it('routes a reverse-charge line to 4(A)(3), not 4(A)(5)', () => {
+    // Real Vrindavan June 062026 case: Growth Logistics, GTA @5%, rev 'Y'.
+    const gta = entry({
+      supplierGstin: '29AAJCG6731A1ZP', invoiceNumber: 'K/26-27/JUN/064',
+      reverseCharge: true, taxableValue: 62500, cgstAmount: 1562.50, sgstAmount: 1562.50,
+    });
+    const t4 = buildItcTable4([...ELIGIBLE, gta], [], new Map(), keyOf);
+    expect(t4.itcAvailable.inwardReverseCharge.cgst).toBeCloseTo(1562.50, 2);
+    expect(t4.itcAvailable.allOtherItc.cgst).toBeCloseTo(1778.61, 2); // unchanged
+    expect(t4.netItc.cgst).toBeCloseTo(1778.61 + 1562.50, 2);
+  });
+});
+
+describe('buildRcmSupplies (Table 3.1d)', () => {
+  const gta = entry({
+    supplierGstin: '29AAJCG6731A1ZP', invoiceNumber: 'K/26-27/JUN/064',
+    reverseCharge: true, taxableValue: 62500, cgstAmount: 1562.50, sgstAmount: 1562.50,
+  });
+
+  it('carries the taxable value, which the GSTN payload needs and table4 does not hold', () => {
+    const rcm = buildRcmSupplies([...ELIGIBLE, gta], []);
+    expect(rcm.taxableValue).toBeCloseTo(62500, 2);
+    expect(rcm.cgst).toBeCloseTo(1562.50, 2);
+    expect(rcm.sgst).toBeCloseTo(1562.50, 2);
+  });
+
+  it('ignores forward-charge lines entirely', () => {
+    expect(buildRcmSupplies(ELIGIBLE, []).taxableValue).toBe(0);
+    expect(buildRcmSupplies(ELIGIBLE, []).cgst).toBe(0);
+  });
+
+  it('nets reverse-charge credit notes off the liability', () => {
+    const cn = note({ supplierGstin: '29AAJCG6731A1ZP', reverseCharge: true, taxableValue: 2500, cgstAmount: 62.50, sgstAmount: 62.50 });
+    const rcm = buildRcmSupplies([gta], [cn]);
+    expect(rcm.taxableValue).toBeCloseTo(60000, 2);
+    expect(rcm.cgst).toBeCloseTo(1500, 2);
+  });
+
+  it('does NOT cancel the liability when the supply is flagged ITC-ineligible', () => {
+    // Flagging reverses the CREDIT in 4(B); the RCM liability still stands.
+    const rcm = buildRcmSupplies([gta], []);
+    expect(rcm.cgst).toBeCloseTo(1562.50, 2);
   });
 });

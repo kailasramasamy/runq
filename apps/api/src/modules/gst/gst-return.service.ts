@@ -195,7 +195,9 @@ export class GstReturnService {
     const recon = new Gstr2bReconciliationService(this.db, this.tenantId);
     const itcFrom2b = await recon.computeItcFrom2b(period);
 
-    const data = await generator.generate(periodStart, periodEnd, gstr1Data, itcFrom2b);
+    const data = await generator.generate(
+      periodStart, periodEnd, gstr1Data, itcFrom2b?.table4, itcFrom2b?.rcmSupplies,
+    );
     const notes = itcFrom2b
       ? 'ITC (Table 4) auto-populated from GSTR-2B data'
       : 'ITC (Table 4) computed from purchase invoices';
@@ -730,6 +732,20 @@ function diff3b(sent: Gstr3bData, stored: Record<string, unknown>): Array<{
   // actionable from runq, and false-alarms the user. We rely on the
   // GSTR-1 ↔ 3B generator consistency check (separate work) to ensure
   // our books match GSTN's auto-populated values.
+
+  // Table 3.1(d) IS diffed, unlike the outward 3.1 rows above: it is an
+  // inward figure, so GSTN cannot auto-populate it from the filed GSTR-1 —
+  // if it comes back different, we really did drop or mis-send it. Given
+  // the inward_sup silent-drop precedent, this is worth watching.
+  const supd = (stored?.sup_details ?? {}) as { isup_rev?: Record<string, unknown> };
+  const sentRcm = sent.table31.inwardReverseCharge;
+  if (sentRcm && (sentRcm.igst || sentRcm.cgst || sentRcm.sgst || sentRcm.taxableValue)) {
+    const rev = (supd?.isup_rev ?? {}) as Record<string, unknown>;
+    cmp('Table 3.1(d) reverse charge', 'txval', sentRcm.taxableValue, Number(rev?.txval ?? 0));
+    cmp('Table 3.1(d) reverse charge', 'iamt', sentRcm.igst, Number(rev?.iamt ?? 0));
+    cmp('Table 3.1(d) reverse charge', 'camt', sentRcm.cgst, Number(rev?.camt ?? 0));
+    cmp('Table 3.1(d) reverse charge', 'samt', sentRcm.sgst, Number(rev?.samt ?? 0));
+  }
 
   // Table 5 — the canonical silent-drop case. Compare GST + NONGST rows.
   const sentGstInter   = Math.round(sent.table5.interState.nilRated + sent.table5.interState.exempt);

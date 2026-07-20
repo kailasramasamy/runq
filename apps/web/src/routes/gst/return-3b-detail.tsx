@@ -388,6 +388,20 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
                 <TableCell className="text-right">—</TableCell>
                 <TableCell className="text-right">—</TableCell>
               </TableRow>
+              <TableRow>
+                <TableCell>
+                  Inward supplies liable to reverse charge
+                  {(d?.table31?.inwardReverseCharge?.taxableValue ?? 0) > 0 && (
+                    <span className="ml-2 text-xs text-amber-600 dark:text-amber-500">
+                      payable in cash
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">{formatINR(d?.table31?.inwardReverseCharge?.taxableValue ?? 0)}</TableCell>
+                <TableCell className="text-right">{formatINR(d?.table31?.inwardReverseCharge?.igst ?? 0)}</TableCell>
+                <TableCell className="text-right">{formatINR(d?.table31?.inwardReverseCharge?.cgst ?? 0)}</TableCell>
+                <TableCell className="text-right">{formatINR(d?.table31?.inwardReverseCharge?.sgst ?? 0)}</TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </CardContent>
