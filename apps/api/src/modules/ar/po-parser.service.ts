@@ -48,7 +48,7 @@ const XLSX_MIMES: ReadonlySet<string> = new Set([
 
 type PoUploadRow = typeof poUploads.$inferSelect;
 
-interface ExtractedItem {
+export interface ExtractedItem {
   description: string;
   customerSku: string | null;
   quantity: number;
@@ -81,7 +81,7 @@ interface CustomerMatch {
   confidence: number;
 }
 
-interface LineMatch {
+export interface LineMatch {
   itemId: string | null;
   source: 'alias' | 'name_fuzzy' | null;
   confidence: number | null;
@@ -92,7 +92,7 @@ interface LineMatch {
 }
 
 interface ReviewFlag {
-  type: 'no_customer' | 'unmatched_sku' | 'low_confidence';
+  type: 'no_customer' | 'unmatched_sku' | 'low_confidence' | 'qty_unreconciled';
   lineIndex?: number;
   message?: string;
 }
@@ -155,8 +155,12 @@ export class PoParserService {
         }
         const customerMatch = await this.matchCustomer(enriched);
         const lineMatches = await this.matchLines(enriched.items, customerMatch?.id ?? null);
-        const { reviewStatus, reviewFlags } = this.computeReview(enriched, customerMatch, lineMatches);
-        await this.persistDraft({ upload, extracted: enriched, customerMatch, lineMatches, reviewStatus, reviewFlags });
+        const qty = reconcileQuantities(enriched.items, lineMatches, enriched.pricesIncludeTax);
+        const reconciled = { ...enriched, items: qty.items };
+        const { reviewStatus, reviewFlags } = this.computeReview(
+          reconciled, customerMatch, lineMatches, qty.unreconciled,
+        );
+        await this.persistDraft({ upload, extracted: reconciled, customerMatch, lineMatches, reviewStatus, reviewFlags });
         return;
       }
 
@@ -170,10 +174,14 @@ export class PoParserService {
       }
 
       const content = await this.loadContent(upload);
-      const extracted = await this.extract(content);
-      const customerMatch = await this.matchCustomer(extracted);
-      const lineMatches = await this.matchLines(extracted.items, customerMatch?.id ?? null);
-      const { reviewStatus, reviewFlags } = this.computeReview(extracted, customerMatch, lineMatches);
+      const raw = await this.extract(content);
+      const customerMatch = await this.matchCustomer(raw);
+      const lineMatches = await this.matchLines(raw.items, customerMatch?.id ?? null);
+      const qty = reconcileQuantities(raw.items, lineMatches, raw.pricesIncludeTax);
+      const extracted = { ...raw, items: qty.items };
+      const { reviewStatus, reviewFlags } = this.computeReview(
+        extracted, customerMatch, lineMatches, qty.unreconciled,
+      );
       await this.persistDraft({ upload, extracted, customerMatch, lineMatches, reviewStatus, reviewFlags });
 
       // Learn the template so the next PO from this sender skips the LLM.
@@ -627,6 +635,7 @@ export class PoParserService {
     extracted: ExtractedPo,
     customerMatch: CustomerMatch | null,
     lineMatches: LineMatch[],
+    qtyUnreconciled: number[] = [],
   ): { reviewStatus: 'ready' | 'needs_review'; reviewFlags: ReviewFlag[] } {
     const flags: ReviewFlag[] = [];
 
@@ -636,6 +645,17 @@ export class PoParserService {
 
     lineMatches.forEach((m, i) => {
       if (!m.itemId) flags.push({ type: 'unmatched_sku', lineIndex: i });
+    });
+
+    // The line total doesn't divide by our price into a whole quantity, so we
+    // can't tell what was actually ordered. Never guess this one — a wrong
+    // quantity ships the wrong stock and invoices the wrong amount.
+    qtyUnreconciled.forEach((i) => {
+      flags.push({
+        type: 'qty_unreconciled',
+        lineIndex: i,
+        message: 'quantity does not reconcile with the line total — confirm before approving',
+      });
     });
 
     if (extracted.confidence < 0.6) {
@@ -788,7 +808,7 @@ function parseLLMResponse(rawText: string): ExtractedPo {
       ? (parsed.items as unknown[]).map((it) => {
           const item = (it ?? {}) as Record<string, unknown>;
           return {
-            description: String(item.description ?? '').trim() || 'Unknown item',
+            description: cleanDescription(item.description),
             customerSku: stringOrNull(item.customerSku),
             quantity: numberOrZero(item.quantity),
             uom: stringOrNull(item.uom),
@@ -805,6 +825,20 @@ function parseLLMResponse(rawText: string): ExtractedPo {
     totalAmount: numberOrNull(parsed.totalAmount),
     confidence: clampConfidence(parsed.confidence),
   };
+}
+
+/**
+ * Trim neighbouring columns out of an extracted description.
+ *
+ * When a PO table carries columns we don't model (vendor, warehouse, buyer
+ * code), the extractor tends to fold them into the product name along with the
+ * tab that separated them — "Cow Milk 500ml \tVRINDAVAN". Left alone that text
+ * becomes the alias we store against the customer, so the same product from a
+ * differently-shaped PO never matches it again.
+ */
+export function cleanDescription(v: unknown): string {
+  const firstColumn = String(v ?? '').split('\t')[0] ?? '';
+  return firstColumn.replace(/\s+/g, ' ').trim() || 'Unknown item';
 }
 
 function stringOrNull(v: unknown): string | null {
@@ -875,6 +909,69 @@ function applyTemplateHints(po: ExtractedPo, hints: PoTemplateHints): ExtractedP
  * POs routinely carry the wrong GST treatment (e.g. a 5% good billed as
  * exempt), and honouring that would let their mistake set our output tax.
  */
+/** How far an implied quantity may sit from a whole number and still count. */
+const QTY_TOLERANCE = 0.02;
+
+/**
+ * Recover line quantities from the PO's printed line total and our own price.
+ *
+ * Quantity is the least reliable field the extractor produces. PO tables vary
+ * in column order — some print qty before rate, some after, some omit the UOM
+ * column entirely — and when the extractor transposes the two, the result is
+ * still self-consistent: qty × rate = amount holds either way round. So the
+ * PO's own numbers cannot detect a swap.
+ *
+ * What we can trust is the printed line `amount` (unambiguously the last money
+ * value on the row) and the rate WE resolved for the matched item. Dividing
+ * one by the other recovers the quantity the customer actually ordered,
+ * whichever column the extractor read it from.
+ *
+ * Lines that refuse to divide cleanly are reported so review can flag them
+ * rather than silently guessing.
+ */
+export function reconcileQuantities(
+  items: ExtractedItem[],
+  lineMatches: LineMatch[],
+  pricesIncludeTax: boolean | null,
+): { items: ExtractedItem[]; corrected: number[]; unreconciled: number[] } {
+  const corrected: number[] = [];
+  const unreconciled: number[] = [];
+
+  const next = items.map((item, i) => {
+    const match = lineMatches[i];
+    // Only matched lines have a price of ours to check against.
+    if (!match?.itemId || match.resolvedRate == null || match.resolvedRate <= 0) return item;
+    if (item.amount == null || item.amount <= 0) return item;
+
+    // `amount` is printed on the PO's tax basis; resolvedRate is always
+    // pre-tax, so gross it up before comparing against a Type A total.
+    const unitPrice =
+      pricesIncludeTax === true
+        ? match.resolvedRate * (1 + (match.itemGstRate ?? 0) / 100)
+        : match.resolvedRate;
+    if (unitPrice <= 0) return item;
+
+    const implied = item.amount / unitPrice;
+    if (!Number.isFinite(implied) || implied <= 0) {
+      unreconciled.push(i);
+      return item;
+    }
+    // Already consistent — covers legitimately fractional quantities (2.5 kg)
+    // that the extractor read correctly.
+    if (Math.abs(implied - item.quantity) <= QTY_TOLERANCE) return item;
+
+    const nearest = Math.round(implied);
+    if (nearest >= 1 && Math.abs(implied - nearest) <= QTY_TOLERANCE) {
+      corrected.push(i);
+      return { ...item, quantity: nearest };
+    }
+    unreconciled.push(i);
+    return item;
+  });
+
+  return { items: next, corrected, unreconciled };
+}
+
 function pickTaxRatePct(line: ExtractedItem, itemGstRate: number | null): number | null {
   if (itemGstRate != null && Number.isFinite(itemGstRate) && itemGstRate >= 0) {
     return Number(itemGstRate.toFixed(2));

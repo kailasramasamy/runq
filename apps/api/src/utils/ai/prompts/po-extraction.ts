@@ -37,16 +37,18 @@ GST handling (CRITICAL — two PO styles, must distinguish):
   - totalAmount: the PO's stated grand total — what the buyer expects to pay. ALWAYS extract this when printed, regardless of style.
 
 CRITICAL — distinguishing numbers in tabular POs:
-- Tabular POs have columns: line# | description | sku | qty | uom | rate | line total. When the PDF text loses column alignment, identify each value by its NEIGHBOURING TOKEN, not its position:
-  - Quantity is the integer (or decimal) IMMEDIATELY BEFORE the UOM token (PCS / pcs / nos / kg / g / L / ltr / ml / packets / boxes / dozen / units).
-  - Rate is the number IMMEDIATELY AFTER the UOM token (often prefixed with a currency symbol).
-  - Line total is the LAST number on the row (often prefixed with a currency symbol).
-- Numbers EMBEDDED in product descriptions are NOT quantities. "100% Cow Milk Curd 400g" — the 100 and 400 are part of the name, ignore them. "A2 Cow Milk 500ml", "1Litre", "200g" — the digits are part of the description.
+- COLUMN ORDER VARIES BETWEEN TEMPLATES. Do not assume qty comes before rate. Many POs print "Rate | Qty", and some carry extra columns we don't want (Vendor, Warehouse, Buyer Code) between the name and the numbers. ALWAYS read the header row first and map each value to the header sitting above it. Header text beats every positional guess below.
+- Header synonyms: quantity = "Qty" / "Quantity" / "Order Qty" / "Nos". Rate = "Rate" / "Price" / "Unit Price" / "MRP" / "Rate (Incl GST)" / "Landing". Line total = "Amount" / "Line Total" / "Total" / "Value".
+- THERE MAY BE NO UOM COLUMN AT ALL. When there isn't, uom is null — do NOT harvest a unit from the product name to fill it, and do NOT treat the number attached to that unit as the quantity.
+- Numbers EMBEDDED in product descriptions are NEVER quantities and NEVER the UOM. "100% Cow Milk Curd 400g" — the 100 and 400 are part of the name. "A2 Milk 500 ml", "Coconut oil100 ml", "1Litre", "200g" — the digits AND the trailing unit are part of the description. "A2 Milk 500 ml" with a Qty column reading 8 is qty 8, uom null, description "A2 Milk 500 ml". It is NOT qty 500 uom "ml".
 - Numbers EMBEDDED in customer SKU codes are NOT quantities. "D-M-02", "D-C-01", "FCM-1L", "ITEM 3142" — the trailing digits are part of the SKU code, not qty.
+- Keep description to the PRODUCT NAME COLUMN ONLY. If the row carries a vendor/supplier/warehouse column, that text does not belong in description.
+- Only when there is no usable header row, fall back to position: quantity is the number immediately before the UOM token (PCS / nos / kg / g / L / ltr / ml / packets / boxes / dozen), rate is the number immediately after it, and the line total is the last number on the row.
 - Worked examples (use these as a sanity check on your output):
-  - "1 100% Cow Milk Curd 400g D-C-01 2 PCS ₹36.66 ₹73.32" → description "100% Cow Milk Curd 400g", customerSku "D-C-01", qty 2, uom "PCS", rate 36.66, amount 73.32. NOT qty 100, NOT qty 400, NOT qty 01.
-  - "4 A2 Cow Milk 500ml D-M-02 37 PCS ₹36.00 ₹1,332.00" → description "A2 Cow Milk 500ml", customerSku "D-M-02", qty 37, uom "PCS", rate 36.00, amount 1332.00. NOT qty 500, NOT qty 02.
-  - "8 Cow Milk 500ml D-M-01 40 PCS ₹26.25 ₹1,050.00" → qty 40, NOT qty 500, NOT qty 01.
+  - Headers "# | Item | SKU | Qty | Unit | Rate | Line Total", row "1 100% Cow Milk Curd 400g D-C-01 2 PCS ₹36.66 ₹73.32" → description "100% Cow Milk Curd 400g", customerSku "D-C-01", qty 2, uom "PCS", rate 36.66, amount 73.32. NOT qty 100, NOT qty 400, NOT qty 01.
+  - Headers "# | Item | SKU | Qty | Unit | Rate | Line Total", row "4 A2 Cow Milk 500ml D-M-02 37 PCS ₹36.00 ₹1,332.00" → qty 37, NOT qty 500, NOT qty 02.
+  - Headers "Item Name | Vendor | Rate (Incl GST) | Qty | Base Amount | GST Amount | Line Total", row "A2 Milk 500 ml VRINDAVAN 35.25 8 282 0 282" → description "A2 Milk 500 ml", qty 8, uom null, rate 35.25, amount 282. NOT qty 500, NOT qty 35.25, NOT description "A2 Milk 500 ml VRINDAVAN". Note rate precedes qty here and there is no UOM column.
+  - Same headers, row "Coconut oil100 ml VRINDAVAN 37.4 2 71.24 3.56 74.8" → description "Coconut oil100 ml", qty 2, uom null, rate 37.4, taxableAmount 71.24, taxAmount 3.56, amount 74.8. NOT qty 100.
 
 Currency symbol noise:
 - The Indian rupee symbol ₹ may render in PDFs as ¹ (superscript 1), Rs, Rs., INR, or be missing entirely. When a digit/character appears IMMEDIATELY before a number that's clearly a money value (rate or total column), treat it as a currency symbol and strip it. "¹36.66" means ₹36.66 = 36.66, NOT 136.66.
