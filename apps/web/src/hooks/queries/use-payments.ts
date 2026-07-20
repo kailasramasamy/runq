@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 import type { VendorPayment, VendorPaymentWithAllocations, PaginatedResponse, ApiSuccess, BatchPaymentResult, BatchImportResult } from '@runq/types';
 import type {
@@ -16,6 +16,15 @@ const PAYMENT_KEYS = {
   list: (filters?: Record<string, unknown>) => ['payments', 'list', filters] as const,
   detail: (id: string) => ['payments', 'detail', id] as const,
 };
+
+// A payment moves bill balance/status, vendor advance balance and the audit trail,
+// so every payment mutation must refresh those alongside the payment list.
+function invalidatePaymentEffects(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+  qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
+  qc.invalidateQueries({ queryKey: ['vendor-advance-balance'] });
+  qc.invalidateQueries({ queryKey: ['document-trail'] });
+}
 
 function buildFilterQs(filters?: VendorPaymentFilter): string {
   if (!filters) return '';
@@ -56,7 +65,7 @@ export function useCreatePayment() {
   return useMutation({
     mutationFn: (data: CreateVendorPaymentInput) =>
       api.post<ApiSuccess<VendorPayment>>('/ap/payments', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+    onSuccess: () => invalidatePaymentEffects(qc),
   });
 }
 
@@ -65,7 +74,7 @@ export function useCreateAdvancePayment() {
   return useMutation({
     mutationFn: (data: CreateAdvancePaymentInput) =>
       api.post<ApiSuccess<VendorPayment>>('/ap/payments/advance', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+    onSuccess: () => invalidatePaymentEffects(qc),
   });
 }
 
@@ -74,7 +83,7 @@ export function useCreateDirectPayment() {
   return useMutation({
     mutationFn: (data: CreateDirectPaymentInput) =>
       api.post<ApiSuccess<VendorPayment>>('/ap/payments/direct', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+    onSuccess: () => invalidatePaymentEffects(qc),
   });
 }
 
@@ -84,7 +93,7 @@ export function useAdjustAdvance() {
     mutationFn: ({ id, data }: { id: string; data: AdjustAdvanceInput }) =>
       api.post<ApiSuccess<VendorPayment>>(`/ap/payments/${id}/adjust`, data),
     onSuccess: (_res, { id }) => {
-      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      invalidatePaymentEffects(qc);
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
     },
   });
@@ -95,7 +104,7 @@ export function useCreateBatchPayment() {
   return useMutation({
     mutationFn: (data: CreateBatchPaymentInput) =>
       api.post<ApiSuccess<BatchPaymentResult>>('/ap/payments/batch', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+    onSuccess: () => invalidatePaymentEffects(qc),
   });
 }
 
@@ -104,7 +113,7 @@ export function useImportBatchPayment() {
   return useMutation({
     mutationFn: (data: ImportBatchPaymentInput) =>
       api.post<ApiSuccess<BatchImportResult>>('/ap/payments/import', data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all }),
+    onSuccess: () => invalidatePaymentEffects(qc),
   });
 }
 
@@ -114,7 +123,7 @@ export function useApprovePayment() {
     mutationFn: (id: string) =>
       api.post<ApiSuccess<VendorPayment>>(`/ap/payments/${id}/approve`, {}),
     onSuccess: (_res, id) => {
-      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      invalidatePaymentEffects(qc);
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
     },
   });
@@ -126,7 +135,7 @@ export function useRejectPayment() {
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       api.post<ApiSuccess<{ success: boolean }>>(`/ap/payments/${id}/reject`, { reason }),
     onSuccess: (_res, { id }) => {
-      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      invalidatePaymentEffects(qc);
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
     },
   });
@@ -138,7 +147,7 @@ export function useReversePayment() {
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       api.post<ApiSuccess<{ success: boolean }>>(`/ap/payments/${id}/reverse`, { reason }),
     onSuccess: (_res, { id }) => {
-      qc.invalidateQueries({ queryKey: PAYMENT_KEYS.all });
+      invalidatePaymentEffects(qc);
       qc.invalidateQueries({ queryKey: PAYMENT_KEYS.detail(id) });
     },
   });
