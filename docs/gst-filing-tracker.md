@@ -52,6 +52,42 @@
 
 ---
 
+## Phase 5: Reverse-charge (RCM) support in AP
+
+Surfaced 2026-07-20 filing Vrindavan's June 062026 3B — the first period with a
+reverse-charge supply (Growth Logistics, GTA @5%, ₹62,500). The **return side is
+done** (commit `92565c5d`): Table 3.1(d) and 4(A)(3) are both built from GSTR-2B,
+so filing is correct today regardless of how the bill is booked. What remains is
+the **AP side**, which currently records an RCM bill wrongly.
+
+- [ ] 5.1 Bill-level reverse-charge toggle in the bill form — `bill-form.tsx` never
+      sends `reverseCharge` in its payload (only `po-scan-receive-panel.tsx` does),
+      so an RCM bill cannot be flagged from the bills screen at all
+- [ ] 5.2 Exclude RCM tax from vendor payable — `calculateLineItemTax`
+      (`utils/gst-calculator.ts:47`) treats `reverse_charge` identically to
+      `taxable` ("amounts computed but flagged"), so the tax stays in
+      `total_amount`. Under RCM the supplier does **not** charge the tax:
+      payable is the taxable value alone. Booking it inflates the payable and
+      risks actually paying the vendor the government's money
+- [ ] 5.3 RCM GL treatment — a flagged bill should post ITC receivable Dr /
+      RCM liability Cr, and discharge the liability against the cash payment.
+      Today both legs need a manual JE
+- [ ] 5.4 Self-invoice under Sec 31(3)(f) — mandatory for RCM inward supplies,
+      no feature exists; currently produced outside runq
+- [ ] 5.5 Pre-file guard — warn when 2B `itcsumm.itcavl.revsup` is non-zero but
+      no bill in the period carries `reverse_charge`, i.e. the books and the
+      return disagree about RCM
+
+**Workaround until 5.1–5.3 land:** book the bill at the taxable value with tax
+category Exempt (correct payable, no ITC in GL), then a manual JE for the RCM
+tax when the challan is paid. Used for `K/26-27/JUN/064` in June 2026.
+
+> **Note:** RCM tax is payable in **cash** — Sec 49(4) bars discharging it from
+> the credit ledger. `computeLiability` already excludes it from Rule 88A
+> utilization; any future AP work must not undo that.
+
+---
+
 ## Files Created
 
 ### Database (`packages/db/`)
