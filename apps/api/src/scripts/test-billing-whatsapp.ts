@@ -3,9 +3,12 @@
  *
  * Sends a sample VMCC bill notice + farmer bill notice to a test phone, using
  * the SAME production code path (Interakt provider, PDF token signer, format
- * helpers) as the real sends. A real farmer/VMCC + half-month period is pulled
- * from live pours so the attached statement PDFs are valid and the body params
- * look real. Read-only DB lookups — nothing is written.
+ * helpers) AND the same services the PDFs render from — so the message body and
+ * the attached PDF always agree:
+ *   - VMCC bill  → VmccBillService.billStatementData (priced dispatches)
+ *   - farmer     → StatementService.forFarmer (pours)
+ * A real VMCC + period is auto-picked from mp_consignments (dispatch data), and a
+ * real farmer from mp_pours, so neither PDF is empty. Read-only — nothing written.
  *
  * Run on the prod server (needs INTERAKT_API_KEY, INTERAKT_TEMPLATE_VMCC_BILL,
  * INTERAKT_TEMPLATE_FARMER_BILL, JWT_SECRET, APP_BASE_URL, DATABASE_URL):
@@ -13,13 +16,15 @@
  *   TEST_PHONE=+918971805878 tsx src/scripts/test-billing-whatsapp.ts
  *   TEST_PHONE=+918971805878 TENANT_ID=<uuid> tsx src/scripts/test-billing-whatsapp.ts
  */
-import { Client } from 'pg';
+import { createDb } from '@runq/db';
 import { getInteraktProvider } from '../utils/messaging';
 import { statementPdfUrl } from '../modules/milk-procurement/mp-statement-token';
+import { VmccBillService } from '../modules/milk-procurement/vmcc-bill.service';
+import { StatementService } from '../modules/milk-procurement/statement.service';
 import { cycleLabel, trimNum, rupees, nz, pdfName } from '../modules/milk-procurement/mp-notify-format';
 
 const PHONE = process.env.TEST_PHONE ?? '+918971805878';
-const TENANT_ID = process.env.TENANT_ID; // optional; else the most recent pour's tenant
+const TENANT_ID = process.env.TENANT_ID; // optional; else inferred from the data
 
 /** Half-month window + vb-token fields for the date's month. */
 function halfMonth(iso: string) {
@@ -34,80 +39,70 @@ function halfMonth(iso: string) {
   };
 }
 
-interface Sample {
-  tenantId: string; farmerId: string; farmerName: string;
-  nodeId: string; nodeName: string; nodeCode: string;
-  from: string; to: string; year: number; month: number; half: 'first' | 'second';
-  farmerLitres: string; farmerGross: string; vmccLitres: string; vmccMilkCost: string;
+function isoOf(v: unknown): string {
+  return v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
 }
 
-/** Find a real farmer + collection node from a recent pour, with period totals. */
-async function discover(c: Client): Promise<Sample> {
-  const scope = TENANT_ID ? 'and p.tenant_id = $1' : '';
-  const params = TENANT_ID ? [TENANT_ID] : [];
-  const { rows } = await c.query(
-    `select p.tenant_id, p.farmer_id, p.node_id, p.collection_date
-     from mp_pours p
-     where p.collection_date >= current_date - interval '150 days' ${scope}
-     order by p.collection_date desc limit 1`, params,
+/** A VMCC with real priced-dispatch data (the VMCC bill's source). */
+async function findVmcc(pool: import('pg').Pool) {
+  const scope = TENANT_ID ? 'and c.tenant_id = $1' : '';
+  const { rows } = await pool.query(
+    `select c.tenant_id, c.from_node_id as node_id, c.collection_date
+     from mp_consignments c
+     join mp_nodes n on n.id = c.from_node_id and n.node_type = 'vmcc'
+     where c.receipt_qty > 0 and c.collection_date >= current_date - interval '150 days' ${scope}
+     order by c.collection_date desc limit 1`, TENANT_ID ? [TENANT_ID] : [],
   );
-  if (!rows.length) throw new Error('No recent pours found to build a test statement from.');
-  const { tenant_id, farmer_id, node_id, collection_date } = rows[0];
-  const iso = collection_date instanceof Date ? collection_date.toISOString().slice(0, 10) : String(collection_date);
-  const { from, to, year, month, half } = halfMonth(iso);
-
-  const [{ rows: fr }, { rows: nr }, { rows: fa }, { rows: na }] = await Promise.all([
-    c.query('select name from mp_farmers where id = $1', [farmer_id]),
-    c.query('select name, code from mp_nodes where id = $1', [node_id]),
-    c.query(`select coalesce(sum(qty_litres),0) litres, coalesce(sum(line_amount),0) gross
-             from mp_pours where farmer_id = $1 and collection_date between $2 and $3`, [farmer_id, from, to]),
-    c.query(`select coalesce(sum(qty_litres),0) litres, coalesce(sum(line_amount),0) cost
-             from mp_pours where node_id = $1 and collection_date between $2 and $3`, [node_id, from, to]),
-  ]);
-  return {
-    tenantId: tenant_id, farmerId: farmer_id, farmerName: fr[0]?.name ?? 'Test Farmer',
-    nodeId: node_id, nodeName: nr[0]?.name ?? 'Test VMCC', nodeCode: nr[0]?.code ?? '',
-    from, to, year, month, half,
-    farmerLitres: String(fa[0]?.litres ?? '0'), farmerGross: String(fa[0]?.gross ?? '0'),
-    vmccLitres: String(na[0]?.litres ?? '0'), vmccMilkCost: String(na[0]?.cost ?? '0'),
-  };
+  if (!rows.length) throw new Error('No recent VMCC dispatches (mp_consignments) to build a bill from.');
+  return { tenantId: rows[0].tenant_id as string, nodeId: rows[0].node_id as string, ...halfMonth(isoOf(rows[0].collection_date)) };
 }
 
-async function sendVmcc(s: Sample): Promise<void> {
+/** A farmer with recent pours (the farmer statement's source), in one tenant. */
+async function findFarmer(pool: import('pg').Pool, tenantId: string) {
+  const { rows } = await pool.query(
+    `select farmer_id, collection_date from mp_pours
+     where tenant_id = $1 and collection_date >= current_date - interval '150 days'
+     order by collection_date desc limit 1`, [tenantId],
+  );
+  if (!rows.length) throw new Error('No recent pours to build a farmer statement from.');
+  return { farmerId: rows[0].farmer_id as string, ...halfMonth(isoOf(rows[0].collection_date)) };
+}
+
+async function sendVmcc(db: ReturnType<typeof createDb>['db'], v: Awaited<ReturnType<typeof findVmcc>>): Promise<void> {
   const provider = getInteraktProvider()!;
-  const templateName = process.env.INTERAKT_TEMPLATE_VMCC_BILL!;
-  const periodLabel = cycleLabel(s.from, s.to);
+  const s = await new VmccBillService(db, v.tenantId)
+    .billStatementData({ year: v.year, month: v.month, half: v.half }, v.nodeId);
+  const periodLabel = cycleLabel(v.from, v.to);
   const url = statementPdfUrl(
-    { k: 'vb', t: s.tenantId, n: s.nodeId, y: s.year, m: s.month, h: s.half },
-    pdfName('VMCC bill', s.nodeName, periodLabel),
+    { k: 'vb', t: v.tenantId, n: v.nodeId, y: v.year, m: v.month, h: v.half },
+    pdfName('VMCC bill', s.vmcc.name, periodLabel),
   );
   if (!url) throw new Error('statementPdfUrl returned null — JWT_SECRET or APP_BASE_URL missing.');
-  const commission = 500; // sample operator comp for the template preview
-  const net = Math.round(Number(s.vmccMilkCost)) + commission;
+  const net = s.detail.totalAmount + s.commission; // milk cost + operator comp = bill total
   const templateParams = {
-    name: nz(s.nodeName), period: nz(periodLabel), code: nz(s.nodeCode),
-    litres: nz(trimNum(s.vmccLitres)), milkCost: nz(rupees(s.vmccMilkCost)),
-    commission: nz(rupees(commission)), net: nz(rupees(net)),
+    name: nz(s.vmcc.name), period: nz(periodLabel), code: nz(s.vmcc.code),
+    litres: nz(trimNum(String(s.detail.totalQty))), milkCost: nz(rupees(s.detail.totalAmount)),
+    commission: nz(rupees(s.commission)), net: nz(rupees(net)),
   };
-  const res = await provider.sendWhatsApp({ to: PHONE, templateName, templateParams, mediaUrl: url });
-  console.log('VMCC bill  →', res.success ? `sent (id=${res.messageId})` : `FAILED: ${res.error}`);
+  const res = await provider.sendWhatsApp({ to: PHONE, templateName: process.env.INTERAKT_TEMPLATE_VMCC_BILL!, templateParams, mediaUrl: url });
+  console.log(`VMCC bill  → ${res.success ? `sent (id=${res.messageId})` : `FAILED: ${res.error}`} · ${s.vmcc.name} ${s.detail.totalQty}L`);
 }
 
-async function sendFarmer(s: Sample): Promise<void> {
+async function sendFarmer(db: ReturnType<typeof createDb>['db'], tenantId: string, f: Awaited<ReturnType<typeof findFarmer>>): Promise<void> {
   const provider = getInteraktProvider()!;
-  const templateName = process.env.INTERAKT_TEMPLATE_FARMER_BILL!;
-  const periodLabel = cycleLabel(s.from, s.to);
+  const s = await new StatementService(db, tenantId).forFarmer(f.farmerId, f.from, f.to, { kind: 'all' });
+  const periodLabel = cycleLabel(f.from, f.to);
   const url = statementPdfUrl(
-    { k: 'fs', t: s.tenantId, f: s.farmerId, from: s.from, to: s.to },
-    pdfName('Milk statement', s.farmerName, periodLabel),
+    { k: 'fs', t: tenantId, f: f.farmerId, from: f.from, to: f.to },
+    pdfName('Milk statement', s.farmer.name, periodLabel),
   );
   if (!url) throw new Error('statementPdfUrl returned null — JWT_SECRET or APP_BASE_URL missing.');
   const templateParams = {
-    name: nz(s.farmerName), period: nz(periodLabel), litres: nz(trimNum(s.farmerLitres)),
-    gross: nz(rupees(s.farmerGross)), deductions: nz(rupees('0')), net: nz(rupees(s.farmerGross)),
+    name: nz(s.farmer.name), period: nz(periodLabel), litres: nz(trimNum(String(s.totals.litres))),
+    gross: nz(rupees(s.totals.amount)), deductions: nz(rupees('0')), net: nz(rupees(s.totals.amount)),
   };
-  const res = await provider.sendWhatsApp({ to: PHONE, templateName, templateParams, mediaUrl: url });
-  console.log('Farmer bill →', res.success ? `sent (id=${res.messageId})` : `FAILED: ${res.error}`);
+  const res = await provider.sendWhatsApp({ to: PHONE, templateName: process.env.INTERAKT_TEMPLATE_FARMER_BILL!, templateParams, mediaUrl: url });
+  console.log(`Farmer bill → ${res.success ? `sent (id=${res.messageId})` : `FAILED: ${res.error}`} · ${s.farmer.name} ${s.totals.litres}L`);
 }
 
 async function main(): Promise<void> {
@@ -115,15 +110,15 @@ async function main(): Promise<void> {
   if (!process.env.INTERAKT_TEMPLATE_VMCC_BILL || !process.env.INTERAKT_TEMPLATE_FARMER_BILL) {
     throw new Error('INTERAKT_TEMPLATE_VMCC_BILL / INTERAKT_TEMPLATE_FARMER_BILL not set.');
   }
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
-  await c.connect();
+  const { db, pool } = createDb(process.env.DATABASE_URL ?? '');
   try {
-    const s = await discover(c);
-    console.log(`Sending to ${PHONE} — farmer "${s.farmerName}", VMCC "${s.nodeName}", period ${s.from} → ${s.to}`);
-    await sendVmcc(s);
-    await sendFarmer(s);
+    const v = await findVmcc(pool);
+    const f = await findFarmer(pool, v.tenantId);
+    console.log(`Sending to ${PHONE} — VMCC period ${v.from}→${v.to}, farmer period ${f.from}→${f.to}`);
+    await sendVmcc(db, v);
+    await sendFarmer(db, v.tenantId, f);
   } finally {
-    await c.end();
+    await pool.end();
   }
 }
 
