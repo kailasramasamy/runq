@@ -939,10 +939,21 @@ export class VmccBillService {
 
   /** Flip the cycle to paid once every line in it has been disbursed. */
   private async maybeCloseCycle(tx: Tx, cycleId: string): Promise<void> {
-    const [agg] = await tx.select({
+    // A cycle is fully settled only when BOTH sides are: no unpaid farmer lines
+    // (direct centres) AND no still-generated VMCC bills (pooled centres). A
+    // pooled cycle has zero farmer lines, so checking lines alone would flip it
+    // to 'paid' on the first bill payment while others are still owing.
+    const [lines] = await tx.select({
+      total: sql<number>`count(*)::int`,
       unpaid: sql<number>`count(*) filter (where ${mpPayoutLines.paidAt} is null)::int`,
     }).from(mpPayoutLines).where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
-    if ((agg?.unpaid ?? 0) === 0) {
+    const [bills] = await tx.select({
+      total: sql<number>`count(*)::int`,
+      pending: sql<number>`count(*) filter (where ${mpVmccBills.status} = 'generated')::int`,
+    }).from(mpVmccBills).where(and(eq(mpVmccBills.tenantId, this.tenantId), eq(mpVmccBills.payoutCycleId, cycleId)));
+    const settleable = (lines?.total ?? 0) + (bills?.total ?? 0) > 0;
+    const nothingOwing = (lines?.unpaid ?? 0) === 0 && (bills?.pending ?? 0) === 0;
+    if (settleable && nothingOwing) {
       await tx.update(mpPayoutCycles).set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() })
         .where(and(
           eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.id, cycleId), eq(mpPayoutCycles.status, 'locked'),

@@ -126,7 +126,11 @@ export function CyclesList() {
                       <TableCell className="text-right tabular-nums">{inr(net)}</TableCell>
                       <TableCell className="text-right tabular-nums text-xs text-zinc-500">{settled ? `${paidCount}/${totalCount}` : '—'}</TableCell>
                       <TableCell className="text-right tabular-nums font-medium">{settled && balance > 0 ? inr(balance) : '—'}</TableCell>
-                      <TableCell><Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge></TableCell>
+                      <TableCell>
+                        {c.status === 'locked' && paidCount > 0 && paidCount < totalCount
+                          ? <Badge variant="warning">Partially paid</Badge>
+                          : <Badge variant={STATUS_VARIANT[c.status]}>{c.status}</Badge>}
+                      </TableCell>
                     </TableRow>
                   );
                 })
