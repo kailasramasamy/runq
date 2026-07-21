@@ -228,7 +228,7 @@ function CreateCycleModal({ onClose, onCreated }: { onClose: () => void; onCreat
       { scopeNodeId: f.scopeNodeId, periodStart: f.periodStart, periodEnd: f.periodEnd },
       {
         onSuccess: (res) => { toast(`Cycle ${res.data.cycleNo} generated`, 'success'); onCreated(res.data.id); },
-        onError: () => toast('Failed — no recorded collections in this period/scope?', 'error'),
+        onError: (e) => toast(e instanceof Error ? e.message : 'Failed — no recorded collections in this period/scope?', 'error'),
       },
     );
   };

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable, uuid, varchar, decimal, date, timestamp, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -31,6 +32,13 @@ export const mpPayoutCycles = pgTable('mp_payout_cycles', {
 }, (t) => [
   uniqueIndex('uq_mp_cycle_no').on(t.tenantId, t.cycleNo),
   index('idx_mp_cycle_status').on(t.tenantId, t.status),
+  // One live cycle per (CC, period). A second cycle would double the farmer
+  // lines and the lock accrual; the app guard alone was racy (checked outside
+  // the insert txn). Excludes 'reversed' so a period can be re-cycled after a
+  // reversal.
+  uniqueIndex('uq_mp_cycle_scope_period')
+    .on(t.tenantId, t.scopeNodeId, t.periodStart, t.periodEnd)
+    .where(sql`${t.status} <> 'reversed'`),
 ]);
 
 /**

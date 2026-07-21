@@ -77,7 +77,10 @@ export function MpCycleDetailPage() {
       />
       <TotalsStrip cycle={cycle} billable={billableData?.data ?? []} />
       <Tabs active={tab} onChange={setTab}
-        tabs={[{ id: 'vmcc', label: 'VMCC bills' }, { id: 'farmers', label: 'Farmers' }]} />
+        tabs={[
+          { id: 'vmcc', label: 'VMCC bills', count: billableData?.data?.length ?? 0 },
+          { id: 'farmers', label: 'Farmers', count: cycle.lines.length },
+        ]} />
       {tab === 'vmcc'
         ? <VmccTab period={periodOf(cycle)} locked={cycle.status !== 'open'} ccNodeId={cycle.scopeNodeId} />
         : <FarmersTab cycle={cycle} />}

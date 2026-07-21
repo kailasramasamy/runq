@@ -775,8 +775,13 @@ export class VmccBillService {
         const created = await payout.createCycle({ scopeNodeId: ccNodeId, periodStart, periodEnd });
         cycle = created as MpPayoutCycleRow;
       } catch (e) {
-        if (e instanceof ConflictError) return null; // no recorded collections
-        throw e;
+        if (e instanceof ConflictError) {
+          // Either no recorded collections, or we lost a create race and a
+          // concurrent request already made this cycle. Re-fetch: if it now
+          // exists, use it (never a duplicate); otherwise it was genuinely empty.
+          cycle = await this.findScopedCycle(ccNodeId, periodStart, periodEnd);
+          if (!cycle) return null;
+        } else throw e;
       }
     }
     if (opts.lock && cycle.status === 'open') {

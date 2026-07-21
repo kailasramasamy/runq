@@ -275,38 +275,40 @@ export class PayoutService {
     const scopeIsCc = scopeNodeId ? await this.isCcNode(scopeNodeId) : false;
     if (!aggregates.length && !scopeIsCc) throw new ConflictError('No recorded collections in this period/scope');
     // Guard every caller (not just operators) against a duplicate cycle for the
-    // same scope+period — two cycles over one CC would double the farmer lines
-    // and the lock accrual. Scope-specific (not tenant-inclusive), so a CC cycle
-    // is never blocked by a legacy whole-tenant cycle during cutover.
-    if (scopeNodeId) {
-      const [dup] = await this.db.select({ cycleNo: mpPayoutCycles.cycleNo }).from(mpPayoutCycles).where(and(
-        eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.scopeNodeId, scopeNodeId),
-        ne(mpPayoutCycles.status, 'reversed'),
-        lte(mpPayoutCycles.periodStart, input.periodEnd), gte(mpPayoutCycles.periodEnd, input.periodStart),
-      )).limit(1);
-      if (dup) throw new ConflictError(`Cycle ${dup.cycleNo} already covers this centre and period`);
+    // same scope+period. Backed by the DB index uq_mp_cycle_scope_period against
+    // concurrent races (see the 23505 catch below).
+    if (scopeNodeId) await this.assertNoScopeOverlap(scopeNodeId, input.periodStart, input.periodEnd);
+    let cycleId: string;
+    try {
+      cycleId = await this.db.transaction(async (tx) => {
+        const cycleNo = await nextDocNo(tx, this.tenantId, 'cycle', input.periodStart, 'CYC');
+        const [cycle] = await tx.insert(mpPayoutCycles).values({
+          tenantId: this.tenantId, cycleNo, scopeNodeId: input.scopeNodeId ?? null,
+          periodStart: input.periodStart, periodEnd: input.periodEnd, status: 'open',
+        }).returning({ id: mpPayoutCycles.id });
+        for (const a of aggregates) {
+          const ded = await this.computeDeductions(a.farmerId, a.gross);
+          const statementNo = await nextDocNo(tx, this.tenantId, 'statement', input.periodStart, 'STM');
+          const [line] = await tx.insert(mpPayoutLines).values({
+            tenantId: this.tenantId, payoutCycleId: cycle!.id, farmerId: a.farmerId,
+            qtyLitres: String(a.qty), grossAmount: String(a.gross), bonusAmount: String(a.bonus),
+            deductionTotal: String(ded.total), netAmount: String(round2(a.gross - ded.total)), statementNo,
+          }).returning({ id: mpPayoutLines.id });
+          await this.insertDeductions(tx, line!.id, ded);
+        }
+        // Roll the header totals up from the lines so an open cycle shows its
+        // provisional Gross/Deductions/Net immediately (not just after lock).
+        await this.updateCycleTotals(tx, cycle!.id);
+        return cycle!.id;
+      });
+    } catch (e) {
+      // Lost the create race against a concurrent request — the DB unique index
+      // uq_mp_cycle_scope_period rejects the second insert. Surface it as the
+      // same 409 the pre-check raises rather than a raw 500.
+      const code = (e as { code?: string })?.code ?? (e as { cause?: { code?: string } })?.cause?.code;
+      if (code === '23505') throw new ConflictError('A cycle already covers this centre and period');
+      throw e;
     }
-    const cycleId = await this.db.transaction(async (tx) => {
-      const cycleNo = await nextDocNo(tx, this.tenantId, 'cycle', input.periodStart, 'CYC');
-      const [cycle] = await tx.insert(mpPayoutCycles).values({
-        tenantId: this.tenantId, cycleNo, scopeNodeId: input.scopeNodeId ?? null,
-        periodStart: input.periodStart, periodEnd: input.periodEnd, status: 'open',
-      }).returning({ id: mpPayoutCycles.id });
-      for (const a of aggregates) {
-        const ded = await this.computeDeductions(a.farmerId, a.gross);
-        const statementNo = await nextDocNo(tx, this.tenantId, 'statement', input.periodStart, 'STM');
-        const [line] = await tx.insert(mpPayoutLines).values({
-          tenantId: this.tenantId, payoutCycleId: cycle!.id, farmerId: a.farmerId,
-          qtyLitres: String(a.qty), grossAmount: String(a.gross), bonusAmount: String(a.bonus),
-          deductionTotal: String(ded.total), netAmount: String(round2(a.gross - ded.total)), statementNo,
-        }).returning({ id: mpPayoutLines.id });
-        await this.insertDeductions(tx, line!.id, ded);
-      }
-      // Roll the header totals up from the lines so an open cycle shows its
-      // provisional Gross/Deductions/Net immediately (not just after lock).
-      await this.updateCycleTotals(tx, cycle!.id);
-      return cycle!.id;
-    });
     return this.getCycle(cycleId);
   }
 
@@ -778,6 +780,20 @@ export class PayoutService {
     if (existing) {
       throw new ConflictError(`Cycle ${existing.cycleNo} already covers this node and period`);
     }
+  }
+
+  /**
+   * Like assertNoOverlap but scope-specific (not tenant-inclusive), so a CC
+   * cycle is never blocked by a legacy whole-tenant cycle during cutover. Two
+   * cycles over one CC would double the farmer lines and the lock accrual.
+   */
+  private async assertNoScopeOverlap(scopeNodeId: string, start: string, end: string): Promise<void> {
+    const [dup] = await this.db.select({ cycleNo: mpPayoutCycles.cycleNo }).from(mpPayoutCycles).where(and(
+      eq(mpPayoutCycles.tenantId, this.tenantId), eq(mpPayoutCycles.scopeNodeId, scopeNodeId),
+      ne(mpPayoutCycles.status, 'reversed'),
+      lte(mpPayoutCycles.periodStart, end), gte(mpPayoutCycles.periodEnd, start),
+    )).limit(1);
+    if (dup) throw new ConflictError(`Cycle ${dup.cycleNo} already covers this centre and period`);
   }
 
   private async requireStatus(id: string, status: MpPayoutCycleRow['status']): Promise<MpPayoutCycleRow> {
