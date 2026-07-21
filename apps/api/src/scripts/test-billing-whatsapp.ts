@@ -43,17 +43,18 @@ function isoOf(v: unknown): string {
   return v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
 }
 
-/** A VMCC with real priced-dispatch data (the VMCC bill's source). */
+/** A VMCC with real billable dispatch data. Must match drBaseConds (the VMCC
+ *  bill's source): kind vmcc_to_cc, direct_receive, status received. */
 async function findVmcc(pool: import('pg').Pool) {
   const scope = TENANT_ID ? 'and c.tenant_id = $1' : '';
   const { rows } = await pool.query(
     `select c.tenant_id, c.from_node_id as node_id, c.collection_date
      from mp_consignments c
-     join mp_nodes n on n.id = c.from_node_id and n.node_type = 'vmcc'
-     where c.receipt_qty > 0 and c.collection_date >= current_date - interval '150 days' ${scope}
+     where c.kind = 'vmcc_to_cc' and c.direct_receive = true and c.status = 'received'
+       and c.receipt_qty > 0 and c.collection_date >= current_date - interval '150 days' ${scope}
      order by c.collection_date desc limit 1`, TENANT_ID ? [TENANT_ID] : [],
   );
-  if (!rows.length) throw new Error('No recent VMCC dispatches (mp_consignments) to build a bill from.');
+  if (!rows.length) throw new Error('No recent billable VMCC receipts (vmcc_to_cc, direct_receive, received) to build a bill from.');
   return { tenantId: rows[0].tenant_id as string, nodeId: rows[0].node_id as string, ...halfMonth(isoOf(rows[0].collection_date)) };
 }
 
