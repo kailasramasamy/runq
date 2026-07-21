@@ -429,9 +429,11 @@ export class VmccBillService {
   }
 
   /** Billable VMCCs whose commission is already booked as a manual operator payout
-   *  for an overlapping period — pay() is blocked by the double-pay guard. */
+   *  for an overlapping period — pay() is blocked by the double-pay guard. Skips
+   *  paid bills: their operator payout was recorded by that very payment, so it's
+   *  the bill's own record, not a separate manual one to reverse. */
   private async checkOperatorOverlap(billable: BillableVmcc[], from: string, to: string): Promise<SanityIssue[]> {
-    const nameById = new Map(billable.filter((b) => b.total > 0).map((b) => [b.vmccNodeId, b.vmccName]));
+    const nameById = new Map(billable.filter((b) => b.total > 0 && b.bill?.status !== 'paid').map((b) => [b.vmccNodeId, b.vmccName]));
     if (!nameById.size) return [];
     const rows = await this.db.selectDistinct({ nodeId: mpOperatorPayouts.nodeId }).from(mpOperatorPayouts).where(and(
       eq(mpOperatorPayouts.tenantId, this.tenantId), inArray(mpOperatorPayouts.nodeId, [...nameById.keys()]),
