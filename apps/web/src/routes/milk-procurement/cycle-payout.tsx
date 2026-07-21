@@ -4,7 +4,7 @@ import { ArrowLeft, Download, Receipt } from 'lucide-react';
 import { sharePdf } from '@/lib/share-pdf';
 import {
   PageHeader, Card, CardContent, Button, Badge, Modal, Input, Combobox, EmptyState,
-  Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, useToast,
+  Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, useToast, CopyableAmount,
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import {
@@ -252,7 +252,9 @@ function FarmerLineRow({ line, cycle, canPay, onPay }: {
       <TableCell className="text-right tabular-nums">{line.qtyLitres}</TableCell>
       <TableCell className="text-right tabular-nums">₹{line.grossAmount}</TableCell>
       <TableCell className="text-right tabular-nums">₹{line.deductionTotal}</TableCell>
-      <TableCell className="text-right font-medium tabular-nums">₹{line.netAmount}</TableCell>
+      <TableCell className="text-right font-medium">
+        <CopyableAmount display={`₹${line.netAmount}`} copyValue={line.netAmount} />
+      </TableCell>
       <TableCell><LineStatus line={line} /></TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">

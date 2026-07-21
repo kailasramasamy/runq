@@ -6,7 +6,7 @@ import { CyclesList, LedgerCard, OperatorsPayoutTab } from './payouts';
 import {
   PageHeader, Card, CardContent, StatsCard, Combobox, Modal, Input, DateInput,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, Button, EmptyState, Skeleton,
-  useToast,
+  useToast, CopyableAmount,
 } from '@/components/ui';
 import {
   useBillableVmccs, useGenerateVmccBills, usePayVmccBill, useReverseVmccBill,
@@ -216,7 +216,9 @@ function BillRow({ row, onPay, onReverse, onView }: {
           </div>
         )}
       </TableCell>
-      <TableCell className="text-right font-medium tabular-nums">{inr(row.total)}</TableCell>
+      <TableCell className="text-right font-medium">
+        <CopyableAmount display={inr(row.total)} copyValue={String(Math.round(row.total))} />
+      </TableCell>
       <TableCell>{billBadge(row)}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
