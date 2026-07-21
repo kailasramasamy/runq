@@ -68,3 +68,15 @@ export const vmccBillablePreviewSchema = billingPeriodSchema.extend({
 });
 
 export type VmccBillablePreviewQuery = z.infer<typeof vmccBillablePreviewSchema>;
+
+/** Filter the unified payment history (VMCC bills + farmer settlements + operator
+ *  payouts). `search` matches payee / code / reference / cycle no / recorded-by. */
+export const mpPaymentHistoryFilterSchema = z.object({
+  type: z.enum(['vmcc_bill', 'farmer', 'operator']).optional(),
+  paymentMode: z.enum(['bank_transfer', 'upi', 'cash', 'cheque', 'other']).optional(),
+  dateFrom: z.string().date().optional(),
+  dateTo: z.string().date().optional(),
+  search: z.string().trim().max(120).optional(),
+});
+
+export type MpPaymentHistoryFilter = z.infer<typeof mpPaymentHistoryFilterSchema>;

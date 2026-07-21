@@ -1,11 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   generateVmccBillsSchema, payVmccBillSchema, settleOperatorSchema, vmccBillFilterSchema,
-  vmccBillablePreviewSchema, vmccBillDetailSchema, paginationSchema, uuidParamSchema,
+  vmccBillablePreviewSchema, vmccBillDetailSchema, mpPaymentHistoryFilterSchema,
+  paginationSchema, uuidParamSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { VmccBillService } from './vmcc-bill.service';
+import { MpPaymentHistoryService } from './payment-history.service';
 import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './statement-template';
 import { resolveMpPrincipal } from './access-scope';
 import { sendVmccBillWhatsApp } from './mp-bill-notify';
@@ -87,6 +89,16 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     const filters = vmccBillFilterSchema.parse(request.query);
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
+    return service.list(filters, { page: pagination.page, limit: pagination.limit }, principal);
+  });
+
+  // Unified payment audit trail: paid VMCC bills + farmer settlements + operator
+  // payouts, with who recorded each. Searchable + filterable + paginated.
+  app.get('/payments', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const pagination = paginationSchema.parse(request.query);
+    const filters = mpPaymentHistoryFilterSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new MpPaymentHistoryService(request.server.db, request.tenantId);
     return service.list(filters, { page: pagination.page, limit: pagination.limit }, principal);
   });
 

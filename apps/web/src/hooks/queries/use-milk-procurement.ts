@@ -909,6 +909,26 @@ export function useVmccBills(filters?: { cycleId?: string; ccNodeId?: string; st
     queryFn: () => api.get<PaginatedResponse<MpVmccBillListRow>>(`${BASE}/billing/bills${qs({ ...filters })}`),
   });
 }
+
+// ── payment history ─────────────────────────────────────────────────────────
+export type MpPaymentKind = 'vmcc_bill' | 'farmer' | 'operator';
+export interface MpPaymentHistoryRow {
+  id: string; kind: MpPaymentKind; date: string;
+  payee: string; payeeCode: string | null; context: string | null;
+  cycleNo: string | null; amount: string;
+  paymentMode: string | null; reference: string | null; recordedBy: string | null;
+}
+export interface MpPaymentHistoryFilters {
+  type?: MpPaymentKind; paymentMode?: string; dateFrom?: string; dateTo?: string; search?: string;
+}
+export function useMpPayments(filters: MpPaymentHistoryFilters, page = 1, limit = 25) {
+  return useQuery({
+    queryKey: ['mp', 'payments', filters, page, limit],
+    queryFn: () => api.get<PaginatedResponse<MpPaymentHistoryRow>>(
+      `${BASE}/billing/payments${qs({ ...filters, page, limit })}`,
+    ),
+  });
+}
 function invalidateBills(c: ReturnType<typeof useQueryClient>) {
   c.invalidateQueries({ queryKey: ['mp', 'vmcc-bills'] });
   c.invalidateQueries({ queryKey: ['mp', 'cycles'] });
