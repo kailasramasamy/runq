@@ -77,16 +77,19 @@ export class CategorizePostingService {
    * CR: categorized GL account (refund recovery, miscellaneous income, etc.)
    *
    * Refuses to post when the credit GL is Accounts Receivable (1103) or
-   * a revenue account (4xxx) — those represent customer payments, which
-   * must flow through AutoReceiptService so a receipt + allocations are
-   * created. Posting them here would either double-count revenue or leave
-   * AR untouched while the customer's invoices stay open.
+   * operating revenue (4000–4199: sales/service/export) — those represent
+   * customer payments, which must flow through AutoReceiptService so a receipt
+   * + allocations are created. Posting them here would either double-count
+   * sales or leave AR untouched while the customer's invoices stay open.
+   * Non-operating Other Income (4200–4299: interest, rent, commission, capital
+   * gains, misc) is not a customer sale, so it posts directly from here.
    */
   async postBankCredit(params: PostBankTxnParams): Promise<string | null> {
-    // Customer payments must flow through AutoReceiptService so a receipt +
-    // allocations are created; CR'ing AR or revenue from here either leaves
-    // AR untouched (invoices stay open) or double-counts revenue.
-    if (this.isCustomerPaymentAccount(params.glAccountCode)) return null;
+    // Operating-revenue / AR credits must flow through AutoReceiptService so a
+    // receipt + allocations are created; posting them here either leaves AR
+    // untouched (invoices stay open) or double-counts sales. Other Income is
+    // exempt — see mustFlowThroughReceipt.
+    if (this.mustFlowThroughReceipt(params.glAccountCode)) return null;
     if (await this.isAlreadyPosted('bank_credit', params.transactionId)) return null;
 
     const entry = await this.gl.createJournalEntry({
@@ -135,8 +138,14 @@ export class CategorizePostingService {
     await this.gl.deletePostingsFor(type === 'credit' ? 'bank_credit' : 'bank_debit', transactionId);
   }
 
-  private isCustomerPaymentAccount(code: string): boolean {
-    return code === '1103' || /^4\d{3}$/.test(code);
+  /**
+   * True for accounts whose bank credits must be booked via a receipt, not a
+   * direct categorize JE: Accounts Receivable (1103) and operating revenue
+   * (4000–4199). Non-operating Other Income (4200–4299) returns false so it
+   * can be categorized directly (e.g. capital gains, interest, rent).
+   */
+  private mustFlowThroughReceipt(code: string): boolean {
+    return code === '1103' || /^4[01]\d{2}$/.test(code);
   }
 
   private async isAlreadyPosted(sourceType: string, transactionId: string): Promise<boolean> {
