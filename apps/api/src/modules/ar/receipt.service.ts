@@ -72,8 +72,25 @@ export class ReceiptService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
+
+    // Allocated total per receipt (for the on-page rows) so the list can show
+    // fully/partially/un-allocated status without fetching each receipt.
+    const receiptIds = rows.map((r) => r.receipt.id);
+    const allocByReceipt = new Map<string, number>();
+    if (receiptIds.length > 0) {
+      const sums = await this.db
+        .select({ receiptId: receiptAllocations.receiptId, total: sql<string>`sum(${receiptAllocations.amount})` })
+        .from(receiptAllocations)
+        .where(inArray(receiptAllocations.receiptId, receiptIds))
+        .groupBy(receiptAllocations.receiptId);
+      for (const s of sums) allocByReceipt.set(s.receiptId, toNumber(s.total));
+    }
+
     return {
-      data: rows.map((r) => ({ ...this.toReceipt(r.receipt), customerName: r.customerName })),
+      data: rows.map((r) => ({
+        ...this.toReceipt(r.receipt, allocByReceipt.get(r.receipt.id) ?? 0),
+        customerName: r.customerName,
+      })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
   }
@@ -105,8 +122,10 @@ export class ReceiptService {
       .innerJoin(salesInvoices, eq(receiptAllocations.invoiceId, salesInvoices.id))
       .where(eq(receiptAllocations.receiptId, id));
 
+    const allocatedAmount = allocRows.reduce((sum, r) => sum + toNumber(r.amount), 0);
+
     return {
-      ...this.toReceipt(row.receipt),
+      ...this.toReceipt(row.receipt, allocatedAmount),
       customerName: row.customerName,
       allocations: allocRows.map((r) => ({
         id: r.id,
@@ -383,7 +402,7 @@ export class ReceiptService {
     return rows;
   }
 
-  private toReceipt(row: typeof paymentReceipts.$inferSelect): PaymentReceipt {
+  private toReceipt(row: typeof paymentReceipts.$inferSelect, allocatedAmount = 0): PaymentReceipt {
     return {
       id: row.id,
       tenantId: row.tenantId,
@@ -395,6 +414,7 @@ export class ReceiptService {
       referenceNumber: row.referenceNumber ?? null,
       notes: row.notes ?? null,
       isOnAccount: row.isOnAccount,
+      allocatedAmount,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

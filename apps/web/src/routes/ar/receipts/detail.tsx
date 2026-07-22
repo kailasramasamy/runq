@@ -2,6 +2,7 @@ import { useNavigate, useRouter } from '@tanstack/react-router';
 import { ArrowDownToLine, ArrowLeft } from 'lucide-react';
 import { useReceipt } from '../../../hooks/queries/use-receipts';
 import { RemittanceAllocator } from './remittance-allocator';
+import { ReceiptAllocationBadge, receiptAllocation } from './allocation-status';
 import { useBankAccounts } from '../../../hooks/queries/use-bank-accounts';
 import type { ReceiptAllocationDetail } from '../../../hooks/queries/use-receipts';
 import { formatINR } from '../../../lib/utils';
@@ -86,6 +87,8 @@ export function ReceiptDetailPage({ receiptId }: Props) {
     return <p className="text-sm text-red-500">Receipt not found.</p>;
   }
 
+  const alloc = receiptAllocation(receipt);
+
   return (
     <div className="max-w-3xl">
       <PageHeader
@@ -114,6 +117,15 @@ export function ReceiptDetailPage({ receiptId }: Props) {
               <p className="mt-0.5 text-3xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                 {formatINR(receipt.amount)}
               </p>
+              <div className="mt-2 flex flex-col gap-1">
+                <ReceiptAllocationBadge receipt={receipt} />
+                <p className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                  Allocated {formatINR(alloc.allocated)} of {formatINR(receipt.amount)}
+                  {alloc.unallocated > 0.01 && (
+                    <span className="text-amber-600 dark:text-amber-400"> · {formatINR(alloc.unallocated)} on-account</span>
+                  )}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

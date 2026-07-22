@@ -3,6 +3,7 @@ import { ListChecks } from 'lucide-react';
 import { useInvoices } from '../../../hooks/queries/use-invoices';
 import { useUpdateReceiptAllocations } from '../../../hooks/queries/use-receipts';
 import type { ReceiptWithAllocations } from '../../../hooks/queries/use-receipts';
+import { receiptAllocation } from './allocation-status';
 import { formatINR } from '../../../lib/utils';
 import {
   Card, CardHeader, CardContent, Button, Textarea, Badge,
@@ -85,13 +86,14 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
   }
 
   const remainder = receipt.amount - allocSum;
+  const fullyAllocated = receiptAllocation(receipt).status === 'allocated';
 
   return (
     <Card>
       <CardHeader
         title="Allocate from remittance"
         action={<Button variant={open ? 'ghost' : 'outline'} size="sm" onClick={() => setOpen((o) => !o)}>
-          <ListChecks size={14} /> {open ? 'Close' : 'Paste remittance'}
+          <ListChecks size={14} /> {open ? 'Close' : fullyAllocated ? 'Re-allocate' : 'Paste remittance'}
         </Button>}
       />
       {open && (

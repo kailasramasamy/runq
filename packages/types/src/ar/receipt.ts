@@ -9,6 +9,9 @@ export interface PaymentReceipt {
   referenceNumber: string | null;
   notes: string | null;
   isOnAccount: boolean;
+  /** Sum of this receipt's allocations to invoices. `amount − allocatedAmount`
+   *  is the unallocated (on-account) remainder. */
+  allocatedAmount: number;
   createdAt: string;
   updatedAt: string;
 }

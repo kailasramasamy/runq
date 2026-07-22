@@ -12,6 +12,7 @@ import {
   Pagination, EmptyState, formatDate,
 } from '@/components/ar/primitives';
 import { useIsReadOnly } from '@/providers/auth-provider';
+import { ReceiptAllocationBadge } from './allocation-status';
 
 const METHOD_OPTIONS = [
   { value: '', label: 'All payment methods' },
@@ -154,6 +155,7 @@ export function ReceiptListPage() {
             <Th>Customer</Th>
             <Th>Method</Th>
             <Th>Reference</Th>
+            <Th>Allocation</Th>
             <Th align="right">Amount</Th>
             <Th align="right" />
           </tr>
@@ -162,7 +164,7 @@ export function ReceiptListPage() {
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 6 }).map((__, j) => (
+                {Array.from({ length: 7 }).map((__, j) => (
                   <TableCell key={j}>
                     <div className="h-3 w-full max-w-[120px] animate-pulse rounded" style={{ background: 'var(--surface-2)' }} />
                   </TableCell>
@@ -171,7 +173,7 @@ export function ReceiptListPage() {
             ))
           ) : receipts.length === 0 ? (
             <tr>
-              <td colSpan={6}>
+              <td colSpan={7}>
                 <EmptyState
                   icon={<ArrowDownToLine size={18} />}
                   title="No receipts found"
@@ -198,6 +200,9 @@ export function ReceiptListPage() {
               <TableCell><PaymentMethodBadge method={r.paymentMethod} /></TableCell>
               <TableCell numeric style={{ color: 'var(--text-2)' }}>
                 {r.referenceNumber ?? <span style={{ color: 'var(--text-3)' }}>—</span>}
+              </TableCell>
+              <TableCell>
+                <ReceiptAllocationBadge receipt={r} />
               </TableCell>
               <TableCell align="right" numeric className="font-semibold" style={{ color: 'var(--pos)' }}>
                 {formatINR(r.amount)}
