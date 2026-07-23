@@ -173,6 +173,11 @@ export class AutoBillPayService {
   }
 
   private async findExistingBill(params: AutoBillPayParams): Promise<{ id: string; balanceDue: string } | null> {
+    // Only settle bills that are approved for payment. A draft / pending_match /
+    // matched bill hasn't been signed off yet — auto-paying it from a bank txn
+    // would clear a liability nobody has approved.
+    const isPayable = sql`${purchaseInvoices.status} IN ('approved', 'partially_paid')`;
+
     // First try exact amount match within 30 days
     const [exact] = await this.db
       .select({ id: purchaseInvoices.id, balanceDue: purchaseInvoices.balanceDue })
@@ -182,12 +187,13 @@ export class AutoBillPayService {
         eq(purchaseInvoices.vendorId, params.vendorId),
         sql`ABS(${purchaseInvoices.totalAmount}::numeric - ${params.amount}) < 0.01`,
         sql`${purchaseInvoices.balanceDue}::numeric > 0`,
+        isPayable,
         sql`ABS(${purchaseInvoices.invoiceDate}::date - ${params.transactionDate}::date) <= 30`,
       ))
       .limit(1);
     if (exact) return exact;
 
-    // Then check for any unpaid bill from this vendor (covers OB partial payments)
+    // Then check for any approved unpaid bill from this vendor (covers OB partial payments)
     const [any] = await this.db
       .select({ id: purchaseInvoices.id, balanceDue: purchaseInvoices.balanceDue })
       .from(purchaseInvoices)
@@ -195,7 +201,7 @@ export class AutoBillPayService {
         eq(purchaseInvoices.tenantId, this.tenantId),
         eq(purchaseInvoices.vendorId, params.vendorId),
         sql`${purchaseInvoices.balanceDue}::numeric > 0`,
-        sql`${purchaseInvoices.status} NOT IN ('cancelled', 'draft')`,
+        isPayable,
       ))
       .orderBy(purchaseInvoices.invoiceDate)
       .limit(1);
