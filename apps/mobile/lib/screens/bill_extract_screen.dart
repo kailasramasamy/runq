@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
 import '../providers/data_providers.dart';
+import '../providers/hr_providers.dart';
 import '../services/bill_intake.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
@@ -168,7 +169,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
     return result == true;
   }
 
-  Future<void> _commit() async {
+  Future<void> _commit({bool approve = false}) async {
     final ai = _aiOriginal;
     final edited = _edited;
     if (ai == null || edited == null) return;
@@ -176,7 +177,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
     if (!mounted) return;
     setState(() => _committing = true);
     try {
-      await billsRepo.commitScan(
+      final res = await billsRepo.commitScan(
         edited.toJson(),
         vendorId: ai.vendorMatch?.id,
         // Keep AI's raw output immutable so the server can compute the
@@ -185,13 +186,29 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
         // Bind the file the server already staged in S3 to this bill.
         extractionId: ai.extractionId,
       );
+      // Owners can approve straight from review — post the draft, then flip it
+      // to approved (GL-posted). A no-PO scanned bill approves directly; if a
+      // workflow gate blocks it, the draft is still safe on the server.
+      final billId = res['billId'] as String?;
+      var msg = 'Bill saved as draft';
+      var kind = SnackKind.success;
+      if (approve && billId != null) {
+        try {
+          await billsRepo.approve(billId);
+          msg = 'Bill approved';
+        } on ApiException catch (e) {
+          msg = 'Saved as draft — approval failed: ${e.message}';
+          kind = SnackKind.error;
+        }
+      }
       if (!mounted) return;
       ref.invalidate(billsProvider);
       ref.invalidate(billsSummaryProvider);
       ref.invalidate(dashboardSummaryProvider);
       ref.invalidate(activityProvider);
-      showRunqSnack(context, 'Bill saved as draft', kind: SnackKind.success);
-      context.pop();
+      showRunqSnack(context, msg, kind: kind);
+      // Land on the purchases → bills list so the new bill is in context.
+      context.pushReplacement('/purchases/bills');
     } on ApiException catch (e) {
       if (!mounted) return;
       // Surface field-path validation errors so the user knows where to look.
@@ -220,6 +237,9 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Approval is owner-only on the backend; only expose the button to owners
+    // so accountants aren't offered an action that would 403.
+    final isOwner = ref.watch(hrMeProvider).valueOrNull?.systemRole == 'owner';
     return Scaffold(
       body: switch (step) {
         _Step.extracting => const _Extracting(),
@@ -230,6 +250,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
             duplicates: _duplicates,
             checkingDuplicates: _checkingDuplicates,
             onCommit: _commit,
+            onApprove: isOwner ? () => _commit(approve: true) : null,
             onRetake: () {
               // Dispose the current editable state so controllers don't leak,
               // then re-run extraction on the same source file. Works
@@ -527,6 +548,7 @@ class _Review extends StatelessWidget {
   final List<DuplicateMatch> duplicates;
   final bool checkingDuplicates;
   final VoidCallback onCommit, onRetake, onChange;
+  final VoidCallback? onApprove;
   const _Review({
     required this.ai,
     required this.edited,
@@ -536,6 +558,7 @@ class _Review extends StatelessWidget {
     required this.onCommit,
     required this.onRetake,
     required this.onChange,
+    this.onApprove,
   });
 
   @override
@@ -603,8 +626,8 @@ class _Review extends StatelessWidget {
             committing: committing,
             disabled: hasErrors,
             onSave: onCommit,
+            onApprove: onApprove,
             onRetake: onRetake,
-            onCancel: () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -1277,65 +1300,66 @@ class _DateInputState extends State<_DateInput> {
 
 class _ReviewFooter extends StatelessWidget {
   final bool committing, disabled;
-  final VoidCallback onSave, onRetake, onCancel;
+  final VoidCallback onSave, onRetake;
+  // Non-null only for owners — drives the primary "Approve bill" action.
+  final VoidCallback? onApprove;
   const _ReviewFooter({
     required this.committing,
     required this.disabled,
     required this.onSave,
     required this.onRetake,
-    required this.onCancel,
+    this.onApprove,
   });
+
+  OutlinedButton _secondary(RunqTokens t, {required IconData icon, required String label, required VoidCallback? onPressed}) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: t.muted.withValues(alpha: 0.45), width: 1),
+        foregroundColor: t.ink,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(height: 1.0)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final canApprove = onApprove != null;
+    final gate = committing || disabled;
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
         border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
       ),
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Primary: owners approve straight from review; others save a draft.
           SizedBox(
+            width: double.infinity,
             height: 48,
-            child: TextButton(
-              onPressed: committing ? null : onCancel,
-              style: TextButton.styleFrom(
-                foregroundColor: t.muted,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-              child: const Text('Cancel', style: TextStyle(height: 1.0)),
+            child: FilledButton.icon(
+              onPressed: gate ? null : (canApprove ? onApprove : onSave),
+              icon: committing
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Icon(canApprove ? Icons.verified_rounded : Icons.check_rounded, size: 18),
+              label: Text(canApprove ? 'Approve bill' : 'Save bill', style: const TextStyle(height: 1.0)),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: committing ? null : onRetake,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: t.muted.withValues(alpha: 0.45), width: 1),
-                  foregroundColor: t.ink,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Rescan', style: TextStyle(height: 1.0)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: FilledButton.icon(
-                onPressed: committing || disabled ? null : onSave,
-                icon: committing
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check_rounded, size: 18),
-                label: const Text('Save bill', style: TextStyle(height: 1.0)),
-              ),
-            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: SizedBox(height: 46, child: _secondary(t, icon: Icons.refresh_rounded, label: 'Rescan', onPressed: committing ? null : onRetake))),
+              // Owners keep a draft escape hatch for incomplete bills.
+              if (canApprove) ...[
+                const SizedBox(width: 10),
+                Expanded(child: SizedBox(height: 46, child: _secondary(t, icon: Icons.drafts_outlined, label: 'Save draft', onPressed: gate ? null : onSave))),
+              ],
+            ],
           ),
         ],
       ),
