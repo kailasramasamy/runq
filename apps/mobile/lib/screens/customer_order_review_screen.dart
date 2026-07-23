@@ -455,11 +455,26 @@ class _CustomerCard extends StatelessWidget {
                   ],
                 ),
               ],
+              if (detail.poDate != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text('PO date', style: RunqText.caption.copyWith(color: t.muted)),
+                    const SizedBox(width: 6),
+                    Text(_fmtPoDate(detail.poDate!), style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  static String _fmtPoDate(DateTime d) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 }
 

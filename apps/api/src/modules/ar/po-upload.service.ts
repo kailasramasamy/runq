@@ -30,6 +30,9 @@ interface CreateFromFileParams {
   // the parser reads the layout locally and skips the AI vision fallback.
   rawText?: string | null;
   uploadedBy?: string | null;
+  // Supersede an existing (un-approved) upload of the same file instead of
+  // rejecting it as a duplicate. Set by the "Replace" action on the client.
+  replace?: boolean;
 }
 
 interface CreateFromTextParams {
@@ -62,7 +65,11 @@ export class PoUploadService {
     }
 
     const fileHash = createHash('sha256').update(params.buffer).digest('hex');
-    await this.assertNotDuplicate(fileHash);
+    if (params.replace) {
+      await this.supersedeDuplicate(fileHash);
+    } else {
+      await this.assertNotDuplicate(fileHash);
+    }
 
     // Reserve the id so the storage key includes it (matches AttachmentService convention).
     const id = randomUUID();
@@ -231,6 +238,40 @@ export class PoUploadService {
         { duplicateOfUploadId: existing.id, status: existing.status },
       );
     }
+  }
+
+  /**
+   * "Replace" path: discard the live duplicate of this file so the fresh
+   * upload can proceed. Refuses when the existing PO was already approved
+   * into an invoice — discarding it would orphan that invoice and let a
+   * duplicate invoice be created. Callers should point the user at the
+   * existing record instead (duplicateOfUploadId is returned for that).
+   */
+  private async supersedeDuplicate(fileHash: string): Promise<void> {
+    const [existing] = await this.db
+      .select({ id: poUploads.id, status: poUploads.status, fileName: poUploads.fileName })
+      .from(poUploads)
+      .where(and(
+        eq(poUploads.tenantId, this.tenantId),
+        eq(poUploads.fileHash, fileHash),
+        notInArray(poUploads.status, ['discarded'] as PoUploadStatus[]),
+      ))
+      .limit(1);
+    if (!existing) return; // Nothing to replace — proceed as a fresh upload.
+
+    const [draft] = await this.db
+      .select({ approvedInvoiceId: poDrafts.approvedInvoiceId })
+      .from(poDrafts)
+      .where(and(eq(poDrafts.poUploadId, existing.id), eq(poDrafts.tenantId, this.tenantId)))
+      .limit(1);
+    if (draft?.approvedInvoiceId) {
+      throw new ConflictError(
+        `This PO has already been approved into an invoice and can't be replaced${existing.fileName ? ` (${existing.fileName})` : ''}. Open the existing PO instead.`,
+        { duplicateOfUploadId: existing.id, status: existing.status, approvedInvoiceId: draft.approvedInvoiceId },
+      );
+    }
+
+    await this.discard(existing.id);
   }
 
   /**

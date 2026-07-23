@@ -24,6 +24,9 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
   _Step _step = _Step.uploading;
   String? _uploadId;
   String? _errorMessage;
+  // Set when the failure is a duplicate PO — enables the "View existing" and
+  // "Replace" actions on the error card. Holds the existing upload's id.
+  String? _duplicateUploadId;
   Timer? _poll;
 
   @override
@@ -38,9 +41,9 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
     super.dispose();
   }
 
-  Future<void> _start() async {
+  Future<void> _start({bool replace = false}) async {
     try {
-      final upload = await orderRepo.upload(widget.file, source: widget.source);
+      final upload = await orderRepo.upload(widget.file, source: widget.source, replace: replace);
       if (!mounted) return;
       setState(() {
         _uploadId = upload.id;
@@ -48,10 +51,20 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
       });
       _scheduleNextPoll();
     } on ApiException catch (e) {
-      _failWith(e.message);
+      _failWith(e.message, duplicateUploadId: _duplicateIdFrom(e));
     } catch (_) {
       _failWith('Could not upload the order. Try again.');
     }
+  }
+
+  /// A duplicate-PO 409 carries the existing upload's id in `details`.
+  String? _duplicateIdFrom(ApiException e) {
+    if (e.statusCode != 409) return null;
+    final details = e.body?['details'];
+    if (details is Map && details['duplicateOfUploadId'] is String) {
+      return details['duplicateOfUploadId'] as String;
+    }
+    return null;
   }
 
   void _scheduleNextPoll() {
@@ -93,11 +106,12 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
     }
   }
 
-  void _failWith(String message) {
+  void _failWith(String message, {String? duplicateUploadId}) {
     if (!mounted) return;
     setState(() {
       _step = _Step.error;
       _errorMessage = message;
+      _duplicateUploadId = duplicateUploadId;
     });
   }
 
@@ -110,9 +124,28 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
     setState(() {
       _uploadId = null;
       _errorMessage = null;
+      _duplicateUploadId = null;
       _step = _Step.uploading;
     });
     _start();
+  }
+
+  /// Open the PO that already exists for this file (its review screen, which
+  /// links to the invoice if it was already approved).
+  void _openExisting() {
+    final id = _duplicateUploadId;
+    if (id == null) return;
+    context.pushReplacement('/sales/orders/$id');
+  }
+
+  /// Supersede the existing un-approved PO with this file and re-import.
+  void _replace() {
+    setState(() {
+      _errorMessage = null;
+      _duplicateUploadId = null;
+      _step = _Step.uploading;
+    });
+    _start(replace: true);
   }
 
   @override
@@ -134,7 +167,12 @@ class _CustomerOrderProcessingScreenState extends ConsumerState<CustomerOrderPro
                   style: RunqText.caption.copyWith(color: t.muted)),
               const SizedBox(height: 28),
               if (_step == _Step.error)
-                _ErrorCard(message: _errorMessage ?? 'Something went wrong.', onRetry: _retry)
+                _ErrorCard(
+                  message: _errorMessage ?? 'Something went wrong.',
+                  onRetry: _retry,
+                  onOpenExisting: _duplicateUploadId != null ? _openExisting : null,
+                  onReplace: _duplicateUploadId != null ? _replace : null,
+                )
               else
                 _StepsCard(step: _step),
             ],
@@ -282,11 +320,16 @@ class _Indicator extends StatelessWidget {
 class _ErrorCard extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorCard({required this.message, required this.onRetry});
+  // Non-null only for a duplicate-PO error: navigate to the existing PO and
+  // re-import over the old one, respectively.
+  final VoidCallback? onOpenExisting;
+  final VoidCallback? onReplace;
+  const _ErrorCard({required this.message, required this.onRetry, this.onOpenExisting, this.onReplace});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final isDuplicate = onOpenExisting != null;
     return RunqCard(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
@@ -304,15 +347,37 @@ class _ErrorCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: RunqColors.indigo,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+          if (isDuplicate) ...[
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: RunqColors.indigo,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: onOpenExisting,
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: const Text('View existing PO'),
             ),
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Try again'),
-          ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: t.ink,
+                side: BorderSide(color: t.muted.withValues(alpha: 0.45), width: 1),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: onReplace,
+              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+              label: const Text('Replace with this file'),
+            ),
+          ] else
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: RunqColors.indigo,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try again'),
+            ),
         ],
       ),
     );

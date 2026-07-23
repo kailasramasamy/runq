@@ -679,10 +679,11 @@ Map<String, dynamic>? _safeJson(String s) {
 }
 
 class OrderRepo {
-  Future<PoUpload> upload(File file, {String source = 'share_sheet', Map<String, dynamic>? sourceMetadata}) async {
+  Future<PoUpload> upload(File file, {String source = 'share_sheet', Map<String, dynamic>? sourceMetadata, bool replace = false}) async {
     final mime = _guessMime(file.path);
     final fields = <String, String>{'source': source};
     if (sourceMetadata != null) fields['sourceMetadata'] = jsonEncode(sourceMetadata);
+    if (replace) fields['replace'] = 'true';
     // Photos of a PO can be read on-device (Apple Vision / ML Kit) and sent as
     // text so the server parses them locally — the AI vision fallback only runs
     // when OCR is too sparse. PDFs/spreadsheets already parse server-side.

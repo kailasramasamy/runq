@@ -71,6 +71,11 @@ export const poUploadRoutes: FastifyPluginAsync = async (app) => {
       const ocrField = file.fields.ocrText as { value?: string } | undefined;
       const rawText = ocrField?.value?.trim() || null;
 
+      // "Replace" action: supersede an existing un-approved upload of the
+      // same file instead of rejecting it as a duplicate.
+      const replaceField = file.fields.replace as { value?: string } | undefined;
+      const replace = replaceField?.value === 'true';
+
       const service = new PoUploadService(
         request.server.db,
         request.tenantId,
@@ -84,6 +89,7 @@ export const poUploadRoutes: FastifyPluginAsync = async (app) => {
         source: sourceValue as 'share_sheet' | 'web_drop' | 'web_upload' | 'paste_image',
         sourceMetadata,
         rawText,
+        replace,
         uploadedBy: request.user!.userId,
       });
 

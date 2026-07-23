@@ -510,10 +510,12 @@ class _OrderRow extends StatelessWidget {
     final diff = now.difference(d);
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    // Keep the relative "Nh ago" only within the day; anything older reads as
+    // the actual date (with year when it's not this year) rather than "Nd ago".
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${d.day} ${months[d.month - 1]}';
+    final date = '${d.day} ${months[d.month - 1]}';
+    return d.year == now.year ? date : '$date ${d.year}';
   }
 }
 

@@ -133,19 +133,23 @@ class ApiClient {
       if (res.body.isEmpty) return null;
       return jsonDecode(res.body);
     }
+    Map<String, dynamic>? errBody;
     String message = 'Upload failed (${res.statusCode})';
+    String? code;
     try {
       final decoded = jsonDecode(res.body);
       if (decoded is Map<String, dynamic>) {
+        errBody = decoded;
         final err = decoded['error'];
-        if (err is Map<String, dynamic> && err['message'] is String) {
-          message = err['message'] as String;
+        if (err is Map<String, dynamic>) {
+          message = (err['message'] as String?) ?? message;
+          code = err['code'] as String?;
         } else if (decoded['message'] is String) {
           message = decoded['message'] as String;
         }
       }
     } catch (_) {}
-    throw ApiException(statusCode: res.statusCode, message: message);
+    throw ApiException(statusCode: res.statusCode, message: message, code: code, body: errBody);
   }
 
   Future<dynamic> post(String path, [Object? body]) => _send('POST', path, body);
