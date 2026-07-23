@@ -53,17 +53,25 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
       const inv = invByNum.get(l.number);
       if (!inv) return { ...l, ok: false, reason: 'Invoice not found' };
       const headroom = Number(inv.balanceDue) + (ownAlloc.get(l.number) ?? 0);
-      if (l.amount - headroom > 0.01) return { ...l, invoiceId: inv.id, headroom, ok: false, reason: `Exceeds available ${formatINR(headroom)}` };
+      // A remittance line routinely states a few paise more than the invoice
+      // balance (the customer's own rounding). Accept up to ₹1 over and settle
+      // the invoice in full at its balance (see `effective` below); only a
+      // larger overshoot is a real "wrong amount" error.
+      if (l.amount - headroom > ROUNDING_TOLERANCE) return { ...l, invoiceId: inv.id, headroom, ok: false, reason: `Exceeds available ${formatINR(headroom)}` };
       return { ...l, invoiceId: inv.id, headroom, ok: true };
     });
   }, [text, invData, receipt.allocations]);
 
-  // Send the pasted amounts as-is. A remittance advice routinely sums to a few
-  // paise/rupees more than the cash banked (per-invoice rounding the customer
-  // deducted); the server settles the invoices in full and books that overshoot
-  // to Round Off. We only block once it clears the write-off ceiling.
+  // A remittance advice routinely states a few paise more per invoice than the
+  // invoice balance (the customer's own rounding). We cap each line at its
+  // available headroom (see `effective`) so the invoice settles in full without
+  // over-receiving; any genuine aggregate overshoot beyond the ceiling blocks.
   const lines = resolved;
-  const allocSum = round2(lines.reduce((s, r) => s + r.amount, 0));
+  // Amount actually posted for a line: capped at the invoice's available
+  // headroom so a paise-over remittance settles the invoice in full instead of
+  // over-receiving it. The customer's stated amount still shows in the table.
+  const effective = (r: ResolvedLine): number => (r.ok && r.headroom != null ? Math.min(r.amount, r.headroom) : r.amount);
+  const allocSum = round2(lines.reduce((s, r) => s + effective(r), 0));
   const overBy = round2(allocSum - receipt.amount);
   const hasErrors = lines.some((r) => !r.ok);
   const overReceipt = overBy > AGG_ROUND_OFF_MAX;
@@ -78,7 +86,7 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
   const roundOff = round2(perInvoiceRoundOff + (overBy > 0.005 ? overBy : 0));
 
   function apply() {
-    const allocations = lines.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: r.amount }));
+    const allocations = lines.filter((r) => r.ok && r.invoiceId).map((r) => ({ invoiceId: r.invoiceId!, amount: round2(effective(r)) }));
     update.mutate(allocations, {
       onSuccess: () => { toast(`Allocated to ${allocations.length} invoice(s).`, 'success'); setText(''); setOpen(false); },
       onError: (e) => toast(e instanceof Error ? e.message : 'Failed to allocate.', 'error'),
@@ -122,7 +130,13 @@ export function RemittanceAllocator({ receipt }: { receipt: ReceiptWithAllocatio
                         <TableCell align="right" numeric>{formatINR(r.amount)}</TableCell>
                         <TableCell align="right" numeric>{r.headroom != null ? formatINR(r.headroom) : '—'}</TableCell>
                         <TableCell>
-                          {r.ok ? <Badge variant="success">OK</Badge> : <Badge variant="danger" title={r.reason}>{r.reason}</Badge>}
+                          {!r.ok ? (
+                            <Badge variant="danger" title={r.reason}>{r.reason}</Badge>
+                          ) : effective(r) < r.amount - 0.005 ? (
+                            <Badge variant="success" title={`Settles invoice in full · ${formatINR(round2(r.amount - effective(r)))} rounding dropped`}>Settles in full</Badge>
+                          ) : (
+                            <Badge variant="success">OK</Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
