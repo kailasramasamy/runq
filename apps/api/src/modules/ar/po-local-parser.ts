@@ -410,10 +410,33 @@ function cleanItemHead(head: string): { description: string; customerSku: string
   return { description: s, customerSku };
 }
 
+// A wide line-total (e.g. "Rs. 20,973.75") can render as two physical lines:
+// the row ending in a dangling "Rs." and the amount alone on the next line.
+// Left unstitched, the row loses its line total, the unit rate leaks into the
+// amount slot, and quantity reconciliation later divides amount/rate ≈ 1 and
+// corrupts the real quantity. Merge the wrapped amount back onto its row.
+const CURRENCY_TAIL_RE = /(?:Rs\.?|₹|INR)\s*$/i;
+const BARE_AMOUNT_RE = /^\s*(?:Rs\.?|₹|INR)?\s*[\d,]+(?:\.\d+)?\s*$/i;
+
+function repairWrappedAmounts(raw: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const cur = raw[i]!;
+    const next = raw[i + 1];
+    if (next !== undefined && CURRENCY_TAIL_RE.test(cur.trim()) && BARE_AMOUNT_RE.test(next.trim())) {
+      out.push(`${cur.trim()} ${next.trim()}`);
+      i++; // consume the wrapped amount line
+    } else {
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
 function parseText(text: string): ExtractedPo | null {
   if (!text || text.length < 50) return null;
 
-  const lines = text.split(/\r?\n/);
+  const lines = repairWrappedAmounts(text.split(/\r?\n/));
 
   // Header fields
   const gstinMatch = text.match(GSTIN_RE);

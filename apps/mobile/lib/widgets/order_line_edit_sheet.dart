@@ -54,7 +54,9 @@ class _LineEditSheetState extends State<_LineEditSheet> {
     super.initState();
     final l = widget.line;
     _qty = TextEditingController(text: _fmt(l.rawQty));
-    _rate = TextEditingController(text: l.effectiveRate > 0 ? _fmt(l.effectiveRate) : '');
+    // The Rate field is the landing price (incl. GST) — matching its label and
+    // the value printed on the PO. It's converted back to a net rate on save.
+    _rate = TextEditingController(text: l.landingRate > 0 ? _fmt(l.landingRate) : '');
     _itemId = l.matchedItemId;
     _itemLabel = l.matchedItemId != null ? l.displayName : null;
     // Prefer the UoM the parser captured from the PO — that's what the user
@@ -167,6 +169,12 @@ class _LineEditSheetState extends State<_LineEditSheet> {
       return;
     }
 
+    // The field holds the landing price (incl. GST); the backend stores a net
+    // unit price and re-adds GST at approve. Convert back so a 48.75 landing
+    // on a 5% item is stored as 46.43 (→ 48.75), not grossed up to 51.19.
+    final gst = _gstRate ?? 0;
+    final netRate = rate == null ? null : double.parse((rate / (1 + gst / 100)).toStringAsFixed(2));
+
     setState(() => _saving = true);
     try {
       final updated = await orderRepo.updateLine(
@@ -174,7 +182,7 @@ class _LineEditSheetState extends State<_LineEditSheet> {
         widget.line.id,
         matchedItemId: _itemId,
         quantity: qty,
-        rate: rate,
+        rate: netRate,
       );
       if (!mounted) return;
       Navigator.of(context).pop(updated);
