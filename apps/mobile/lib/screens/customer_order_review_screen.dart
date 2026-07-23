@@ -122,6 +122,10 @@ class _BodyState extends ConsumerState<_Body> {
     try {
       await orderRepo.discard(_detail.id);
       if (!mounted) return;
+      // Refresh the list + inbox counter so the deleted row disappears
+      // without a manual pull-to-refresh.
+      ref.invalidate(customerOrdersProvider);
+      ref.invalidate(inboxCountProvider);
       showRunqSnack(context, 'Order cancelled');
       if (context.mounted) context.pop();
     } on ApiException catch (e) {

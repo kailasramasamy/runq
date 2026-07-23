@@ -99,7 +99,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
-        title: const Text('Customer orders'),
+        title: const Text('Customer POs'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),

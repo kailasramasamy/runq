@@ -754,13 +754,14 @@ class InvoiceRow extends ConsumerWidget {
                       children: [
                         TextSpan(text: invoice.invoiceNumber),
                         const TextSpan(text: '  ·  '),
+                        // Issue date always shown; due date follows when the
+                        // invoice still carries a balance.
+                        TextSpan(text: _date(invoice.invoiceDate)),
                         if (hasBalance)
                           TextSpan(
-                            text: 'Due ${_date(invoice.dueDate)}',
+                            text: '  ·  Due ${_date(invoice.dueDate)}',
                             style: isLate ? TextStyle(color: RunqColors.redInk) : null,
-                          )
-                        else
-                          TextSpan(text: _date(invoice.invoiceDate)),
+                          ),
                         if (isLate)
                           TextSpan(
                             text: '  ·  ${daysLate < 1 ? 'due today' : '${daysLate}d late'}',

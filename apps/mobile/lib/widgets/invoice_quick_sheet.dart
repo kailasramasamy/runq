@@ -66,7 +66,7 @@ class _InvoiceQuickSheet extends StatelessWidget {
             _Tile(
               icon: Icons.inbox_outlined,
               tint: RunqColors.amberInk,
-              title: 'Customer orders',
+              title: 'Customer POs',
               subtitle: 'See customer orders and their invoice status',
               background: t.bgWarm,
               onTap: () {
