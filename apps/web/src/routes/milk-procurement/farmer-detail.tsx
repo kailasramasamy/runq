@@ -6,7 +6,7 @@ import {
   PageHeader, Card, CardContent, Button, Badge, Input, useToast,
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
-import { useFarmer, useUpdateFarmer } from '@/hooks/queries/use-milk-procurement';
+import { useFarmer, useNode, useUpdateFarmer } from '@/hooks/queries/use-milk-procurement';
 import { FarmerPhotoUpload } from '@/components/milk-procurement/farmer-photo-upload';
 import { RateChartAssignmentsCard } from './_rate-chart-assignments-card';
 import { SELECTABLE_MILK_TYPES } from './_node-shared';
@@ -28,8 +28,11 @@ export function MpFarmerDetailPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isLoading } = useFarmer(id);
-  const update = useUpdateFarmer();
   const farmer = data?.data ?? null;
+  // The farmer's primary VMCC bounds which milk types they can supply.
+  const { data: nodeData } = useNode(farmer?.primaryNodeId ?? '');
+  const allowedTypes = nodeData?.data?.allowedMilkTypes ?? [];
+  const update = useUpdateFarmer();
 
   const [tab, setTab] = useState<TabId>('details');
   // Seed the editable form once the farmer loads. Later background refetches
@@ -46,7 +49,7 @@ export function MpFarmerDetailPage() {
   const hasAadhaarError = f.aadhaar !== '' && !/^\d{12}$/.test(f.aadhaar);
 
   const save = () => {
-    if (hasAadhaarError || !f.name) return;
+    if (hasAadhaarError || !f.name || f.suppliedMilkTypes.length === 0) return;
     update.mutate(
       { id: farmer.id, data: formToPayload(f) },
       {
@@ -80,7 +83,7 @@ export function MpFarmerDetailPage() {
         fullWidth
         actions={
           showSave ? (
-            <Button onClick={save} loading={update.isPending} disabled={!f.name || hasAadhaarError}>Save</Button>
+            <Button onClick={save} loading={update.isPending} disabled={!f.name || hasAadhaarError || f.suppliedMilkTypes.length === 0}>Save</Button>
           ) : undefined
         }
       />
@@ -100,7 +103,7 @@ export function MpFarmerDetailPage() {
             </Section>
 
             <IdentityFields f={f} setF={patch} />
-            <HerdFields f={f} setF={patch} />
+            <HerdFields f={f} setF={patch} allowedTypes={allowedTypes} />
 
             {farmer.lat != null && farmer.lng != null && (
               <Section title="Location (GPS)" hint="Captured by the app">
@@ -118,7 +121,7 @@ export function MpFarmerDetailPage() {
         <RateChartAssignmentsCard
           scopeType="farmer"
           scopeId={farmer.id}
-          milkTypes={SELECTABLE_MILK_TYPES}
+          milkTypes={f.suppliedMilkTypes.length > 0 ? f.suppliedMilkTypes : SELECTABLE_MILK_TYPES}
           title="Rate charts"
           subtitle="Set a chart per milk type only when this farmer is priced differently from their VMCC — e.g. a flat A1 rate alongside the VMCC's matrix chart. Leave a slot inheriting to follow the VMCC, then the CC, then the tenant default. Changes save instantly."
         />

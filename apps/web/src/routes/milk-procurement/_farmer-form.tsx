@@ -1,16 +1,10 @@
 import { Input, Combobox } from '@/components/ui';
 import { BreedCountEditor } from '@/components/milk-procurement/breed-count-editor';
-import { type MilkType, type MpFarmer, type CattleBreedCount } from '@/hooks/queries/use-milk-procurement';
+import { type MilkType, type MpFarmer, type CattleBreedCount, milkTypeLabel } from '@/hooks/queries/use-milk-procurement';
+import { SELECTABLE_MILK_TYPES } from './_node-shared';
 
 // Shared farmer-form building blocks, used by both the create modal (farmers.tsx)
 // and the detail page (farmer-detail.tsx) so the two stay in lockstep.
-
-export const MILK_TYPES = [
-  { value: 'cow_a1', label: 'Cow A1 (regular)' },
-  { value: 'cow_a2', label: 'Cow A2 (desi)' },
-  { value: 'buffalo', label: 'Buffalo' },
-  { value: 'mixed', label: 'Mixed' },
-];
 
 export function Section({ title, hint, children }: {
   title: string; hint?: string; children: React.ReactNode;
@@ -39,18 +33,23 @@ export function SocietyToggle({ checked, onChange }: { checked: boolean; onChang
 
 export interface FarmerFormState {
   name: string; phone: string; isSociety: boolean;
-  defaultMilkType: string;
+  defaultMilkType: string; suppliedMilkTypes: MilkType[];
   village: string; address: string; aadhaar: string;
   cattleBreeds: CattleBreedCount[]; inMilkCount: string;
   bankAccountName: string; bankAccountNumber: string; bankIfsc: string; bankName: string; upiId: string;
 }
 
 export function initForm(f?: MpFarmer): FarmerFormState {
+  // Legacy rows may lack the supplied list — fall back to the single default.
+  const supplied = f?.suppliedMilkTypes?.length
+    ? f.suppliedMilkTypes
+    : (f?.defaultMilkType ? [f.defaultMilkType] : []);
   return {
     name: f?.name ?? '',
     phone: f?.phone ?? '',
     isSociety: f?.isSociety ?? false,
     defaultMilkType: f?.defaultMilkType ?? 'cow_a1',
+    suppliedMilkTypes: supplied,
     village: f?.village ?? '',
     address: f?.address ?? '',
     aadhaar: f?.aadhaar ?? '',
@@ -71,6 +70,7 @@ export function formToPayload(f: FarmerFormState) {
     phone: f.phone || null,
     isSociety: f.isSociety,
     defaultMilkType: f.defaultMilkType as MilkType,
+    suppliedMilkTypes: f.suppliedMilkTypes,
     village: f.village || null,
     address: f.address || null,
     aadhaar: aadhaarValid ? f.aadhaar : null,
@@ -108,11 +108,46 @@ export function IdentityFields({ f, setF }: { f: FarmerFormState; setF: FarmerSe
   );
 }
 
-export function HerdFields({ f, setF }: { f: FarmerFormState; setF: FarmerSetF }) {
+/**
+ * Herd section. `allowedTypes` is the primary VMCC's accepted milk types — the
+ * farmer can only supply a subset of them; when the VMCC accepts none explicitly
+ * (legacy) we fall back to all selectable types. The primary type is the one
+ * pre-selected at pour entry and must stay within the supplied set.
+ */
+export function HerdFields({ f, setF, allowedTypes }: {
+  f: FarmerFormState; setF: FarmerSetF; allowedTypes: MilkType[];
+}) {
+  const options = allowedTypes.length > 0 ? allowedTypes : SELECTABLE_MILK_TYPES;
+  const toggle = (t: MilkType) => {
+    const next = f.suppliedMilkTypes.includes(t)
+      ? f.suppliedMilkTypes.filter((x) => x !== t)
+      : [...f.suppliedMilkTypes, t];
+    const patch: Partial<FarmerFormState> = { suppliedMilkTypes: next };
+    // Keep the primary type valid: if it's no longer supplied, retarget it.
+    if (!next.includes(f.defaultMilkType as MilkType)) patch.defaultMilkType = next[0] ?? '';
+    setF(patch);
+  };
+  const primaryOptions = (f.suppliedMilkTypes.length > 0 ? f.suppliedMilkTypes : options)
+    .map((t) => ({ value: t, label: milkTypeLabel(t) }));
+
   return (
     <Section title="Herd">
+      <div className="space-y-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Milk types supplied</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {allowedTypes.length > 0 ? 'Limited to the types the VMCC accepts.' : 'Pick every type this farmer pours.'}
+        </p>
+        <div className="grid grid-cols-2 gap-1">
+          {options.map((t) => (
+            <label key={t} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <input type="checkbox" checked={f.suppliedMilkTypes.includes(t)} onChange={() => toggle(t)} />
+              {milkTypeLabel(t)}
+            </label>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Combobox label="Default milk type" value={f.defaultMilkType} onChange={(v) => setF({ defaultMilkType: v })} options={MILK_TYPES} />
+        <Combobox label="Primary milk type" value={f.defaultMilkType} onChange={(v) => setF({ defaultMilkType: v })} options={primaryOptions} placeholder="Pick a supplied type" />
         <Input
           label="In-milk count"
           type="number"

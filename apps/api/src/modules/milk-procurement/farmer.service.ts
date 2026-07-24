@@ -78,6 +78,7 @@ function farmerInsertValues(
     aadhaar: input.aadhaar ?? null,
     isSociety: input.isSociety,
     defaultMilkType: input.defaultMilkType,
+    suppliedMilkTypes: input.suppliedMilkTypes ?? null,
     rateChartId: input.rateChartId ?? null,
     cattleBreeds: input.cattleBreeds ?? null,
     cattleCount: totalCattle(input),
@@ -95,7 +96,7 @@ function farmerUpdatePatch(input: UpdateFarmerInput): Partial<typeof mpFarmers.$
   const scalar = {
     name: input.name, phone: input.phone, village: input.village, address: input.address,
     aadhaar: input.aadhaar, isSociety: input.isSociety, defaultMilkType: input.defaultMilkType,
-    rateChartId: input.rateChartId,
+    suppliedMilkTypes: input.suppliedMilkTypes, rateChartId: input.rateChartId,
     inMilkCount: input.inMilkCount, kycDocId: input.kycDocId, photoDocId: input.photoDocId,
   };
   for (const [k, v] of Object.entries(scalar)) {

@@ -48,7 +48,8 @@ export interface MpFarmerAttachment { id: string; kind: string; fileName: string
 
 export interface MpFarmer {
   id: string; code: string; name: string; phone: string | null; vendorId: string;
-  isSociety: boolean; defaultMilkType: MilkType; cattleCount: number | null; isActive: boolean;
+  isSociety: boolean; defaultMilkType: MilkType; suppliedMilkTypes?: MilkType[] | null;
+  primaryNodeId?: string | null; cattleCount: number | null; isActive: boolean;
   village?: string | null; address?: string | null; aadhaar?: string | null;
   cattleBreeds?: CattleBreedCount[] | null; inMilkCount?: number | null;
   lat?: number | null; lng?: number | null;

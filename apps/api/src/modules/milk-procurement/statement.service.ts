@@ -28,6 +28,31 @@ function computeTotals(pours: StatementPour[]): PourStatementData['totals'] {
   };
 }
 
+/** Per-milk-type subtotals (litres-weighted quality), largest volume first. */
+function computeByType(pours: StatementPour[]): PourStatementData['byType'] {
+  const acc = new Map<string, {
+    litres: number; amount: number; count: number;
+    fatSum: number; fatL: number; snfSum: number; snfL: number;
+  }>();
+  for (const p of pours) {
+    const g = acc.get(p.milkType)
+      ?? { litres: 0, amount: 0, count: 0, fatSum: 0, fatL: 0, snfSum: 0, snfL: 0 };
+    g.litres += p.qtyLitres;
+    g.amount += p.lineAmount;
+    g.count += 1;
+    if (p.fat != null) { g.fatSum += p.fat * p.qtyLitres; g.fatL += p.qtyLitres; }
+    if (p.snf != null) { g.snfSum += p.snf * p.qtyLitres; g.snfL += p.qtyLitres; }
+    acc.set(p.milkType, g);
+  }
+  return [...acc.entries()]
+    .map(([milkType, g]) => ({
+      milkType, litres: r2(g.litres), amount: r2(g.amount), count: g.count,
+      avgFat: g.fatL ? r1(g.fatSum / g.fatL) : null,
+      avgSnf: g.snfL ? r1(g.snfSum / g.snfL) : null,
+    }))
+    .sort((a, b) => b.litres - a.litres);
+}
+
 /** Assembles a farmer's per-cycle pour statement (data for the PDF template). */
 export class StatementService {
   constructor(
@@ -67,6 +92,7 @@ export class StatementService {
       },
       period: { from, to, label: label ?? null },
       pours,
+      byType: computeByType(pours),
       totals: computeTotals(pours),
       generatedAt: new Date().toISOString(),
     };

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { mpFarmers, mpNodes } from '@runq/db';
 import type { Db, MpPourRow } from '@runq/db';
 import { getInteraktProvider } from '../../utils/messaging';
-import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
+import { dateShift, trimNum, money, quality, milkTypeLabel, nz } from './mp-notify-format';
 
 // WhatsApp "milk collection receipt" to the farmer, sent when a pour is recorded
 // at a VMCC. Fire-and-forget from PourService.record(); may throw (the caller
@@ -14,7 +14,9 @@ import { dateShift, trimNum, money, quality, nz } from './mp-notify-format';
 export function pourReceiptParams(farmerName: string, pour: MpPourRow): Record<string, string> {
   return {
     name: nz(farmerName),
-    dateShift: nz(dateShift(pour.collectionDate, pour.shift)),
+    // Milk type rides on the date/shift line so a farmer supplying more than one
+    // type can tell their per-type receipts apart (each pour is its own message).
+    dateShift: nz(`${dateShift(pour.collectionDate, pour.shift)} · ${milkTypeLabel(pour.milkType)}`),
     quantity: nz(trimNum(pour.qtyLitres)),
     quality: nz(quality(pour.fat, pour.snf, pour.water)),
     rate: nz(money(pour.ratePerLitre)),

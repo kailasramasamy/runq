@@ -36,6 +36,10 @@ export const mpFarmers = pgTable('mp_farmers', {
   aadhaar: varchar('aadhaar', { length: 12 }),
   isSociety: boolean('is_society').notNull().default(false),
   defaultMilkType: mpMilkType('default_milk_type').notNull().default('cow'),
+  // Types this farmer actually supplies — a subset of the primary VMCC's
+  // accepted types. Drives which pricing slots apply. Null/empty = just
+  // `defaultMilkType` (legacy rows before this was captured).
+  suppliedMilkTypes: mpMilkType('supplied_milk_types').array(),
   // Explicit per-farmer rate chart (highest pour-time precedence); null = inherit.
   rateChartId: uuid('rate_chart_id').references(() => mpRateCharts.id),
   // Herd: per-breed counts (JSON); `cattleCount` is their sum; `inMilkCount`

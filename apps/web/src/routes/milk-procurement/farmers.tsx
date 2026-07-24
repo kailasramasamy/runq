@@ -113,6 +113,7 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
   }));
   const patch = (p: Partial<typeof f>) => setF((prev) => ({ ...prev, ...p }));
   const hasAadhaarError = f.aadhaar !== '' && !/^\d{12}$/.test(f.aadhaar);
+  const allowedTypes = (vmccs.find((n) => n.id === f.nodeId)?.allowedMilkTypes) ?? [];
 
   const submit = () => {
     if (hasAadhaarError) return;
@@ -145,13 +146,13 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
 
         <IdentityFields f={f} setF={patch} />
 
-        <HerdFields f={f} setF={patch} />
+        <HerdFields f={f} setF={patch} allowedTypes={allowedTypes} />
 
         <PaymentFields f={f} setF={patch} />
 
         <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={create.isPending} disabled={!f.name || !f.nodeId || hasAadhaarError}>Create</Button>
+          <Button onClick={submit} loading={create.isPending} disabled={!f.name || !f.nodeId || f.suppliedMilkTypes.length === 0 || hasAadhaarError}>Create</Button>
         </div>
       </div>
     </Modal>

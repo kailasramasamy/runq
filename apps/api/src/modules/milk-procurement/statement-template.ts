@@ -15,6 +15,16 @@ export interface StatementPour {
   receiptNo?: string | null;
 }
 
+/** Per-milk-type subtotal for the breakup section. Quality is litres-weighted. */
+export interface MilkTypeBreakdown {
+  milkType: string;
+  litres: number;
+  amount: number;
+  count: number;
+  avgFat: number | null;
+  avgSnf: number | null;
+}
+
 export interface PourStatementData {
   tenantName: string;
   farmer: {
@@ -25,6 +35,9 @@ export interface PourStatementData {
   };
   period: { from: string; to: string; label?: string | null };
   pours: StatementPour[];
+  /** One row per milk type the farmer supplied this cycle. Shown only when the
+   *  farmer poured more than one type (otherwise it just restates the totals). */
+  byType: MilkTypeBreakdown[];
   totals: {
     litres: number; amount: number; count: number;
     amLitres: number; pmLitres: number;
@@ -73,6 +86,26 @@ function pourRow(p: StatementPour): string {
   </tr>`;
 }
 
+/** Per-milk-type subtotal table. Empty when the farmer poured a single type —
+ *  a one-row breakup would just repeat the totals card. */
+function byTypeSection(rows: MilkTypeBreakdown[]): string {
+  if (rows.length <= 1) return '';
+  const body = rows.map((r) => `<tr>
+    <td>${esc(milkLabel(r.milkType))}</td>
+    <td class="right">${num(r.litres, 1)}</td>
+    <td class="right">${num(r.avgFat, 1)}</td>
+    <td class="right">${num(r.avgSnf, 1)}</td>
+    <td class="right">${inr(r.amount)}</td>
+  </tr>`).join('');
+  return `<div class="section-title">Breakup by milk type</div>
+    <table class="breakup">
+      <thead><tr>
+        <th>Type</th><th class="right">Qty (L)</th><th class="right">Avg FAT</th><th class="right">Avg SNF</th><th class="right">Amount</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
 function bankLine(f: PourStatementData['farmer']): string {
   const parts: string[] = [];
   if (f.bankName || f.bankAccountNumber) {
@@ -109,6 +142,8 @@ export function renderPourStatementHTML(d: PourStatementData): string {
       ${summaryCard('Avg FAT / SNF', `${num(d.totals.avgFat, 1)} / ${num(d.totals.avgSnf, 1)}`)}
       ${summaryCard('Avg Water %', num(d.totals.avgWater, 1))}
     </div>
+    ${byTypeSection(d.byType)}
+    ${d.byType.length > 1 ? '<div class="section-title">Daily detail</div>' : ''}
     <table>
       <thead><tr>
         <th>Date</th><th class="center">Shift</th><th class="center">Type</th>
@@ -276,6 +311,8 @@ const STYLE = `<style>
   .meta-v { color: #14150F; font-weight: 600; }
   .pay { font-size: 11px; color: #5B635C; margin-bottom: 12px; padding: 6px 10px; background: #F1F7F4; border-radius: 6px; }
   .cards { display: flex; gap: 8px; margin-bottom: 14px; }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #5B635C; margin: 2px 0 6px; font-weight: 600; }
+  table.breakup { margin-bottom: 16px; }
   .card { flex: 1; border: 1px solid #E9E7DF; border-radius: 8px; padding: 8px 10px; }
   .card-v { font-size: 15px; font-weight: 700; color: #14150F; font-variant-numeric: tabular-nums; }
   .card-l { font-size: 10px; color: #5B635C; margin-top: 2px; }

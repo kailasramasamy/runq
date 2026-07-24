@@ -46,6 +46,15 @@ export function nz(v: string): string {
   return v.trim().length ? v : '-';
 }
 
+// Concise milk-type label for WhatsApp (kept short, no parenthetical). Lets a
+// farmer who supplies more than one type tell their per-type receipts apart.
+const MILK_TYPE_LABELS: Record<string, string> = {
+  cow_a1: 'Cow A1', cow_a2: 'Cow A2', buffalo: 'Buffalo', mixed: 'Mixed', cow: 'Cow',
+};
+export function milkTypeLabel(t: string | null): string {
+  return (t && MILK_TYPE_LABELS[t]) || (t ?? '-');
+}
+
 // Human-readable PDF file name — the trailing URL segment WhatsApp/Meta shows as
 // the document title (they use the URL basename, not Content-Disposition). Each
 // part is reduced to letters/digits joined by '-', parts joined by '_', e.g.

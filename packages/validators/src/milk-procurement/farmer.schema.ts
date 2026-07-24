@@ -38,6 +38,9 @@ export const createFarmerSchema = z.object({
   aadhaar: z.string().regex(/^\d{12}$/, 'Aadhaar must be 12 digits').nullish(),
   isSociety: z.boolean().default(false),
   defaultMilkType: z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']).default('cow_a1'),
+  // Types this farmer supplies (subset of the VMCC's accepted types). Empty/null
+  // falls back to just `defaultMilkType`.
+  suppliedMilkTypes: z.array(z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2'])).nullish(),
   // explicit rate chart (highest pour-time precedence); null = inherit
   rateChartId: z.string().uuid().nullish(),
   // Herd: per-breed counts. `cattleCount` is derived (sum) server-side.
