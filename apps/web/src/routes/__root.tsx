@@ -223,6 +223,7 @@ import { MpNodeFormPage } from './milk-procurement/node-form';
 import { MpNodeDetailPage } from './milk-procurement/node-detail';
 import { MpOperatorFormPage } from './milk-procurement/operator-form';
 import { MpFarmersPage } from './milk-procurement/farmers';
+import { MpFarmerDetailPage } from './milk-procurement/farmer-detail';
 import { MpRateChartsPage } from './milk-procurement/rate-charts';
 import { MpRateChartNewPage } from './milk-procurement/rate-charts-new';
 import { MpCollectionPage } from './milk-procurement/collection';
@@ -2655,6 +2656,7 @@ const mpNodeOperatorNewRoute = createRoute({
   component: MpOperatorFormPage,
 });
 const mpFarmersRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/farmers', component: MpFarmersPage });
+const mpFarmerDetailRoute = createRoute({ getParentRoute: () => milkProcurementRoute, path: '/farmers/$id', component: MpFarmerDetailPage });
 const mpRateChartsRoute = createRoute({
   getParentRoute: () => milkProcurementRoute,
   path: '/rate-charts',
@@ -2937,6 +2939,7 @@ export const routeTree = rootRoute.addChildren([
       mpNodeEditRoute,
       mpNodeOperatorNewRoute,
       mpFarmersRoute,
+      mpFarmerDetailRoute,
       mpRateChartsRoute,
       mpRateChartNewRoute,
       mpCollectionRoute,

@@ -192,6 +192,13 @@ export function useFarmers(filters?: { nodeId?: string; search?: string; limit?:
     queryFn: () => api.get<PaginatedResponse<MpFarmer>>(`${BASE}/farmers${qs({ ...filters })}`),
   });
 }
+export function useFarmer(id: string) {
+  return useQuery({
+    queryKey: ['mp', 'farmers', 'detail', id],
+    queryFn: () => api.get<ApiSuccess<MpFarmer>>(`${BASE}/farmers/${id}`),
+    enabled: !!id,
+  });
+}
 export function useCreateFarmer() {
   const c = useQueryClient();
   return useMutation({

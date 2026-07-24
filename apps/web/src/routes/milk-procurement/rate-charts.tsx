@@ -5,10 +5,17 @@ import {
   PageHeader, Card, CardContent, Button, Badge, Modal, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
+import { Tabs } from '@/components/ar/primitives';
 import { useRateCharts, useRateChart, useDeactivateRateChart, useNodes, milkTypeLabel } from '@/hooks/queries/use-milk-procurement';
 import { sharePdf } from '@/lib/share-pdf';
 import { RateChartAssignmentsCard } from './_rate-chart-assignments-card';
 import { SELECTABLE_MILK_TYPES } from './_node-shared';
+
+const TABS = [
+  { id: 'charts', label: 'Charts' },
+  { id: 'defaults', label: 'Tenant defaults' },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
 
 /** Fetch the rate-chart PDF and share/download it. */
 function downloadRateChartPdf(id: string, name: string): Promise<void> {
@@ -26,6 +33,7 @@ export function MpRateChartsPage() {
   const search = useSearch({ strict: false }) as { view?: string };
   const [viewId, setViewId] = useState<string | null>(search.view ?? null);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>('charts');
   // deep-link: open a chart's detail when arriving with ?view=<id>
   useEffect(() => { if (search.view) setViewId(search.view); }, [search.view]);
   const { data, isLoading } = useRateCharts({ limit: 200 });
@@ -45,64 +53,68 @@ export function MpRateChartsPage() {
         actions={<Button onClick={() => navigate({ to: '/milk-procurement/rate-charts/new' })}><Plus className="h-4 w-4" />Add rate chart</Button>}
       />
 
+      <Tabs active={tab} onChange={setTab} tabs={TABS as unknown as { id: TabId; label: string }[]} />
+
+      {tab === 'charts' && (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <Th>Name</Th><Th>Milk</Th><Th>Scope</Th><Th>Mode</Th><Th>Effective from</Th><Th>Status</Th><Th align="right">Actions</Th>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton rows={5} cols={7} />
+                ) : charts.length === 0 ? (
+                  <TableEmpty colSpan={7} message="No rate charts yet." />
+                ) : (
+                  charts.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{milkTypeLabel(c.milkType)}</TableCell>
+                      <TableCell className="text-zinc-500">{scopeLabel(c.scopeNodeId)}</TableCell>
+                      <TableCell>
+                        {c.pricingMode === 'flat' ? `Flat ₹${c.flatRatePerLitre}/L`
+                          : c.pricingMode === 'clr' ? 'CLR (lactometer)'
+                          : 'Matrix'}
+                      </TableCell>
+                      <TableCell>{c.effectiveFrom}</TableCell>
+                      <TableCell>{c.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => setViewId(c.id)} title="View"><Eye className="h-4 w-4" /></Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Download PDF"
+                          onClick={() => downloadRateChartPdf(c.id, c.name).catch(() => toast('Failed to download PDF', 'error'))}
+                        ><Download className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/milk-procurement/rate-charts/new', search: { from: c.id } })} title="Duplicate (supersede)"><Copy className="h-4 w-4" /></Button>
+                        {c.isActive && (
+                          <Button variant="ghost" size="sm" onClick={() => setDeactivateId(c.id)} title="Deactivate"><Power className="h-4 w-4" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {/* The default per milk type. Everything inherits this unless a CC, VMCC
           or farmer overrides it — so it's the one place to look when asking
           "what are we paying for A2?". */}
-      <div className="mb-4">
+      {tab === 'defaults' && (
         <RateChartAssignmentsCard
           scopeType="tenant"
           milkTypes={SELECTABLE_MILK_TYPES}
           title="Default rate charts"
           subtitle="What each milk type is priced with when nothing more specific applies. A CC, VMCC or farmer can override any of these."
         />
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <Th>Name</Th><Th>Milk</Th><Th>Scope</Th><Th>Mode</Th><Th>Effective from</Th><Th>Status</Th><Th align="right">Actions</Th>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton rows={5} cols={7} />
-              ) : charts.length === 0 ? (
-                <TableEmpty colSpan={7} message="No rate charts yet." />
-              ) : (
-                charts.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{milkTypeLabel(c.milkType)}</TableCell>
-                    <TableCell className="text-zinc-500">{scopeLabel(c.scopeNodeId)}</TableCell>
-                    <TableCell>
-                      {c.pricingMode === 'flat' ? `Flat ₹${c.flatRatePerLitre}/L`
-                        : c.pricingMode === 'clr' ? 'CLR (lactometer)'
-                        : 'Matrix'}
-                    </TableCell>
-                    <TableCell>{c.effectiveFrom}</TableCell>
-                    <TableCell>{c.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setViewId(c.id)} title="View"><Eye className="h-4 w-4" /></Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Download PDF"
-                        onClick={() => downloadRateChartPdf(c.id, c.name).catch(() => toast('Failed to download PDF', 'error'))}
-                      ><Download className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/milk-procurement/rate-charts/new', search: { from: c.id } })} title="Duplicate (supersede)"><Copy className="h-4 w-4" /></Button>
-                      {c.isActive && (
-                        <Button variant="ghost" size="sm" onClick={() => setDeactivateId(c.id)} title="Deactivate"><Power className="h-4 w-4" /></Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      )}
 
       {viewId && <ViewRateChart id={viewId} onClose={() => setViewId(null)} />}
 

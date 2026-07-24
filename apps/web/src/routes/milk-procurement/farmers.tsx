@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { ApiClientError } from '@/lib/api-client';
 import {
@@ -6,52 +7,26 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty, TableSkeleton, useToast,
 } from '@/components/ui';
 import {
-  useFarmers, useCreateFarmer, useUpdateFarmer, useDeleteFarmer, useNodes, useRateCharts,
-  milkTypeLabel, rateChartLabel,
-  type MilkType, type MpFarmer, type CattleBreedCount,
+  useFarmers, useCreateFarmer, useDeleteFarmer, useNodes,
+  milkTypeLabel, type MpFarmer,
 } from '@/hooks/queries/use-milk-procurement';
-import { BreedCountEditor } from '@/components/milk-procurement/breed-count-editor';
-import { FarmerPhotoUpload } from '@/components/milk-procurement/farmer-photo-upload';
-
-const MILK_TYPES = [
-  { value: 'cow_a1', label: 'Cow A1 (regular)' },
-  { value: 'cow_a2', label: 'Cow A2 (desi)' },
-  { value: 'buffalo', label: 'Buffalo' },
-  { value: 'mixed', label: 'Mixed' },
-];
-
-function Section({ title, hint, children }: {
-  title: string; hint?: string; children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2 border-b border-zinc-200 pb-1.5 dark:border-zinc-800">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</h3>
-        {hint && <span className="text-xs text-zinc-400 dark:text-zinc-500">{hint}</span>}
-      </div>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
-
-function SocietyToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      This is a society / sub-collector
-    </label>
-  );
-}
+import {
+  Section, SocietyToggle, IdentityFields, HerdFields, PaymentFields,
+  initForm, formToPayload, type FarmerFormState,
+} from './_farmer-form';
 
 export function MpFarmersPage() {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [editFarmer, setEditFarmer] = useState<MpFarmer | null>(null);
   const [deleteFarmer, setDeleteFarmer] = useState<MpFarmer | null>(null);
   const { data, isLoading } = useFarmers({ search: search || undefined, limit: 200 });
   const remove = useDeleteFarmer();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const farmers = data?.data ?? [];
+
+  const openFarmer = (f: MpFarmer) =>
+    navigate({ to: '/milk-procurement/farmers/$id', params: { id: f.id } });
 
   return (
     <div>
@@ -81,7 +56,7 @@ export function MpFarmersPage() {
                 <TableEmpty colSpan={8} message="No farmers yet." />
               ) : (
                 farmers.map((f) => (
-                  <TableRow key={f.id}>
+                  <TableRow key={f.id} className="cursor-pointer" onClick={() => openFarmer(f)}>
                     <TableCell className="font-medium">{f.code}</TableCell>
                     <TableCell>{f.name}</TableCell>
                     <TableCell className="text-zinc-500">{f.phone ?? '—'}</TableCell>
@@ -89,8 +64,8 @@ export function MpFarmersPage() {
                     <TableCell>{milkTypeLabel(f.defaultMilkType)}</TableCell>
                     <TableCell>{f.isSociety ? <Badge>Society</Badge> : 'Farmer'}</TableCell>
                     <TableCell>{f.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => setEditFarmer(f)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" onClick={() => openFarmer(f)} title="Edit"><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => setDeleteFarmer(f)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
@@ -102,7 +77,6 @@ export function MpFarmersPage() {
       </Card>
 
       {showCreate && <CreateFarmerModal onClose={() => setShowCreate(false)} />}
-      {editFarmer && <EditFarmerModal farmer={editFarmer} onClose={() => setEditFarmer(null)} />}
 
       <ConfirmationDialog
         open={!!deleteFarmer}
@@ -124,207 +98,8 @@ export function MpFarmersPage() {
   );
 }
 
-// ── shared form state type ────────────────────────────────────────────────────
-
-interface FarmerFormState {
-  name: string; phone: string; isSociety: boolean;
-  defaultMilkType: string; rateChartId: string;
-  village: string; address: string; aadhaar: string;
-  cattleBreeds: CattleBreedCount[]; inMilkCount: string;
-  bankAccountName: string; bankAccountNumber: string; bankIfsc: string; bankName: string; upiId: string;
-}
-
-function initForm(f?: MpFarmer): FarmerFormState {
-  return {
-    name: f?.name ?? '',
-    phone: f?.phone ?? '',
-    isSociety: f?.isSociety ?? false,
-    defaultMilkType: f?.defaultMilkType ?? 'cow_a1',
-    rateChartId: f?.rateChartId ?? '',
-    village: f?.village ?? '',
-    address: f?.address ?? '',
-    aadhaar: f?.aadhaar ?? '',
-    cattleBreeds: f?.cattleBreeds ?? [],
-    inMilkCount: f?.inMilkCount != null ? String(f.inMilkCount) : '',
-    bankAccountName: f?.bankAccountName ?? '',
-    bankAccountNumber: f?.bankAccountNumber ?? '',
-    bankIfsc: f?.bankIfsc ?? '',
-    bankName: f?.bankName ?? '',
-    upiId: f?.upiId ?? '',
-  };
-}
-
-// ── IdentityFields ────────────────────────────────────────────────────────────
-
-function IdentityFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
-  const aadhaarError = f.aadhaar && !/^\d{12}$/.test(f.aadhaar) ? 'Must be exactly 12 digits' : undefined;
-  return (
-    <Section title="Identity">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Input label="Village" value={f.village} onChange={(e) => setF({ village: e.target.value })} />
-        <Input
-          label="Aadhaar number"
-          value={f.aadhaar}
-          onChange={(e) => setF({ aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
-          placeholder="12-digit number"
-          error={aadhaarError}
-          maxLength={12}
-        />
-      </div>
-      <Input label="Address" value={f.address} onChange={(e) => setF({ address: e.target.value })} />
-    </Section>
-  );
-}
-
-// ── HerdFields ────────────────────────────────────────────────────────────────
-
-function HerdFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
-  return (
-    <Section title="Herd">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Combobox label="Default milk type" value={f.defaultMilkType} onChange={(v) => setF({ defaultMilkType: v })} options={MILK_TYPES} />
-        <Input
-          label="In-milk count"
-          type="number"
-          min={0}
-          value={f.inMilkCount}
-          onChange={(e) => setF({ inMilkCount: e.target.value })}
-          placeholder="0"
-        />
-      </div>
-      <BreedCountEditor value={f.cattleBreeds} onChange={(cattleBreeds) => setF({ cattleBreeds })} />
-    </Section>
-  );
-}
-
-// ── PaymentFields ─────────────────────────────────────────────────────────────
-
-function PaymentFields({ f, setF }: { f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void }) {
-  return (
-    <Section title="Payment" hint="For payouts">
-      <Input label="Account holder name" value={f.bankAccountName} onChange={(e) => setF({ bankAccountName: e.target.value })} />
-      <div className="grid grid-cols-2 gap-3">
-        <Input label="Bank A/C no." value={f.bankAccountNumber} onChange={(e) => setF({ bankAccountNumber: e.target.value })} />
-        <Input label="IFSC" value={f.bankIfsc} onChange={(e) => setF({ bankIfsc: e.target.value.toUpperCase() })} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Input label="Bank name" value={f.bankName} onChange={(e) => setF({ bankName: e.target.value })} />
-        <Input label="UPI ID" value={f.upiId} onChange={(e) => setF({ upiId: e.target.value })} />
-      </div>
-    </Section>
-  );
-}
-
-// ── PricingFields ─────────────────────────────────────────────────────────────
-
-function PricingFields({ f, setF, currentId }: {
-  f: FarmerFormState; setF: (p: Partial<FarmerFormState>) => void; currentId?: string | null;
-}) {
-  const { data } = useRateCharts({ limit: 200 });
-  // active charts, plus the currently-assigned one even if since deactivated
-  const charts = (data?.data ?? []).filter((c) => c.isActive || c.id === currentId);
-  return (
-    <Section title="Pricing" hint="Optional override">
-      <Combobox
-        label="Rate chart override"
-        value={f.rateChartId}
-        onChange={(v) => setF({ rateChartId: v })}
-        options={[
-          { value: '', label: 'None (use VMCC / tenant chart)' },
-          ...charts.map((c) => ({ value: c.id, label: rateChartLabel(c) })),
-        ]}
-        placeholder="None"
-      />
-    </Section>
-  );
-}
-
-// ── payload helpers ───────────────────────────────────────────────────────────
-
-function formToPayload(f: FarmerFormState) {
-  const aadhaarValid = /^\d{12}$/.test(f.aadhaar);
-  return {
-    name: f.name,
-    phone: f.phone || null,
-    isSociety: f.isSociety,
-    defaultMilkType: f.defaultMilkType as MilkType,
-    rateChartId: f.rateChartId || null,
-    village: f.village || null,
-    address: f.address || null,
-    aadhaar: aadhaarValid ? f.aadhaar : null,
-    cattleBreeds: f.cattleBreeds.length > 0 ? f.cattleBreeds : null,
-    inMilkCount: f.inMilkCount !== '' ? parseInt(f.inMilkCount) : null,
-    bankAccountName: f.bankAccountName || null,
-    bankAccountNumber: f.bankAccountNumber || null,
-    bankIfsc: f.bankIfsc || null,
-    bankName: f.bankName || null,
-    upiId: f.upiId || null,
-  };
-}
-
-// ── EditFarmerModal ───────────────────────────────────────────────────────────
-
-function EditFarmerModal({ farmer, onClose }: { farmer: MpFarmer; onClose: () => void }) {
-  const update = useUpdateFarmer();
-  const { toast } = useToast();
-  const [f, setF] = useState<FarmerFormState>(() => initForm(farmer));
-  const patch = (p: Partial<FarmerFormState>) => setF((prev) => ({ ...prev, ...p }));
-  const hasAadhaarError = f.aadhaar !== '' && !/^\d{12}$/.test(f.aadhaar);
-
-  const submit = () => {
-    if (hasAadhaarError) return;
-    update.mutate(
-      { id: farmer.id, data: formToPayload(f) },
-      {
-        onSuccess: () => { toast('Farmer updated', 'success'); onClose(); },
-        onError: (err) => toast(err instanceof ApiClientError ? err.message : 'Failed to update farmer', 'error'),
-      },
-    );
-  };
-
-  return (
-    <Modal open onClose={onClose} title={`Edit ${farmer.code}`}>
-      <div className="space-y-6">
-        <Section title="Basics">
-          <Input label="Name" value={f.name} onChange={(e) => patch({ name: e.target.value })} required />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input label="Farmer code" value={farmer.code} disabled />
-            <Input label="Phone" value={f.phone} onChange={(e) => patch({ phone: e.target.value })} />
-          </div>
-          <SocietyToggle checked={f.isSociety} onChange={(v) => patch({ isSociety: v })} />
-        </Section>
-
-        <IdentityFields f={f} setF={patch} />
-
-        <HerdFields f={f} setF={patch} />
-
-        <PricingFields f={f} setF={patch} currentId={farmer.rateChartId} />
-
-        {farmer.lat != null && farmer.lng != null && (
-          <Section title="Location (GPS)" hint="Captured by the app">
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Latitude" value={String(farmer.lat)} disabled />
-              <Input label="Longitude" value={String(farmer.lng)} disabled />
-            </div>
-          </Section>
-        )}
-
-        <PaymentFields f={f} setF={patch} />
-
-        <Section title="Profile photo">
-          <FarmerPhotoUpload farmerId={farmer.id} currentPhotoUrl={farmer.profilePhotoUrl} />
-        </Section>
-
-        <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={update.isPending} disabled={!f.name || hasAadhaarError}>Save</Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 // ── CreateFarmerModal ─────────────────────────────────────────────────────────
+// Creation stays a modal; rate charts, photo and edits live on the detail page.
 
 function CreateFarmerModal({ onClose }: { onClose: () => void }) {
   const create = useCreateFarmer();
@@ -371,8 +146,6 @@ function CreateFarmerModal({ onClose }: { onClose: () => void }) {
         <IdentityFields f={f} setF={patch} />
 
         <HerdFields f={f} setF={patch} />
-
-        <PricingFields f={f} setF={patch} />
 
         <PaymentFields f={f} setF={patch} />
 
