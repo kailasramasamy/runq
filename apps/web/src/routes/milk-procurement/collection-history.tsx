@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Droplets, TrendingUp, Users, Coins, Pencil } from 'lucide-react';
+import { Droplets, TrendingUp, Users, Coins, Pencil, Download } from 'lucide-react';
 import {
   Card, CardContent, Combobox, Pagination, StatsCard, Button,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { downloadCSV } from '@/lib/csv-export';
 import { useNodes, useFarmers, useFarmerDaily, milkTypeLabel, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
@@ -61,6 +62,23 @@ function FarmerHistoryView() {
       : b.totalQty !== a.totalQty ? b.totalQty - a.totalQty
         : a.milkType < b.milkType ? -1 : 1);
 
+  // Export every filtered row (all pages), one line per farmer/day/milk type,
+  // with AM/PM split into columns for analysis.
+  const exportCsv = () => {
+    const { from, to } = cycleRange(cyc);
+    downloadCSV(
+      `collection-history-${from}-to-${to}.csv`,
+      ['Date', 'Farmer', 'Code', 'VMCC', 'Milk type', 'Qty (L)', 'AM (L)', 'PM (L)',
+        'FAT AM', 'FAT PM', 'SNF AM', 'SNF PM', 'Water AM', 'Water PM', '₹/L AM', '₹/L PM', 'Gross payable'],
+      sorted.map((r) => {
+        const fm = farmerMeta(r.farmerId);
+        return [r.date, fm.name, fm.code, nodeName(r.nodeId), milkTypeLabel(r.milkType),
+          r.totalQty, r.amQty, r.pmQty, r.amFat, r.pmFat, r.amSnf, r.pmSnf,
+          r.amWater, r.pmWater, r.amRate, r.pmRate, r.grossAmount];
+      }),
+    );
+  };
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -73,6 +91,10 @@ function FarmerHistoryView() {
           <Combobox label="Farmer" value={f.farmerId} onChange={(v) => set({ farmerId: v })}
             options={[{ value: '', label: 'All farmers' }, ...farmers.map((x) => ({ value: x.id, label: x.name }))]} placeholder="All farmers" />
         </div>
+        <Button variant="outline" size="sm" className="ml-auto"
+          disabled={sorted.length === 0} onClick={exportCsv}>
+          <Download size={14} className="mr-1" />Download CSV
+        </Button>
       </div>
 
       <FarmerSummaryCards rows={rows} />
