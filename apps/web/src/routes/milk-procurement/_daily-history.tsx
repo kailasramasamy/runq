@@ -208,40 +208,96 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
   );
 }
 
-/** Daily volume with one line per milk type, oldest day first — shown when the
- * filtered rows span more than one milk type (e.g. a farmer supplying buffalo
- * and Cow A1). Sums litres per (date, milk type). */
-export function MilkTypeQtyChart({ rows }: { rows: { date: string; milkType: MilkType; totalQty: number }[] }) {
-  const byDate = new Map<string, Record<string, number | string>>();
+/** Rows the per-milk-type charts consume (a superset of MpFarmerDayRow). */
+export interface MilkTypeMetricRow {
+  date: string; milkType: MilkType;
+  totalQty: number; avgFat: number; avgSnf: number; avgWater: number;
+}
+type MtMetric = 'qty' | 'fat' | 'snf' | 'water';
+const MT_PICK: Record<MtMetric, (r: MilkTypeMetricRow) => number> = {
+  qty: (r) => r.totalQty, fat: (r) => r.avgFat, snf: (r) => r.avgSnf, water: (r) => r.avgWater,
+};
+
+/** Pivot per-(date, farmer/node, milk type) rows into recharts rows keyed by
+ * date, one field per milk type. Volume sums litres; QC metrics are qty-weighted
+ * (a 0 reading means no sample, so it's skipped). Returns the milk types present
+ * in preferred order. */
+function pivotMilkType(rows: MilkTypeMetricRow[], metric: MtMetric) {
+  const weighted = metric !== 'qty';
+  const pick = MT_PICK[metric];
+  const acc = new Map<string, { iso: string; parts: Map<MilkType, { sum: number; w: number }> }>();
   const present = new Set<MilkType>();
   for (const r of rows) {
+    const v = pick(r);
+    if (weighted && v <= 0) continue;
     present.add(r.milkType);
-    const row = byDate.get(r.date) ?? { date: shortDate(r.date), _iso: r.date };
-    row[r.milkType] = ((row[r.milkType] as number) ?? 0) + r.totalQty;
-    byDate.set(r.date, row);
+    const e = acc.get(r.date) ?? { iso: r.date, parts: new Map() };
+    const p = e.parts.get(r.milkType) ?? { sum: 0, w: 0 };
+    if (weighted) { p.sum += v * r.totalQty; p.w += r.totalQty; } else { p.sum += v; p.w += 1; }
+    e.parts.set(r.milkType, p);
+    acc.set(r.date, e);
   }
-  const data = [...byDate.values()].sort((a, b) => ((a._iso as string) < (b._iso as string) ? -1 : 1));
   const series = MILK_TYPE_ORDER.filter((t) => present.has(t));
-  if (data.length === 0 || series.length === 0) return null;
+  const data = [...acc.values()]
+    .sort((a, b) => (a.iso < b.iso ? -1 : 1))
+    .map((e) => {
+      const row: Record<string, number | string> = { date: shortDate(e.iso) };
+      for (const mt of series) {
+        const p = e.parts.get(mt);
+        if (p && p.w > 0) row[mt] = weighted ? Number((p.sum / p.w).toFixed(2)) : p.sum;
+      }
+      return row;
+    });
+  return { data, series };
+}
+
+/** One chart, one line per milk type. `min` fixes the Y floor for QC metrics so
+ * small variation reads clearly; volume auto-scales. */
+function MilkTypeChart({ rows, metric, title, unit = '', min, height = 240 }: {
+  rows: MilkTypeMetricRow[]; metric: MtMetric; title: string; unit?: string; min?: number; height?: number;
+}) {
+  const { data, series } = pivotMilkType(rows, metric);
   return (
-    <Card className="mb-4">
+    <Card className={metric === 'qty' ? 'mb-4' : undefined}>
       <CardContent>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Daily volume (L) · by milk type</p>
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={44} />
-            <Tooltip content={<ChartTooltip unit=" L" />} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {series.map((mt) => (
-              <Line key={mt} type="monotone" dataKey={mt} name={milkTypeLabel(mt)}
-                stroke={MILK_COLOR[mt]} strokeWidth={2} dot={false} connectNulls />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{title}</p>
+        {data.length === 0 || series.length === 0 ? (
+          <div className="flex items-center justify-center text-xs text-zinc-400" style={{ height }}>No readings</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={height}>
+            <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={44}
+                domain={min == null ? undefined : [min, 'auto']}
+                tickFormatter={min == null ? undefined : (v) => v.toFixed(1)} />
+              <Tooltip content={<ChartTooltip unit={unit} />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              {series.map((mt) => (
+                <Line key={mt} type="monotone" dataKey={mt} name={milkTypeLabel(mt)}
+                  stroke={MILK_COLOR[mt]} strokeWidth={2} dot={false} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Daily volume + FAT / SNF / Water trends, each with one line per milk type —
+ * the per-farmer history view where a farmer may supply more than one type. */
+export function MilkTypeCharts({ rows }: { rows: MilkTypeMetricRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <MilkTypeChart rows={rows} metric="qty" title="Daily volume (L) · by milk type" unit=" L" height={260} />
+      <div className="mb-4 grid gap-3 lg:grid-cols-3">
+        <MilkTypeChart rows={rows} metric="fat" title="FAT % · by milk type" min={3} height={200} />
+        <MilkTypeChart rows={rows} metric="snf" title="SNF % · by milk type" min={7} height={200} />
+        <MilkTypeChart rows={rows} metric="water" title="Water % · by milk type" min={0} height={200} />
+      </div>
+    </>
   );
 }
 

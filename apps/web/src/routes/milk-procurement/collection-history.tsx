@@ -9,7 +9,7 @@ import { useNodes, useFarmers, useFarmerDaily, milkTypeLabel, type MpFarmerDayRo
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
 import { DayPoursEditModal } from './_pour-edit-modal';
-import { DailyQtyChart, MilkTypeQtyChart, DailyQualityCharts, sumDailyByDate, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
+import { MilkTypeCharts, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
 
 type Scope = 'farmer' | 'vmcc' | 'cc';
 const SCOPES: { value: Scope; label: string }[] = [
@@ -60,8 +60,6 @@ function FarmerHistoryView() {
     a.date !== b.date ? (a.date < b.date ? 1 : -1)
       : b.totalQty !== a.totalQty ? b.totalQty - a.totalQty
         : a.milkType < b.milkType ? -1 : 1);
-  const daily = sumDailyByDate(rows);
-  const multiType = new Set(rows.map((r) => r.milkType)).size > 1;
 
   return (
     <div>
@@ -78,9 +76,7 @@ function FarmerHistoryView() {
       </div>
 
       <FarmerSummaryCards rows={rows} />
-      <DailyQtyChart rows={daily} />
-      {multiType && <MilkTypeQtyChart rows={rows} />}
-      <DailyQualityCharts rows={daily} />
+      <MilkTypeCharts rows={rows} />
       <FarmerDailyTable rows={sorted} page={page} setPage={setPage} nodeName={nodeName} farmerMeta={farmerMeta} />
     </div>
   );
