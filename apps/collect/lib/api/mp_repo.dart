@@ -107,6 +107,16 @@ class MpRepo {
     );
   }
 
+  /// Printable rate chart (matrix/CLR/flat + bonus slabs) as a PDF, with the
+  /// server's own download name. Reuses GET /rate-charts/:id/print.
+  Future<({Uint8List bytes, String filename})> rateChartPdf(String id) async {
+    final res = await _api.getBytes('$_base/rate-charts/$id/print?format=pdf');
+    return (
+      bytes: Uint8List.fromList(res.bytes),
+      filename: res.filename ?? 'rate-chart.pdf',
+    );
+  }
+
   /// Extract Aadhaar card fields from [image] via AI OCR.
   /// Returns the `data` map on success, or null if the request fails.
   Future<Map<String, dynamic>?> extractAadhaar(File image) async {

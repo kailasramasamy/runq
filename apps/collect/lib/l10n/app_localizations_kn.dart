@@ -1585,6 +1585,14 @@ class AppLocalizationsKn extends AppLocalizations {
   String get farmerRateChartTitle => 'ದರ ಚಾರ್ಟ್';
 
   @override
+  String get farmerRateShareTooltip => 'ದರ ಚಾರ್ಟ್ ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String farmerRateShareError(Object error) {
+    return 'ದರ ಚಾರ್ಟ್ ಹಂಚಿಕೊಳ್ಳಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ: $error';
+  }
+
+  @override
   String get farmerRateListenSpeak => 'ನಿಮ್ಮ ಹಾಲಿನ ದರ ಚಾರ್ಟ್';
 
   @override
@@ -1834,6 +1842,16 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get ccHomeQcReportLink => 'QC ವರದಿ';
+
+  @override
+  String get ccHomeRateChartLink => 'ದರ ಚಾರ್ಟ್';
+
+  @override
+  String get ccRateChartsEmptyTitle => 'ಸಕ್ರಿಯ ದರ ಚಾರ್ಟ್‌ಗಳಿಲ್ಲ';
+
+  @override
+  String get ccRateChartsEmptySubtitle =>
+      'ಡೈರಿ ನಿಗದಿಪಡಿಸಿದ ದರ ಚಾರ್ಟ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
 
   @override
   String get ccInTransitLabel => 'ಸಾಗಣೆಯಲ್ಲಿ';

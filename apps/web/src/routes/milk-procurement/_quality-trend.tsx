@@ -9,7 +9,7 @@ import {
   type MpQualityTrendRow,
 } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate, daysAgo, today } from './_node-dashboard-shared';
-import { ChartTooltip } from './_daily-history';
+import { ChartTooltip, MILK_COLOR } from './_daily-history';
 
 type Preset = '7' | '14' | '30' | '90' | 'custom';
 const PRESETS: { value: Preset; label: string }[] = [
@@ -20,15 +20,6 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-// One stable colour per milk type (charts share these so a type reads the same
-// across FAT / SNF / Water).
-const MILK_COLOR: Record<MilkType, string> = {
-  cow_a1: '#10b981',
-  cow_a2: '#8b5cf6',
-  buffalo: '#3b82f6',
-  mixed: '#f59e0b',
-  cow: '#71717a',
-};
 // `min` fixes the Y-axis floor so small variations read clearly (FAT sits ~3-4,
 // SNF ~7-9); water starts at 0. Max stays auto.
 const METRICS: { key: 'fat' | 'snf' | 'water'; label: string; min: number }[] = [

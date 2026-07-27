@@ -5,11 +5,11 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import { useNodes, useFarmers, useFarmerDaily, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
+import { useNodes, useFarmers, useFarmerDaily, milkTypeLabel, type MpFarmerDayRow } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate } from './_node-dashboard-shared';
 import { NodeHistoryBody } from './node-history';
 import { DayPoursEditModal } from './_pour-edit-modal';
-import { DailyQtyChart, DailyQualityCharts, sumDailyByDate, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
+import { DailyQtyChart, MilkTypeQtyChart, DailyQualityCharts, sumDailyByDate, CycleFilter, cycleRange, defaultCycleState, PAGE_SIZE, type CycleState } from './_daily-history';
 
 type Scope = 'farmer' | 'vmcc' | 'cc';
 const SCOPES: { value: Scope; label: string }[] = [
@@ -56,8 +56,12 @@ function FarmerHistoryView() {
   const { data } = useFarmerDaily({ ...cycleRange(cyc), nodeId: f.nodeId || undefined, farmerId: f.farmerId || undefined });
   const rows = data?.data ?? [];
   const set = (patch: Partial<typeof f>) => { setF({ ...f, ...patch }); setPage(1); };
-  const sorted = [...rows].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.totalQty - a.totalQty));
+  const sorted = [...rows].sort((a, b) =>
+    a.date !== b.date ? (a.date < b.date ? 1 : -1)
+      : b.totalQty !== a.totalQty ? b.totalQty - a.totalQty
+        : a.milkType < b.milkType ? -1 : 1);
   const daily = sumDailyByDate(rows);
+  const multiType = new Set(rows.map((r) => r.milkType)).size > 1;
 
   return (
     <div>
@@ -75,6 +79,7 @@ function FarmerHistoryView() {
 
       <FarmerSummaryCards rows={rows} />
       <DailyQtyChart rows={daily} />
+      {multiType && <MilkTypeQtyChart rows={rows} />}
       <DailyQualityCharts rows={daily} />
       <FarmerDailyTable rows={sorted} page={page} setPage={setPage} nodeName={nodeName} farmerMeta={farmerMeta} />
     </div>
@@ -117,6 +122,7 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
               <Th>Date</Th>
               <Th>Farmer</Th>
               <Th>VMCC</Th>
+              <Th>Milk type</Th>
               <Th align="right">Qty (L)</Th>
               <Th align="right">AM / PM</Th>
               <Th align="right">FAT AM/PM</Th>
@@ -129,16 +135,17 @@ function FarmerDailyTable({ rows, page, setPage, nodeName, farmerMeta }: {
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <TableEmpty colSpan={11} message="No pours for these filters." />
+              <TableEmpty colSpan={12} message="No pours for these filters." />
             ) : (
               pageRows.map((r) => (
-                <TableRow key={`${r.date}|${r.farmerId}|${r.nodeId}`}>
+                <TableRow key={`${r.date}|${r.farmerId}|${r.nodeId}|${r.milkType}`}>
                   <TableCell className="tabular-nums">{shortDate(r.date)}</TableCell>
                   <TableCell>
                     <div>{farmerMeta(r.farmerId).name}</div>
                     <div className="text-xs text-zinc-400 dark:text-zinc-500">{farmerMeta(r.farmerId).code}</div>
                   </TableCell>
                   <TableCell>{nodeName(r.nodeId)}</TableCell>
+                  <TableCell>{milkTypeLabel(r.milkType)}</TableCell>
                   <TableCell align="right" numeric>{r.totalQty.toLocaleString()}</TableCell>
                   <TableCell align="right" numeric>{r.amQty} / {r.pmQty}</TableCell>
                   <TableCell align="right" numeric>{shiftPair(r.amFat, r.pmFat)}</TableCell>

@@ -17,6 +17,7 @@ import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import 'cc_qc_report.dart';
+import 'cc_rate_charts.dart';
 import 'cc_receive_history.dart';
 import 'cc_report_tab.dart';
 
@@ -259,6 +260,9 @@ class CcHome extends ConsumerWidget {
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.ccHomeQcReportLink,
             CcQcReport(node: node))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _linkCard(context, t, DhenuIcons.grid, l.ccHomeRateChartLink,
+            const CcRateCharts())),
       ]);
 
   Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>

@@ -1583,6 +1583,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerRateChartTitle => 'Rate Chart';
 
   @override
+  String get farmerRateShareTooltip => 'Share rate chart';
+
+  @override
+  String farmerRateShareError(Object error) {
+    return 'Could not share rate chart: $error';
+  }
+
+  @override
   String get farmerRateListenSpeak => 'Your milk rate chart';
 
   @override
@@ -1832,6 +1840,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ccHomeQcReportLink => 'QC report';
+
+  @override
+  String get ccHomeRateChartLink => 'Rate chart';
+
+  @override
+  String get ccRateChartsEmptyTitle => 'No active rate charts';
+
+  @override
+  String get ccRateChartsEmptySubtitle =>
+      'Rate charts set by the dairy will appear here';
 
   @override
   String get ccInTransitLabel => 'In transit';

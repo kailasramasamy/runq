@@ -174,12 +174,14 @@ export interface NodeDayRow extends DayRollup {
   nodeCode: string;
 }
 
-/** One (date, farmer) full collection rollup with AM/PM combined — powers the
- * per-farmer collection history. `nodeId` is the VMCC the farmer poured at. */
+/** One (date, farmer, milk type) full collection rollup with AM/PM combined —
+ * powers the per-farmer collection history. A farmer who supplies more than one
+ * milk type gets one row per type per day. `nodeId` is the VMCC poured at. */
 export interface FarmerDayRow extends DayRollup {
   date: string;
   farmerId: string;
   nodeId: string;
+  milkType: string;
 }
 
 export interface CollectionSummary {
@@ -570,9 +572,10 @@ export class ReportService {
     return mergeKeyed(pourRows.map(shape), dr, (r) => `${r.date}|${r.nodeId}`).sort(byDateDesc);
   }
 
-  /** Per-(date, farmer) collection rollup with AM/PM combined, newest day first —
-   * one row per farmer per day at the VMCC they poured to. Pours only (farmers
-   * never have direct receipts); optionally scoped to a VMCC or one farmer. */
+  /** Per-(date, farmer, milk type) collection rollup with AM/PM combined, newest
+   * day first — a farmer who pours more than one milk type gets a row per type.
+   * Pours only (farmers never have direct receipts); optionally scoped to a VMCC
+   * or one farmer. */
   async farmerDaily(q: FarmerDailyQuery, principal?: MpPrincipal): Promise<FarmerDayRow[]> {
     const conds = [
       eq(mpPours.tenantId, this.tenantId), eq(mpPours.status, 'recorded'),
@@ -585,11 +588,12 @@ export class ReportService {
       if (scope) conds.push(scope);
     }
     const rows = await this.db.select({
-      date: mpPours.collectionDate, farmerId: mpPours.farmerId, nodeId: mpPours.nodeId, ...rollupCols(),
+      date: mpPours.collectionDate, farmerId: mpPours.farmerId, nodeId: mpPours.nodeId,
+      milkType: mpPours.milkType, ...rollupCols(),
     }).from(mpPours).where(and(...conds))
-      .groupBy(mpPours.collectionDate, mpPours.farmerId, mpPours.nodeId)
+      .groupBy(mpPours.collectionDate, mpPours.farmerId, mpPours.nodeId, mpPours.milkType)
       .orderBy(sql`${mpPours.collectionDate} desc`);
-    return rows.map((r) => ({ date: r.date, farmerId: r.farmerId, nodeId: r.nodeId, ...numRollup(r) }));
+    return rows.map((r) => ({ date: r.date, farmerId: r.farmerId, nodeId: r.nodeId, milkType: r.milkType, ...numRollup(r) }));
   }
 
   /** Whole-network snapshot for one day: collected/dispatched/received per node

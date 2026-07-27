@@ -1597,6 +1597,14 @@ class AppLocalizationsTa extends AppLocalizations {
   String get farmerRateChartTitle => 'விலை அட்டவணை';
 
   @override
+  String get farmerRateShareTooltip => 'விலை அட்டவணையை பகிரவும்';
+
+  @override
+  String farmerRateShareError(Object error) {
+    return 'விலை அட்டவணையை பகிர முடியவில்லை: $error';
+  }
+
+  @override
   String get farmerRateListenSpeak => 'உங்கள் பால் விலை அட்டவணை';
 
   @override
@@ -1852,6 +1860,16 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get ccHomeQcReportLink => 'QC அறிக்கை';
+
+  @override
+  String get ccHomeRateChartLink => 'விலை அட்டவணை';
+
+  @override
+  String get ccRateChartsEmptyTitle => 'செயலில் உள்ள விலை அட்டவணைகள் இல்லை';
+
+  @override
+  String get ccRateChartsEmptySubtitle =>
+      'பால் நிறுவனம் அமைத்த விலை அட்டவணைகள் இங்கே தோன்றும்';
 
   @override
   String get ccInTransitLabel => 'போக்குவரத்தில்';

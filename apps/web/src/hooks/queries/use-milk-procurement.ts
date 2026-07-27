@@ -536,9 +536,10 @@ export function useNodeDaily(q: { from: string; to: string; groupBy: 'vmcc' | 'c
   });
 }
 
-// One row per (date, farmer) with AM/PM combined. `nodeId` is the VMCC poured at.
+// One row per (date, farmer, milk type) with AM/PM combined — a farmer who
+// supplies more than one milk type gets a row per type. `nodeId` is the VMCC.
 export interface MpFarmerDayRow {
-  date: string; farmerId: string; nodeId: string;
+  date: string; farmerId: string; nodeId: string; milkType: MilkType;
   totalQty: number; amQty: number; pmQty: number; pourCount: number;
   farmerCount: number; avgFat: number; avgSnf: number;
   amFat: number; pmFat: number; amSnf: number; pmSnf: number; amRate: number; pmRate: number; avgWater: number; amWater: number; pmWater: number; grossAmount: number;

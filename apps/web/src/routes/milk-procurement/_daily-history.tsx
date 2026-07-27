@@ -5,9 +5,22 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, TableEmpty,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { milkTypeLabel, type MilkType } from '@/hooks/queries/use-milk-procurement';
 import { Pills, shortDate, daysAgo, today } from './_node-dashboard-shared';
 
 export const PAGE_SIZE = 25;
+
+/** One stable colour per milk type, shared by every MP chart so a type reads the
+ * same across volume / FAT / SNF / Water. */
+export const MILK_COLOR: Record<MilkType, string> = {
+  cow_a1: '#10b981',
+  cow_a2: '#8b5cf6',
+  buffalo: '#3b82f6',
+  mixed: '#f59e0b',
+  cow: '#71717a',
+};
+/** Preferred display order; A2 (premium) and buffalo lead, legacy "cow" last. */
+export const MILK_TYPE_ORDER: MilkType[] = ['cow_a1', 'cow_a2', 'buffalo', 'mixed', 'cow'];
 
 /** One QC reading, blank when absent (a 0 average means no sample). */
 const q1 = (v: number) => (v > 0 ? v.toFixed(1) : '—');
@@ -188,6 +201,43 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
             <Line type="monotone" dataKey="Total" stroke="#0F7A5A" strokeWidth={2.5} dot={false} />
             <Line type="monotone" dataKey="AM" stroke="#f59e0b" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="PM" stroke="#3b82f6" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Daily volume with one line per milk type, oldest day first — shown when the
+ * filtered rows span more than one milk type (e.g. a farmer supplying buffalo
+ * and Cow A1). Sums litres per (date, milk type). */
+export function MilkTypeQtyChart({ rows }: { rows: { date: string; milkType: MilkType; totalQty: number }[] }) {
+  const byDate = new Map<string, Record<string, number | string>>();
+  const present = new Set<MilkType>();
+  for (const r of rows) {
+    present.add(r.milkType);
+    const row = byDate.get(r.date) ?? { date: shortDate(r.date), _iso: r.date };
+    row[r.milkType] = ((row[r.milkType] as number) ?? 0) + r.totalQty;
+    byDate.set(r.date, row);
+  }
+  const data = [...byDate.values()].sort((a, b) => ((a._iso as string) < (b._iso as string) ? -1 : 1));
+  const series = MILK_TYPE_ORDER.filter((t) => present.has(t));
+  if (data.length === 0 || series.length === 0) return null;
+  return (
+    <Card className="mb-4">
+      <CardContent>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Daily volume (L) · by milk type</p>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={44} />
+            <Tooltip content={<ChartTooltip unit=" L" />} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {series.map((mt) => (
+              <Line key={mt} type="monotone" dataKey={mt} name={milkTypeLabel(mt)}
+                stroke={MILK_COLOR[mt]} strokeWidth={2} dot={false} connectNulls />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </CardContent>

@@ -2884,6 +2884,18 @@ abstract class AppLocalizations {
   /// **'Rate Chart'**
   String get farmerRateChartTitle;
 
+  /// Tooltip for the share-PDF action on the rate chart screen
+  ///
+  /// In en, this message translates to:
+  /// **'Share rate chart'**
+  String get farmerRateShareTooltip;
+
+  /// Error toast when the rate chart PDF share fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not share rate chart: {error}'**
+  String farmerRateShareError(Object error);
+
   /// TTS speak string for rate chart when no rate is known
   ///
   /// In en, this message translates to:
@@ -3315,6 +3327,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'QC report'**
   String get ccHomeQcReportLink;
+
+  /// CC home quick-link to the VMCC rate charts screen
+  ///
+  /// In en, this message translates to:
+  /// **'Rate chart'**
+  String get ccHomeRateChartLink;
+
+  /// Empty state title on the CC rate charts screen
+  ///
+  /// In en, this message translates to:
+  /// **'No active rate charts'**
+  String get ccRateChartsEmptyTitle;
+
+  /// Empty state subtitle on the CC rate charts screen
+  ///
+  /// In en, this message translates to:
+  /// **'Rate charts set by the dairy will appear here'**
+  String get ccRateChartsEmptySubtitle;
 
   /// No description provided for @ccInTransitLabel.
   ///

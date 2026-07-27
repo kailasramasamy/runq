@@ -13,6 +13,8 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
 import 'farmer_insights.dart';
+import 'farmer_rate_chart_share.dart';
+import 'rate_chart_tables.dart';
 
 /// Rate chart screen — FAT×SNF matrix or flat rate, with the farmer's last
 /// pour cell highlighted (spec §6.1).
@@ -50,6 +52,8 @@ class FarmerRateChart extends ConsumerWidget {
           orElse: () => Text(l.farmerRateChartTitle, style: DhenuText.h2.copyWith(color: t.ink)),
         ),
         actions: [
+          if (detailAsync.asData?.value != null)
+            RateChartShareAction(chartId: detailAsync.asData!.value!.chart.id),
           Padding(
             padding: const EdgeInsets.only(right: DhenuSpacing.md),
             child: AudioPlay(
@@ -417,172 +421,4 @@ class _RateChartBody extends StatelessWidget {
     }
     return rule.ruleType;
   }
-}
-
-/// FAT × SNF rate matrix — highlights the cell closest to [lastFat]/[lastSnf].
-class RateMatrix extends StatelessWidget {
-  const RateMatrix({
-    super.key,
-    required this.cells,
-    required this.lastFat,
-    required this.lastSnf,
-  });
-
-  final List<MpRateCell> cells;
-  final double? lastFat;
-  final double? lastSnf;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = DT(context);
-    final l = AppLocalizations.of(context);
-    if (cells.isEmpty) {
-      return Text(l.farmerRateNoMatrixData, style: DhenuText.body.copyWith(color: t.inkSoft));
-    }
-    final fatVals = cells.map((c) => c.fat).toSet().toList()..sort();
-    final snfVals = cells.map((c) => c.snf).toSet().toList()..sort();
-    final highlighted = _findNearest();
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(children: [
-            _headerCell(t, 'FAT↓ SNF→'),
-            ...snfVals.map((s) => _headerCell(t, oneDp(s))),
-          ]),
-          ...fatVals.map((f) {
-            return Row(children: [
-              _headerCell(t, oneDp(f)),
-              ...snfVals.map((s) {
-                final cell = cells.firstWhere(
-                  (c) => c.fat == f && c.snf == s,
-                  orElse: () => MpRateCell(id: '', fat: f, snf: s, ratePerLitre: 0),
-                );
-                final isHighlighted = highlighted != null &&
-                    highlighted.fat == f &&
-                    highlighted.snf == s;
-                return _dataCell(t, cell.ratePerLitre, isHighlighted);
-              }),
-            ]);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _headerCell(DhenuTokens t, String text) => Container(
-        width: 72,
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: t.hairline,
-          border: Border.all(color: t.hairline),
-        ),
-        child: Text(
-          text,
-          style: DhenuText.caption.copyWith(color: t.inkSoft),
-          overflow: TextOverflow.ellipsis,
-        ),
-      );
-
-  Widget _dataCell(DhenuTokens t, double rate, bool highlighted) => Container(
-        width: 72,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: highlighted ? t.brandSubtle : t.card,
-          border: highlighted
-              ? Border.all(color: t.brand, width: 2)
-              : Border.all(color: t.hairline),
-        ),
-        child: Text(
-          rupees(rate),
-          style: DhenuText.number(
-            size: 13,
-            color: highlighted ? t.brand : t.ink,
-          ),
-        ),
-      );
-
-  MpRateCell? _findNearest() {
-    if (lastFat == null || lastSnf == null || cells.isEmpty) return null;
-    return cells.reduce((a, b) {
-      final da = (a.fat - lastFat!).abs() + (a.snf - lastSnf!).abs();
-      final db = (b.fat - lastFat!).abs() + (b.snf - lastSnf!).abs();
-      return da <= db ? a : b;
-    });
-  }
-}
-
-/// CLR (lactometer) breakpoint table — highlights the row that priced the
-/// farmer's last pour (nearest-floor, matching the server's resolution).
-class ClrRateTable extends StatelessWidget {
-  const ClrRateTable({super.key, required this.cells, required this.lastClr});
-
-  final List<MpRateCell> cells;
-  final double? lastClr;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = DT(context);
-    final l = AppLocalizations.of(context);
-    final rows = cells.where((c) => c.clr != null).toList()
-      ..sort((a, b) => a.clr!.compareTo(b.clr!));
-    if (rows.isEmpty) {
-      return Text(l.farmerRateNoMatrixData, style: DhenuText.body.copyWith(color: t.inkSoft));
-    }
-    final highlighted = _floorRow(rows);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(children: [_headerCell(t, 'CLR'), _headerCell(t, '₹ / L')]),
-        ...rows.map((c) => Row(children: [
-              _cell(t, oneDp(c.clr!), identical(c, highlighted), header: true),
-              _cell(t, rupees(c.ratePerLitre), identical(c, highlighted)),
-            ])),
-      ],
-    );
-  }
-
-  /// Largest row with clr ≤ lastClr — the server's nearest-floor pick.
-  MpRateCell? _floorRow(List<MpRateCell> rows) {
-    if (lastClr == null) return null;
-    MpRateCell? best;
-    for (final c in rows) {
-      if (c.clr! <= lastClr!) best = c;
-    }
-    return best;
-  }
-
-  Widget _headerCell(DhenuTokens t, String text) => Container(
-        width: 108,
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: t.hairline,
-          border: Border.all(color: t.hairline),
-        ),
-        child: Text(text, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-      );
-
-  Widget _cell(DhenuTokens t, String text, bool highlighted, {bool header = false}) =>
-      Container(
-        width: 108,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: highlighted ? t.brandSubtle : (header ? t.hairline : t.card),
-          border: highlighted
-              ? Border.all(color: t.brand, width: 2)
-              : Border.all(color: t.hairline),
-        ),
-        child: Text(
-          text,
-          style: DhenuText.number(size: 13, color: highlighted ? t.brand : t.ink),
-        ),
-      );
 }

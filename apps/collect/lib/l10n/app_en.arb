@@ -972,6 +972,17 @@
   "@farmerRateChartTitle": {
     "description": "Rate chart screen app bar title fallback"
   },
+  "farmerRateShareTooltip": "Share rate chart",
+  "@farmerRateShareTooltip": {
+    "description": "Tooltip for the share-PDF action on the rate chart screen"
+  },
+  "farmerRateShareError": "Could not share rate chart: {error}",
+  "@farmerRateShareError": {
+    "description": "Error toast when the rate chart PDF share fails",
+    "placeholders": {
+      "error": {}
+    }
+  },
   "farmerRateListenSpeak": "Your milk rate chart",
   "@farmerRateListenSpeak": {
     "description": "TTS speak string for rate chart when no rate is known"
@@ -1258,6 +1269,18 @@
   },
   "ccHomeReportLink": "Report",
   "ccHomeQcReportLink": "QC report",
+  "ccHomeRateChartLink": "Rate chart",
+  "@ccHomeRateChartLink": {
+    "description": "CC home quick-link to the VMCC rate charts screen"
+  },
+  "ccRateChartsEmptyTitle": "No active rate charts",
+  "@ccRateChartsEmptyTitle": {
+    "description": "Empty state title on the CC rate charts screen"
+  },
+  "ccRateChartsEmptySubtitle": "Rate charts set by the dairy will appear here",
+  "@ccRateChartsEmptySubtitle": {
+    "description": "Empty state subtitle on the CC rate charts screen"
+  },
   "ccInTransitLabel": "In transit",
   "ccHomePlantReadyLabel": "Plant-ready",
   "ccVmccsLoadError": "Could not load VMCCs",
