@@ -242,6 +242,9 @@ export function CustomerDetailPage({ customerId }: Props) {
             label="Credit limit"
             value={customer.creditLimit ? formatINR(Number(customer.creditLimit)) : 'No limit'}
           />
+          {customer.holdReceiptsOnAccount && (
+            <DetailRow label="Receipts" value="Held on-account (manual allocation)" />
+          )}
         </DetailCard>
         <DetailCard title="Tax & legal" icon={<ShieldCheck size={14} />}>
           <DetailRow label="GSTIN" value={customer.gstin} mono />

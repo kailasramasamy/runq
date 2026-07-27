@@ -22,6 +22,7 @@ export interface Customer {
   customerGroup: string | null;
   overdueInterestRate: number | null;
   defaultBankAccountId: string | null;
+  holdReceiptsOnAccount: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

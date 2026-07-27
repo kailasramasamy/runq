@@ -25,6 +25,9 @@ export const createCustomerSchema = z.object({
   pincode: z.string().regex(/^[1-9][0-9]{5}$/, 'Invalid pincode').nullish(),
   creditLimit: z.number().nonnegative().nullish(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
+  // When true, incoming bank credits are held on-account (no auto-allocation) for
+  // manual, remittance-advice-driven allocation.
+  holdReceiptsOnAccount: z.boolean().optional(),
   contactPerson: z.string().max(255).nullish(),
   customerGroup: z.string().max(50).nullish(),
   overdueInterestRate: z.number().min(0).max(100).nullish(),

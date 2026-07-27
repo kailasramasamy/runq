@@ -7,6 +7,7 @@ import {
   reconciliationMatches,
   accounts,
   journalEntries,
+  customers,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -98,6 +99,13 @@ export class AutoReceiptService {
       return this.createOnAccountReceipt(params, arGlId);
     }
 
+    // 1c. Customer opted out of auto-allocation (they pay specific invoice sets
+    //     per remittance advice). Hold the credit on-account so it's applied to
+    //     the exact invoices manually — blind FIFO would cross-mis-allocate.
+    if (await this.customerHoldsOnAccount(params.customerId)) {
+      return this.createOnAccountReceipt(params, arGlId);
+    }
+
     // 2. Fetch all unpaid invoices for this customer (oldest first)
     const invoices = await this.findUnpaidInvoices(params.customerId);
     if (invoices.length > 0) {
@@ -126,6 +134,17 @@ export class AutoReceiptService {
       ))
       .limit(1);
     return row?.id ?? null;
+  }
+
+  /** Per-customer opt-out: hold incoming credits on-account for manual,
+   *  remittance-driven allocation instead of blind-FIFO. */
+  private async customerHoldsOnAccount(customerId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ hold: customers.holdReceiptsOnAccount })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+    return row?.hold ?? false;
   }
 
   private async findUnpaidInvoices(customerId: string): Promise<{ id: string; balanceDue: string }[]> {

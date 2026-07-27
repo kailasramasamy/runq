@@ -394,6 +394,7 @@ export class CustomerService {
       customerGroup: row.customerGroup ?? null,
       overdueInterestRate: row.overdueInterestRate != null ? Number(row.overdueInterestRate) : null,
       defaultBankAccountId: row.defaultBankAccountId ?? null,
+      holdReceiptsOnAccount: row.holdReceiptsOnAccount,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

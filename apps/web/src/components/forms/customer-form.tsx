@@ -37,6 +37,7 @@ function buildInitial(c?: Customer): FormState {
     customerGroup: c.customerGroup ?? undefined,
     overdueInterestRate: c.overdueInterestRate ?? undefined,
     defaultBankAccountId: c.defaultBankAccountId ?? undefined,
+    holdReceiptsOnAccount: c.holdReceiptsOnAccount,
     isActive: c.isActive,
   };
 }
@@ -215,6 +216,25 @@ export function CustomerForm({ initialData, onSubmit, onCancel, isLoading }: Pro
               helper="Only this bank account will be shown on invoices for this customer. Leave blank to use the tenant default."
               error={errors.defaultBankAccountId}
             />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={form.holdReceiptsOnAccount ?? false}
+                onChange={(e) => setForm((f) => ({ ...f, holdReceiptsOnAccount: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+              <div className="text-[13px]">
+                <div className="font-medium text-zinc-900 dark:text-zinc-100">Hold receipts on-account (don't auto-allocate)</div>
+                <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                  For customers who pay specific invoices per remittance advice. Incoming
+                  bank credits are received as an on-account credit instead of being
+                  auto-matched to the oldest invoices, so you allocate them to the exact
+                  invoices yourself. Prevents mis-allocation when several payments overlap.
+                </div>
+              </div>
+            </label>
           </div>
         </CardContent>
       </Card>

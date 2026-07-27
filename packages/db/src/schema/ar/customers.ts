@@ -24,6 +24,11 @@ export const customers = pgTable('customers', {
   pincode: varchar('pincode', { length: 10 }),
   creditLimit: decimal('credit_limit', { precision: 15, scale: 2 }),
   paymentTermsDays: integer('payment_terms_days').notNull().default(30),
+  // When true, incoming bank credits for this customer are received on-account
+  // (no auto-allocation) so they can be applied to the exact invoices from the
+  // customer's remittance advice. Prevents blind-FIFO cross-receipt mis-allocation
+  // for customers who pay specific invoice sets and have multiple payments in flight.
+  holdReceiptsOnAccount: boolean('hold_receipts_on_account').notNull().default(false),
   contactPerson: varchar('contact_person', { length: 255 }),
   customerGroup: varchar('customer_group', { length: 50 }),
   overdueInterestRate: decimal('overdue_interest_rate', { precision: 5, scale: 2 }),
