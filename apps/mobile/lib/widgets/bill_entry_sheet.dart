@@ -7,19 +7,22 @@ enum BillEntryChoice { scan, photos, files, recent }
 /// Bottom-sheet chooser for adding a bill. Returns the user's pick (or null
 /// if dismissed). The caller dispatches to the right capture flow — this
 /// widget does not navigate.
-Future<BillEntryChoice?> showBillEntrySheet(BuildContext context) {
+Future<BillEntryChoice?> showBillEntrySheet(BuildContext context, {bool showRecent = true}) {
   return showModalBottomSheet<BillEntryChoice>(
     context: context,
     backgroundColor: RT(context).surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
-    builder: (_) => const _BillEntrySheet(),
+    builder: (_) => _BillEntrySheet(showRecent: showRecent),
   );
 }
 
 class _BillEntrySheet extends StatelessWidget {
-  const _BillEntrySheet();
+  /// Hidden when the caller *is* the bills list — the shortcut would just
+  /// reload the screen you're already on.
+  final bool showRecent;
+  const _BillEntrySheet({required this.showRecent});
 
   @override
   Widget build(BuildContext context) {
@@ -59,14 +62,15 @@ class _BillEntrySheet extends StatelessWidget {
             ),
             // Tinted background sets the "view existing" tile apart from the
             // capture actions above.
-            _Tile(
-              icon: Icons.receipt_long_outlined,
-              tint: RunqColors.greenInk,
-              title: 'Recent bills',
-              subtitle: "View and manage bills you've already added",
-              background: t.bgWarm,
-              onTap: () => Navigator.pop(context, BillEntryChoice.recent),
-            ),
+            if (showRecent)
+              _Tile(
+                icon: Icons.receipt_long_outlined,
+                tint: RunqColors.greenInk,
+                title: 'Recent bills',
+                subtitle: "View and manage bills you've already added",
+                background: t.bgWarm,
+                onTap: () => Navigator.pop(context, BillEntryChoice.recent),
+              ),
             const SizedBox(height: 4),
           ],
         ),

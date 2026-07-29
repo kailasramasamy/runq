@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../api/models.dart';
@@ -8,9 +7,9 @@ import '../api/repos.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
-import '../widgets/avatar.dart';
-import '../widgets/runq_snack.dart';
-import '../widgets/swipe_action.dart';
+import '../widgets/date_range_sheet.dart';
+import '../widgets/list_filter_kit.dart';
+import 'customer_order_row.dart';
 
 final customerOrdersProvider = FutureProvider.autoDispose<List<CustomerOrderRow>>((ref) async {
   return orderRepo.listInbox(limit: 100);
@@ -26,76 +25,78 @@ extension on CustomerOrderFilter {
         CustomerOrderFilter.invoiced => 'Invoiced',
         CustomerOrderFilter.errors => 'Errors',
       };
-}
 
-final _poFilterProvider = StateProvider.autoDispose<CustomerOrderFilter>((_) => CustomerOrderFilter.all);
-
-bool _matchesFilter(CustomerOrderRow r, CustomerOrderFilter f) {
-  final s = r.displayStatus;
-  switch (f) {
-    case CustomerOrderFilter.all:
-      return true;
-    case CustomerOrderFilter.toReview:
-      return s == 'ready' || s == 'needs review';
-    case CustomerOrderFilter.parsing:
-      return s == 'parsing';
-    case CustomerOrderFilter.invoiced:
-      return s == 'invoiced';
-    case CustomerOrderFilter.errors:
-      return s == 'error' || s == 'rejected';
+  bool matches(CustomerOrderRow r) {
+    final s = r.displayStatus;
+    return switch (this) {
+      CustomerOrderFilter.all => true,
+      CustomerOrderFilter.toReview => s == 'ready' || s == 'needs review',
+      CustomerOrderFilter.parsing => s == 'parsing',
+      CustomerOrderFilter.invoiced => s == 'invoiced',
+      CustomerOrderFilter.errors => s == 'error' || s == 'rejected',
+    };
   }
 }
 
-class _OrderSummary {
-  final int toReview, parsing, invoiced, errors, total;
-  final double pendingValue;
-  const _OrderSummary({
-    required this.toReview,
-    required this.parsing,
-    required this.invoiced,
-    required this.errors,
-    required this.total,
-    required this.pendingValue,
-  });
-
-  factory _OrderSummary.from(List<CustomerOrderRow> rows) {
-    int toReview = 0, parsing = 0, invoiced = 0, errors = 0;
-    double pending = 0;
-    for (final r in rows) {
-      final s = r.displayStatus;
-      if (s == 'ready' || s == 'needs review') {
-        toReview++;
-        pending += r.grandTotal ?? 0;
-      } else if (s == 'parsing') {
-        parsing++;
-      } else if (s == 'invoiced') {
-        invoiced++;
-      } else if (s == 'error' || s == 'rejected') {
-        errors++;
-      }
-    }
-    return _OrderSummary(
-      toReview: toReview,
-      parsing: parsing,
-      invoiced: invoiced,
-      errors: errors,
-      total: rows.length,
-      pendingValue: pending,
-    );
-  }
-}
-
-/// Mobile Customer orders — paginated list of every customer-order upload (parsing, ready,
+/// Mobile Customer POs — every customer-order upload (parsing, ready,
 /// invoiced, error). Tap a row to open the parse review screen, or tap the
 /// linked invoice chip on an invoiced row to jump straight to that invoice.
-class CustomerOrdersScreen extends ConsumerWidget {
+///
+/// Layout: filter pills → summary cards → searchable order history, each row
+/// carrying its own upload-date block.
+class CustomerOrdersScreen extends ConsumerStatefulWidget {
   const CustomerOrdersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
+}
+
+class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  CustomerOrderFilter _filter = CustomerOrderFilter.all;
+  DateTime? _from;
+  DateTime? _to;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _inRange(DateTime d) {
+    if (_from != null && d.isBefore(DateTime(_from!.year, _from!.month, _from!.day))) return false;
+    if (_to != null && d.isAfter(DateTime(_to!.year, _to!.month, _to!.day, 23, 59))) return false;
+    return true;
+  }
+
+  bool _matchesQuery(CustomerOrderRow r) {
+    if (_query.isEmpty) return true;
+    final hay = [
+      r.displayTitle,
+      r.customerName ?? '',
+      r.buyerNameRaw ?? '',
+      r.poNumberExtracted ?? '',
+      r.fileName ?? '',
+      r.approvedInvoiceNumber ?? '',
+      r.displayStatus,
+    ].join(' ').toLowerCase();
+    return hay.contains(_query);
+  }
+
+  Future<void> _pickRange() async {
+    final res = await showDateRangeSheet(context, initialFrom: _from, initialTo: _to);
+    if (res == null) return;
+    setState(() {
+      _from = res.from;
+      _to = res.to;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
     final inbox = ref.watch(customerOrdersProvider);
-    final filter = ref.watch(_poFilterProvider);
     return Scaffold(
       backgroundColor: t.bgWarmer,
       appBar: AppBar(
@@ -114,17 +115,14 @@ class CustomerOrdersScreen extends ConsumerWidget {
           },
           child: inbox.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) {
-              final msg = e is ApiException ? e.message : 'Could not load customer orders';
-              return _Centered(
-                icon: Icons.error_outline_rounded,
-                title: msg,
-                action: 'Retry',
-                onAction: () => ref.invalidate(customerOrdersProvider),
-              );
-            },
-            data: (rows) {
-              if (rows.isEmpty) {
+            error: (e, _) => _Centered(
+              icon: Icons.error_outline_rounded,
+              title: e is ApiException ? e.message : 'Could not load customer orders',
+              action: 'Retry',
+              onAction: () => ref.invalidate(customerOrdersProvider),
+            ),
+            data: (all) {
+              if (all.isEmpty) {
                 return const _Centered(
                   icon: Icons.inbox_outlined,
                   title: 'No customer orders yet',
@@ -132,50 +130,18 @@ class CustomerOrdersScreen extends ConsumerWidget {
                       'Share or upload an order from a customer — it lands here, AI parses it, and you approve it into an invoice.',
                 );
               }
-              final summary = _OrderSummary.from(rows);
-              final visible = rows.where((r) => _matchesFilter(r, filter)).toList();
-              return CustomScrollView(
+              // Date range scopes the counts and cards; the status filter and
+              // search only narrow the list beneath them.
+              final scoped = all.where((r) => _inRange(r.uploadedAt)).toList();
+              final rows = scoped.where(_filter.matches).where(_matchesQuery).toList();
+              return ListView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: _SummaryGrid(
-                        summary: summary,
-                        active: filter,
-                        onTap: (f) => ref.read(_poFilterProvider.notifier).state = f,
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
-                    sliver: SliverToBoxAdapter(
-                      child: _FilterChipRow(
-                        active: filter,
-                        onChanged: (f) => ref.read(_poFilterProvider.notifier).state = f,
-                      ),
-                    ),
-                  ),
-                  if (visible.isEmpty)
-                    SliverToBoxAdapter(
-                      child: _EmptyFilter(
-                        label: filter.label,
-                        onClear: () =>
-                            ref.read(_poFilterProvider.notifier).state = CustomerOrderFilter.all,
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                      sliver: SliverList.separated(
-                        itemCount: visible.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => _OrderRow(
-                          row: visible[i],
-                          onAfterDelete: () => ref.invalidate(customerOrdersProvider),
-                        ),
-                      ),
-                    ),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                children: [
+                  _header(t, scoped, rows.isEmpty),
+                  if (rows.isNotEmpty)
+                    _OrderList(rows: rows, onAfterDelete: () => ref.invalidate(customerOrdersProvider)),
                 ],
               );
             },
@@ -184,415 +150,115 @@ class CustomerOrdersScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _SummaryGrid extends StatelessWidget {
-  final _OrderSummary summary;
-  final CustomerOrderFilter active;
-  final ValueChanged<CustomerOrderFilter> onTap;
-  const _SummaryGrid({required this.summary, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final tiles = <_SummaryStat>[
-      _SummaryStat(
-        label: 'To review',
-        value: '${summary.toReview}',
-        valueColor: summary.toReview > 0 ? RunqColors.indigo : t.muted,
-        filter: CustomerOrderFilter.toReview,
-      ),
-      _SummaryStat(
-        label: 'Parsing',
-        value: '${summary.parsing}',
-        valueColor: summary.parsing > 0 ? const Color(0xFFB45309) : t.muted,
-        filter: CustomerOrderFilter.parsing,
-      ),
-      _SummaryStat(
-        label: 'Invoiced',
-        value: '${summary.invoiced}',
-        valueColor: summary.invoiced > 0 ? RunqColors.greenInk : t.muted,
-        filter: CustomerOrderFilter.invoiced,
-      ),
-      _SummaryStat(
-        label: 'Errors',
-        value: '${summary.errors}',
-        valueColor: summary.errors > 0 ? RunqColors.redInk : t.muted,
-        filter: CustomerOrderFilter.errors,
-      ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < tiles.length; i++) ...[
-              if (i > 0)
-                Container(
-                  width: 1,
-                  color: t.muted2.withValues(alpha: 0.25),
+  Widget _header(RunqTokens t, List<CustomerOrderRow> scoped, bool noMatches) {
+    int count(CustomerOrderFilter f) =>
+        f == CustomerOrderFilter.all ? scoped.length : scoped.where(f.matches).length;
+    // Value still waiting on a human — the number that decides whether this
+    // screen needs attention today.
+    final pending = scoped
+        .where(CustomerOrderFilter.toReview.matches)
+        .fold<double>(0, (s, r) => s + (r.grandTotal ?? 0));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              FilterPill(
+                label: listRangeLabel(_from, _to),
+                active: _from != null || _to != null,
+                trailing: Icons.keyboard_arrow_down_rounded,
+                onTap: _pickRange,
+              ),
+              const SizedBox(width: 8),
+              Container(width: 1, margin: const EdgeInsets.symmetric(vertical: 8), color: t.hairline),
+              const SizedBox(width: 8),
+              for (final f in CustomerOrderFilter.values) ...[
+                FilterPill(
+                  label: f.label,
+                  active: f == _filter,
+                  badge: count(f),
+                  onTap: () => setState(() => _filter = f),
                 ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Expanded(
-                child: _SummaryCell(
-                  stat: tiles[i],
-                  active: active == tiles[i].filter,
-                  onTap: () => onTap(active == tiles[i].filter
-                      ? CustomerOrderFilter.all
-                      : tiles[i].filter),
+                child: ListStatCard(
+                  icon: Icons.inbox_rounded,
+                  label: count(CustomerOrderFilter.all) == 1 ? 'ORDER' : 'ORDERS',
+                  value: '${count(CustomerOrderFilter.all)}',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ListStatCard(
+                  icon: Icons.pending_actions_rounded,
+                  label: 'TO REVIEW',
+                  value: formatINR(pending, compact: true),
+                  tinted: true,
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryStat {
-  final String label, value;
-  final Color valueColor;
-  final CustomerOrderFilter filter;
-  const _SummaryStat({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-    required this.filter,
-  });
-}
-
-class _SummaryCell extends StatelessWidget {
-  final _SummaryStat stat;
-  final bool active;
-  final VoidCallback onTap;
-  const _SummaryCell({
-    required this.stat,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Material(
-      color: active ? stat.valueColor.withValues(alpha: 0.08) : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(stat.label.toUpperCase(),
-                  style: RunqText.micro.copyWith(
-                    color: t.muted, letterSpacing: 0.5,
-                  )),
-              const SizedBox(height: 4),
-              Text(stat.value,
-                  style: RunqText.tabular(
-                      size: 18, w: FontWeight.w700, color: stat.valueColor)),
-            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FilterChipRow extends StatelessWidget {
-  final CustomerOrderFilter active;
-  final ValueChanged<CustomerOrderFilter> onChanged;
-  const _FilterChipRow({required this.active, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        itemCount: CustomerOrderFilter.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final f = CustomerOrderFilter.values[i];
-          return _FilterChip(
-            label: f.label,
-            active: f == active,
-            onTap: () => onChanged(f),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: active ? RunqColors.indigo : t.surface,
-            border: Border.all(
-              color: active ? RunqColors.indigo : t.hairline,
-              width: 0.5,
-            ),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(label,
-              style: RunqText.caption.copyWith(
-                fontWeight: FontWeight.w600,
-                color: active ? Colors.white : t.ink,
-              )),
+        const SizedBox(height: 18),
+        Text('Order history', style: RunqText.h3.copyWith(color: t.ink)),
+        const SizedBox(height: 10),
+        ListSearchField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+          hint: 'Search customer, PO no., file…',
         ),
-      ),
+        const SizedBox(height: 12),
+        if (noMatches)
+          _EmptyFilter(
+            label: _filter.label,
+            onClear: () => setState(() {
+              _filter = CustomerOrderFilter.all;
+              _query = '';
+              _searchCtrl.clear();
+            }),
+          ),
+      ],
     );
   }
 }
 
-class _OrderRow extends StatelessWidget {
-  final CustomerOrderRow row;
+class _OrderList extends StatelessWidget {
+  final List<CustomerOrderRow> rows;
   final VoidCallback onAfterDelete;
-  const _OrderRow({required this.row, required this.onAfterDelete});
-
-  Future<void> _confirmDelete(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete this order?'),
-        content: Text(
-          row.reviewStatus == 'approved'
-              ? 'This order has already been converted to invoice ${row.approvedInvoiceNumber ?? ''}. Deleting the order will not delete the invoice. Continue?'
-              : 'This permanently removes the upload and parsed draft. The original file can be re-uploaded later.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    try {
-      await orderRepo.discard(row.id);
-      if (!context.mounted) return;
-      showRunqSnack(context, 'Order deleted');
-      onAfterDelete();
-    } on ApiException catch (e) {
-      if (context.mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
-    } catch (_) {
-      if (context.mounted) showRunqSnack(context, 'Could not delete the order.', kind: SnackKind.error);
-    }
-  }
+  const _OrderList({required this.rows, required this.onAfterDelete});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Slidable(
-      key: ValueKey(row.id),
-      endActionPane: ActionPane(
-        motion: const ScrollMotion(),
-        extentRatio: 0.28,
+    // One card for the whole list, rows separated by hairlines — orders are
+    // sparse enough that per-day section headers would outnumber the rows.
+    return Material(
+      color: t.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: t.hairline),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
         children: [
-          SwipeAction(
-            icon: Icons.delete_outline_rounded,
-            label: 'Delete',
-            color: Colors.red,
-            onTap: () => _confirmDelete(context),
-          ),
-        ],
-      ),
-      child: Material(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-          onTap: () => context.push('/sales/orders/${row.id}'),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: t.hairline, width: 0.5),
-              borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  // Top-align so the amount sits on the title line, not
-                  // visually centred against title + subtitle — matches the
-                  // invoice list layout.
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RqAvatar(name: row.displayTitle, size: 36),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(row.displayTitle,
-                              style: RunqText.bodyStrong.copyWith(color: t.ink),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 2),
-                          Text(_subtitle(),
-                              style: RunqText.caption.copyWith(color: t.muted),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ],
-                      ),
-                    ),
-                    if (row.grandTotal != null && row.grandTotal! > 0)
-                      Padding(
-                        // Nudge the amount down to centre against the
-                        // title line specifically (top of Text has a small
-                        // ascender gap; this matches it visually).
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(formatINR(row.grandTotal!),
-                            style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Padding(
-                  // Indent to align with the title (avatar 36 + gap 12).
-                  padding: const EdgeInsets.only(left: 48),
-                  child: Row(
-                    children: [
-                      _StatusPill(status: row.displayStatus),
-                      const Spacer(),
-                      if (row.approvedInvoiceId != null)
-                        _InvoiceChip(
-                          number: row.approvedInvoiceNumber ?? 'invoice',
-                          onTap: () => context.push('/invoices/${row.approvedInvoiceId}'),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _subtitle() {
-    final parts = <String>[];
-    if (row.poNumberExtracted != null && row.poNumberExtracted!.isNotEmpty) {
-      parts.add('PO #${row.poNumberExtracted!}');
-    }
-    parts.add(_relativeDate(row.uploadedAt));
-    return parts.join(' · ');
-  }
-
-  String _relativeDate(DateTime d) {
-    final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    // Keep the relative "Nh ago" only within the day; anything older reads as
-    // the actual date (with year when it's not this year) rather than "Nd ago".
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final date = '${d.day} ${months[d.month - 1]}';
-    return d.year == now.year ? date : '$date ${d.year}';
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String status;
-  const _StatusPill({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final s = status.toLowerCase();
-    Color fg;
-    Color bg;
-    // Use alpha-tinted backgrounds throughout so pills render correctly on
-    // both light and dark surfaces — solid pastel backgrounds (e.g. light
-    // mint green) blow out against a dark canvas. Text colours flip per
-    // mode so contrast on the tinted bg stays readable.
-    if (s == 'invoiced') {
-      fg = isDark ? const Color(0xFF34D399) : RunqColors.greenInk;
-      bg = const Color(0x3310B981);  // emerald @20% alpha
-    } else if (s == 'ready') {
-      fg = isDark ? const Color(0xFFA5B4FC) : RunqColors.indigo;
-      bg = const Color(0x1F4F46E5);
-    } else if (s == 'needs review' || s == 'parsing') {
-      fg = isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309);
-      bg = const Color(0x33F59E0B);
-    } else if (s == 'error' || s == 'rejected') {
-      fg = isDark ? const Color(0xFFFCA5A5) : RunqColors.redInk;
-      bg = const Color(0x22EF4444);
-    } else {
-      fg = t.muted;
-      bg = t.hairlineSoft;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(status.toUpperCase(),
-          style: RunqText.micro.copyWith(
-            color: fg,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.5,
-          )),
-    );
-  }
-}
-
-class _InvoiceChip extends StatelessWidget {
-  final String number;
-  final VoidCallback onTap;
-  const _InvoiceChip({required this.number, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: RunqColors.indigo.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.receipt_long_rounded, size: 12, color: RunqColors.indigo),
-            const SizedBox(width: 4),
-            Text(number,
-                style: RunqText.caption.copyWith(
-                  color: RunqColors.indigo,
-                  fontWeight: FontWeight.w700,
-                )),
-            const SizedBox(width: 2),
-            const Icon(Icons.chevron_right_rounded, size: 14, color: RunqColors.indigo),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: t.hairlineSoft, indent: 70),
+            OrderInboxRow(row: rows[i], onAfterDelete: onAfterDelete),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -607,7 +273,7 @@ class _EmptyFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
       child: Column(
         children: [
           Icon(Icons.filter_alt_off_rounded, size: 32, color: t.muted),
@@ -616,7 +282,7 @@ class _EmptyFilter extends StatelessWidget {
               textAlign: TextAlign.center,
               style: RunqText.bodyStrong.copyWith(color: t.ink)),
           const SizedBox(height: 6),
-          Text('Try a different filter or clear it to see everything.',
+          Text('Try a different filter, widen the dates, or clear the search.',
               textAlign: TextAlign.center,
               style: RunqText.caption.copyWith(color: t.muted)),
           const SizedBox(height: 14),
@@ -667,9 +333,7 @@ class _Centered extends StatelessWidget {
         ],
         if (action != null) ...[
           const SizedBox(height: 16),
-          Center(
-            child: OutlinedButton(onPressed: onAction, child: Text(action!)),
-          ),
+          Center(child: OutlinedButton(onPressed: onAction, child: Text(action!))),
         ],
       ],
     );

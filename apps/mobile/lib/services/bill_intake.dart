@@ -15,8 +15,8 @@ import 'scan_compiler.dart';
 /// matching capture (scanner / photos / files), and routes to the extract
 /// screen with the resulting File. No intermediate routes — the caller's
 /// screen stays visible while the chooser/picker overlays.
-Future<void> startBillIntake(BuildContext context) async {
-  final choice = await showBillEntrySheet(context);
+Future<void> startBillIntake(BuildContext context, {bool showRecent = true}) async {
+  final choice = await showBillEntrySheet(context, showRecent: showRecent);
   if (choice == null || !context.mounted) return;
 
   // "Recent bills" is a navigation shortcut, not a capture flow.

@@ -1,7 +1,7 @@
 name: runq_mobile
 description: "runQ Mobile — on-the-go companion for runQ ERP."
 publish_to: 'none'
-version: 1.0.8+24
+version: 1.0.9+25
 
 environment:
   sdk: ^3.10.4
@@ -104,3 +104,6 @@ flutter_native_splash:
     image: "assets/branding/runq-app-logo.png"
     color_dark: "#6366F1"
     image_dark: "assets/branding/runq-app-logo.png"
+
+dependency_overrides:
+  path_provider_foundation: 2.4.1

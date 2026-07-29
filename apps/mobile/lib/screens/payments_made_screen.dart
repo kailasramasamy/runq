@@ -1,22 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../api/api_client.dart';
 import '../api/models.dart';
-import '../api/repos.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
-import '../widgets/runq_snack.dart';
+import '../widgets/date_range_sheet.dart';
+import '../widgets/list_filter_kit.dart';
+import '../widgets/payment_detail_sheet.dart';
+import 'payments_made_widgets.dart';
 
 /// History of captured payments made (QR/UPI). Pending ones are editable
-/// until the bank statement matches them; each card shows its match status.
-class PaymentsMadeScreen extends ConsumerWidget {
+/// until the bank statement matches them; each row shows its match status.
+///
+/// Layout: filter bar (date range + status) → summary cards → searchable
+/// transaction history, each row carrying its own date block.
+class PaymentsMadeScreen extends ConsumerStatefulWidget {
   const PaymentsMadeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaymentsMadeScreen> createState() => _PaymentsMadeScreenState();
+}
+
+class _PaymentsMadeScreenState extends ConsumerState<PaymentsMadeScreen> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  String _status = 'all'; // all | pending | matched | cancelled
+  DateTime? _from;
+  DateTime? _to;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _inRange(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return true;
+    if (_from != null && d.isBefore(DateTime(_from!.year, _from!.month, _from!.day))) return false;
+    if (_to != null && d.isAfter(DateTime(_to!.year, _to!.month, _to!.day, 23, 59))) return false;
+    return true;
+  }
+
+  bool _matchesQuery(PendingPayment p) {
+    if (_query.isEmpty) return true;
+    final hay = [
+      p.payeeName ?? '',
+      p.note ?? '',
+      p.glAccountName ?? '',
+      p.upiRef ?? '',
+      p.bankLabel,
+      p.amount.toStringAsFixed(2),
+    ].join(' ').toLowerCase();
+    return hay.contains(_query);
+  }
+
+  List<PendingPayment> _apply(List<PendingPayment> all) {
+    final rows = all
+        .where((p) => _status == 'all' || p.status == _status)
+        .where((p) => _inRange(p.paymentDate))
+        .where(_matchesQuery)
+        .toList();
+    // Newest first — the API order isn't guaranteed once filters mix statuses.
+    rows.sort((a, b) => b.paymentDate.compareTo(a.paymentDate));
+    return rows;
+  }
+
+  Future<void> _pickRange() async {
+    final res = await showDateRangeSheet(context, initialFrom: _from, initialTo: _to);
+    if (res == null) return;
+    setState(() {
+      _from = res.from;
+      _to = res.to;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
     final async = ref.watch(pendingPaymentsProvider);
     return Scaffold(
@@ -31,189 +93,177 @@ class PaymentsMadeScreen extends ConsumerWidget {
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => Center(child: Text('Could not load payments', style: RunqText.body.copyWith(color: t.muted))),
-        data: (items) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(pendingPaymentsProvider),
-          child: items.isEmpty
-              ? _EmptyState(t: t)
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _PaymentCard(item: items[i]),
-                ),
-        ),
+        error: (_, _) => Center(
+            child: Text('Could not load payments', style: RunqText.body.copyWith(color: t.muted))),
+        data: (all) {
+          // Range + status drive the summary; search only narrows the list, so
+          // the cards keep showing the period total while typing.
+          final scoped = all
+              .where((p) => _status == 'all' || p.status == _status)
+              .where((p) => _inRange(p.paymentDate))
+              .toList();
+          final rows = _apply(all);
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(pendingPaymentsProvider),
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+              children: [
+                _header(t, scoped, rows.length, all.isEmpty),
+                if (rows.isNotEmpty) _PaymentList(rows: rows),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
-}
 
-class _EmptyState extends StatelessWidget {
-  final RunqTokens t;
-  const _EmptyState({required this.t});
-
-  @override
-  Widget build(BuildContext context) {
-    // ListView so RefreshIndicator still works when empty.
-    return ListView(
+  Widget _header(RunqTokens t, List<PendingPayment> scoped, int shown, bool noneAtAll) {
+    final paid = scoped.where((p) => p.status != 'cancelled').fold<double>(0, (s, p) => s + p.amount);
+    final awaiting = scoped.where((p) => p.isPending).fold<double>(0, (s, p) => s + p.amount);
+    final awaitingCount = scoped.where((p) => p.isPending).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 120),
-        Icon(Icons.qr_code_scanner_outlined, size: 48, color: t.muted2),
-        const SizedBox(height: 12),
-        Center(child: Text('No payments logged yet', style: RunqText.h4.copyWith(color: t.ink))),
-        const SizedBox(height: 4),
-        Center(
-          child: Text('Tap + to log a QR/UPI payment you made',
-              style: RunqText.caption.copyWith(color: t.muted)),
+        PaymentsFilterBar(
+          rangeLabel: listRangeLabel(_from, _to),
+          rangeActive: _from != null || _to != null,
+          status: _status,
+          onRange: _pickRange,
+          onStatus: (s) => setState(() => _status = s),
         ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: PaymentsSummaryCard(
+                label: 'Total paid',
+                value: formatINR(paid),
+                caption: '${scoped.where((p) => p.status != 'cancelled').length} payments',
+                color: RunqColors.indigo,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: PaymentsSummaryCard(
+                label: 'Awaiting bank',
+                value: formatINR(awaiting),
+                caption: '$awaitingCount pending',
+                color: const Color(0xFFF59E0B),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Text('Transaction history', style: RunqText.h3.copyWith(color: t.ink)),
+        const SizedBox(height: 10),
+        PaymentsSearchField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+        ),
+        const SizedBox(height: 12),
+        if (shown == 0) PaymentsEmptyState(t: t, noneAtAll: noneAtAll),
       ],
     );
   }
 }
 
-class _PaymentCard extends StatelessWidget {
-  final PendingPayment item;
-  const _PaymentCard({required this.item});
-
-  Future<void> _viewAttachment(BuildContext context) async {
-    try {
-      final list = await bankingRepo.attachments(item.attachmentEntityType, item.attachmentEntityId);
-      if (!context.mounted) return;
-      if (list.isEmpty) {
-        showRunqSnack(context, 'No attachment found.', kind: SnackKind.error);
-        return;
-      }
-      context.push('/attachments/view', extra: list.first);
-    } on ApiException catch (e) {
-      if (context.mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
-    }
-  }
+class _PaymentList extends StatelessWidget {
+  final List<PendingPayment> rows;
+  const _PaymentList({required this.rows});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final payee = item.payeeName?.trim() ?? '';
-    final note = item.note?.trim() ?? '';
+    // No day headers: each row carries its own date block, so a run of
+    // payments reads as one continuous card instead of many small ones.
     return Material(
-      // surface (not bgWarm) lifts above the scaffold in BOTH themes — in dark
-      // mode bgWarm is darker than the bg, so cards would recede. Hairline
-      // border adds definition.
       color: t.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: t.hairline),
       ),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        // Only pending captures are editable — matched/cancelled are locked.
-        onTap: item.isPending ? () => context.push('/payment-made', extra: item) : null,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left column: category icon + payment date (bold) beneath it.
-              SizedBox(
-                width: 46,
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: RunqColors.indigo.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: t.hairlineSoft, indent: 72),
+            _PaymentRow(item: rows[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentRow extends StatelessWidget {
+  final PendingPayment item;
+  const _PaymentRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final payee = item.payeeName?.trim() ?? '';
+    final category = item.glAccountName ?? 'Uncategorised';
+    final memo = item.note?.trim() ?? '';
+    // Vendor leads — you scan this list by who you paid. The memo sits under
+    // it as the "what for"; the category lives in the detail sheet.
+    final title = payee.isNotEmpty ? payee : (memo.isNotEmpty ? memo : category);
+    final sub = payee.isNotEmpty ? memo : '';
+    final cancelled = item.status == 'cancelled';
+    return InkWell(
+      onTap: () => showPaymentDetailSheet(context, item),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            ListDateBlock(date: DateTime.tryParse(item.paymentDate) ?? DateTime.now()),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: RunqText.bodyStrong.copyWith(
+                        color: cancelled ? t.muted : t.ink,
+                        decoration: cancelled ? TextDecoration.lineThrough : null,
                       ),
-                      child: const Icon(Icons.sell_outlined, color: RunqColors.indigo, size: 20),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(_dayMon(item.paymentDate),
-                        textAlign: TextAlign.center,
-                        style: RunqText.caption.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-                    Text(_year(item.paymentDate),
-                        textAlign: TextAlign.center,
-                        style: RunqText.micro.copyWith(color: t.muted2)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (sub.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(sub,
+                        style: RunqText.caption.copyWith(color: t.muted),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                   ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Category + amount on the top line.
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(item.glAccountName ?? 'Uncategorised',
-                              style: RunqText.bodyStrong.copyWith(color: t.ink),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(formatINR(item.amount),
-                            style: RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)),
-                      ],
-                    ),
-                    // Name (who) and reason (what for) on their own lines.
-                    if (payee.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(payee, style: RunqText.body.copyWith(color: t.ink),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _StatusChip(status: item.status),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(item.bankLabel,
+                            style: RunqText.micro.copyWith(color: t.muted2),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
                     ],
-                    if (note.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(note, style: RunqText.caption.copyWith(color: t.muted),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ],
-                    const SizedBox(height: 10),
-                    // Footer: bank · attachment · status chip, all inline.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(item.bankLabel,
-                              style: RunqText.micro.copyWith(color: t.muted2),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ),
-                        if (item.hasAttachment)
-                          InkWell(
-                            onTap: () => _viewAttachment(context),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(Icons.image_outlined, size: 18, color: t.muted),
-                            ),
-                          ),
-                        const SizedBox(width: 6),
-                        _StatusChip(status: item.status),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            Text(formatINR(-item.amount),
+                style: RunqText.tabular(
+                    size: 16, w: FontWeight.w700, color: cancelled ? t.muted2 : t.ink)),
+          ],
         ),
       ),
     );
   }
 }
 
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-String _dayMon(String iso) {
-  final p = iso.split('-');
-  if (p.length != 3) return iso;
-  final m = int.tryParse(p[1]) ?? 0;
-  final d = int.tryParse(p[2]) ?? 0;
-  if (m < 1 || m > 12 || d < 1) return iso;
-  return '$d ${_months[m - 1]}';
-}
 
-String _year(String iso) {
-  final p = iso.split('-');
-  return p.isNotEmpty ? p[0] : '';
-}
 
 class _StatusChip extends StatelessWidget {
   final String status;
@@ -222,12 +272,12 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
-      'matched' => ('Matched to bank txn', const Color(0xFF22C55E), Icons.account_balance_outlined),
+      'matched' => ('Matched', const Color(0xFF22C55E), Icons.account_balance_outlined),
       'cancelled' => ('Cancelled', const Color(0xFF94A3B8), Icons.cancel_outlined),
-      _ => ('Awaiting bank txn', const Color(0xFFF59E0B), Icons.schedule_outlined),
+      _ => ('Awaiting bank', const Color(0xFFF59E0B), Icons.schedule_outlined),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
@@ -235,7 +285,7 @@ class _StatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
+          Icon(icon, size: 12, color: color),
           const SizedBox(width: 4),
           Text(label, style: RunqText.label.copyWith(color: color)),
         ],

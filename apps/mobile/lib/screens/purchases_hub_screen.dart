@@ -222,27 +222,18 @@ class _PurchasesGrid extends ConsumerWidget {
     final t = RT(context);
     final overdueCount =
         summary.maybeWhen(data: (s) => s.overdueCount, orElse: () => 0);
-    final pendingApproval =
-        summary.maybeWhen(data: (s) => s.pendingApprovalCount, orElse: () => 0);
+    // Captures still waiting for a bank line to match them — the number that
+    // tells you whether the QR/UPI log needs attention.
+    final awaiting = ref.watch(pendingPaymentsProvider).maybeWhen(
+          data: (list) => list.where((p) => p.isPending).length,
+          orElse: () => 0,
+        );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return HubSectionGrid(
       tiles: [
-        HubSectionTile(
-          icon: Icons.description_rounded,
-          iconBg: isDark ? const Color(0xFF312E81) : const Color(0xFFE0E7FF),
-          iconFg: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA),
-          title: 'BILLS',
-          metric: pendingApproval > 0 ? '$pendingApproval pending' : 'View all',
-          caption: pendingApproval > 0 ? 'awaiting approval' : null,
-          captionColor: pendingApproval > 0 ? const Color(0xFF92400E) : t.muted,
-          onTap: () => context.push(
-            pendingApproval > 0
-                ? '/purchases/bills?tab=pending'
-                : '/purchases/bills',
-          ),
-        ),
+        // No BILLS tile — "Recent bills → See all" below already covers it.
         HubSectionTile(
           icon: Icons.payments_rounded,
           iconBg: isDark ? const Color(0xFF4C1D95) : const Color(0xFFEDE9FE),
@@ -252,6 +243,16 @@ class _PurchasesGrid extends ConsumerWidget {
           caption: overdueCount > 0 ? 'tap to release' : 'batch payments',
           captionColor: overdueCount > 0 ? RunqColors.redInk : t.muted,
           onTap: () => context.push('/purchases/pay-runs'),
+        ),
+        HubSectionTile(
+          icon: Icons.qr_code_scanner_rounded,
+          iconBg: isDark ? const Color(0xFF134E4A) : const Color(0xFFCCFBF1),
+          iconFg: isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0F766E),
+          title: 'PAYMENTS MADE',
+          metric: awaiting > 0 ? '$awaiting awaiting' : 'View log',
+          caption: awaiting > 0 ? 'unmatched in bank' : 'QR / UPI paid',
+          captionColor: awaiting > 0 ? const Color(0xFF92400E) : t.muted,
+          onTap: () => context.push('/payments-made'),
         ),
       ],
     );
