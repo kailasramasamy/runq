@@ -471,7 +471,7 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
 
 // ── Day row card (taps to expand inline to the day's AM/PM pours) ─────────────
 
-class _DayRow extends StatefulWidget {
+class _DayRow extends ConsumerStatefulWidget {
   const _DayRow({
     required this.date, required this.pours, this.bands, this.milkType,
     this.showMilkType = false,
@@ -485,16 +485,40 @@ class _DayRow extends StatefulWidget {
   final MilkType? milkType;
 
   @override
-  State<_DayRow> createState() => _DayRowState();
+  ConsumerState<_DayRow> createState() => _DayRowState();
 }
 
-class _DayRowState extends State<_DayRow> {
+class _DayRowState extends ConsumerState<_DayRow> {
   bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Home may have focused this day before the tab was ever built.
+    if (ref.read(farmerFocusDateProvider) == widget.date) _focus();
+  }
+
+  /// Open this day and bring it under the fold, then release the focus so the
+  /// same day can be focused again on a later tap.
+  void _focus() {
+    _expanded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(farmerFocusDateProvider.notifier).state = null;
+      Scrollable.ensureVisible(context,
+          duration: const Duration(milliseconds: 250), alignment: 0.1);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
+    // The tab lives in an IndexedStack, so it is already built when Home sets
+    // the focus — listen rather than relying on initState alone.
+    ref.listen(farmerFocusDateProvider, (_, next) {
+      if (next == widget.date && mounted) setState(_focus);
+    });
     return DhenuCard(
       elevated: true,
       padding: EdgeInsets.zero,
@@ -609,51 +633,51 @@ class _DayRowState extends State<_DayRow> {
               style: DhenuText.label.copyWith(color: color, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        for (final p in pours) _pourLine(t, l, p),
+        for (final (i, p) in pours.indexed) ...[
+          if (i > 0) const SizedBox(height: DhenuSpacing.md),
+          _pourLine(t, l, p),
+        ],
       ],
     );
   }
 
   Widget _pourLine(DhenuTokens t, AppLocalizations l, MpPour p) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: DhenuSpacing.xs),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(litres(p.qtyLitres, unit: true),
-                    style: DhenuText.number(size: 15, w: FontWeight.w700, color: t.ink)),
-                if (widget.showMilkType) ...[
-                  const SizedBox(width: DhenuSpacing.sm),
-                  MilkTypePill(milkType: p.milkType),
-                ],
-              ]),
-              const SizedBox(height: 2),
-              QualityBadge(
-                  fat: p.fat, snf: p.snf, water: p.water,
-                  grade: p.qualityGrade, showGrade: false,
-                  bands: widget.bands, milkType: p.milkType),
-            ],
-          ),
-        ),
-        const SizedBox(width: DhenuSpacing.sm),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(rupees(p.lineAmount),
-                style: DhenuText.number(size: 15, w: FontWeight.w800, color: t.gradeA)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(litres(p.qtyLitres, unit: true),
+                  style: DhenuText.number(size: 15, w: FontWeight.w700, color: t.ink)),
+              if (widget.showMilkType) ...[
+                const SizedBox(width: DhenuSpacing.sm),
+                MilkTypePill(milkType: p.milkType),
+              ],
+            ]),
             const SizedBox(height: 2),
-            Text(l.farmerCollectionDetailRatePerLitre(rupees(p.ratePerLitre, paise: true)),
-                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            QualityBadge(
+                fat: p.fat, snf: p.snf, water: p.water,
+                grade: p.qualityGrade, showGrade: false,
+                bands: widget.bands, milkType: p.milkType),
           ],
         ),
-        _ReportPourButton(pour: p),
-      ]),
-    );
+      ),
+      const SizedBox(width: DhenuSpacing.sm),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(rupees(p.lineAmount),
+              style: DhenuText.number(size: 15, w: FontWeight.w800, color: t.gradeA)),
+          const SizedBox(height: 2),
+          Text(l.farmerCollectionDetailRatePerLitre(rupees(p.ratePerLitre, paise: true)),
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        ],
+      ),
+      _ReportPourButton(pour: p),
+    ]);
   }
 
   double? _avg(double? Function(MpPour) field) {

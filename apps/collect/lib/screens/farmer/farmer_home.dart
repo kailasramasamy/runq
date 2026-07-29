@@ -112,7 +112,7 @@ class FarmerHome extends ConsumerWidget {
         _qualityNudge(context, t, l, nudge),
       ],
       const SizedBox(height: DhenuSpacing.lg),
-      _today(context, t, l, todayPours, bands, milkType),
+      _today(context, ref, t, l, todayPours, bands, milkType),
       const SizedBox(height: DhenuSpacing.lg),
       _streakNudge(context, t, l,
           ref.watch(farmerStreakPoursProvider).asData?.value ?? const []),
@@ -335,7 +335,7 @@ class FarmerHome extends ConsumerWidget {
   }
 
   // ── Today ───────────────────────────────────────────────────────────────
-  Widget _today(BuildContext context, DhenuTokens t, AppLocalizations l,
+  Widget _today(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
       AsyncValue<List<MpPour>> todayPours, QualityBands? bands, MilkType? milkType) {
     return todayPours.when(
       loading: () => const DhenuLoadingList(rows: 1),
@@ -361,9 +361,9 @@ class FarmerHome extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _shiftCard(context, t, isAm: true, pours: am, bands: bands, milkType: milkType)),
+                Expanded(child: _shiftCard(context, ref, t, isAm: true, pours: am, bands: bands, milkType: milkType)),
                 const SizedBox(width: DhenuSpacing.md),
-                Expanded(child: _shiftCard(context, t, isAm: false, pours: pm, bands: bands, milkType: milkType)),
+                Expanded(child: _shiftCard(context, ref, t, isAm: false, pours: pm, bands: bands, milkType: milkType)),
               ],
             ),
           ],
@@ -372,7 +372,7 @@ class FarmerHome extends ConsumerWidget {
     );
   }
 
-  Widget _shiftCard(BuildContext context, DhenuTokens t,
+  Widget _shiftCard(BuildContext context, WidgetRef ref, DhenuTokens t,
       {required bool isAm, required List<MpPour> pours, QualityBands? bands, MilkType? milkType}) {
     final has = pours.isNotEmpty;
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
@@ -394,6 +394,10 @@ class FarmerHome extends ConsumerWidget {
       isAm: isAm,
       empty: !has,
       litresLabel: litres(totalL, unit: true),
+      // The card only summarises; the per-pour breakup (and the per-type
+      // quality a mixed shift can't show here) lives on Collections, so the
+      // tap focuses that day's row and opens it expanded.
+      onTap: !has ? null : () => _openDay(context, ref, pours.first.collectionDate),
       quality: !has
           ? null
           : types.length > 1
@@ -404,6 +408,11 @@ class FarmerHome extends ConsumerWidget {
                   format: QualityFormat.valueLabel, bands: bands,
                   milkType: types.firstOrNull ?? milkType),
     );
+  }
+
+  void _openDay(BuildContext context, WidgetRef ref, String date) {
+    ref.read(farmerFocusDateProvider.notifier).state = date;
+    RoleShell.goToTab(context, _collectionsTab);
   }
 
   // ── Streak ────────────────────────────────────────────────────────────────

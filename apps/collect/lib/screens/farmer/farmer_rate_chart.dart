@@ -11,28 +11,44 @@ import '../../utils/format.dart';
 import '../../widgets/audio_play.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/milk_type_toggle.dart';
 import '../../widgets/quality_badge.dart';
 import 'farmer_insights.dart';
 import 'farmer_rate_chart_share.dart';
 import 'rate_chart_tables.dart';
 
 /// Rate chart screen — FAT×SNF matrix or flat rate, with the farmer's last
-/// pour cell highlighted (spec §6.1).
-class FarmerRateChart extends ConsumerWidget {
+/// pour cell highlighted (spec §6.1). A farmer supplying more than one milk
+/// type is priced by a chart per type, so the screen carries a type toggle and
+/// everything below it — chart, last rate, coaching, share, Listen — follows
+/// the selection.
+class FarmerRateChart extends ConsumerStatefulWidget {
   const FarmerRateChart({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FarmerRateChart> createState() => _FarmerRateChartState();
+}
+
+class _FarmerRateChartState extends ConsumerState<FarmerRateChart> {
+  MilkType? _selected;
+
+  @override
+  Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final detailAsync = ref.watch(activeRateChartDetailProvider);
-    final monthPours = ref.watch(farmerMonthPoursProvider).asData?.value ?? [];
-    final lastRate = ref.watch(farmerLastRateResolutionProvider).asData?.value;
-
-    final lastPour = monthPours.isNotEmpty
-        ? monthPours.reduce((a, b) =>
-            a.collectionDate.compareTo(b.collectionDate) >= 0 ? a : b)
-        : null;
+    final types = ref.watch(farmerMilkTypesProvider);
+    // Types load in; hold the tapped one only while it is still supplied.
+    final type = types.contains(_selected) ? _selected! : types.first;
+    final detailAsync = ref.watch(activeRateChartDetailProvider(type));
+    final monthPours = ref
+        .watch(farmerMonthPoursProvider)
+        .asData
+        ?.value
+        .where((p) => p.milkType == type)
+        .toList() ??
+        <MpPour>[];
+    final lastRate = ref.watch(farmerLastRateResolutionProvider(type)).asData?.value;
+    final lastPour = ref.watch(farmerLastPourProvider(type)).asData?.value;
     final bands = ref.watch(qualityBandsProvider(null)).valueOrNull;
 
     return Scaffold(
@@ -66,32 +82,49 @@ class FarmerRateChart extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(activeRateChartDetailProvider);
-          ref.invalidate(farmerLastRateResolutionProvider);
-          await ref.read(activeRateChartDetailProvider.future);
+          ref.invalidate(farmerMonthPoursProvider);
+          for (final m in types) {
+            ref.invalidate(activeRateChartDetailProvider(m));
+            ref.invalidate(farmerLastRateResolutionProvider(m));
+          }
+          await ref.read(activeRateChartDetailProvider(type).future);
         },
-        child: detailAsync.when(
-          loading: () => const DhenuLoadingList(),
-          error: (e, _) => DhenuErrorState(
-            onRetry: () => ref.invalidate(activeRateChartDetailProvider),
+        child: Column(children: [
+          if (types.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(DhenuSpacing.screen, DhenuSpacing.sm,
+                  DhenuSpacing.screen, DhenuSpacing.md),
+              child: MilkTypeToggle(
+                types: types,
+                value: type,
+                onChanged: (m) => setState(() => _selected = m),
+              ),
+            ),
+          Expanded(
+            child: detailAsync.when(
+              loading: () => const DhenuLoadingList(),
+              error: (e, _) => DhenuErrorState(
+                onRetry: () => ref.invalidate(activeRateChartDetailProvider(type)),
+              ),
+              data: (detail) {
+                if (detail == null) {
+                  return DhenuEmptyState(
+                    icon: DhenuIcons.grid,
+                    title: l.farmerRateEmptyTitle,
+                    subtitle: l.farmerRateEmptySubtitle,
+                  );
+                }
+                return _RateChartBody(
+                  detail: detail,
+                  lastPour: lastPour,
+                  lastRate: lastRate,
+                  dailyQty: averageDailyQty(monthPours),
+                  bands: bands,
+                );
+              },
+            ),
           ),
-          data: (detail) {
-            if (detail == null) {
-              return DhenuEmptyState(
-                icon: DhenuIcons.grid,
-                title: l.farmerRateEmptyTitle,
-                subtitle: l.farmerRateEmptySubtitle,
-              );
-            }
-            return _RateChartBody(
-              detail: detail,
-              lastPour: lastPour,
-              lastRate: lastRate,
-              dailyQty: averageDailyQty(monthPours),
-              bands: bands,
-            );
-          },
-        ),
+        ]),
       ),
     );
   }

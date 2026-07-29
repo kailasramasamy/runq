@@ -10,6 +10,11 @@ import 'mp_context_provider.dart';
 /// into the repo calls below so an admin sees the selected farmer's data.
 final _farmerScopeId = Provider<String?>((ref) => ref.watch(mpViewAsFarmerProvider)?.id);
 
+/// A collection date (ISO) the Collections tab should open expanded — set when
+/// Home's AM/PM card is tapped, and cleared by the day row that consumes it so
+/// the same day can be re-focused later. Null means "no pending focus".
+final farmerFocusDateProvider = StateProvider<String?>((ref) => null);
+
 /// This month's pours for the resolved farmer (server auto-scopes when null).
 final farmerMonthPoursProvider = FutureProvider<List<MpPour>>((ref) async {
   final now = DateTime.now();
@@ -52,25 +57,50 @@ final farmerPayoutLinesProvider = FutureProvider<List<MpPayoutLine>>((ref) async
   return mpRepo.farmerPayoutLines(farmerId: ref.watch(_farmerScopeId));
 });
 
-/// The farmer's most recent pour this month, or null.
-final farmerLastPourProvider = FutureProvider<MpPour?>((ref) async {
+/// The milk types this farmer actually supplies — those poured this month,
+/// most-recently-poured first (volume breaks a tie), else their default type.
+/// A farmer supplying cow and buffalo is priced by two different charts, so the
+/// rate chart screen needs every type, not just the one they last poured.
+final farmerMilkTypesProvider = Provider<List<MilkType>>((ref) {
+  final pours = ref.watch(farmerMonthPoursProvider).asData?.value ?? const <MpPour>[];
+  final self = ref.watch(farmerSelfProvider).asData?.value;
+  final latest = <MilkType, String>{};
+  final volume = <MilkType, double>{};
+  for (final p in pours) {
+    final seen = latest[p.milkType];
+    if (seen == null || p.collectionDate.compareTo(seen) > 0) {
+      latest[p.milkType] = p.collectionDate;
+    }
+    volume[p.milkType] = (volume[p.milkType] ?? 0) + p.qtyLitres;
+  }
+  if (latest.isEmpty) return [self?.defaultMilkType ?? MilkType.cowA1];
+  return latest.keys.toList()
+    ..sort((a, b) {
+      final byDate = latest[b]!.compareTo(latest[a]!);
+      return byDate != 0 ? byDate : volume[b]!.compareTo(volume[a]!);
+    });
+});
+
+/// The farmer's most recent pour of [milkType] this month, or null.
+final farmerLastPourProvider = FutureProvider.family<MpPour?, MilkType>((ref, milkType) async {
   final pours = await ref.watch(farmerMonthPoursProvider.future);
-  if (pours.isEmpty) return null;
-  return pours.reduce((a, b) =>
+  final ofType = pours.where((p) => p.milkType == milkType).toList();
+  if (ofType.isEmpty) return null;
+  return ofType.reduce((a, b) =>
       a.collectionDate.compareTo(b.collectionDate) >= 0 ? a : b);
 });
 
-/// The chart that actually prices this farmer's milk, resolved server-side —
-/// the same chain a pour uses (farmer override → VMCC override → node-scoped →
-/// tenant-wide). Context comes from the last pour (milk type, readings, node);
-/// a farmer with no pours yet probes with their default milk type, primary
-/// VMCC, and nominal mid-range FAT/SNF. When nothing resolves (e.g. no pour
-/// yet at a lactometer VMCC, so the FAT/SNF probe misses its CLR chart), falls
-/// back to the newest active chart for the farmer's milk type.
-final activeRateChartDetailProvider = FutureProvider<MpRateChartDetail?>((ref) async {
-  final last = await ref.watch(farmerLastPourProvider.future);
+/// The chart that actually prices this farmer's [milkType], resolved
+/// server-side — the same chain a pour uses (farmer override → VMCC override →
+/// node-scoped → tenant-wide). Context comes from their last pour of that type
+/// (readings, node); with no such pour yet it probes with the primary VMCC and
+/// nominal mid-range FAT/SNF. When nothing resolves (e.g. no pour yet at a
+/// lactometer VMCC, so the FAT/SNF probe misses its CLR chart), falls back to
+/// the newest active chart for that milk type.
+final activeRateChartDetailProvider =
+    FutureProvider.family<MpRateChartDetail?, MilkType>((ref, milkType) async {
+  final last = await ref.watch(farmerLastPourProvider(milkType).future);
   final self = await ref.watch(farmerSelfProvider.future);
-  final milkType = last?.milkType ?? self?.defaultMilkType ?? MilkType.cowA1;
   final useClr = last != null && last.fat == null && last.clr != null;
   try {
     final res = await mpRepo.resolveRate(
@@ -92,10 +122,12 @@ final activeRateChartDetailProvider = FutureProvider<MpRateChartDetail?>((ref) a
   return active.isEmpty ? null : mpRepo.rateChart(active.first.id);
 });
 
-/// Rate resolution for the farmer's most recent pour — null if no pour yet.
-/// Passes the pour's node and the farmer so overrides price it correctly.
-final farmerLastRateResolutionProvider = FutureProvider<MpRateResolution?>((ref) async {
-  final last = await ref.watch(farmerLastPourProvider.future);
+/// Rate resolution for the farmer's most recent pour of [milkType] — null if
+/// they have none. Passes the pour's node and the farmer so overrides price it
+/// correctly.
+final farmerLastRateResolutionProvider =
+    FutureProvider.family<MpRateResolution?, MilkType>((ref, milkType) async {
+  final last = await ref.watch(farmerLastPourProvider(milkType).future);
   if (last == null) return null;
   final useClr = last.fat == null && last.clr != null;
   if (!useClr && (last.fat == null || last.snf == null)) return null;

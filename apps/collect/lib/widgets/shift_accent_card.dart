@@ -14,12 +14,17 @@ class ShiftAccentCard extends StatelessWidget {
     required this.litresLabel,
     this.quality,
     this.empty = false,
+    this.onTap,
   });
 
   final bool isAm;
   final String litresLabel;
   final Widget? quality; // a compact QualityBadge
   final bool empty;
+
+  /// Opens the shift's per-pour breakup (Home → Collections). Null leaves the
+  /// card inert — an empty shift has nothing to drill into.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +39,11 @@ class ShiftAccentCard extends StatelessWidget {
         border: Border.all(color: t.hairline),
         boxShadow: DhenuShadows.card,
       ),
-      child: IntrinsicHeight(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -59,6 +68,10 @@ class ShiftAccentCard extends StatelessWidget {
                         ),
                         const SizedBox(width: DhenuSpacing.sm),
                         Text(isAm ? AppLocalizations.of(context).shiftAm : AppLocalizations.of(context).shiftPm, style: DhenuText.label.copyWith(color: accentText)),
+                        if (onTap != null) ...[
+                          const Spacer(),
+                          Icon(DhenuIcons.chevronRight, size: 16, color: t.inkSoft),
+                        ],
                       ],
                     ),
                     const SizedBox(height: DhenuSpacing.sm),
@@ -79,7 +92,9 @@ class ShiftAccentCard extends StatelessWidget {
                 ),
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
