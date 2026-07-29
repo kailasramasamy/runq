@@ -41,7 +41,7 @@ function validTiers(rows: TierRow[]): { fatMin: number; bonus: number }[] {
     .map((r) => ({ fatMin: Number(r.fatMin), bonus: Number(r.bonus) }));
 }
 
-/** The bonus a quarterly average FAT earns — mirrors the server's tier lookup. */
+/** The bonus a pour's FAT earns — mirrors the server's tier lookup. */
 function tierFor(tiers: { fatMin: number; bonus: number }[], fat: number): number {
   return tiers.find((t) => fat >= t.fatMin)?.bonus ?? 0;
 }
@@ -318,9 +318,10 @@ export function MpRateChartNewPage() {
 }
 
 /**
- * Quarterly bonus tiers. Each row is a FAT floor; the band runs up to the next
- * floor less 0.01, shown alongside so nobody publishes a chart reading
- * "3.80 → ₹6.00" and then argues with a farmer measuring 3.79.
+ * Quarterly bonus tiers, read from each pour's own FAT. Each row is a FAT floor;
+ * the band runs up to the next floor less 0.01, shown alongside so nobody
+ * publishes a chart reading "3.80 → ₹6.00" and then argues with a farmer whose
+ * pour measured 3.79.
  */
 function TierEditor({ rows, onChange }: { rows: TierRow[]; onChange: (r: TierRow[]) => void }) {
   const setRow = (i: number, field: keyof TierRow, v: string) =>
@@ -356,8 +357,9 @@ function TierEditor({ rows, onChange }: { rows: TierRow[]; onChange: (r: TierRow
         </p>
       )}
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Paid as one lump sum after the quarter, on every litre supplied. The tier comes from the
-        farmer&apos;s best two months in the quarter, so a single bad month cannot demote them.
+        Each pour earns its own bonus from its own FAT, fixed at capture, and the quarter&apos;s
+        total is paid as one lump sum. Nothing is recomputed later, so the daily receipt and the
+        cheque always agree.
       </p>
       <Button variant="ghost" size="sm" type="button" onClick={() => onChange([...rows, { fatMin: '', bonus: '' }])}>
         + Add tier
@@ -500,8 +502,8 @@ function TestBox({ matrixCells, clrRows, pricingMode, flatRate, gradeABonus, tie
       const grade = deriveGrade(tf, ts);
       const bonus = grade === 'a' && Number(gradeABonus) > 0 ? Number(gradeABonus) : 0;
       const daily = base + bonus;
-      // The quarterly tier is settled after the quarter, never inside the daily
-      // rate — show it as a separate line so the two are never conflated.
+      // Banked per pour but settled after the quarter, never inside the daily
+      // rate — shown as a separate line so the two are never conflated.
       const tier = gated ? 0 : tierFor(tiers, tf);
       const parts = [`cell ${label} → ₹${base}/L`];
       if (bonus) parts.push(`grade ${grade.toUpperCase()} +₹${bonus}`);

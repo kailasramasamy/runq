@@ -24,3 +24,30 @@ export function ccReceiveWindow(overnight: boolean, anchorDate: string): Slot[] 
     ? [{ date: prevDay(anchorDate), shift: 'pm' }, { date: anchorDate, shift: 'am' }]
     : [{ date: anchorDate, shift: 'am' }, { date: anchorDate, shift: 'pm' }];
 }
+
+/** An accrual window: both ends inclusive, ISO `yyyy-mm-dd`. */
+export type Period = { start: string; end: string };
+
+/**
+ * The bonus accrual period `onDate` falls in — `months` long, counted from
+ * `anchor`, both ends inclusive.
+ *
+ * Anchored rather than calendar-quartered because Vrindavan's first period runs
+ * 2026-08-01 → 2026-10-31. Dates before the anchor return null: nothing accrues
+ * before the scheme starts, so the receipt quotes no running total for them.
+ */
+export function bonusPeriodFor(anchor: string, months: number, onDate: string): Period | null {
+  if (months <= 0 || onDate < anchor) return null;
+  const [ay, am, ad] = anchor.split('-').map(Number) as [number, number, number];
+  const [oy, om] = onDate.split('-').map(Number) as [number, number, number];
+  // Whole periods elapsed. The day-of-month check keeps a period that starts
+  // mid-month from rolling early — anchor the 15th, and the 14th is still the
+  // previous period.
+  const monthsApart = (oy - ay) * 12 + (om - am) - (Number(onDate.slice(8, 10)) < ad ? 1 : 0);
+  const idx = Math.floor(monthsApart / months);
+  const startMonth = am - 1 + idx * months;
+  const start = new Date(Date.UTC(ay, startMonth, ad));
+  const end = new Date(Date.UTC(ay, startMonth + months, ad));
+  end.setUTCDate(end.getUTCDate() - 1);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}

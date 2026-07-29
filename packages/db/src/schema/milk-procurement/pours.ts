@@ -41,6 +41,12 @@ export const mpPours = pgTable('mp_pours', {
   baseAmount: decimal('base_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   bonusAmount: decimal('bonus_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   lineAmount: decimal('line_amount', { precision: 15, scale: 2 }).notNull().default('0'),
+  /**
+   * Quarterly bonus accrued by this pour, from its own FAT. Settled separately
+   * at quarter close, so it is deliberately NOT part of [lineAmount] — that is
+   * what the fortnightly cycle pays, and including it would pay the bonus twice.
+   */
+  quarterlyBonusAmount: decimal('quarterly_bonus_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   // §8.1 future-proofing — manual entry only in v1
   captureSource: mpCaptureSrc('capture_source').notNull().default('manual'),
   // §8.2 — stable receipt id (digital now, printable later)

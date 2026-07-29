@@ -32,9 +32,9 @@ service, not on rate.
 | **4.5** | 27.7 | 36.80 | 7.20 | **44.00** ← cap | 43.30 | **+0.70** | **12,960** |
 | 4.6 – 5.0+ | — | 36.80 | 7.20 | **44.00** | 43.53 – 44.45 | +0.47 → −0.45 | 12,960 |
 
-**Bonus tiers — print these as explicit ranges, never as single values:**
+**Bonus tiers — read from each pour's own FAT, printed as explicit ranges:**
 
-| Quarterly weighted-avg FAT | Bonus ₹/L |
+| FAT of the pour | Bonus ₹/L |
 |---|---|
 | 4.40 and above | **7.20** |
 | 4.20 – 4.39 | 6.90 |
@@ -45,7 +45,27 @@ service, not on rate.
 | below 3.50 | 0 |
 
 A chart that reads "4.0 → ₹6.60" invites an argument from every farmer who measures 3.99.
-Bhadra Reddy at 3.79 sits in the **3.70–3.84** band, not the 3.8 row. Bands, always.
+Bands, always.
+
+### Per-pour, not quarterly-average
+
+Each pour banks its own bonus from its own FAT, fixed the moment it is recorded, and the
+quarter's total is paid as one lump sum. On real pours this costs **the same** — ₹4.74/L either
+way, a ₹36/year difference at 276 L/day — so it is free, and it buys three things:
+
+- **Nothing is ever recomputed.** The daily receipt, the in-app counter and the cheque agree by
+  construction. Under quarterly averaging a daily figure would have to use quarter-to-date mean
+  while the payout used a different rule, so it would have been systematically wrong for 90 days.
+- **No cliff, no lottery.** Nobody's cheque turns on which side of a tier line a 90-day mean
+  lands, which is what the best-two-of-three rule existed to paper over. That rule is gone.
+- **Stage 2 collapses.** The quarter-close job is a gated `SUM` of `mp_pours.quarterly_bonus_amount`,
+  not a tier engine with monthly-average logic.
+
+It redistributes, and volatility now costs: Bhadra Reddy's average of 3.80 clears the 3.70 tier,
+but **33% of his litres individually do not**, so he moves from ₹6.00 to ₹4.90/L — about ₹1,923 a
+quarter on 18% of supply. Santhosh and the low-FAT suppliers gain, because their occasional good
+pours now earn instead of being averaged away. A steady farmer earns more than a volatile one at
+the same mean, which is the behaviour we want — but Bhadra will feel the switch.
 
 **Base formula:**
 - FAT ≥ 3.7: ₹35.60 + (FAT − 3.7) × ₹1.50, capped at 4.5 → ₹36.80
@@ -194,19 +214,16 @@ with a calving cow or a sick child.
   the lump sum *is* the product. Forced savings a smallholder cannot manage alone, funding
   school fees, a festival, an animal. Paid monthly it dissolves into groceries and buys no
   loyalty.
-- **Staggered ₹3.00–₹7.20/L** on all litres of the quarter, tier set by the **best two of the
-  three monthly weighted-average FATs** in that quarter — not the quarterly mean. Bhadra Reddy
-  runs below 3.7 in 2 weeks of 5; on a straight quarterly mean one bad month demotes a farmer a
-  full tier, which teaches him the scheme is weather, not effort. Best-two-of-three costs
-  almost nothing and removes single-month bad luck.
+- **Staggered ₹3.00–₹7.20/L**, banked per pour from that pour's own FAT at capture and summed at
+  quarter close. `mp_pours.quarterly_bonus_amount` holds the accrual, deliberately outside
+  `line_amount` so the fortnightly cycle never pays it.
 - **Tier bands are ranges, not points** (see §1). Publish them as ranges on every printed chart.
 - **Gate:** supplied ≥ 85% of collection shifts, zero rejected pours, and no SNF failure per
   §3. Miss the gate, bonus is ₹0.
 - 20 L/day farmer = 1,800 L/quarter = **₹10,800 cheque** — identical to KMF's, which matters,
   because farmers compare cheques, not ₹/L. But note the flip side of a 3.8 threshold: a farmer
-  in the ₹3.00 tier gets half of it. The stagger keeps a bad quarter from wiping the cheque out
-  entirely — but still set the tier from the **best two monthly averages** of the quarter, not
-  the mean, so one bad month cannot demote a farmer.
+  in the ₹3.00 tier gets half of it. Per-pour accrual removes the failure mode entirely: a bad
+  week costs only that week's litres, never the quarter.
 
 ---
 
@@ -215,8 +232,8 @@ with a calving cow or a sick child.
 | # | Item | Notes |
 |---|---|---|
 | 1 | Load the chart | FAT-only, no SNF matrix. `mp_rate_charts` + `mp_rate_chart_cells`, or a `clr`/formula mode. Cap at FAT 4.5; base slope ₹1.50/1% above 3.7, staggered bonus tiers |
-| 2 | **SNF/CLR gate** | §3. Blocks the watering exploit — **not optional** |
-| 3 | **Quarterly bonus engine** | **Not supported today.** Tier from best-two-of-three monthly weighted-avg FATs, banded per §1. `mp_rate_rule` is `quality_bonus \| volume_slab`, keyed on per-pour `mp_grade` (a/b/c). Need a quarterly rule resolved at cycle close on quarterly weighted-avg FAT + supply-days % + reject/SNF-failure count → `mp_payout_lines.bonus_amount` |
+| 2 | **SNF/CLR gate** | §3. Blocks the watering exploit — **not optional**. A gated pour banks ₹0 bonus |
+| 3 | **Quarter-close run** | Gated `SUM` of `mp_pours.quarterly_bonus_amount` per farmer → `mp_bonus_runs` / `mp_bonus_lines`. The tier engine is gone — accrual happens at capture, so the run only sums and gates |
 | 4 | **Live bonus counter (mobile)** | "Quarter to date: 4.05 FAT → ₹6.00/L → **₹8,240** on 1 Oct." KMF farmers have no idea what is coming until it lands. Nearly free, and it makes the lump sum work on them for 90 days instead of one day |
 | 5 | GL | Bonus is milk purchase cost → 5050, **accrued monthly, paid in month 4**. Do not let a quarter land as one lumpy hit. See `MpGlPoster` |
 | 6 | Recruitment one-pager | Chart + the two service advantages. Kannada and English |

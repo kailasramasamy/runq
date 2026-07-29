@@ -60,6 +60,9 @@ export class PourService {
     const baseAmount = round2(qty * res.baseRatePerLitre);
     const bonusAmount = round2(qty * res.bonusPerLitre);
     const lineAmount = round2(qty * res.ratePerLitre);
+    // Banked per pour, settled at quarter close — deliberately outside
+    // lineAmount, which is what the fortnightly cycle pays.
+    const quarterlyBonusAmount = round2(qty * res.quarterlyBonusPerLitre);
 
     let isNew = false;
     const saved = await this.db.transaction(async (tx) => {
@@ -112,6 +115,7 @@ export class PourService {
         baseAmount: String(baseAmount),
         bonusAmount: String(bonusAmount),
         lineAmount: String(lineAmount),
+        quarterlyBonusAmount: String(quarterlyBonusAmount),
         captureSource: input.captureSource,
         receiptNo,
         status: 'recorded',
@@ -184,6 +188,7 @@ export class PourService {
         baseAmount: String(round2(qty * res.baseRatePerLitre)),
         bonusAmount: String(round2(qty * res.bonusPerLitre)),
         lineAmount: String(round2(qty * res.ratePerLitre)),
+        quarterlyBonusAmount: String(round2(qty * res.quarterlyBonusPerLitre)),
         captureSource: 'manual',
         receiptNo,
         status: 'recorded',

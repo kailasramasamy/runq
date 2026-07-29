@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { perPourBonus, shouldGateOnSnf, tenantWideFallback } from './rate-chart.service';
+import {
+  perPourBonus, shouldGateOnSnf, tenantWideFallback, quarterlyBonusFor,
+} from './rate-chart.service';
 import type { MetricBands } from './quality-band.service';
 
 type Rule = Parameters<typeof perPourBonus>[0][number];
@@ -49,6 +51,43 @@ describe('perPourBonus', () => {
       rule({ ruleType: 'quality_bonus', grade: 'a', bonusPerLitre: '2' }),
     ];
     expect(perPourBonus(rules, 'a')).toBe(2);
+  });
+});
+
+describe('quarterlyBonusFor', () => {
+  // The 2026-08 A1 tiers.
+  const tiers = [
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '4.40', bonusPerLitre: '7.20' }),
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '4.20', bonusPerLitre: '6.90' }),
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '4.00', bonusPerLitre: '6.60' }),
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '3.85', bonusPerLitre: '6.30' }),
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '3.70', bonusPerLitre: '6.00' }),
+    rule({ ruleType: 'quarterly_fat_bonus', fatMin: '3.50', bonusPerLitre: '3.00' }),
+  ];
+
+  it('reads the tier from the pour\'s own FAT', () => {
+    expect(quarterlyBonusFor(tiers, 4.5)).toBe(7.20);
+    expect(quarterlyBonusFor(tiers, 4.40)).toBe(7.20);
+    expect(quarterlyBonusFor(tiers, 4.39)).toBe(6.90);
+    expect(quarterlyBonusFor(tiers, 3.70)).toBe(6.00);
+    expect(quarterlyBonusFor(tiers, 3.50)).toBe(3.00);
+  });
+
+  it('pays nothing below the lowest tier, or with no FAT reading', () => {
+    expect(quarterlyBonusFor(tiers, 3.49)).toBe(0);
+    expect(quarterlyBonusFor(tiers, null)).toBe(0);
+    expect(quarterlyBonusFor(tiers, undefined)).toBe(0);
+  });
+
+  // Proportionate: the gated pour earns nothing, the farmer's other pours are
+  // untouched — no whole-quarter forfeit.
+  it('pays nothing on a gated pour however good its FAT', () => {
+    expect(quarterlyBonusFor(tiers, 4.8, true)).toBe(0);
+  });
+
+  it('ignores per-pour rule types, and charts with no tiers', () => {
+    expect(quarterlyBonusFor([rule({ ruleType: 'quality_bonus', grade: 'a', bonusPerLitre: '4' })], 4.5)).toBe(0);
+    expect(quarterlyBonusFor([], 4.5)).toBe(0);
   });
 });
 

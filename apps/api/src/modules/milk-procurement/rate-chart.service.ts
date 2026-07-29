@@ -20,10 +20,30 @@ type Grade = 'a' | 'b' | 'c';
 const GATE_FAT = 3.49;
 
 /**
- * Per-pour bonus only. `quarterly_fat_bonus` is deliberately NOT summed here:
- * its tier is resolved at quarter close on the farmer's best-two-of-three
- * monthly average FAT and paid as a separate lump sum. Adding it here would pay
- * it twice — once inside `line_amount` at capture, once again at quarter end.
+ * The quarterly bonus this pour accrues, ₹/L, from its own FAT.
+ *
+ * Read at capture and banked per pour rather than tiered off the farmer's
+ * quarterly average. Same blended cost on real data, but the figure is final
+ * the moment the pour is recorded — so the daily receipt, the in-app counter
+ * and the cheque can never disagree, and nobody's payout turns on which side of
+ * a tier line a 90-day mean lands.
+ *
+ * Returns 0 for a gated pour: milk that trips the SNF floor earns no bonus,
+ * proportionately, rather than forfeiting the farmer's whole quarter.
+ */
+export function quarterlyBonusFor(rules: Rule[], fat: number | null | undefined, snfGated = false): number {
+  if (fat == null || snfGated) return 0;
+  const tier = rules
+    .filter((r) => r.ruleType === 'quarterly_fat_bonus' && r.fatMin != null)
+    .sort((a, b) => Number(b.fatMin) - Number(a.fatMin))
+    .find((r) => fat >= Number(r.fatMin));
+  return tier ? Number(tier.bonusPerLitre) : 0;
+}
+
+/**
+ * Per-pour rate bonus only. `quarterly_fat_bonus` is deliberately NOT summed
+ * here: it settles separately at quarter close, so adding it would pay it twice
+ * — once inside `line_amount` with the cycle, once again at quarter end.
  */
 export function perPourBonus(rules: Rule[], grade: Grade | null, cycleQty?: number): number {
   let bonus = 0;
@@ -122,8 +142,13 @@ export interface RateResolution {
   ratePerLitre: number;
   // null on CLR (lactometer) charts — no fat/SNF to grade on.
   grade: Grade | null;
-  /** SNF below the watch floor — priced down the sub-3.5 taper. See gateFat(). */
+  /** Tripped the chart's SNF floor — priced down the sub-3.5 taper. */
   snfGated: boolean;
+  /**
+   * Quarterly bonus this pour accrues, ₹/L. Settled at quarter close, so it is
+   * NOT part of [ratePerLitre] — that is what the cycle pays.
+   */
+  quarterlyBonusPerLitre: number;
 }
 
 type PricingMode = MpRateChartRow['pricingMode'];
@@ -440,7 +465,8 @@ export class RateChartService {
         ? await this.clrRate(chart.id, input.clr!)
         : await this.matrixRate(chart.id, pricingFat, input.snf!);
     const grade = gradeFromBands(bands, { fat: input.fat, snf: input.snf, clr: input.clr });
-    const bonus = await this.bonusFor(chart.id, grade, input.cycleQtyLitres);
+    const rules = await this.chartRules(chart.id);
+    const bonus = perPourBonus(rules, grade, input.cycleQtyLitres);
     return {
       rateChartId: chart.id,
       baseRatePerLitre: round2(base),
@@ -448,6 +474,7 @@ export class RateChartService {
       ratePerLitre: round2(base + bonus),
       grade,
       snfGated,
+      quarterlyBonusPerLitre: round2(quarterlyBonusFor(rules, input.fat, snfGated)),
     };
   }
 
@@ -608,10 +635,6 @@ export class RateChartService {
       .sort((a, b) => Number(b.fat) - Number(a.fat) || Number(b.snf) - Number(a.snf))[0];
     if (!cell) throw new NotFoundError(`No rate cell for fat=${fat}, snf=${snf}`);
     return Number(cell.ratePerLitre);
-  }
-
-  private async bonusFor(chartId: string, grade: Grade | null, cycleQty?: number): Promise<number> {
-    return perPourBonus(await this.chartRules(chartId), grade, cycleQty);
   }
 
   private buildWhere(filters: RateChartFilter) {

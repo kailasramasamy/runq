@@ -198,7 +198,7 @@ function isFatOnly(cells: { snf: string | null }[]): boolean {
   return cells.length > 0 && cells.every((c) => Number(c.snf) === 0);
 }
 
-/** The quarterly bonus a given FAT earns — mirrors the server's tier lookup. */
+/** The quarterly bonus a pour's FAT earns — mirrors the server's tier lookup. */
 function bonusForFat(rules: MpRateRule[], fat: number): number {
   const t = rules
     .filter((r) => r.ruleType === 'quarterly_fat_bonus' && r.fatMin != null)
@@ -302,8 +302,9 @@ function QuarterlyTiers({ rules, snfGateMin }: { rules: MpRateRule[]; snfGateMin
         </li>
       </ul>
       <p className="mt-2 text-xs text-zinc-500">
-        Tier is set by the farmer&apos;s best two months in the quarter, then paid on every litre
-        supplied. Under 85% of collections, or any rejected pour, forfeits the quarter.
+        Each pour earns its own bonus from its own FAT, banked at capture and paid as one amount
+        after the quarter ends. A rejected pour earns nothing; the rest of the farmer&apos;s milk is
+        unaffected.
       </p>
       <p className="mt-1 text-xs text-zinc-500">
         {snfGateMin != null

@@ -194,12 +194,12 @@ function quarterlyTiers(rules: RateChartRule[]): string {
   }).join('');
   const floor = Number(tiers[tiers.length - 1]!.fatMin).toFixed(2);
   return `<div class="section-label">Quarterly bonus — paid as one lump sum after each quarter</div>
-    <table><thead><tr><th>Quarterly average FAT</th><th class="right">Bonus / L</th></tr></thead>
+    <table><thead><tr><th>FAT of the pour</th><th class="right">Bonus / L</th></tr></thead>
     <tbody>${rows}<tr><td class="rowhead">below ${esc(floor)}</td><td class="right">—</td></tr></tbody></table>
     <div class="tip"><span class="tip-k">How the bonus is decided</span>${esc(
-      'Your tier is set by the average of your best two months in the quarter, not by any single day. '
-      + 'The bonus is then paid on every litre you supplied that quarter. '
-      + 'Supplying under 85% of collections, or any rejected pour, forfeits the bonus for that quarter.',
+      'Every pour earns its own bonus from its own FAT, fixed the moment it is recorded. '
+      + 'The bonus builds up through the quarter and is paid as one amount after it ends. '
+      + 'A rejected pour earns no bonus; the rest of your milk is unaffected.',
     )}</div>`;
 }
 

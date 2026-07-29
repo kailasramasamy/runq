@@ -63,6 +63,12 @@ export const mpGlSettings = pgTable('mp_gl_settings', {
   cycleDays: integer('cycle_days'),
   cycleAnchorDate: date('cycle_anchor_date'),
   autoGenerateCycle: boolean('auto_generate_cycle').notNull().default(false),
+  // Quality-bonus accrual period: a length in months counted from
+  // bonusAnchorDate. An anchor rather than calendar quarters because the first
+  // period runs 2026-08-01 → 2026-10-31. Null anchor = no accrual window, so
+  // the daily receipt quotes no running total.
+  bonusPeriodMonths: integer('bonus_period_months').notNull().default(3),
+  bonusAnchorDate: date('bonus_anchor_date'),
   // Support contacts shown on the app's Help & Support screen (all personas read).
   supportPhone: text('support_phone'),
   supportEmail: text('support_email'),
