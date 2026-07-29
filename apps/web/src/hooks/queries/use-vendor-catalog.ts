@@ -105,6 +105,18 @@ export function useCreateVendorCatalogItem(vendorId: string) {
   });
 }
 
+/** Purges the row when unused; the API deactivates it instead when a PO or GRN references it. */
+export function useDeleteVendorCatalogItem(vendorId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) =>
+      api.delete<ApiSuccess<{ deleted: boolean; references: number }>>(
+        `/ap/vendors/${vendorId}/catalog/${itemId}`,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CATALOG_KEYS.all(vendorId) }),
+  });
+}
+
 export function useUpdateVendorCatalogItem(vendorId: string) {
   const qc = useQueryClient();
   return useMutation({

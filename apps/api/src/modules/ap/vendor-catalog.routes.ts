@@ -65,6 +65,19 @@ export const vendorCatalogRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // DELETE /vendors/:vendorId/catalog/:itemId
+  // Purges unreferenced rows; deactivates ones already used on a PO or GRN.
+  app.delete(
+    '/:vendorId/catalog/:itemId',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { vendorId, itemId } = vendorAndItemParam.parse(request.params);
+      const service = new VendorCatalogService(request.server.db, request.tenantId);
+      const data = await service.remove(vendorId, itemId);
+      return { data };
+    },
+  );
+
   // POST /vendors/:vendorId/catalog/resolve
   app.post(
     '/:vendorId/catalog/resolve',

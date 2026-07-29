@@ -5,9 +5,9 @@
 // pickers consume so manual edits propagate everywhere immediately.
 
 import { useState, useMemo } from 'react';
-import { Plus, Pencil, History, Lightbulb, Link2, BookMarked } from 'lucide-react';
+import { Plus, Pencil, History, Lightbulb, Link2, BookMarked, Trash2 } from 'lucide-react';
 import {
-  Button, Modal, Input, Select, Combobox, useToast,
+  Button, Modal, Input, Select, Combobox, useToast, ConfirmationDialog,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, EmptyState,
 } from '@/components/ui';
 import {
@@ -16,6 +16,7 @@ import {
   useVendorCatalogPriceHistory,
   useCreateVendorCatalogItem,
   useUpdateVendorCatalogItem,
+  useDeleteVendorCatalogItem,
   type VendorCatalogItem,
   type VendorCatalogSuggestion,
 } from '@/hooks/queries/use-vendor-catalog';
@@ -42,6 +43,9 @@ export function VendorCatalogSection({ vendorId }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [historyForId, setHistoryForId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { toast } = useToast();
+  const removeItem = useDeleteVendorCatalogItem(vendorId);
 
   const { data: list, isLoading } = useVendorCatalog(vendorId, search.trim() || undefined);
   const { data: suggestionsRes } = useVendorCatalogSuggestions(vendorId);
@@ -52,6 +56,28 @@ export function VendorCatalogSection({ vendorId }: Props) {
     () => (editingId ? rows.find((r) => r.id === editingId) ?? null : null),
     [editingId, rows],
   );
+  const deletingRow = useMemo(
+    () => (deletingId ? rows.find((r) => r.id === deletingId) ?? null : null),
+    [deletingId, rows],
+  );
+
+  // The row leaves the catalog either way; the toast distinguishes a true
+  // purge from the deactivate fallback for rows already used on a PO/GRN.
+  const confirmRemove = () => {
+    if (!deletingId) return;
+    removeItem.mutate(deletingId, {
+      onSuccess: (res) => {
+        toast(
+          res.data.deleted
+            ? 'Catalog entry deleted'
+            : 'Entry removed from the catalog. It stays on the documents that already use it.',
+          'success',
+        );
+        setDeletingId(null);
+      },
+      onError: () => toast('Failed to remove entry', 'error'),
+    });
+  };
 
   return (
     <div
@@ -191,6 +217,13 @@ export function VendorCatalogSection({ vendorId }: Props) {
                     >
                       <Pencil size={13} />
                     </Button>
+                    <Button
+                      size="sm" variant="ghost"
+                      onClick={() => setDeletingId(row.id)}
+                      title="Remove"
+                    >
+                      <Trash2 size={13} />
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -198,6 +231,17 @@ export function VendorCatalogSection({ vendorId }: Props) {
           </TableBody>
         </Table>
       )}
+
+      <ConfirmationDialog
+        open={!!deletingRow}
+        onClose={() => setDeletingId(null)}
+        onConfirm={confirmRemove}
+        title="Remove catalog entry?"
+        description={`"${deletingRow?.description ?? ''}" will no longer be suggested on bills or POs for this vendor. If it's already used on a PO or goods receipt, it stays on those documents.`}
+        confirmLabel="Remove"
+        variant="danger"
+        loading={removeItem.isPending}
+      />
 
       <CatalogEntryModal
         vendorId={vendorId}

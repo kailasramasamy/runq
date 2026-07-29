@@ -5,6 +5,8 @@ import {
   vendors,
   purchaseInvoiceItems,
   purchaseInvoices,
+  purchaseOrderLinesV2,
+  inventoryGrnLines,
   normaliseCatalogDescription,
 } from '@runq/db';
 import type { Db } from '@runq/db';
@@ -154,6 +156,42 @@ export class VendorCatalogService {
       .where(and(eq(vendorCatalogItems.id, itemId), eq(vendorCatalogItems.tenantId, this.tenantId)))
       .returning();
     return row!;
+  }
+
+  /**
+   * Remove a catalog row. Purges it outright when nothing references it;
+   * otherwise falls back to deactivating.
+   *
+   * PO lines and GRN lines carry a NO ACTION FK to this row, so a hard delete
+   * of a used row would surface as a raw FK violation — and GRN lines can't be
+   * nulled out either (a CHECK requires exactly one of item_id/catalog_item_id).
+   * Deactivating hides the row from list()/resolve(), which is all the caller
+   * wants, while keeping those documents readable.
+   */
+  async remove(vendorId: string, itemId: string): Promise<{ deleted: boolean; references: number }> {
+    await this.getById(vendorId, itemId);   // 404 if missing
+
+    const [poRefs] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(purchaseOrderLinesV2)
+      .where(eq(purchaseOrderLinesV2.catalogItemId, itemId));
+    const [grnRefs] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(inventoryGrnLines)
+      .where(eq(inventoryGrnLines.catalogItemId, itemId));
+
+    const references = (poRefs?.count ?? 0) + (grnRefs?.count ?? 0);
+    if (references > 0) {
+      await this.update(vendorId, itemId, { isActive: false });
+      return { deleted: false, references };
+    }
+
+    // Unreferenced: the price-history cascade is the only collateral, and it's
+    // meaningless once the row it describes is gone.
+    await this.db
+      .delete(vendorCatalogItems)
+      .where(and(eq(vendorCatalogItems.id, itemId), eq(vendorCatalogItems.tenantId, this.tenantId)));
+    return { deleted: true, references: 0 };
   }
 
   // ─── Bulk resolve for bill / PO review screens ──────────────────────────
