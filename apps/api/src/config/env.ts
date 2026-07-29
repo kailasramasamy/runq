@@ -9,6 +9,9 @@ const envSchema = z.object({
   // shouldn't re-auth daily — give the mp-auth token a much longer life than
   // the web/HR default. No refresh token exists, so this is the whole session.
   MP_JWT_EXPIRES_IN: z.string().default('30d'),
+  // Same reasoning for the runq mobile app: phone-OTP logins are on personal
+  // devices, and re-authing costs an SMS. Web keeps the shorter default.
+  MOBILE_JWT_EXPIRES_IN: z.string().default('30d'),
   SERVICE_JWT_SECRET: z.string().min(32),
   PORTAL_JWT_SECRET: z.string().min(32).optional(),
   CA_PORTAL_SECRET: z.string().min(32).optional(),

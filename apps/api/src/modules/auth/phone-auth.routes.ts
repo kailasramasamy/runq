@@ -126,6 +126,7 @@ export const phoneAuthRoutes: FastifyPluginAsync = async (app) => {
         .where(eq(users.id, user.id));
     }
 
-    return reply.send({ data: await issueSession(app, user) });
+    const expiresIn = loadEnv().MOBILE_JWT_EXPIRES_IN;
+    return reply.send({ data: await issueSession(app, user, { expiresIn }) });
   });
 };
