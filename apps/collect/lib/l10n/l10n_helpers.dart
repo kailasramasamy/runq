@@ -13,6 +13,27 @@ String milkTypeL10n(AppLocalizations l, MilkType m) => switch (m) {
       MilkType.cow => l.milkTypeCowLegacy,
     };
 
+/// Distinct milk types in [types], in first-seen order, ignoring nulls.
+///
+/// Rows for two types are otherwise identical — same litres, same badge shape —
+/// at different rates, so where a list mixes types each row has to name its
+/// own. Where it doesn't, the label would be noise on every row; hence the
+/// count. Takes raw types so pours and consignments share one rule.
+List<MilkType> milkTypesIn(Iterable<MilkType?> types) {
+  final seen = <MilkType>[];
+  for (final m in types) {
+    if (m != null && !seen.contains(m)) seen.add(m);
+  }
+  return seen;
+}
+
+/// `true` when [types] mixes milk types, so each row needs labelling.
+bool hasMixedMilkTypes(Iterable<MilkType?> types) => milkTypesIn(types).length > 1;
+
+/// Joined milk-type label, e.g. "Cow A1 · Buffalo".
+String milkTypesL10n(AppLocalizations l, Iterable<MilkType> types) =>
+    types.map((m) => milkTypeL10n(l, m)).join(' · ');
+
 /// Farmer name for display: the native-script name when the app is in a
 /// regional language and a native name exists, else the Latin [MpFarmer.name].
 /// The Latin name stays the source of truth (search, receipts, initials).

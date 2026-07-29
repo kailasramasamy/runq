@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/farmer_providers.dart';
 import '../../providers/mp_context_provider.dart';
@@ -360,9 +361,9 @@ class FarmerHome extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _shiftCard(t, isAm: true, pours: am, bands: bands, milkType: milkType)),
+                Expanded(child: _shiftCard(context, t, isAm: true, pours: am, bands: bands, milkType: milkType)),
                 const SizedBox(width: DhenuSpacing.md),
-                Expanded(child: _shiftCard(t, isAm: false, pours: pm, bands: bands, milkType: milkType)),
+                Expanded(child: _shiftCard(context, t, isAm: false, pours: pm, bands: bands, milkType: milkType)),
               ],
             ),
           ],
@@ -371,7 +372,8 @@ class FarmerHome extends ConsumerWidget {
     );
   }
 
-  Widget _shiftCard(DhenuTokens t, {required bool isAm, required List<MpPour> pours, QualityBands? bands, MilkType? milkType}) {
+  Widget _shiftCard(BuildContext context, DhenuTokens t,
+      {required bool isAm, required List<MpPour> pours, QualityBands? bands, MilkType? milkType}) {
     final has = pours.isNotEmpty;
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final grade = has
@@ -383,11 +385,24 @@ class FarmerHome extends ConsumerWidget {
     final avgFat = fats.isEmpty ? null : fats.reduce((a, b) => a + b) / fats.length;
     final avgSnf = snfs.isEmpty ? null : snfs.reduce((a, b) => a + b) / snfs.length;
     final avgWater = waters.isEmpty ? null : waters.reduce((a, b) => a + b) / waters.length;
+    // Cow and buffalo carry different quality standards, so a shift that mixes
+    // them has no single band to grade against — an averaged FAT shown against
+    // one type's band reads as a confident answer that is wrong for the other.
+    // Name the types instead; the Collections tab carries per-pour quality.
+    final types = milkTypesIn(pours.map((p) => p.milkType));
     return ShiftAccentCard(
       isAm: isAm,
       empty: !has,
       litresLabel: litres(totalL, unit: true),
-      quality: has ? QualityBadge(fat: avgFat, snf: avgSnf, water: avgWater, grade: grade, format: QualityFormat.valueLabel, bands: bands, milkType: milkType) : null,
+      quality: !has
+          ? null
+          : types.length > 1
+              ? Text(milkTypesL10n(AppLocalizations.of(context), types),
+                  style: DhenuText.caption.copyWith(color: t.inkSoft))
+              : QualityBadge(
+                  fat: avgFat, snf: avgSnf, water: avgWater, grade: grade,
+                  format: QualityFormat.valueLabel, bands: bands,
+                  milkType: types.firstOrNull ?? milkType),
     );
   }
 

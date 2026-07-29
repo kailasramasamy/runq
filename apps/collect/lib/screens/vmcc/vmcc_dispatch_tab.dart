@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -424,8 +425,13 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       : l.dispatchNoDispatchesOn(prettyDate(_date));
 
   /// Full consignment id shown below the shift label so it never truncates.
-  String? _outboundSubtitle(MpConsignment c) =>
-      c.shift == null ? null : c.consignmentNo;
+  /// Consignment no, prefixed with the milk type when the day's dispatches mix
+  /// types — otherwise two loads of the same litres read identically.
+  String? _outboundSubtitle(AppLocalizations l, MpConsignment c, bool mixed) {
+    final type = mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : '';
+    if (c.shift == null) return type.isEmpty ? null : type.trimRight().replaceAll(RegExp(r' ·\$'), '');
+    return '$type${c.consignmentNo}';
+  }
 
   Widget _outboundList(DhenuTokens t, AppLocalizations l, AsyncValue<List<MpConsignment>> outAsync) {
     return outAsync.when(
@@ -433,6 +439,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       error: (_, _) => const SizedBox.shrink(),
       data: (all) {
         final outbound = all.where((c) => c.kind == 'vmcc_to_cc').toList();
+        final mixed = hasMixedMilkTypes(outbound.map((c) => c.milkType));
         if (outbound.isEmpty) {
           return DhenuEmptyState(
             icon: DhenuIcons.truck,
@@ -448,7 +455,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
               SourceRow(
                 title: _outboundTitle(l, outbound[i]),
                 titleIcon: _outboundIcon(outbound[i]),
-                subtitle: _outboundSubtitle(outbound[i]),
+                subtitle: _outboundSubtitle(l, outbound[i], mixed),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
                 trailingStatus: StatusGlyph(
                   label: outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,

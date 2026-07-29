@@ -680,6 +680,10 @@ class MpConsignment {
       variancePct;
   final bool directReceive;
 
+  /// Milk type of the load. Nullable because legacy consignments predate the
+  /// A1/A2 split and pooled BMC loads may carry none.
+  final MilkType? milkType;
+
   MpConsignment({
     required this.id,
     required this.consignmentNo,
@@ -690,6 +694,7 @@ class MpConsignment {
     required this.status,
     this.shift,
     this.containerNo,
+    this.milkType,
     this.dispatchQty,
     this.receiptQty,
     this.dispatchFat,
@@ -727,6 +732,7 @@ class MpConsignment {
     varianceQty: _dn(j['varianceQty']),
     variancePct: _dn(j['variancePct']),
     directReceive: j['directReceive'] == true,
+    milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
   );
 }
 

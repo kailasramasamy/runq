@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -508,9 +509,12 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   /// Consignment id + shift, shown small under the plant name.
-  String _outboundSubtitle(AppLocalizations l, MpConsignment c) {
+  /// Shift · consignment no, prefixed with the milk type when the day's
+  /// dispatches mix types — otherwise two loads read identically.
+  String _outboundSubtitle(AppLocalizations l, MpConsignment c, bool mixed) {
     final shift = c.shift == null ? '' : '${c.shift == Shift.am ? l.shiftAm : l.shiftPm} · ';
-    return '$shift${c.consignmentNo}';
+    final type = mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : '';
+    return '$type$shift${c.consignmentNo}';
   }
 
   Widget _outboundList(
@@ -520,6 +524,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       error: (_, _) => const SizedBox.shrink(),
       data: (all) {
         final outbound = all.where((c) => c.kind == 'cc_to_pp').toList();
+        final mixedOut = hasMixedMilkTypes(outbound.map((c) => c.milkType));
         if (outbound.isEmpty) {
           return DhenuEmptyState(
             icon: DhenuIcons.truck,
@@ -534,7 +539,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
               if (i > 0) Divider(height: 1, color: t.hairline),
               SourceRow(
                 title: ppNames[outbound[i].toNodeId] ?? 'Plant',
-                subtitle: _outboundSubtitle(l, outbound[i]),
+                subtitle: _outboundSubtitle(l, outbound[i], mixedOut),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
                 trailingStatus: StatusGlyph(
                   label: outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,

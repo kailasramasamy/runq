@@ -111,8 +111,15 @@ class ShiftGroupedPours extends StatelessWidget {
     final farmer = farmersById[p.farmerId];
     final milkType = milkTypeL10n(l, p.milkType);
     final noAvatar = singleFarmer || !showAvatar;
+    // In single-farmer mode the row already leads with the type. Otherwise it
+    // leads with the farmer's name, which leaves two pours from the same farmer
+    // in the same shift looking identical at different rates — so when the list
+    // mixes types, the type goes on the subtitle. Single-type nodes, which are
+    // most of them, see no extra line.
+    final labelType = !singleFarmer && _mixedTypes;
     return SourceRow(
       title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
+      subtitle: labelType ? milkType : null,
       hideLeading: noAvatar,
       farmer: noAvatar ? null : farmer,
       litres: litres(p.qtyLitres, unit: true),
@@ -121,6 +128,10 @@ class ShiftGroupedPours extends StatelessWidget {
       onTap: () => onTapPour(p, farmer),
     );
   }
+
+  /// Judged over every pour handed to this widget, not per shift, so a farmer's
+  /// AM and PM rows label consistently.
+  bool get _mixedTypes => hasMixedMilkTypes(pours.map((p) => p.milkType));
 }
 
 /// Low-emphasis quality read for list rows: muted "FAT · SNF · W" with only the

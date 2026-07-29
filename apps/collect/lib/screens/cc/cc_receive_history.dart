@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
@@ -206,6 +207,9 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     final name = names[e.key] ?? 'VMCC';
     final a = _agg(e.value);
     final shifts = e.value.map((c) => c.shift).toSet();
+    // Cow and buffalo grade against different bands, so a VMCC whose day mixes
+    // them has no single standard to colour the qty-weighted average against.
+    final types = milkTypesIn(e.value.map((c) => c.milkType));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       InkWell(
         onTap: () => setState(
@@ -224,10 +228,13 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
                   Icon(_shiftIcon(s), size: 13, color: t.inkSoft),
                   const SizedBox(width: 4),
                 ],
-                if (a.fat != null)
+                if (types.length > 1)
+                  Text(milkTypesL10n(l, types),
+                      style: DhenuText.caption.copyWith(color: t.inkSoft))
+                else if (a.fat != null)
                   QualityBadge(fat: a.fat, snf: a.snf, water: a.water,
                       grade: Grade.unknown, format: QualityFormat.valueLabel,
-                      bands: _bands, milkType: _milkType),
+                      bands: _bands, milkType: types.firstOrNull ?? _milkType),
               ]),
             ])),
             const SizedBox(width: DhenuSpacing.sm),
@@ -262,7 +269,8 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: Column(children: [
         for (var i = 0; i < legs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _legTile(t, l, legs[i], _rateFor(summary, legs[i], vmccId, date)),
+          _legTile(t, l, legs[i], _rateFor(summary, legs[i], vmccId, date),
+              showMilkType: hasMixedMilkTypes(cs.map((c) => c.milkType))),
         ],
       ]),
     );
@@ -296,7 +304,8 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   IconData _shiftIcon(Shift? s) =>
       s == Shift.am ? DhenuIcons.sun : s == Shift.pm ? DhenuIcons.moon : DhenuIcons.calendar;
 
-  Widget _legTile(DhenuTokens t, AppLocalizations l, MpConsignment c, double? rate) {
+  Widget _legTile(DhenuTokens t, AppLocalizations l, MpConsignment c, double? rate,
+      {bool showMilkType = false}) {
     final isAm = c.shift == Shift.am, isPm = c.shift == Shift.pm;
     final label = isAm ? l.shiftAm : isPm ? l.shiftPm : l.ccDayLabel;
     final color = isAm ? t.am : isPm ? t.pm : t.inkSoft;
@@ -317,6 +326,10 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
               Text(label, style: DhenuText.label.copyWith(color: color)),
             ]),
           ),
+          if (showMilkType && c.milkType != null) ...[
+            const SizedBox(width: DhenuSpacing.sm),
+            MilkTypePill(milkType: c.milkType!),
+          ],
           if (rate != null) ...[
             const SizedBox(width: DhenuSpacing.sm),
             Text('₹/L ${rate.toStringAsFixed(2)}',

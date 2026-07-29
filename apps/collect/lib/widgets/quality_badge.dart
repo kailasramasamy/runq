@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../api/mp_models.dart';
 import '../theme/dhenu_tokens.dart';
 import '../theme/dhenu_theme.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 
 /// How a [QualityBadge] renders its label.
 ///  - full       → "FAT 4.2 · SNF 8.6 · W 2.0 · A"
@@ -199,4 +201,29 @@ class QualityPills extends StatelessWidget {
         ),
         child: Text(label, style: DhenuText.caption.copyWith(color: fg)),
       );
+}
+
+/// Small milk-type tag for a pour row. Only shown when a farmer supplies more
+/// than one type — otherwise every row would carry the same redundant word.
+class MilkTypePill extends StatelessWidget {
+  const MilkTypePill({super.key, required this.milkType});
+
+  final MilkType milkType;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: t.brand.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: t.brand.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        milkTypeL10n(AppLocalizations.of(context), milkType),
+        style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
 }

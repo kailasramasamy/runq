@@ -98,6 +98,9 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
+    // Judged across the whole cycle, not per day: a farmer who supplies two
+    // types should see every row labelled, not only on the days that mix.
+    final mixedTypes = hasMixedMilkTypes(pours.map((p) => p.milkType));
     final grouped = _groupPoursByDate(pours);
     final dates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     final hasCurrent = dates.isNotEmpty;
@@ -136,7 +139,9 @@ class _Body extends StatelessWidget {
               sliver: SliverList.separated(
                 itemCount: dates.length,
                 separatorBuilder: (ctx, i) => const SizedBox(height: DhenuSpacing.sm),
-                itemBuilder: (context, i) => _DayRow(date: dates[i], pours: grouped[dates[i]]!, bands: bands, milkType: milkType),
+                itemBuilder: (context, i) => _DayRow(
+                    date: dates[i], pours: grouped[dates[i]]!, bands: bands,
+                    milkType: milkType, showMilkType: mixedTypes),
               ),
             ),
           ],
@@ -404,7 +409,8 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
         if (_expanded)
           ...dates.map((d) => Padding(
                 padding: const EdgeInsets.only(top: DhenuSpacing.sm),
-                child: _DayRow(date: d, pours: grouped[d]!, bands: bands, milkType: milkType),
+                child: _DayRow(date: d, pours: grouped[d]!, bands: bands,
+                    milkType: milkType, showMilkType: hasMixedMilkTypes(pours.map((p) => p.milkType))),
               )),
       ],
     );
@@ -466,10 +472,15 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
 // ── Day row card (taps to expand inline to the day's AM/PM pours) ─────────────
 
 class _DayRow extends StatefulWidget {
-  const _DayRow({required this.date, required this.pours, this.bands, this.milkType});
+  const _DayRow({
+    required this.date, required this.pours, this.bands, this.milkType,
+    this.showMilkType = false,
+  });
 
   final String date;
   final List<MpPour> pours;
+  /// The farmer supplies more than one milk type, so every pour is labelled.
+  final bool showMilkType;
   final QualityBands? bands;
   final MilkType? milkType;
 
@@ -500,6 +511,7 @@ class _DayRowState extends State<_DayRow> {
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
     final bestGrade = pours.map((p) => p.qualityGrade).reduce((a, b) => a.index < b.index ? a : b);
+    final dayTypes = milkTypesIn(pours.map((p) => p.milkType));
     final d = DateTime.tryParse(widget.date);
 
     return Padding(
@@ -529,10 +541,18 @@ class _DayRowState extends State<_DayRow> {
             children: [
               Text(litres(totalL, unit: true), style: DhenuText.label.copyWith(color: t.ink)),
               const SizedBox(height: DhenuSpacing.xs),
-              QualityBadge(
-                fat: _avg((p) => p.fat), snf: _avg((p) => p.snf), water: _avg((p) => p.water),
-                grade: bestGrade, format: QualityFormat.full, showGrade: false,
-                bands: widget.bands, milkType: widget.milkType),
+              // A day that mixes types has no single quality standard to colour
+              // against — averaging cow FAT with buffalo FAT and grading it on
+              // one band would show a confidently wrong signal. Name the types
+              // instead and let the per-pour rows below carry the quality.
+              if (dayTypes.length > 1)
+                Text(milkTypesL10n(AppLocalizations.of(context), dayTypes),
+                    style: DhenuText.caption.copyWith(color: t.inkSoft))
+              else
+                QualityBadge(
+                  fat: _avg((p) => p.fat), snf: _avg((p) => p.snf), water: _avg((p) => p.water),
+                  grade: bestGrade, format: QualityFormat.full, showGrade: false,
+                  bands: widget.bands, milkType: dayTypes.firstOrNull ?? widget.milkType),
             ],
           ),
         ),
@@ -603,8 +623,14 @@ class _DayRowState extends State<_DayRow> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(litres(p.qtyLitres, unit: true),
-                  style: DhenuText.number(size: 15, w: FontWeight.w700, color: t.ink)),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(litres(p.qtyLitres, unit: true),
+                    style: DhenuText.number(size: 15, w: FontWeight.w700, color: t.ink)),
+                if (widget.showMilkType) ...[
+                  const SizedBox(width: DhenuSpacing.sm),
+                  MilkTypePill(milkType: p.milkType),
+                ],
+              ]),
               const SizedBox(height: 2),
               QualityBadge(
                   fat: p.fat, snf: p.snf, water: p.water,
