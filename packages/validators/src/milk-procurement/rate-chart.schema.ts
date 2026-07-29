@@ -24,13 +24,21 @@ const cellSchema = z.object({
   ratePerLitre: z.number().nonnegative(),
 });
 
-const ruleSchema = z.object({
-  ruleType: z.enum(['quality_bonus', 'volume_slab']),
-  grade: z.enum(['a', 'b', 'c']).nullish(),
-  minQty: z.number().nonnegative().nullish(),
-  maxQty: z.number().nonnegative().nullish(),
-  bonusPerLitre: z.number(),
-});
+const ruleSchema = z
+  .object({
+    ruleType: z.enum(['quality_bonus', 'volume_slab', 'quarterly_fat_bonus']),
+    grade: z.enum(['a', 'b', 'c']).nullish(),
+    minQty: z.number().nonnegative().nullish(),
+    maxQty: z.number().nonnegative().nullish(),
+    /** Tier floor for `quarterly_fat_bonus` — the only rule type that uses it. */
+    fatMin: z.number().min(0).max(15).nullish(),
+    bonusPerLitre: z.number(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.ruleType === 'quarterly_fat_bonus' && r.fatMin == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fatMin'], message: 'quarterly_fat_bonus needs fatMin' });
+    }
+  });
 
 export const createRateChartSchema = z
   .object({
@@ -40,6 +48,10 @@ export const createRateChartSchema = z
     pricingMode: z.enum(['matrix', 'flat', 'clr']).default('matrix'),
     flatRatePerLitre: z.number().nonnegative().nullish(),
     season: z.string().max(20).nullish(),
+    /** Anti-dilution SNF floor; null/omitted = gate off. */
+    snfGateMin: z.number().min(0).max(15).nullish(),
+    /** SNF printed on every row of a FAT-only chart. Display only — never priced on. */
+    referenceSnf: z.number().min(0).max(15).nullish(),
     effectiveFrom: z.string().date(),
     effectiveTo: z.string().date().nullish(),
     cells: z.array(cellSchema).default([]),

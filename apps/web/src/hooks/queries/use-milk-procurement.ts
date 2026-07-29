@@ -62,6 +62,10 @@ export interface MpRateChart {
   id: string; name: string; milkType: MilkType; pricingMode: 'matrix' | 'flat' | 'clr';
   flatRatePerLitre: string | null; scopeNodeId: string | null; season: string | null;
   effectiveFrom: string; effectiveTo: string | null; isActive: boolean;
+  /** Anti-dilution SNF floor; null = gate off. */
+  snfGateMin: string | null;
+  /** SNF shown on every row of a FAT-only chart. Display only. */
+  referenceSnf: string | null;
 }
 /** Picker label for a rate chart: name · milk type · mode. */
 export function rateChartLabel(c: MpRateChart): string {
@@ -73,8 +77,11 @@ export interface MpRateCell {
   ratePerLitre: string;
 }
 export interface MpRateRule {
-  id: string; ruleType: 'quality_bonus' | 'volume_slab'; grade: string | null;
-  minQty: string | null; maxQty: string | null; bonusPerLitre: string;
+  id: string; ruleType: 'quality_bonus' | 'volume_slab' | 'quarterly_fat_bonus'; grade: string | null;
+  minQty: string | null; maxQty: string | null;
+  /** Tier floor for `quarterly_fat_bonus`; null for the per-pour rule types. */
+  fatMin: string | null;
+  bonusPerLitre: string;
 }
 export interface MpRateChartDetail extends MpRateChart { cells: MpRateCell[]; rules: MpRateRule[] }
 export interface MpRateResolution {

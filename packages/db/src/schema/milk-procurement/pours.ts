@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, decimal, date, timestamp, index, uniqueIndex,
+  pgTable, uuid, varchar, boolean, decimal, date, timestamp, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { tenants } from '../tenant';
@@ -30,6 +30,12 @@ export const mpPours = pgTable('mp_pours', {
   water: decimal('water', { precision: 5, scale: 2 }),
   tempC: decimal('temp_c', { precision: 4, scale: 1 }),
   qualityGrade: mpGrade('quality_grade'),
+  /**
+   * SNF fell below the configured watch floor, so the pour was priced down the
+   * sub-3.5 taper regardless of its FAT. Set at capture; the quarterly bonus run
+   * forfeits the whole quarter for a farmer with any gated pour.
+   */
+  snfGated: boolean('snf_gated').notNull().default(false),
   rateChartId: uuid('rate_chart_id').references(() => mpRateCharts.id),
   ratePerLitre: decimal('rate_per_litre', { precision: 8, scale: 2 }).notNull(),
   baseAmount: decimal('base_amount', { precision: 15, scale: 2 }).notNull().default('0'),

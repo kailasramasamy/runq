@@ -10,10 +10,77 @@ import type { CreateRateChartInput, RateChartFilter, ResolveRateInput } from '@r
 import { NotFoundError, ValidationError } from '../../utils/errors';
 import type { RateChartPrintData } from './rate-chart-template';
 import { QualityBandService, gradeFromBands } from './quality-band.service';
+import type { MetricBands } from './quality-band.service';
 
 type Cell = typeof mpRateChartCells.$inferSelect;
 type Rule = typeof mpRateChartRules.$inferSelect;
 type Grade = 'a' | 'b' | 'c';
+
+/** FAT an SNF-gated pour prices at — just under 3.5, onto the steep taper. */
+const GATE_FAT = 3.49;
+
+/**
+ * Per-pour bonus only. `quarterly_fat_bonus` is deliberately NOT summed here:
+ * its tier is resolved at quarter close on the farmer's best-two-of-three
+ * monthly average FAT and paid as a separate lump sum. Adding it here would pay
+ * it twice — once inside `line_amount` at capture, once again at quarter end.
+ */
+export function perPourBonus(rules: Rule[], grade: Grade | null, cycleQty?: number): number {
+  let bonus = 0;
+  for (const r of rules) {
+    if (r.ruleType === 'quarterly_fat_bonus') continue;
+    if (r.ruleType === 'quality_bonus' && r.grade === grade) bonus += Number(r.bonusPerLitre);
+    if (r.ruleType === 'volume_slab' && cycleQty != null) {
+      const min = r.minQty != null ? Number(r.minQty) : -Infinity;
+      const max = r.maxQty != null ? Number(r.maxQty) : Infinity;
+      if (cycleQty >= min && cycleQty <= max) bonus += Number(r.bonusPerLitre);
+    }
+  }
+  return bonus;
+}
+
+/**
+ * Anti-dilution gate. A chart whose all-in rate rises more slowly than FAT pays
+ * a farmer to add water: on the 2026-08 A1 chart, 20 L at 4.5 FAT watered down
+ * to 3.7 nets +₹132. KMF has the same hole, which is why their passbook holds
+ * CLR = 32.2 − FAT to the decimal — a low-base-plus-flat-bonus chart has to be
+ * policed on solids or it leaks.
+ *
+ * Opt-in per chart via `snfGateMin` (null = off), so buffalo, A2 and every
+ * pre-existing chart are untouched. The threshold is deliberately the chart's
+ * own and not the `mp_quality_bands` watch floor: that band colour-codes
+ * quality, and on real pours an 8.00 floor gates a quarter of all milk,
+ * including genuinely rich low-SNF herds.
+ */
+export function shouldGateOnSnf(a: {
+  pricingMode: PricingMode;
+  fat: number | null | undefined;
+  snf: number | null | undefined;
+  snfGateMin: string | number | null | undefined;
+}): boolean {
+  if (a.pricingMode !== 'matrix') return false;
+  if (a.fat == null || a.snf == null) return false;
+  if (a.snfGateMin == null) return false;
+  return a.snf < Number(a.snfGateMin);
+}
+
+/**
+ * The tenant-wide backstop, used when no assignment resolves on the date —
+ * candidates arrive newest-effective first.
+ *
+ * A chart bound only to a farmer/node override is NOT a tenant default and must
+ * never become the blind backstop for everyone. Without this, superseding the
+ * tenant chart silently re-prices dates outside the new chart's window onto
+ * whichever override happens to carry the latest effectiveFrom: pointing the
+ * tenant slot at an Aug-effective chart sent every back-dated 24–31 Jul pour to
+ * one farmer's flat ₹45 deal instead of the ₹33 matrix it belonged on.
+ */
+export function tenantWideFallback<T extends { id: string; scopeNodeId: string | null }>(
+  candidates: T[],
+  overrideOnlyChartIds: Set<string>,
+): T | null {
+  return candidates.find((c) => c.scopeNodeId === null && !overrideOnlyChartIds.has(c.id)) ?? null;
+}
 
 export interface RateChartDetail extends MpRateChartRow {
   cells: Cell[];
@@ -55,6 +122,8 @@ export interface RateResolution {
   ratePerLitre: number;
   // null on CLR (lactometer) charts — no fat/SNF to grade on.
   grade: Grade | null;
+  /** SNF below the watch floor — priced down the sub-3.5 taper. See gateFat(). */
+  snfGated: boolean;
 }
 
 type PricingMode = MpRateChartRow['pricingMode'];
@@ -72,6 +141,7 @@ export class RateChartService {
   private readonly _cellsMemo = new Map<string, Cell[]>();
   private readonly _rulesMemo = new Map<string, Rule[]>();
   private readonly _bandsMemo = new Map<string, Awaited<ReturnType<QualityBandService['resolve']>>>();
+  private _overrideMemo: Set<string> | undefined;
 
   constructor(
     private readonly db: Db,
@@ -122,7 +192,7 @@ export class RateChartService {
       tenantName: t?.name ?? 'Dhenu',
       chart: {
         name: chart.name, milkType: chart.milkType, pricingMode: chart.pricingMode,
-        flatRatePerLitre: chart.flatRatePerLitre, season: chart.season,
+        flatRatePerLitre: chart.flatRatePerLitre, referenceSnf: chart.referenceSnf, season: chart.season,
         effectiveFrom: chart.effectiveFrom, effectiveTo: chart.effectiveTo, isActive: chart.isActive,
       },
       scopeName: chart.scopeNodeId ? (scopeNode[0]?.name ?? 'VMCC') : 'Tenant-wide',
@@ -141,6 +211,8 @@ export class RateChartService {
         pricingMode: input.pricingMode,
         flatRatePerLitre: numOrNull(input.flatRatePerLitre),
         season: input.season ?? null,
+        snfGateMin: numOrNull(input.snfGateMin),
+        referenceSnf: numOrNull(input.referenceSnf),
         effectiveFrom: input.effectiveFrom,
         effectiveTo: input.effectiveTo ?? null,
       }).returning({ id: mpRateCharts.id });
@@ -156,7 +228,7 @@ export class RateChartService {
         await tx.insert(mpRateChartRules).values(input.rules.map((r) => ({
           tenantId: this.tenantId, rateChartId: chartId, ruleType: r.ruleType,
           grade: r.grade ?? null, minQty: numOrNull(r.minQty), maxQty: numOrNull(r.maxQty),
-          bonusPerLitre: String(r.bonusPerLitre),
+          fatMin: numOrNull(r.fatMin), bonusPerLitre: String(r.bonusPerLitre),
         })));
       }
       return chartId;
@@ -350,14 +422,23 @@ export class RateChartService {
       const kind = useClr ? 'CLR' : input.milkType;
       throw new NotFoundError(`No active ${kind} rate chart effective ${onDate}`);
     }
+    // Grade from configurable bands: milk-type aware, and now grades CLR
+    // (lactometer) pours too instead of leaving them ungraded.
+    const bands = await this.bandsFor(input.milkType, input.scopeNodeId ?? null);
+    const snfGated = shouldGateOnSnf({
+      pricingMode: chart.pricingMode,
+      fat: input.fat,
+      snf: input.snf,
+      snfGateMin: chart.snfGateMin,
+    });
+    // A gated pour prices as if FAT were just under 3.5, dropping it onto the
+    // steep sub-3.5 taper. Everything else prices on its real FAT.
+    const pricingFat = snfGated ? Math.min(input.fat!, GATE_FAT) : input.fat!;
     const base = chart.pricingMode === 'flat'
       ? Number(chart.flatRatePerLitre)
       : chart.pricingMode === 'clr'
         ? await this.clrRate(chart.id, input.clr!)
-        : await this.matrixRate(chart.id, input.fat!, input.snf!);
-    // Grade from configurable bands: milk-type aware, and now grades CLR
-    // (lactometer) pours too instead of leaving them ungraded.
-    const bands = await this.bandsFor(input.milkType, input.scopeNodeId ?? null);
+        : await this.matrixRate(chart.id, pricingFat, input.snf!);
     const grade = gradeFromBands(bands, { fat: input.fat, snf: input.snf, clr: input.clr });
     const bonus = await this.bonusFor(chart.id, grade, input.cycleQtyLitres);
     return {
@@ -366,6 +447,7 @@ export class RateChartService {
       bonusPerLitre: round2(bonus),
       ratePerLitre: round2(base + bonus),
       grade,
+      snfGated,
     };
   }
 
@@ -394,6 +476,7 @@ export class RateChartService {
   }
 
   /** A chart's cells, loaded once per chart. */
+
   private async chartCells(chartId: string): Promise<Cell[]> {
     const hit = this._cellsMemo.get(chartId);
     if (hit) return hit;
@@ -491,7 +574,21 @@ export class RateChartService {
       .filter((c) => modes.includes(c.pricingMode));
     // prefer a chart scoped to this node; else fall back to a tenant-wide one
     const scoped = scopeNodeId ? candidates.find((c) => c.scopeNodeId === scopeNodeId) : undefined;
-    return scoped ?? candidates.find((c) => c.scopeNodeId === null) ?? null;
+    if (scoped) return scoped;
+    return tenantWideFallback(candidates, await this.overrideOnlyChartIds());
+  }
+
+  /** Charts bound only to a farmer/node override — never a tenant-wide default. */
+  private async overrideOnlyChartIds(): Promise<Set<string>> {
+    if (this._overrideMemo) return this._overrideMemo;
+    const rows = await this.db.select({
+      scopeType: mpRateChartAssignments.scopeType,
+      chartId: mpRateChartAssignments.rateChartId,
+    }).from(mpRateChartAssignments).where(eq(mpRateChartAssignments.tenantId, this.tenantId));
+    const narrow = new Set(rows.filter((r) => r.scopeType !== 'tenant').map((r) => r.chartId));
+    for (const r of rows) if (r.scopeType === 'tenant') narrow.delete(r.chartId);
+    this._overrideMemo = narrow;
+    return narrow;
   }
 
   /** CLR (lactometer) nearest-floor: largest cell with clr ≤ input. Top cell caps. */
@@ -514,17 +611,7 @@ export class RateChartService {
   }
 
   private async bonusFor(chartId: string, grade: Grade | null, cycleQty?: number): Promise<number> {
-    const rules = await this.chartRules(chartId);
-    let bonus = 0;
-    for (const r of rules) {
-      if (r.ruleType === 'quality_bonus' && r.grade === grade) bonus += Number(r.bonusPerLitre);
-      if (r.ruleType === 'volume_slab' && cycleQty != null) {
-        const min = r.minQty != null ? Number(r.minQty) : -Infinity;
-        const max = r.maxQty != null ? Number(r.maxQty) : Infinity;
-        if (cycleQty >= min && cycleQty <= max) bonus += Number(r.bonusPerLitre);
-      }
-    }
-    return bonus;
+    return perPourBonus(await this.chartRules(chartId), grade, cycleQty);
   }
 
   private buildWhere(filters: RateChartFilter) {

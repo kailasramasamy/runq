@@ -27,7 +27,7 @@ export const mpMeasurementMode = pgEnum('mp_measurement_mode', ['analyzer', 'lac
 export const mpGrade = pgEnum('mp_grade', ['a', 'b', 'c']);
 // Which milk-quality metric a configurable good/watch/low band applies to.
 export const mpQualityMetric = pgEnum('mp_quality_metric', ['fat', 'snf', 'clr']);
-export const mpRateRule = pgEnum('mp_rate_rule', ['quality_bonus', 'volume_slab']);
+export const mpRateRule = pgEnum('mp_rate_rule', ['quality_bonus', 'volume_slab', 'quarterly_fat_bonus']);
 export const mpShift = pgEnum('mp_shift', ['am', 'pm']);
 // Which shifts a VMCC collects in. `both` (default) | `am` | `pm` — drives the
 // receive-screen VMCC list (only sources for the current shift are shown).

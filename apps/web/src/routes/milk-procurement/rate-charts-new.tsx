@@ -27,6 +27,25 @@ function deriveGrade(fat: number, snf: number): 'a' | 'b' | 'c' {
   return 'c';
 }
 
+/** One quarterly bonus tier being edited: FAT floor → ₹/L. */
+type TierRow = { fatMin: string; bonus: string };
+
+const sortTiers = (t: TierRow[]) =>
+  [...t].sort((a, b) => Number(b.fatMin) - Number(a.fatMin));
+
+/** Tiers ready to save: both fields numeric. */
+function validTiers(rows: TierRow[]): { fatMin: number; bonus: number }[] {
+  return sortTiers(rows)
+    .filter((r) => r.fatMin !== '' && r.bonus !== ''
+      && !Number.isNaN(Number(r.fatMin)) && !Number.isNaN(Number(r.bonus)))
+    .map((r) => ({ fatMin: Number(r.fatMin), bonus: Number(r.bonus) }));
+}
+
+/** The bonus a quarterly average FAT earns — mirrors the server's tier lookup. */
+function tierFor(tiers: { fatMin: number; bonus: number }[], fat: number): number {
+  return tiers.find((t) => fat >= t.fatMin)?.bonus ?? 0;
+}
+
 export function MpRateChartNewPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { from?: string };
@@ -41,7 +60,12 @@ export function MpRateChartNewPage() {
   const [pricingMode, setPricingMode] = useState('matrix');
   const [flatRate, setFlatRate] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [effectiveTo, setEffectiveTo] = useState('');
   const [gradeABonus, setGradeABonus] = useState('');
+  const [snfGateMin, setSnfGateMin] = useState('');
+  const [referenceSnf, setReferenceSnf] = useState('');
+  const [tiers, setTiers] = useState<TierRow[]>([]);
+  const [fatOnly, setFatOnly] = useState(false);
 
   const [fats, setFats] = useState<number[]>([]);
   const [snfs, setSnfs] = useState<number[]>([]);
@@ -61,6 +85,14 @@ export function MpRateChartNewPage() {
     setFlatRate(ch.flatRatePerLitre ?? '');
     const bonus = ch.rules.find((r) => r.ruleType === 'quality_bonus' && r.grade === 'a');
     setGradeABonus(bonus ? bonus.bonusPerLitre : '');
+    setSnfGateMin(ch.snfGateMin ?? '');
+    setReferenceSnf(ch.referenceSnf ?? '');
+    // Duplicating is how a chart is "edited" — charts are immutable, so this
+    // carries the tiers forward for the new effective window.
+    setTiers(ch.rules
+      .filter((r) => r.ruleType === 'quarterly_fat_bonus' && r.fatMin != null)
+      .sort((a, b) => Number(b.fatMin) - Number(a.fatMin))
+      .map((r) => ({ fatMin: String(Number(r.fatMin)), bonus: String(Number(r.bonusPerLitre)) })));
     if (ch.pricingMode === 'clr') {
       const rows = ch.cells
         .filter((c) => c.clr != null)
@@ -73,6 +105,7 @@ export function MpRateChartNewPage() {
       const r: Record<string, string> = {};
       for (const c of ch.cells) r[gkey(Number(c.fat), Number(c.snf))] = String(Number(c.ratePerLitre));
       setFats(fs); setSnfs(ss); setRates(r);
+      setFatOnly(ss.length === 1 && ss[0] === 0);
     }
   }, [srcData]);
 
@@ -80,15 +113,21 @@ export function MpRateChartNewPage() {
     const st = Math.max(1, Math.round((Number(g.step) || 0.1) * 10));
     const fLo = Math.round(Number(g.fatLo) * 10), fHi = Math.round(Number(g.fatHi) * 10);
     const sLo = Math.round(Number(g.snfLo) * 10), sHi = Math.round(Number(g.snfHi) * 10);
-    if (fHi < fLo || sHi < sLo) { toast('Check the FAT / SNF ranges', 'error'); return; }
-    const nf: number[] = [], ns: number[] = [];
+    if (fHi < fLo || (!fatOnly && sHi < sLo)) { toast('Check the FAT / SNF ranges', 'error'); return; }
+    const nf: number[] = [];
     for (let f = fLo; f <= fHi; f += st) nf.push(f / 10);
-    for (let s = sLo; s <= sHi; s += st) ns.push(s / 10);
+    // FAT-only: a single SNF-0 row. Nearest-floor then matches every SNF
+    // reading, so the rate keys on FAT alone.
+    const ns: number[] = [];
+    if (fatOnly) ns.push(0);
+    else for (let s = sLo; s <= sHi; s += st) ns.push(s / 10);
     const fatSpan = (fHi - fLo) / 10 || 1, snfSpan = (sHi - sLo) / 10 || 1;
     const pLo = Number(g.priceLo), pHi = Number(g.priceHi);
     const r: Record<string, string> = {};
     for (const fat of nf) for (const snf of ns) {
-      const frac = ((fat - fLo / 10) / fatSpan + (snf - sLo / 10) / snfSpan) / 2;
+      const frac = fatOnly
+        ? (fat - fLo / 10) / fatSpan
+        : ((fat - fLo / 10) / fatSpan + (snf - sLo / 10) / snfSpan) / 2;
       r[gkey(fat, snf)] = String(Math.round((pLo + (pHi - pLo) * frac) * 10) / 10);
     }
     setFats(nf); setSnfs(ns); setRates(r);
@@ -110,9 +149,13 @@ export function MpRateChartNewPage() {
   );
 
   const save = () => {
-    const rules = gradeABonus && Number(gradeABonus) > 0
-      ? [{ ruleType: 'quality_bonus' as const, grade: 'a' as const, bonusPerLitre: Number(gradeABonus) }]
-      : [];
+    const rules: CreateRateChartInput['rules'] = [];
+    if (gradeABonus && Number(gradeABonus) > 0) {
+      rules.push({ ruleType: 'quality_bonus', grade: 'a', bonusPerLitre: Number(gradeABonus) });
+    }
+    for (const t of validTiers(tiers)) {
+      rules.push({ ruleType: 'quarterly_fat_bonus', fatMin: t.fatMin, bonusPerLitre: t.bonus });
+    }
     let cells: CreateRateChartInput['cells'] = [];
     if (pricingMode === 'matrix') cells = matrixCells;
     else if (pricingMode === 'clr') cells = clrCells.map((r) => ({ clr: Number(r.clr), ratePerLitre: Number(r.rate) }));
@@ -121,7 +164,9 @@ export function MpRateChartNewPage() {
       flatRatePerLitre: pricingMode === 'flat' ? Number(flatRate) : null,
       // charts are independent now — who uses one is set on the CC / VMCC / farmer
       scopeNodeId: null,
-      effectiveFrom, cells, rules,
+      snfGateMin: snfGateMin !== '' && !Number.isNaN(Number(snfGateMin)) ? Number(snfGateMin) : null,
+      referenceSnf: referenceSnf !== '' && !Number.isNaN(Number(referenceSnf)) ? Number(referenceSnf) : null,
+      effectiveFrom, effectiveTo: effectiveTo || null, cells, rules,
     };
     create.mutate(payload, {
       onSuccess: () => { toast('Rate chart created', 'success'); back(); },
@@ -142,14 +187,45 @@ export function MpRateChartNewPage() {
         <Card>
           <CardContent className="space-y-3 py-4">
             <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Combobox label="Milk type" value={milkType} onChange={setMilkType} options={MILK_TYPES} />
               <Combobox label="Pricing mode" value={pricingMode} onChange={setPricingMode} options={PRICING_MODES} />
               <Input label="Effective from" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+              <Input label="Effective to (optional)" type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} />
             </div>
+            {effectiveTo !== '' && effectiveTo < effectiveFrom && (
+              <p className="text-xs text-red-600 dark:text-red-400">Effective to is before effective from.</p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Input label="Grade-A quality bonus (₹/L, optional)" type="number" value={gradeABonus} onChange={(e) => setGradeABonus(e.target.value)} />
+              <Input
+                label="Anti-dilution SNF floor (optional)"
+                type="number"
+                placeholder="e.g. 7.20 — blank leaves the gate off"
+                value={snfGateMin}
+                onChange={(e) => setSnfGateMin(e.target.value)}
+              />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="SNF shown on the chart (optional)"
+                type="number"
+                placeholder="e.g. 8.2 — printed on every row, never priced on"
+                value={referenceSnf}
+                onChange={(e) => setReferenceSnf(e.target.value)}
+              />
+            </div>
+            {referenceSnf !== '' && snfGateMin !== '' && Number(referenceSnf) > Number(snfGateMin) && (
+              <p className="text-xs text-amber-700 dark:text-amber-500">
+                The chart shows {referenceSnf} SNF but only gates below {snfGateMin}. Farmers between
+                the two are paid in full — make sure that is what you intend to publish.
+              </p>
+            )}
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Below the SNF floor a pour prices down the sub-3.5 taper however good its FAT looks, and
+              forfeits the quarter&apos;s bonus. Set it well under the quality watch band — that band
+              colour-codes milk, and using it here would gate a quarter of normal supply.
+            </p>
             {/* Scope used to live here, which meant a chart both defined rates
                 and decided who got them. Charts are now independent: set who
                 uses one on Rate charts (defaults), or on a CC / VMCC / farmer. */}
@@ -178,22 +254,36 @@ export function MpRateChartNewPage() {
                   <Input label="FAT from" type="number" value={g.fatLo} onChange={(e) => setG({ ...g, fatLo: e.target.value })} />
                   <Input label="FAT to" type="number" value={g.fatHi} onChange={(e) => setG({ ...g, fatHi: e.target.value })} />
                   <Input label="Step" type="number" value={g.step} onChange={(e) => setG({ ...g, step: e.target.value })} />
-                  <Input label="SNF from" type="number" value={g.snfLo} onChange={(e) => setG({ ...g, snfLo: e.target.value })} />
-                  <Input label="SNF to" type="number" value={g.snfHi} onChange={(e) => setG({ ...g, snfHi: e.target.value })} />
-                  <div />
+                  <Input label="SNF from" type="number" value={g.snfLo} disabled={fatOnly} onChange={(e) => setG({ ...g, snfLo: e.target.value })} />
+                  <Input label="SNF to" type="number" value={g.snfHi} disabled={fatOnly} onChange={(e) => setG({ ...g, snfHi: e.target.value })} />
+                  <label className="flex items-end gap-2 pb-2 text-sm text-zinc-700 dark:text-zinc-300">
+                    <input type="checkbox" checked={fatOnly} onChange={(e) => setFatOnly(e.target.checked)} className="h-4 w-4" />
+                    Price on FAT only
+                  </label>
                   <Input label="₹/L at min" type="number" value={g.priceLo} onChange={(e) => setG({ ...g, priceLo: e.target.value })} />
                   <Input label="₹/L at max" type="number" value={g.priceHi} onChange={(e) => setG({ ...g, priceHi: e.target.value })} />
                   <div className="flex items-end"><Button type="button" className="w-full" onClick={generate}><Wand2 className="h-4 w-4" />Generate</Button></div>
                 </div>
                 <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                  ₹/L scales linearly from min (low FAT+SNF) to max (high FAT+SNF). Generates into the editable grid below — tweak any cell before saving.
+                  {fatOnly
+                    ? '₹/L scales linearly across the FAT range and SNF is ignored — one row per FAT step. The top FAT row acts as the cap. Tweak any cell before saving.'
+                    : '₹/L scales linearly from min (low FAT+SNF) to max (high FAT+SNF). Generates into the editable grid below — tweak any cell before saving.'}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>Rate matrix (₹/L) — editable · {matrixCells.length} cells</CardHeader>
+              <CardHeader>
+                Rate matrix (₹/L) — editable · {matrixCells.length} cells
+                {snfs.length === 1 && snfs[0] === 0 ? ' · FAT-only' : ''}
+              </CardHeader>
               <CardContent className="p-3">
+                {snfs.length === 1 && snfs[0] === 0 && (
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    FAT-only chart: cells sit at SNF 0, so every SNF reading matches and the rate keys
+                    on FAT alone. The highest FAT row acts as the cap.
+                  </p>
+                )}
                 <GridEditor fats={fats} snfs={snfs} rates={rates} onRate={setRate} />
               </CardContent>
             </Card>
@@ -201,9 +291,20 @@ export function MpRateChartNewPage() {
         )}
 
         <Card>
+          <CardHeader>Quarterly bonus tiers — optional</CardHeader>
+          <CardContent className="py-4">
+            <TierEditor rows={tiers} onChange={setTiers} />
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>Test a reading</CardHeader>
           <CardContent>
-            <TestBox matrixCells={matrixCells} clrRows={clrRows} pricingMode={pricingMode} flatRate={flatRate} gradeABonus={gradeABonus} />
+            <TestBox
+              matrixCells={matrixCells} clrRows={clrRows} pricingMode={pricingMode}
+              flatRate={flatRate} gradeABonus={gradeABonus}
+              tiers={validTiers(tiers)} snfGateMin={snfGateMin}
+            />
           </CardContent>
         </Card>
 
@@ -212,6 +313,55 @@ export function MpRateChartNewPage() {
           <Button onClick={save} loading={create.isPending} disabled={!valid}>Create rate chart</Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Quarterly bonus tiers. Each row is a FAT floor; the band runs up to the next
+ * floor less 0.01, shown alongside so nobody publishes a chart reading
+ * "3.80 → ₹6.00" and then argues with a farmer measuring 3.79.
+ */
+function TierEditor({ rows, onChange }: { rows: TierRow[]; onChange: (r: TierRow[]) => void }) {
+  const setRow = (i: number, field: keyof TierRow, v: string) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, [field]: v } : r)));
+  const sorted = sortTiers(rows);
+  const bandFor = (r: TierRow): string => {
+    const f = Number(r.fatMin);
+    if (r.fatMin === '' || Number.isNaN(f)) return '—';
+    const i = sorted.findIndex((x) => Number(x.fatMin) === f);
+    const above = i > 0 ? Number(sorted[i - 1]!.fatMin) : null;
+    return above == null ? `${f.toFixed(2)} and above` : `${f.toFixed(2)} – ${(above - 0.01).toFixed(2)}`;
+  };
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <span>FAT floor</span><span>Bonus ₹ / litre</span><span>Band shown to farmers</span><span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_1.2fr_auto] items-center gap-2">
+          <input type="number" step="0.01" placeholder="e.g. 3.70" value={r.fatMin}
+            onChange={(e) => setRow(i, 'fatMin', e.target.value)}
+            className="rounded border border-zinc-200 bg-transparent px-2 py-1.5 text-sm tabular-nums focus:border-emerald-400 focus:outline-none dark:border-zinc-700 dark:text-zinc-100" />
+          <input type="number" step="0.01" placeholder="e.g. 6.00" value={r.bonus}
+            onChange={(e) => setRow(i, 'bonus', e.target.value)}
+            className="rounded border border-zinc-200 bg-transparent px-2 py-1.5 text-sm tabular-nums focus:border-emerald-400 focus:outline-none dark:border-zinc-700 dark:text-zinc-100" />
+          <span className="text-sm tabular-nums text-zinc-500 dark:text-zinc-400">{bandFor(r)}</span>
+          <Button variant="ghost" size="sm" type="button" onClick={() => onChange(rows.filter((_, x) => x !== i))}>×</Button>
+        </div>
+      ))}
+      {rows.length === 0 && (
+        <p className="py-3 text-sm text-zinc-500">
+          No quarterly bonus on this chart. Add tiers, or import a file with a bonus column.
+        </p>
+      )}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Paid as one lump sum after the quarter, on every litre supplied. The tier comes from the
+        farmer&apos;s best two months in the quarter, so a single bad month cannot demote them.
+      </p>
+      <Button variant="ghost" size="sm" type="button" onClick={() => onChange([...rows, { fatMin: '', bonus: '' }])}>
+        + Add tier
+      </Button>
     </div>
   );
 }
@@ -301,10 +451,11 @@ function GridEditor({ fats, snfs, rates, onRate }: {
   );
 }
 
-function TestBox({ matrixCells, clrRows, pricingMode, flatRate, gradeABonus }: {
+function TestBox({ matrixCells, clrRows, pricingMode, flatRate, gradeABonus, tiers, snfGateMin }: {
   matrixCells: { fat: number; snf: number; ratePerLitre: number }[];
   clrRows: { clr: string; rate: string }[];
   pricingMode: string; flatRate: string; gradeABonus: string;
+  tiers: { fatMin: number; bonus: number }[]; snfGateMin: string;
 }) {
   const [t, setT] = useState({ fat: '', snf: '', clr: '' });
 
@@ -334,17 +485,33 @@ function TestBox({ matrixCells, clrRows, pricingMode, flatRate, gradeABonus }: {
   const ready = t.fat !== '' && t.snf !== '' && !Number.isNaN(tf) && !Number.isNaN(ts);
   let result: { ok: boolean; text: string } | null = null;
   if (ready) {
+    // Mirrors resolveRate: a gated pour prices as if FAT were just under 3.5.
+    const gate = Number(snfGateMin);
+    const gated = pricingMode === 'matrix' && snfGateMin !== '' && !Number.isNaN(gate) && ts < gate;
+    const pricingFat = gated ? Math.min(tf, 3.49) : tf;
     let base: number | null = null, label = '';
     if (pricingMode === 'flat') { base = Number(flatRate) || null; label = 'flat'; }
     else {
-      const m = matrixCells.filter((c) => c.fat <= tf && c.snf <= ts).sort((a, b) => b.fat - a.fat || b.snf - a.snf)[0];
+      const m = matrixCells.filter((c) => c.fat <= pricingFat && c.snf <= ts).sort((a, b) => b.fat - a.fat || b.snf - a.snf)[0];
       if (m) { base = m.ratePerLitre; label = `${m.fat} × ${m.snf}`; }
     }
     if (base == null) result = { ok: false, text: 'Below the lowest cell — would be rejected.' };
     else {
       const grade = deriveGrade(tf, ts);
       const bonus = grade === 'a' && Number(gradeABonus) > 0 ? Number(gradeABonus) : 0;
-      result = { ok: true, text: `cell ${label} → ₹${base}/L · grade ${grade.toUpperCase()}${bonus ? ` (+₹${bonus})` : ''} = ₹${(base + bonus).toFixed(2)}/L` };
+      const daily = base + bonus;
+      // The quarterly tier is settled after the quarter, never inside the daily
+      // rate — show it as a separate line so the two are never conflated.
+      const tier = gated ? 0 : tierFor(tiers, tf);
+      const parts = [`cell ${label} → ₹${base}/L`];
+      if (bonus) parts.push(`grade ${grade.toUpperCase()} +₹${bonus}`);
+      parts.push(`daily ₹${daily.toFixed(2)}/L`);
+      if (tiers.length) {
+        parts.push(gated
+          ? 'quarterly bonus forfeited (SNF gate)'
+          : `+ quarterly ₹${tier.toFixed(2)} = ₹${(daily + tier).toFixed(2)}/L all-in`);
+      }
+      result = { ok: !gated, text: `${gated ? 'SNF GATED · ' : ''}${parts.join(' · ')}` };
     }
   }
   return (
