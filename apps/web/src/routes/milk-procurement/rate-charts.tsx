@@ -88,6 +88,8 @@ export function MpRateChartsPage() {
   const search = useSearch({ strict: false }) as { view?: string };
   const [viewId, setViewId] = useState<string | null>(search.view ?? null);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
+  /** Server's reason when deactivating would strand a scope — shown, then forced past. */
+  const [strandWarning, setStrandWarning] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('charts');
   // deep-link: open a chart's detail when arriving with ?view=<id>
   useEffect(() => { if (search.view) setViewId(search.view); }, [search.view]);
@@ -175,17 +177,29 @@ export function MpRateChartsPage() {
 
       <ConfirmationDialog
         open={!!deactivateId}
-        title="Deactivate rate chart?"
-        description="It stops being used for new pours. Past pours keep their snapshotted rate."
-        confirmLabel="Deactivate"
+        title={strandWarning ? 'This leaves milk unpriced' : 'Deactivate rate chart?'}
+        description={strandWarning
+          ? `${strandWarning} Deactivating anyway means pours will fail until another chart covers them.`
+          : 'It stops being used for new pours. Past pours keep their snapshotted rate.'}
+        confirmLabel={strandWarning ? 'Deactivate anyway' : 'Deactivate'}
         variant="danger"
         loading={deactivate.isPending}
-        onClose={() => setDeactivateId(null)}
+        onClose={() => { setDeactivateId(null); setStrandWarning(null); }}
         onConfirm={() => {
           if (!deactivateId) return;
-          deactivate.mutate(deactivateId, {
-            onSuccess: () => { toast('Rate chart deactivated', 'success'); setDeactivateId(null); },
-            onError: () => toast('Failed to deactivate', 'error'),
+          // First press asks the server; if it refuses because the chart is still
+          // pricing someone, show who and let the second press force it through.
+          deactivate.mutate({ id: deactivateId, force: !!strandWarning }, {
+            onSuccess: () => {
+              toast('Rate chart deactivated', 'success');
+              setDeactivateId(null);
+              setStrandWarning(null);
+            },
+            onError: (e) => {
+              const msg = e instanceof Error ? e.message : '';
+              if (msg.includes('leaves')) setStrandWarning(msg);
+              else toast(msg || 'Failed to deactivate', 'error');
+            },
           });
         }}
       />

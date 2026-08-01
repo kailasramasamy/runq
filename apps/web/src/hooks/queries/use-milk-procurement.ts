@@ -370,7 +370,9 @@ export function useUnassignRateChart() {
 export function useDeactivateRateChart() {
   const c = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.post<ApiSuccess<MpRateChart>>(`${BASE}/rate-charts/${id}/deactivate`, {}),
+    // `force` retries past the guard that refuses to leave a scope unpriced.
+    mutationFn: ({ id, force }: { id: string; force?: boolean }) =>
+      api.post<ApiSuccess<MpRateChart>>(`${BASE}/rate-charts/${id}/deactivate`, { force: force ?? false }),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'rate-charts'] }),
   });
 }

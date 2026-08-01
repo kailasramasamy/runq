@@ -261,12 +261,59 @@ export class RateChartService {
     return this.getById(id);
   }
 
-  async deactivate(id: string): Promise<MpRateChartRow> {
-    await this.getById(id);
+  /**
+   * Deactivating the chart a scope is assigned to is silently destructive: the
+   * assignment stays, resolves to nothing, and the failure only surfaces at the
+   * next pour — at a collection centre, with a farmer waiting. So refuse when
+   * nothing would take over, naming what depends on it. [force] proceeds anyway
+   * for the caller who means it.
+   */
+  async deactivate(id: string, force = false): Promise<MpRateChartRow> {
+    const chart = await this.getById(id);
+    if (!force) {
+      const stranded = await this.strandedByDeactivating(chart);
+      if (stranded.length) {
+        throw new ValidationError(
+          `Deactivating this chart leaves ${chart.milkType} unpriced for ${stranded.join(', ')} — `
+          + 'no other chart is effective today. Assign a replacement, or extend an '
+          + 'existing chart, before deactivating this one.');
+      }
+    }
     const [row] = await this.db.update(mpRateCharts)
       .set({ isActive: false, updatedAt: new Date() })
       .where(and(eq(mpRateCharts.tenantId, this.tenantId), eq(mpRateCharts.id, id))).returning();
     return row!;
+  }
+
+  /**
+   * Scopes assigned to [chart] that would be left unpriced by deactivating it —
+   * empty when another chart would simply take over. Judged on today, the first
+   * date a pour could hit the gap.
+   */
+  private async strandedByDeactivating(chart: MpRateChartRow): Promise<string[]> {
+    const holders = await this.db.select({
+      scopeType: mpRateChartAssignments.scopeType,
+      nodeName: mpNodes.name,
+      farmerName: mpFarmers.name,
+    }).from(mpRateChartAssignments)
+      .leftJoin(mpNodes, eq(mpNodes.id, mpRateChartAssignments.scopeId))
+      .leftJoin(mpFarmers, eq(mpFarmers.id, mpRateChartAssignments.scopeId))
+      .where(and(
+        eq(mpRateChartAssignments.tenantId, this.tenantId),
+        eq(mpRateChartAssignments.rateChartId, chart.id),
+      ));
+    if (!holders.length) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    const modes: PricingMode[] = chart.pricingMode === 'clr' ? ['clr'] : ['matrix', 'flat'];
+    const candidates = (await this.db.select().from(mpRateCharts)
+      .where(this.usableChartConds(chart.milkType, today))
+      .orderBy(desc(mpRateCharts.effectiveFrom)))
+      .filter((c) => c.id !== chart.id && modes.includes(c.pricingMode));
+    // Something else already covers everyone — deactivating breaks nothing.
+    if (tenantWideFallback(candidates, await this.overrideOnlyChartIds())) return [];
+    return holders.map((h) => h.scopeType === 'tenant'
+      ? 'the tenant-wide default'
+      : h.nodeName ?? h.farmerName ?? `a ${h.scopeType}`);
   }
 
   // ── assignments ────────────────────────────────────────────────────────────
@@ -296,6 +343,20 @@ export class RateChartService {
    */
   async assign(scopeType: RateScope, scopeId: string, rateChartId: string): Promise<void> {
     const chart = await this.getById(rateChartId);
+    // Pricing applies the same date window to an explicit assignment as to the
+    // automatic fallback, so binding a retired chart used to be accepted here
+    // and then silently ignored at the pour. Say so now, while the operator is
+    // still on the screen that can fix it.
+    const today = new Date().toISOString().slice(0, 10);
+    if (!chart.isActive) {
+      throw new ValidationError(
+        `"${chart.name}" is deactivated — reactivate it before assigning it.`);
+    }
+    if (chart.effectiveTo && chart.effectiveTo < today) {
+      throw new ValidationError(
+        `"${chart.name}" ended on ${chart.effectiveTo} — clear or extend its end date `
+        + 'before assigning it, or pours will not price against it.');
+    }
     const id = scopeType === 'tenant' ? this.tenantId : scopeId;
     await this.db.insert(mpRateChartAssignments).values({
       tenantId: this.tenantId, scopeType, scopeId: id,
@@ -648,10 +709,17 @@ export class RateChartService {
 
 /** Assignment-time guard for overrides: chart must exist in this tenant and be active. */
 export async function assertAssignableRateChart(db: Db, tenantId: string, id: string): Promise<void> {
-  const [c] = await db.select({ isActive: mpRateCharts.isActive }).from(mpRateCharts)
-    .where(and(eq(mpRateCharts.tenantId, tenantId), eq(mpRateCharts.id, id)));
+  const [c] = await db.select({
+    name: mpRateCharts.name, isActive: mpRateCharts.isActive, effectiveTo: mpRateCharts.effectiveTo,
+  }).from(mpRateCharts).where(and(eq(mpRateCharts.tenantId, tenantId), eq(mpRateCharts.id, id)));
   if (!c) throw new NotFoundError('Rate chart');
   if (!c.isActive) throw new ValidationError('Rate chart is inactive');
+  // An ended chart prices nothing, so binding one is the same silent no-op.
+  const today = new Date().toISOString().slice(0, 10);
+  if (c.effectiveTo && c.effectiveTo < today) {
+    throw new ValidationError(
+      `"${c.name}" ended on ${c.effectiveTo} — clear or extend its end date before assigning it.`);
+  }
 }
 
 function numOrNull(v: number | null | undefined): string | null {

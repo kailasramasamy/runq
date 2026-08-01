@@ -121,7 +121,13 @@ export const unassignRateChartSchema = rateAssignmentScopeSchema.extend({
   pricingFamily,
 });
 
+/** Deactivation refuses to strand a scope unless `force` says go ahead. */
+export const deactivateRateChartSchema = z.object({
+  force: z.boolean().optional().default(false),
+});
+
 export type CreateRateChartInput = z.infer<typeof createRateChartSchema>;
+export type DeactivateRateChartInput = z.infer<typeof deactivateRateChartSchema>;
 export type RateChartFilter = z.infer<typeof rateChartFilterSchema>;
 export type ResolveRateInput = z.infer<typeof resolveRateSchema>;
 export type AssignRateChartInput = z.infer<typeof assignRateChartSchema>;

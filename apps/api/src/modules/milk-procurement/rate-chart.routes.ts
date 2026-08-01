@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createRateChartSchema,
+  deactivateRateChartSchema,
   rateChartFilterSchema,
   resolveRateSchema,
   rateAssignmentScopeSchema,
@@ -96,7 +97,9 @@ export const rateChartRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/:id/deactivate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
     const { id } = uuidParamSchema.parse(request.params);
+    // `force` is the operator confirming they've read which scopes this strands.
+    const { force } = deactivateRateChartSchema.parse(request.body ?? {});
     const service = new RateChartService(request.server.db, request.tenantId);
-    return { data: await service.deactivate(id) };
+    return { data: await service.deactivate(id, force) };
   });
 };
