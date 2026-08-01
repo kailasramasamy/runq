@@ -54,6 +54,7 @@ export class ManufacturingReportsService {
       draftWoRes,
       scheduledTodayRes,
       inProgressRes,
+      completedTodayRes,
       pendingCloseRes,
       todayOutputRes,
       weekVarianceRes,
@@ -63,6 +64,7 @@ export class ManufacturingReportsService {
       this._countByStatus(tid, 'draft'),
       this._countScheduledToday(tid),
       this._countByStatus(tid, 'in_progress'),
+      this._countCompletedToday(tid),
       this._countByStatus(tid, 'completed'),
       this._todayOutput(tid),
       this._weekVariance(tid),
@@ -74,6 +76,7 @@ export class ManufacturingReportsService {
       draftWoCount: Number(draftWoRes),
       scheduledTodayCount: Number(scheduledTodayRes),
       inProgressCount: Number(inProgressRes),
+      completedTodayCount: Number(completedTodayRes),
       wosCompletedPendingClose: Number(pendingCloseRes),
       todayPlannedOutput: Number(todayOutputRes.planned ?? 0),
       todayActualOutput: Number(todayOutputRes.actual ?? 0),
@@ -103,6 +106,20 @@ export class ManufacturingReportsService {
     return r?.count ?? 0;
   }
 
+  private async _countCompletedToday(tid: string): Promise<string | number> {
+    const [row] = await this.db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(workOrders)
+      .where(
+        and(
+          eq(workOrders.tenantId, tid),
+          sql`${workOrders.completedAt}::date = CURRENT_DATE`,
+          sql`${workOrders.status} <> 'cancelled'`,
+        ),
+      );
+    return row?.c ?? 0;
+  }
+
   private async _countScheduledToday(tid: string): Promise<string | number> {
     const [r] = await this.db
       .select({ count: sql<string>`count(*)` })
@@ -111,7 +128,7 @@ export class ManufacturingReportsService {
         and(
           eq(workOrders.tenantId, tid),
           sql`${workOrders.scheduledFor} = CURRENT_DATE`,
-          sql`${workOrders.status} IN ('draft','in_progress','completed')`,
+          sql`${workOrders.status} <> 'cancelled'`,
         ),
       );
     return r?.count ?? 0;

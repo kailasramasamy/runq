@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, ilike, gte, lte, inArray } from 'drizzle-orm';
+import { and, eq, desc, or, sql, ilike, gte, lte, inArray } from 'drizzle-orm';
 import { workOrders, boms, bomLines, items, warehouses } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -45,6 +45,7 @@ export class WorkOrderService {
           bomCode: boms.bomCode,
           bomName: boms.name,
           outputItemName: items.name,
+          outputUom: boms.outputUom,
           warehouseName: warehouses.name,
         })
         .from(workOrders)
@@ -58,6 +59,8 @@ export class WorkOrderService {
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(workOrders)
+        .innerJoin(boms, eq(boms.id, workOrders.bomId))
+        .innerJoin(items, eq(items.id, boms.outputItemId))
         .where(where),
     ]);
 
@@ -68,6 +71,7 @@ export class WorkOrderService {
         bomCode: r.bomCode,
         bomName: r.bomName,
         outputItemName: r.outputItemName,
+        outputUom: r.outputUom,
         warehouseName: r.warehouseName,
       })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
@@ -318,7 +322,12 @@ export class WorkOrderService {
       filters.scheduledFrom ? gte(workOrders.scheduledFor, filters.scheduledFrom) : undefined,
       filters.scheduledTo ? lte(workOrders.scheduledFor, filters.scheduledTo) : undefined,
       filters.search
-        ? ilike(workOrders.woNumber, `%${filters.search}%`)
+        ? or(
+            ilike(workOrders.woNumber, `%${filters.search}%`),
+            ilike(boms.bomCode, `%${filters.search}%`),
+            ilike(boms.name, `%${filters.search}%`),
+            ilike(items.name, `%${filters.search}%`),
+          )
         : undefined,
     );
   }

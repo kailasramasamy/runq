@@ -62,6 +62,15 @@ export class StockQueryService {
         .filter((r) => r.batchNo)
         .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo })),
     );
+    // `lastMovementAt` mirrors the movement's business date, which some sources
+    // stamp at midnight — raw-milk receipts use the collection date, so every
+    // batch reads 00:00. `receivedAt` is when the batch was actually posted, the
+    // only field that orders same-day intake correctly.
+    const receivedMap = await this.batchReceivedMap(
+      filtered
+        .filter((r) => r.batchNo)
+        .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo })),
+    );
     return filtered.map((r) => ({
       ...r,
       qty: Number(r.qty),
@@ -69,7 +78,41 @@ export class StockQueryService {
       value: Number(r.value),
       reorderLevel: r.reorderLevel ? Number(r.reorderLevel) : null,
       expiryDate: expiryMap.get(`${r.itemId}|${r.batchNo}`) ?? null,
+      receivedAt: receivedMap.get(`${r.itemId}|${r.batchNo}`) ?? null,
     }));
+  }
+
+  /** When each (item, batch) first came into stock — the earliest inbound
+   *  movement's post time. Distinct from `lastMovementAt`, which tracks the
+   *  latest movement against the batch and carries the business date rather
+   *  than the clock time. */
+  private async batchReceivedMap(
+    keys: Array<{ itemId: string; batchNo: string }>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (keys.length === 0) return out;
+    const itemIds = Array.from(new Set(keys.map((k) => k.itemId)));
+    const batchNos = Array.from(new Set(keys.map((k) => k.batchNo)));
+    const rows = await this.db
+      .select({
+        itemId: stockLedger.itemId,
+        batchNo: stockLedger.batchNo,
+        receivedAt: sql<string>`MIN(${stockLedger.postedAt})`,
+      })
+      .from(stockLedger)
+      .where(
+        and(
+          eq(stockLedger.tenantId, this.tenantId),
+          inArray(stockLedger.itemId, itemIds),
+          inArray(stockLedger.batchNo, batchNos),
+          sql`${stockLedger.qtyIn} > 0`,
+        ),
+      )
+      .groupBy(stockLedger.itemId, stockLedger.batchNo);
+    for (const r of rows) {
+      if (r.batchNo && r.receivedAt) out.set(`${r.itemId}|${r.batchNo}`, r.receivedAt);
+    }
+    return out;
   }
 
   /** Earliest expiry per (item, batch) across all GRN receipts that brought

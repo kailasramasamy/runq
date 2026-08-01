@@ -15,6 +15,8 @@ export interface MfgDashboard {
   draftWoCount: number;
   scheduledTodayCount: number;
   inProgressCount: number;
+  /** Runs finished today, whether or not they have been closed yet. */
+  completedTodayCount: number;
   /** Analytics (plan §5.5). */
   wosCompletedPendingClose: number;
   todayPlannedOutput: number;
