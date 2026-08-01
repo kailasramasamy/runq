@@ -39,6 +39,7 @@ class InventoryHomeScreen extends ConsumerWidget {
           onRefresh: () async {
             ref.invalidate(invKpisProvider);
             ref.invalidate(invRecentActivityProvider);
+            ref.invalidate(invWarehouseValuesProvider);
             await Future<void>.delayed(const Duration(milliseconds: 200));
           },
           child: kpisAsync.when(
@@ -64,35 +65,12 @@ class _HomeBody extends StatelessWidget {
         const SliverToBoxAdapter(child: _TopBar()),
         const SliverToBoxAdapter(child: _Greeting()),
         SliverToBoxAdapter(child: _HeroCard(k: k)),
-        // 2-col mini-stat strip — In Transit (info) + Pending Adj (amber).
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InvMiniStat(
-                    icon: Icons.alt_route_outlined,
-                    iconColor: InvColors.info,
-                    value: k.inTransitTransfers.toString(),
-                    label: 'In Transit',
-                    onTap: () => context.push('/inventory/transfers'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: InvMiniStat(
-                    icon: Icons.tune_rounded,
-                    iconColor: InvColors.amberDeep,
-                    value: k.pendingAdjustments.toString(),
-                    label: 'Pending Adj.',
-                    onTap: () => context.push('/inventory/adjustments'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        // Today's throughput — the two numbers that change hourly.
+        SliverToBoxAdapter(child: _TodayStrip(k: k)),
+        // Only the exceptions that actually exist, so an empty list means
+        // "nothing needs you" rather than five zeroes to read past.
+        SliverToBoxAdapter(child: _NeedsAttention(k: k)),
+        const SliverToBoxAdapter(child: _WarehouseValues()),
         const SliverToBoxAdapter(child: InvSectionHeader(title: 'Quick Actions')),
         SliverToBoxAdapter(
           child: Padding(
@@ -493,55 +471,34 @@ class _QuickActions extends StatelessWidget {
   final InvKpis k;
   @override
   Widget build(BuildContext context) {
+    // Read-only views only — creating things happens on the FAB. Each tile
+    // carries its live count so the grid states facts instead of listing menus.
     final tiles = <Widget>[
-      InvActionTile(
-        icon: Icons.category_outlined,
-        title: 'Items',
-        subtitle: 'Catalog',
-        onTap: () => context.push('/inventory/items'),
-      ),
-      InvActionTile(
-        icon: Icons.inventory_2_outlined,
-        title: 'Receive',
-        subtitle: 'New GRN',
-        onTap: () => context.push('/inventory/grn'),
-      ),
-      InvActionTile(
-        icon: Icons.local_shipping_outlined,
-        title: 'Dispatch',
-        subtitle: 'New delivery',
-        onTap: () => context.push('/inventory/delivery'),
-      ),
-      InvActionTile(
-        icon: Icons.alt_route_outlined,
-        title: 'Transfer',
-        subtitle: 'Move between WHs',
-        onTap: () => context.push('/inventory/transfers'),
-      ),
-      InvActionTile(
-        icon: Icons.tune_rounded,
-        title: 'Adjust',
-        subtitle: 'Damage / found',
-        onTap: () => context.push('/inventory/adjustments'),
-      ),
-      InvActionTile(
-        icon: Icons.checklist_outlined,
-        title: 'Stock Take',
-        subtitle: 'Count session',
-        onTap: () => context.push('/inventory/stock-take'),
-      ),
       InvActionTile(
         icon: Icons.visibility_outlined,
         title: 'On Hand',
-        subtitle: 'Live stock',
+        subtitle: '${k.activeRows} batches',
         onTap: () => context.push('/inventory/on-hand'),
       ),
       InvActionTile(
-        icon: Icons.warning_amber_rounded,
-        title: 'Alerts',
-        subtitle: 'Low stock',
-        badge: k.lowStockCount > 0 ? '${k.lowStockCount}' : null,
-        onTap: () => context.push('/inventory/alerts'),
+        icon: Icons.category_outlined,
+        title: 'Items',
+        subtitle: '${k.activeItems} in stock',
+        onTap: () => context.push('/inventory/items'),
+      ),
+      InvActionTile(
+        icon: Icons.swap_vert_rounded,
+        title: 'Movements',
+        subtitle: 'In ${_money(k.monthInValue)} · Out ${_money(k.monthOutValue)}',
+        onTap: () => context.push('/inventory/moves'),
+      ),
+      InvActionTile(
+        icon: Icons.warehouse_outlined,
+        title: 'Warehouses',
+        subtitle: '${k.warehouseCount} active',
+        // No warehouse-list screen on mobile yet; On Hand is where per-warehouse
+        // stock is actually browsable.
+        onTap: () => context.push('/inventory/on-hand'),
       ),
     ];
     final rows = <Widget>[];
@@ -724,4 +681,216 @@ class _HomeError extends StatelessWidget {
       ),
     );
   }
+}
+
+
+// ── Today's throughput ────────────────────────────────────────────────────
+
+/// Received vs dispatched today, count and value. The pair that answers "what
+/// has moved today" without opening a report.
+class _TodayStrip extends StatelessWidget {
+  const _TodayStrip({required this.k});
+  final InvKpis k;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(children: [
+        Expanded(
+          child: InvMiniStat(
+            icon: Icons.south_west_rounded,
+            iconColor: InvColors.success,
+            value: '${k.todayGrns}',
+            label: k.todayGrnsValue > 0
+                ? 'Received · ${_money(k.todayGrnsValue)}'
+                : 'Received today',
+            onTap: () => context.push('/inventory/grn'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: InvMiniStat(
+            icon: Icons.north_east_rounded,
+            iconColor: InvColors.info,
+            value: '${k.todayDeliveries}',
+            label: k.todayDnsValue > 0
+                ? 'Dispatched · ${_money(k.todayDnsValue)}'
+                : 'Dispatched today',
+            onTap: () => context.push('/inventory/delivery'),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Needs attention ───────────────────────────────────────────────────────
+
+/// Exceptions worth acting on, and only the ones that exist. A list of zeroes
+/// trains the eye to skip the section, so an all-clear collapses to one line.
+class _NeedsAttention extends StatelessWidget {
+  const _NeedsAttention({required this.k});
+  final InvKpis k;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final rows = <Widget>[
+      if (k.lowStockCount > 0)
+        _AttentionRow(
+          icon: Icons.warning_amber_rounded,
+          color: InvColors.amberDeep,
+          label: 'Below reorder level',
+          count: k.lowStockCount,
+          route: '/inventory/alerts',
+        ),
+      if (k.expiringSoon > 0)
+        _AttentionRow(
+          icon: Icons.schedule_rounded,
+          color: InvColors.error,
+          label: 'Expiring within 30 days',
+          count: k.expiringSoon,
+          route: '/inventory/reports/expiry',
+        ),
+      if (k.inTransitTransfers > 0)
+        _AttentionRow(
+          icon: Icons.alt_route_outlined,
+          color: InvColors.info,
+          label: 'Transfers in transit',
+          count: k.inTransitTransfers,
+          route: '/inventory/transfers',
+        ),
+      if (k.pendingAdjustments > 0)
+        _AttentionRow(
+          icon: Icons.tune_rounded,
+          color: InvColors.amberDeep,
+          label: 'Adjustments awaiting approval',
+          count: k.pendingAdjustments,
+          route: '/inventory/adjustments',
+        ),
+      if (k.deadStock > 0)
+        _AttentionRow(
+          icon: Icons.hourglass_bottom_rounded,
+          color: t.muted,
+          label: 'Unmoved for 90+ days',
+          count: k.deadStock,
+          route: '/inventory/on-hand',
+        ),
+    ];
+    return Column(children: [
+      const InvSectionHeader(title: 'Needs attention'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: InvCard(
+          child: rows.isEmpty
+              ? Row(children: [
+                  Icon(Icons.check_circle_outline, size: 18, color: InvColors.success),
+                  const SizedBox(width: 10),
+                  Text('Nothing needs attention',
+                      style: RunqText.body.copyWith(color: t.muted)),
+                ])
+              : Column(children: rows),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _AttentionRow extends StatelessWidget {
+  const _AttentionRow({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.count,
+    required this.route,
+  });
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int count;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return InkWell(
+      onTap: () => context.push(route),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: RunqText.body.copyWith(color: t.ink))),
+          Text('$count', style: RunqText.body.copyWith(color: color, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Stock value by warehouse ──────────────────────────────────────────────
+
+/// Splits the hero's single stock-value figure across sites, with a share bar
+/// so the dominant warehouse is obvious at a glance.
+class _WarehouseValues extends ConsumerWidget {
+  const _WarehouseValues();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final rows = ref.watch(invWarehouseValuesProvider).asData?.value ?? const [];
+    final withStock = rows.where((r) => r.totalValue > 0).toList();
+    if (withStock.isEmpty) return const SizedBox.shrink();
+    final top = withStock.first.totalValue;
+    return Column(children: [
+      const InvSectionHeader(title: 'Stock by warehouse'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: InvCard(
+          child: Column(children: [
+            for (final w in withStock.take(5))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text(w.name,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: RunqText.body.copyWith(color: t.ink)),
+                    ),
+                    Text('${w.itemCount} items',
+                        style: RunqText.micro.copyWith(color: t.muted)),
+                    const SizedBox(width: 8),
+                    Text(_money(w.totalValue),
+                        style: RunqText.body.copyWith(
+                            color: t.ink, fontWeight: FontWeight.w700)),
+                  ]),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: top > 0 ? (w.totalValue / top).clamp(0.0, 1.0) : 0,
+                      minHeight: 4,
+                      backgroundColor: t.hairline,
+                      valueColor: AlwaysStoppedAnimation(InvColors.brand(context)),
+                    ),
+                  ),
+                ]),
+              ),
+          ]),
+        ),
+      ),
+    ]);
+  }
+}
+
+/// Compact money for dashboard chrome — full precision belongs on the reports.
+String _money(double v) {
+  if (v >= 10000000) return '₹${(v / 10000000).toStringAsFixed(2)}Cr';
+  if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(2)}L';
+  if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
+  return '₹${v.toStringAsFixed(0)}';
 }

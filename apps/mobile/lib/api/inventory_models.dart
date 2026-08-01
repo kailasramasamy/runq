@@ -18,6 +18,14 @@ class InvKpis {
   final int inTransitTransfers;
   /// Stock adjustments waiting on approval. Drives the Moves hub badge.
   final int pendingAdjustments;
+  /// Distinct items holding stock, and how many warehouses are live.
+  final int activeItems, warehouseCount;
+  /// Batches expiring inside 30 days, and batches unmoved for 90+ days. Both
+  /// drive the Needs-attention list on Home.
+  final int expiringSoon, deadStock;
+  /// Value received / issued so far this month — the movement trend behind the
+  /// stock-value figure.
+  final double monthInValue, monthOutValue;
   const InvKpis({
     required this.totalValue,
     required this.activeRows,
@@ -28,6 +36,12 @@ class InvKpis {
     this.todayDnsValue = 0,
     this.inTransitTransfers = 0,
     this.pendingAdjustments = 0,
+    this.activeItems = 0,
+    this.warehouseCount = 0,
+    this.expiringSoon = 0,
+    this.deadStock = 0,
+    this.monthInValue = 0,
+    this.monthOutValue = 0,
   });
   factory InvKpis.fromJson(Map<String, dynamic> j) => InvKpis(
         totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
@@ -39,6 +53,34 @@ class InvKpis {
         todayDnsValue: (j['todayDnsValue'] as num?)?.toDouble() ?? 0,
         inTransitTransfers: (j['inTransitTransfers'] as num?)?.toInt() ?? 0,
         pendingAdjustments: (j['pendingAdjustments'] as num?)?.toInt() ?? 0,
+        activeItems: (j['activeItems'] as num?)?.toInt() ?? 0,
+        warehouseCount: (j['warehouseCount'] as num?)?.toInt() ?? 0,
+        expiringSoon: (j['expiringSoonCount'] as num?)?.toInt() ?? 0,
+        deadStock: (j['deadStockCount'] as num?)?.toInt() ?? 0,
+        monthInValue: (j['monthInValue'] as num?)?.toDouble() ?? 0,
+        monthOutValue: (j['monthOutValue'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// Stock value held at one warehouse. Backs the Home breakdown so the value in
+/// the hero can be seen split across sites rather than as one opaque number.
+class InvWarehouseValue {
+  final String id, name, code;
+  final double totalValue;
+  final int itemCount;
+  const InvWarehouseValue({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.totalValue,
+    required this.itemCount,
+  });
+  factory InvWarehouseValue.fromJson(Map<String, dynamic> j) => InvWarehouseValue(
+        id: (j['id'] ?? '') as String,
+        name: (j['name'] ?? '') as String,
+        code: (j['code'] ?? '') as String,
+        totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
+        itemCount: (j['itemCount'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -86,12 +128,17 @@ class InvOnHandRow {
   /// Earliest GRN expiry date for this (item, batch). Null when the batch
   /// isn't expiry-tracked or no GRN line carries a date.
   final String? expiryDate;
+  /// When the batch first came into stock. `lastMovementAt` carries the business
+  /// date (midnight for MP receipts), so this is the only field that tells batches
+  /// received on the same day apart — and the only freshness signal raw milk has
+  /// until expiry dates are wired.
+  final String? receivedAt;
   const InvOnHandRow({
     required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
     this.itemClass,
     required this.warehouseId, required this.warehouseName, required this.batchNo,
     required this.qty, required this.avgCost, required this.value, this.reorderLevel,
-    this.lastMovementAt, this.expiryDate,
+    this.lastMovementAt, this.expiryDate, this.receivedAt,
   });
   bool get isLow => reorderLevel != null && qty <= (reorderLevel ?? 0);
   factory InvOnHandRow.fromJson(Map<String, dynamic> j) => InvOnHandRow(
@@ -109,6 +156,7 @@ class InvOnHandRow {
         reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
         lastMovementAt: j['lastMovementAt'] as String?,
         expiryDate: j['expiryDate'] as String?,
+        receivedAt: j['receivedAt'] as String?,
       );
 }
 

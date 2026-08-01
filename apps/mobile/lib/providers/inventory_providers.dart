@@ -15,6 +15,11 @@ final invRecentActivityProvider =
   return inventoryRepo.recentActivity();
 });
 
+final invWarehouseValuesProvider =
+    FutureProvider.autoDispose<List<InvWarehouseValue>>((ref) async {
+  return inventoryRepo.warehouseValues();
+});
+
 final invWarehousesProvider = FutureProvider.autoDispose<List<InvWarehouse>>((ref) async {
   return inventoryRepo.warehouses();
 });

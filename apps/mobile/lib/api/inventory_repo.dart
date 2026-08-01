@@ -35,6 +35,13 @@ class InventoryRepo {
     return _dataList(res).map(InvActivity.fromJson).toList();
   }
 
+  /// Stock value per warehouse. Splits the hero's single value figure across
+  /// sites on Home.
+  Future<List<InvWarehouseValue>> warehouseValues() async {
+    final res = await apiClient.get('/inventory/dashboard/warehouse-breakdown');
+    return _dataList(res).map(InvWarehouseValue.fromJson).toList();
+  }
+
   // ── Warehouses ─────────────────────────────────────────────────────────
 
   Future<List<InvWarehouse>> warehouses() async {
