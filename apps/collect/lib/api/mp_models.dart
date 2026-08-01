@@ -736,10 +736,37 @@ class MpConsignment {
   );
 }
 
+/// Milk on hand for one milk type. Each type is dispatched as its own
+/// consignment so the type survives to the plant's raw-milk stock.
+class MpTypeAvailability {
+  final String? milkType;
+  final double collected, dispatched, available;
+  final double? avgFat, avgSnf, avgWater;
+  MpTypeAvailability({
+    required this.milkType,
+    required this.collected,
+    required this.dispatched,
+    required this.available,
+    this.avgFat,
+    this.avgSnf,
+    this.avgWater,
+  });
+  factory MpTypeAvailability.fromJson(Map<String, dynamic> j) => MpTypeAvailability(
+    milkType: j['milkType'] as String?,
+    collected: _d(j['collected']),
+    dispatched: _d(j['dispatched']),
+    available: _d(j['available']),
+    avgFat: _dn(j['avgFat']),
+    avgSnf: _dn(j['avgSnf']),
+    avgWater: _dn(j['avgWater']),
+  );
+}
+
 class MpAvailability {
   final String nodeId, collectionDate, nodeType;
   final double collected, dispatched, available;
   final double? avgFat, avgSnf, avgWater;
+  final List<MpTypeAvailability> byMilkType;
   MpAvailability({
     required this.nodeId,
     required this.collectionDate,
@@ -750,7 +777,13 @@ class MpAvailability {
     this.avgFat,
     this.avgSnf,
     this.avgWater,
+    this.byMilkType = const [],
   });
+
+  /// Types with milk still on hand, biggest first — one dispatch card each.
+  List<MpTypeAvailability> get dispatchable =>
+      byMilkType.where((r) => r.available > 0).toList();
+
   factory MpAvailability.fromJson(Map<String, dynamic> j) => MpAvailability(
     nodeId: _s(j['nodeId']),
     collectionDate: _s(j['collectionDate']),
@@ -761,6 +794,10 @@ class MpAvailability {
     avgFat: _dn(j['avgFat']),
     avgSnf: _dn(j['avgSnf']),
     avgWater: _dn(j['avgWater']),
+    byMilkType: (j['byMilkType'] as List?)
+            ?.map((e) => MpTypeAvailability.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
   );
 }
 

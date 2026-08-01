@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -16,6 +17,8 @@ import '../../utils/friendly_error.dart';
 import 'cc_receive_history.dart';
 import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
+import 'cc_dispatch_tab.dart';
+import '../../widgets/primary_action.dart';
 
 /// CC Receive — in-transit consignments (tap a card to receive) above, with
 /// recent receipts below. Each card leads with the VMCC name + consignment id,
@@ -24,8 +27,20 @@ class CcReceiveTab extends ConsumerWidget {
   const CcReceiveTab({super.key, required this.node});
   final MpNode node;
 
-  Future<void> _refresh(WidgetRef ref) async {
+  /// Receiving milk changes what's on hand, so the Dispatch tab's availability
+  /// is stale the moment a receipt lands. Those providers aren't autoDispose and
+  /// the dispatch screen has no pull-to-refresh, so without this it keeps serving
+  /// the figure it cached before the receipt — 0 for the first receipt of the day
+  /// — until the app restarts. Invalidating the families clears every date/shift
+  /// key at once, since this tab can't know which one dispatch is showing.
+  void _invalidateAfterReceipt(WidgetRef ref) {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodeAvailabilityProvider);
+    ref.invalidate(nodeAvailabilityForDateProvider);
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    _invalidateAfterReceipt(ref);
     if (node.overnightPooling) {
       ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
     }
@@ -72,32 +87,80 @@ class CcReceiveTab extends ConsumerWidget {
             ),
           ),
         ),
-        _manualReceiveBar(context, ref, t, l, children),
+        _manualReceiveBar(context, ref, t, l, children, _nothingInTransit(consAsync, yest)),
       ]),
     );
   }
 
   /// Bottom-anchored entry to the manual (no-dispatch) receive flow.
   Widget _manualReceiveBar(
-      BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, List<MpNode> children) {
+      BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
+      List<MpNode> children, bool allReceived) {
+    // Everything in has been taken in and there's milk on hand: sending it on is
+    // the next step, so offer it here rather than making the operator go back to
+    // Home and find the Dispatch tab.
+    final onHand = ref.watch(nodeAvailabilityProvider(_availArgs)).asData?.value?.available ?? 0;
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, DhenuSpacing.sm),
-        child: OutlinedButton.icon(
-          onPressed: () => _openManualReceive(context, ref, l, children),
-          icon: const Icon(DhenuIcons.listAdd, size: 18),
-          label: Text(l.ccReceiveManualButton),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (allReceived && onHand > 0) ...[
+            PrimaryAction(
+              label: l.ccDispatchToPlant,
+              icon: DhenuIcons.truck,
+              onPressed: () => _openDispatch(context, ref, l, t),
+            ),
+            const SizedBox(height: DhenuSpacing.sm),
+          ],
+          OutlinedButton.icon(
+            onPressed: () => _openManualReceive(context, ref, l, children),
+            icon: const Icon(DhenuIcons.listAdd, size: 18),
+            label: Text(l.ccReceiveManualButton),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          ),
+        ]),
       ),
     );
+  }
+
+  /// True once every inbound consignment has been taken in — the trigger for
+  /// offering onward dispatch. Unresolved/error states count as "not yet".
+  bool _nothingInTransit(
+      AsyncValue<List<MpConsignment>> consAsync, List<MpConsignment> yest) {
+    final today = consAsync.asData?.value;
+    if (today == null) return false;
+    return [...yest, ...today].every((c) => c.kind != 'vmcc_to_cc' || !c.inTransit);
+  }
+
+  /// A BMC or overnight CC pools the whole day, so it has no per-shift figure —
+  /// same key the dispatch screen uses, so the two can't disagree.
+  AvailabilityArgs get _availArgs => (
+        nodeId: node.id,
+        shift: (node.hasBmc || node.overnightPooling) ? null : currentShift(),
+      );
+
+  Future<void> _openDispatch(
+      BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
+        body: CcDispatchTab(node: node),
+      ),
+    ));
+    if (!context.mounted) return;
+    // Dispatching consumes what was received; these providers aren't autoDispose.
+    _invalidateAfterReceipt(ref);
   }
 
   Widget _list(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
       List<MpConsignment> inTransit, List<MpConsignment> received,
       Map<String, String> names, MpShiftStatus? shiftStatus) {
+    // Per-type consignments mean a VMCC can send cow and buffalo the same shift,
+    // so name the type whenever this list holds more than one — otherwise two
+    // cards from the same centre read identically.
+    final mixed = hasMixedMilkTypes([...inTransit, ...received].map((c) => c.milkType));
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
@@ -113,7 +176,7 @@ class CcReceiveTab extends ConsumerWidget {
           )
         else
           for (final c in inTransit) ...[
-            _transitCard(context, ref, t, l, c, names[c.fromNodeId] ?? 'VMCC'),
+            _transitCard(context, ref, t, l, c, names[c.fromNodeId] ?? 'VMCC', mixed),
             const SizedBox(height: DhenuSpacing.md),
           ],
         const SizedBox(height: DhenuSpacing.lg),
@@ -128,7 +191,7 @@ class CcReceiveTab extends ConsumerWidget {
         else ...[
           for (var i = 0; i < received.length && i < 15; i++) ...[
             _receivedCard(context, ref, t, l, received[i],
-                names[received[i].fromNodeId] ?? 'VMCC', shiftStatus),
+                names[received[i].fromNodeId] ?? 'VMCC', shiftStatus, mixed),
             const SizedBox(height: DhenuSpacing.sm),
           ],
           _seeHistoryLink(context, t, l),
@@ -168,11 +231,11 @@ class CcReceiveTab extends ConsumerWidget {
       ]);
 
   Widget _transitCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
-      MpConsignment c, String name) {
+      MpConsignment c, String name, bool mixed) {
     return DhenuCard(
       onTap: () => _openReceive(context, ref, c, name),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHeader(t, l, c, name),
+        _cardHeader(t, l, c, name, mixed),
         const SizedBox(height: DhenuSpacing.md),
         Text(litres(c.dispatchQty ?? 0, unit: true), style: DhenuText.number(size: 26, color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
@@ -187,7 +250,7 @@ class CcReceiveTab extends ConsumerWidget {
   }
 
   Widget _receivedCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
-      MpConsignment c, String name, MpShiftStatus? shiftStatus) {
+      MpConsignment c, String name, MpShiftStatus? shiftStatus, bool mixed) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
     final canDelete = c.directReceive && !_lockedForDispatch(shiftStatus, c);
@@ -339,7 +402,7 @@ class CcReceiveTab extends ConsumerWidget {
     if (ok != true) return;
     try {
       await mpRepo.deleteReceipt(c.id);
-      ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+      _invalidateAfterReceipt(ref);
       if (context.mounted) {
         showDhenuToast(context, l.ccReceiveReceiptDeletedToast, type: DhenuToastType.success);
       }
@@ -348,7 +411,9 @@ class CcReceiveTab extends ConsumerWidget {
     }
   }
 
-  Widget _cardHeader(DhenuTokens t, AppLocalizations l, MpConsignment c, String name) => Row(children: [
+  Widget _cardHeader(
+          DhenuTokens t, AppLocalizations l, MpConsignment c, String name, bool mixed) =>
+      Row(children: [
         Container(
           width: 36, height: 36,
           decoration: BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
@@ -358,7 +423,9 @@ class CcReceiveTab extends ConsumerWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text('${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
+          Text(
+              '${mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : ''}'
+              '${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
         ])),
         if (c.shift != null) ...[
@@ -391,7 +458,7 @@ class CcReceiveTab extends ConsumerWidget {
       builder: (_) =>
           ReceiveConsignmentScreen(consignment: c, nodeId: node.id, sourceName: name, editable: editable),
     ));
-    ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    _invalidateAfterReceipt(ref);
   }
 
   Future<void> _openManualReceive(
@@ -403,6 +470,6 @@ class CcReceiveTab extends ConsumerWidget {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ManualReceiveScreen(vmccs: vmccs, ccNodeId: node.id),
     ));
-    ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    _invalidateAfterReceipt(ref);
   }
 }

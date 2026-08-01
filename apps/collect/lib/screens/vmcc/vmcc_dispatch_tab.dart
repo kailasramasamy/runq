@@ -14,6 +14,8 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/sheet_grabber.dart';
+import '../../widgets/dispatch_type_card.dart';
+import '../../utils/friendly_error.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
@@ -23,27 +25,31 @@ import '../../widgets/status_glyph.dart';
 /// VMCC Dispatch tab — today's availability + dispatch-to-CC form + outbound.
 /// Mirrors the CC→PP dispatch flow; here the leg is `vmcc_to_cc`.
 class VmccDispatchTab extends ConsumerStatefulWidget {
-  const VmccDispatchTab({super.key, required this.node});
+  const VmccDispatchTab({super.key, required this.node, this.initialDate, this.initialShift});
   final MpNode node;
+
+  /// Slot to open on, used when arriving straight from Record Collection so the
+  /// screen lands on the shift just closed rather than on today's current one.
+  final String? initialDate;
+  final Shift? initialShift;
 
   @override
   ConsumerState<VmccDispatchTab> createState() => _VmccDispatchTabState();
 }
 
 class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
-  final _qtyCtrl = TextEditingController();
-  final _fatCtrl = TextEditingController();
-  final _snfCtrl = TextEditingController();
-  final _waterCtrl = TextEditingController();
-  final _containerCtrl = TextEditingController();
+  // One editable leg per milk type on hand. Cow and buffalo leave as separate
+  // consignments, so each needs its own qty, QC and container — and the operator
+  // needs to see which is which rather than two unlabelled numbers.
+  final Map<MilkType, DispatchTypeEntry> _entries = {};
   MpNode? _destCc;
   bool _saving = false;
   String? _error;
   // No-BMC VMCCs dispatch each shift separately; BMC VMCCs pool the whole day.
-  Shift _shift = shiftFrom(currentShift());
+  late Shift _shift = widget.initialShift ?? shiftFrom(currentShift());
   // Dispatch date — defaults to today; back-date to backfill a missed day so the
   // CC/PP modules downstream can receive it.
-  String _date = todayIso();
+  late String _date = widget.initialDate ?? todayIso();
 
   bool get _perShift => !widget.node.hasBmc;
   AvailabilityDateArgs get _availArgs =>
@@ -70,10 +76,9 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   }
 
   void _clearInputs() {
-    _qtyCtrl.clear();
-    _fatCtrl.clear();
-    _snfCtrl.clear();
-    _waterCtrl.clear();
+    for (final e in _entries.values) {
+      e.clear();
+    }
   }
 
   @override
@@ -96,21 +101,34 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
 
   @override
   void dispose() {
-    _qtyCtrl.dispose();
-    _fatCtrl.dispose();
-    _snfCtrl.dispose();
-    _waterCtrl.dispose();
-    _containerCtrl.dispose();
+    for (final e in _entries.values) {
+      e.dispose();
+    }
     super.dispose();
   }
 
-  void _prefillFromAvailability(MpAvailability? avail) {
-    if (avail == null) return;
-    if (_qtyCtrl.text.isEmpty) _qtyCtrl.text = avail.available.toStringAsFixed(1);
-    if (_fatCtrl.text.isEmpty && avail.avgFat != null) _fatCtrl.text = avail.avgFat!.toStringAsFixed(1);
-    if (_snfCtrl.text.isEmpty && avail.avgSnf != null) _snfCtrl.text = avail.avgSnf!.toStringAsFixed(1);
-    if (_waterCtrl.text.isEmpty && avail.avgWater != null) _waterCtrl.text = avail.avgWater!.toStringAsFixed(1);
+  /// Rebuild the per-type legs from availability, keeping anything already typed.
+  /// Types that fall to zero (just dispatched) drop out.
+  void _syncEntries(MpAvailability? avail) {
+    final rows = avail?.dispatchable ?? const <MpTypeAvailability>[];
+    final live = <MilkType>{};
+    for (final r in rows) {
+      if (r.milkType == null) continue;
+      final type = milkTypeFrom(r.milkType);
+      live.add(type);
+      final existing = _entries[type];
+      if (existing == null || existing.available != r.available) {
+        existing?.dispose();
+        _entries[type] = DispatchTypeEntry(r)..prefill();
+      }
+    }
+    for (final gone in _entries.keys.toList()) {
+      if (!live.contains(gone)) _entries.remove(gone)?.dispose();
+    }
   }
+
+  List<DispatchTypeEntry> get _selected =>
+      _entries.values.where((e) => e.include).toList();
 
   Future<void> _pickCc() async {
     final ccs = await ref.read(nodesByTypeProvider('cc').future);
@@ -133,35 +151,36 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       setState(() => _error = widget.node.hasBmc ? l.dispatchCloseFirstDay : l.dispatchCloseFirst);
       return;
     }
-    final qty = double.tryParse(_qtyCtrl.text);
-    final fat = double.tryParse(_fatCtrl.text);
-    final snf = double.tryParse(_snfCtrl.text);
-    final water = double.tryParse(_waterCtrl.text);
-    if (qty == null || qty <= 0) {
-      setState(() => _error = l.dispatchErrorInvalidQty);
+    final legs = _selected;
+    if (legs.isEmpty) {
+      setState(() => _error = l.dispatchErrorNoTypeSelected);
       return;
     }
-    final available = ref.read(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
-    if (qty - available > 0.001) {
-      setState(() => _error = l.dispatchErrorOverQty(available.toStringAsFixed(1)));
+    if (legs.any((e) => !e.isValid)) {
+      setState(() => _error = l.ccDispatchErrorInvalidNumbers);
       return;
     }
     setState(() { _saving = true; _error = null; });
     try {
-      await mpRepo.dispatchConsignment({
-        'kind': 'vmcc_to_cc',
-        'fromNodeId': widget.node.id,
-        'toNodeId': _destCc!.id,
-        'collectionDate': _date,
-        if (_perShift) 'shift': _shift.name,
-        'dispatchQty': qty,
-        'dispatchFat': ?fat,
-        'dispatchSnf': ?snf,
-        'dispatchWater': ?water,
-        if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
-      });
+      // One consignment per milk type, sent in sequence so each gets its own
+      // document number. A failure part-way leaves the earlier legs dispatched —
+      // availability refreshes below, so the form reflects what actually went.
+      for (final e in legs) {
+        await mpRepo.dispatchConsignment({
+          'kind': 'vmcc_to_cc',
+          'fromNodeId': widget.node.id,
+          'toNodeId': _destCc!.id,
+          'collectionDate': _date,
+          if (_perShift) 'shift': _shift.name,
+          'milkType': milkTypeToApi(e.type),
+          'dispatchQty': e.enteredQty,
+          'dispatchFat': ?e.enteredFat,
+          'dispatchSnf': ?e.enteredSnf,
+          'dispatchWater': ?e.enteredWater,
+          if (e.container.text.isNotEmpty) 'containerNo': e.container.text.trim(),
+        });
+      }
       _clearInputs();
-      _containerCtrl.clear();
       setState(() => _saving = false);
       // Refresh this date's outbound + availability, plus the today-scoped
       // families so the Home "To dispatch" card stays in sync when date == today.
@@ -170,7 +189,8 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
     } catch (e) {
-      setState(() { _saving = false; _error = '$e'; });
+      setState(() { _saving = false; _error = friendlyError(context, e); });
+      ref.invalidate(nodeAvailabilityForDateProvider);
     }
   }
 
@@ -180,8 +200,9 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     final l = AppLocalizations.of(context);
     final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
     final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
-    availAsync.whenData(_prefillFromAvailability);
-    final canDispatch = (availAsync.asData?.value?.available ?? 0) > 0;
+    availAsync.whenData(_syncEntries);
+    final legs = _entries.values.toList();
+    final canDispatch = legs.isNotEmpty;
     final closeRequired = !_slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
 
     return Scaffold(
@@ -202,48 +223,23 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        _availCard(t, l, availAsync),
+        _availCard(t, l, availAsync, null),
         const SizedBox(height: DhenuSpacing.xl),
         if (canDispatch) ...[
         Text(l.dispatchToCollectionCentre, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.md),
         _destPicker(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _qtyCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textCapitalization: TextCapitalization.none,
-          decoration: InputDecoration(hintText: l.dispatchQtyHint),
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        Row(children: [
-          Expanded(child: TextField(
-            controller: _fatCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textCapitalization: TextCapitalization.none,
-            decoration: InputDecoration(hintText: l.dispatchFatHint),
-          )),
-          const SizedBox(width: DhenuSpacing.md),
-          Expanded(child: TextField(
-            controller: _snfCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textCapitalization: TextCapitalization.none,
-            decoration: InputDecoration(hintText: l.dispatchSnfHint),
-          )),
-        ]),
-        const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _waterCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textCapitalization: TextCapitalization.none,
-          decoration: InputDecoration(hintText: l.dispatchWaterHint),
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _containerCtrl,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(hintText: l.dispatchContainerHint),
-        ),
+        // One block per milk type, each naming the milk and its litres, all sent
+        // by the single action below.
+        for (final e in legs) ...[
+          DispatchTypeCard(
+            entry: e,
+            selectable: legs.length > 1,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: DhenuSpacing.md),
+        ],
         if (closeRequired) ...[
           const SizedBox(height: DhenuSpacing.md),
           _closeGateBanner(t, l),
@@ -254,7 +250,9 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         ],
         const SizedBox(height: DhenuSpacing.lg),
         PrimaryAction(
-          label: l.dispatchTankerButton,
+          label: legs.length > 1
+              ? l.dispatchTankerButtonMulti(_selected.length)
+              : l.dispatchTankerButton,
           icon: DhenuIcons.truck,
           onPressed: (_saving || closeRequired) ? null : _dispatch,
           loading: _saving,
@@ -361,7 +359,10 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     );
   }
 
-  Widget _availCard(DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync) {
+  Widget _availCard(
+    DhenuTokens t, AppLocalizations l,
+    AsyncValue<MpAvailability?> availAsync, MpTypeAvailability? slice,
+  ) {
     return DhenuCard(
       child: availAsync.when(
         loading: () => const DhenuLoadingList(rows: 1),
@@ -369,10 +370,15 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
         data: (a) => a == null
             ? Text(l.dispatchNoData, style: DhenuText.body.copyWith(color: t.inkSoft))
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                TankGauge(current: a.available, capacity: a.collected, label: l.dispatchAvailableToDispatch),
+                TankGauge(
+                    current: slice?.available ?? a.available,
+                    capacity: slice?.collected ?? a.collected,
+                    label: l.dispatchAvailableToDispatch),
                 const SizedBox(height: DhenuSpacing.sm),
                 Text(
-                  l.dispatchCollectedDispatched(litres(a.collected, unit: true), litres(a.dispatched, unit: true)),
+                  l.dispatchCollectedDispatched(
+                      litres(slice?.collected ?? a.collected, unit: true),
+                      litres(slice?.dispatched ?? a.dispatched, unit: true)),
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
                 ),
               ]),

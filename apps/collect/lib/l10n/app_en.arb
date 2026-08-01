@@ -89,6 +89,8 @@
   "collectDayClosedBanner": "Today's collection is closed — ready to dispatch.",
   "collectClosedAction": "Collection closed",
   "collectReopen": "Reopen",
+  "collectDispatchNow": "Dispatch now",
+  "@collectDispatchNow": { "description": "CTA on Record Collection once the slot is closed — jumps straight to Dispatch for that slot." },
   "collectCloseBlockedPending": "Some pours haven't synced yet — wait for sync, then close.",
   "dispatchCloseFirst": "Close collection for this shift before dispatching.",
   "dispatchCloseFirstDay": "Close today's collection before dispatching.",
@@ -296,6 +298,14 @@
   "dispatchAvailability": "Availability",
   "dispatchToCollectionCentre": "Dispatch to Collection Centre",
   "dispatchQtyHint": "Dispatch Qty (L)",
+  "dispatchErrorNoTypeSelected": "Select at least one milk type to dispatch.",
+  "dispatchTankerButtonMulti": "Dispatch {count} loads",
+  "@dispatchTankerButtonMulti": {
+    "description": "Dispatch button when more than one milk type is on hand; count is the number ticked.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "dispatchTypeHeldBack": "Held back for a later dispatch",
+  "@dispatchTypeHeldBack": { "description": "Shown on an unticked milk type in the dispatch form." },
   "dispatchContainerHint": "Container No. (optional)",
   "dispatchTankerButton": "Dispatch Tanker",
   "dispatchTodaysOutbound": "Today's Outbound",
@@ -1521,6 +1531,40 @@
   "ppReceiveNothingInTransitSubtitle": "Inbound tankers appear here once dispatched",
   "ppReceiveDispatchedByCc": "DISPATCHED BY CC",
   "ppReceiveMeasuredAtPlant": "MEASURED AT PLANT",
+  "ppManualReceiveButton": "Receive without dispatch",
+  "ppManualReceiveTitle": "Receive without dispatch",
+  "ppManualReceiveInfoBanner": "Use this when milk reached the plant but the CC hasn't entered its collections yet. Record it per milk type so manufacturing can plan against it.",
+  "ppManualReceiveArrivedFrom": "ARRIVED FROM",
+  "ppManualReceiveSourceCc": "Chilling centre",
+  "ppManualReceivePerTypeLabel": "Quantity received, per milk type",
+  "ppManualReceiveNotReceived": "Not received",
+  "ppManualReceiveSaveEmpty": "Enter a quantity",
+  "manualReceiveSaveCount": "{count, plural, =1{Save 1 receipt} other{Save {count} receipts}}",
+  "@manualReceiveSaveCount": {
+    "description": "Primary action on PP manual receive; one receipt is saved per milk type filled in",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "manualReceivePartialError": "{saved, plural, =1{1 receipt saved} other{{saved} receipts saved}}, then: {error}",
+  "@manualReceivePartialError": {
+    "description": "Shown when saving several per-type receipts fails partway, so the operator knows what already went through",
+    "placeholders": {
+      "saved": { "type": "int" },
+      "error": { "type": "String" }
+    }
+  },
+  "ppReceiveManualTag": "MANUAL",
+  "ppReceiveDeleteManualConfirm": "Delete the manual receipt of {qty} from {cc} on {date}? The raw-milk stock it posted is reversed.",
+  "@ppReceiveDeleteManualConfirm": {
+    "description": "Confirm withdrawing a PP manual receipt, usually because the CC's own dispatch has now arrived",
+    "placeholders": {
+      "qty": { "type": "String" },
+      "cc": { "type": "String" },
+      "date": { "type": "String" }
+    }
+  },
+  "ppReceiveManualDuplicateWarning": "A manual receipt for this CC, date and milk type is already in. Receiving this tanker too would count the milk twice — delete one.",
   "ppTankersEmptyTitle": "No tankers today",
   "ppTankersEmptySubtitle": "Tankers dispatched to this plant appear here",
   "adminSwitchTitlePp": "Processing plants",

@@ -8,7 +8,9 @@
  *     (item = cow_a1 item, qty = receipt, value 0, batch = consignment no) +
  *     stockLedgerId linked + stock_on_hand updated.
  *   • reverse() backs the batch out (on-hand returns to 0).
- *   • mixed/unmapped source → posting skipped (best-effort), stockLedgerId null.
+ *   • a PP receive with no milk type stated is rejected — the plant's stock is
+ *     per type, and guessing it would mislabel what manufacturing consumes.
+ *   • unmapped type → posting skipped (best-effort), stockLedgerId null.
  *
  * All fixtures are synthetic (E2E-RM-*) and torn down in `finally`.
  *
@@ -114,10 +116,11 @@ async function main(): Promise<void> {
 
     // ── Happy path: PP receives cow_a1 from CC → stock posted ──────────────────
     const recv = await svc.directReceive(
-      { fromNodeId: cc.id, toNodeId: pp.id, collectionDate: DATE, qty: 80, fat: 4, snf: 8.5 } as any,
+      { fromNodeId: cc.id, toNodeId: pp.id, collectionDate: DATE, qty: 80, fat: 4, snf: 8.5,
+        milkType: 'cow_a1' } as any,
       undefined, ALL,
     );
-    check('consignment milk type derived = cow_a1', recv.milkType === 'cow_a1', `got ${recv.milkType}`);
+    check('consignment carries the stated milk type', recv.milkType === 'cow_a1', `got ${recv.milkType}`);
     check('stockLedgerId linked on receipt', !!recv.stockLedgerId);
 
     const [led] = await db.select().from(stockLedger)
@@ -145,13 +148,52 @@ async function main(): Promise<void> {
       eq(stockLedger.sourceId, recv.id)));
     check('reversal posted an adjustment_out row', revRows.length === 1 && Number(revRows[0].qtyOut) === 80);
 
-    // ── Best-effort skip: mixed/unmapped source → no stock ─────────────────────
-    const mixed = await svc.directReceive(
-      { fromNodeId: cc2.id, toNodeId: pp.id, collectionDate: DATE, qty: 30, fat: 4, snf: 8.5 } as any,
+    // ── A PP receive must state its milk type ──────────────────────────────────
+    // CC2 holds a mix, so nothing can be derived — but even a single-type CC is
+    // refused here, because the usual reason for a manual PP receipt is that the
+    // CC hasn't entered its collections yet and there is nothing to derive from.
+    let rejected = false;
+    try {
+      await svc.directReceive(
+        { fromNodeId: cc2.id, toNodeId: pp.id, collectionDate: DATE, qty: 30, fat: 4, snf: 8.5 } as any,
+        undefined, ALL,
+      );
+    } catch {
+      rejected = true;
+    }
+    check('PP receive with no milk type is rejected', rejected);
+
+    // ── Best-effort skip: type with no raw-milk item mapped → no stock ─────────
+    const unmapped = await svc.directReceive(
+      { fromNodeId: cc2.id, toNodeId: pp.id, collectionDate: DATE, qty: 30, fat: 4, snf: 8.5,
+        milkType: 'buffalo' } as any,
       undefined, ALL,
     );
-    check('mixed source derives null milk type', mixed.milkType === null, `got ${mixed.milkType}`);
-    check('unmapped type → no stock posted (best-effort)', mixed.stockLedgerId === null);
+    check('unmapped type still records the receipt', unmapped.milkType === 'buffalo', `got ${unmapped.milkType}`);
+    check('unmapped type → no stock posted (best-effort)', unmapped.stockLedgerId === null);
+
+    // ── Deleting a manual receipt: allowed until production draws on it ────────
+    const manual = await svc.directReceive(
+      { fromNodeId: cc.id, toNodeId: pp.id, collectionDate: DATE, qty: 60, fat: 4, snf: 8.5,
+        milkType: 'cow_a1' } as any,
+      undefined, ALL,
+    );
+    const [batch] = await db.select().from(stockLedger).where(and(
+      eq(stockLedger.tenantId, TENANT_ID), eq(stockLedger.id, manual.stockLedgerId!)));
+    // Stand in for a production run consuming the batch.
+    await db.insert(stockLedger).values({
+      tenantId: TENANT_ID, itemId: batch.itemId, warehouseId: batch.warehouseId,
+      batchNo: batch.batchNo, movementType: 'production_out', sourceType: 'work_order',
+      sourceId: manual.id, qtyOut: '10', runningQty: '50', runningValue: '0',
+      movedAt: new Date(),
+    });
+    let blocked = false;
+    try {
+      await svc.deleteManualReceipt(manual.id, ALL);
+    } catch {
+      blocked = true;
+    }
+    check('delete refused once the batch is consumed', blocked);
 
     console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} passed, ${fail} failed\n`);
   } finally {

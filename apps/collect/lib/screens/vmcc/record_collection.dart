@@ -22,6 +22,7 @@ import '../../widgets/pending_pours_strip.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/primary_action.dart';
+import 'vmcc_dispatch_tab.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/sheet_grabber.dart';
@@ -618,6 +619,11 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
 
   String? get _closeShiftArg => widget.node.hasBmc ? null : _shift.name;
 
+  /// Availability for the slot on screen — a BMC VMCC pools the whole day, so it
+  /// has no per-shift figure. Same key the dispatch screen uses, so the two agree.
+  AvailabilityDateArgs get _availArgs =>
+      (nodeId: widget.node.id, date: _date, shift: widget.node.hasBmc ? null : _shift.name);
+
   Future<void> _closeShift() async {
     if (_hasPendingForClose()) {
       showDhenuToast(context, AppLocalizations.of(context).collectCloseBlockedPending,
@@ -660,6 +666,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     final shiftStatus =
         ref.watch(shiftStatusForDateProvider((nodeId: widget.node.id, date: _date))).asData?.value;
     final closed = _slotClosed(shiftStatus);
+    // Only meaningful once closed, and that's the only state that reads it.
+    final leftToDispatch =
+        ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.seedPour != null ? l.editCollectionTitle : l.recordCollectionTitle,
@@ -683,39 +692,44 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           const SizedBox(height: DhenuSpacing.lg),
           ShiftToggle(value: _shift, onChanged: (s) => setState(() => _shift = s), expand: true),
           const SizedBox(height: DhenuSpacing.lg),
-          _farmerField(t),
-          ..._advanceChip(t, l),
-          const SizedBox(height: DhenuSpacing.lg),
-          _milkTypePicker(t),
-          const SizedBox(height: DhenuSpacing.lg),
-          if (widget.node.isLactometer) ...[
-            Row(children: [
-              Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _clrFocus)),
-              const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_clr, 'CLR', '', _clrFocus, null)),
-            ]),
-          ] else ...[
-            Row(children: [
-              Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _fatFocus)),
-              const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
-              const SizedBox(width: DhenuSpacing.md),
-              Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
-            ]),
-            const SizedBox(height: DhenuSpacing.md),
-            // Same one-third width as the trio above (left-aligned, two empty
-            // slots fill the row).
-            Row(children: [
-              Expanded(child: _numberField(_water, 'Water', '%', _waterFocus, null)),
-              const SizedBox(width: DhenuSpacing.md),
-              const Expanded(child: SizedBox.shrink()),
-              const SizedBox(width: DhenuSpacing.md),
-              const Expanded(child: SizedBox.shrink()),
-            ]),
+          // Recording is over once the slot is closed — a form that's visible but
+          // dead just invites taps. The banner above says why, and the pours
+          // already recorded stay listed below.
+          if (!closed) ...[
+            _farmerField(t),
+            ..._advanceChip(t, l),
+            const SizedBox(height: DhenuSpacing.lg),
+            _milkTypePicker(t),
+            const SizedBox(height: DhenuSpacing.lg),
+            if (widget.node.isLactometer) ...[
+              Row(children: [
+                Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _clrFocus)),
+                const SizedBox(width: DhenuSpacing.md),
+                Expanded(child: _numberField(_clr, 'CLR', '', _clrFocus, null)),
+              ]),
+            ] else ...[
+              Row(children: [
+                Expanded(child: _numberField(_qty, l.commonLitres, 'L', _qtyFocus, _fatFocus)),
+                const SizedBox(width: DhenuSpacing.md),
+                Expanded(child: _numberField(_fat, 'FAT', '%', _fatFocus, _snfFocus)),
+                const SizedBox(width: DhenuSpacing.md),
+                Expanded(child: _numberField(_snf, 'SNF', '%', _snfFocus, _waterFocus)),
+              ]),
+              const SizedBox(height: DhenuSpacing.md),
+              // Same one-third width as the trio above (left-aligned, two empty
+              // slots fill the row).
+              Row(children: [
+                Expanded(child: _numberField(_water, 'Water', '%', _waterFocus, null)),
+                const SizedBox(width: DhenuSpacing.md),
+                const Expanded(child: SizedBox.shrink()),
+                const SizedBox(width: DhenuSpacing.md),
+                const Expanded(child: SizedBox.shrink()),
+              ]),
+            ],
+            const SizedBox(height: DhenuSpacing.lg),
+            _ratePreview(t),
+            const SizedBox(height: DhenuSpacing.xl),
           ],
-          const SizedBox(height: DhenuSpacing.lg),
-          _ratePreview(t),
-          const SizedBox(height: DhenuSpacing.xl),
           _recentToday(t),
           if (!_isEdit && !closed) ...[
             const SizedBox(height: DhenuSpacing.lg),
@@ -729,17 +743,23 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           child: Padding(
             padding: const EdgeInsets.all(DhenuSpacing.screen),
             child: PrimaryAction(
-              // Closed says so on the button itself: the action is unreachable
-              // until Reopen in the banner, and a greyed "Next" alone doesn't
-              // explain why nothing happens.
-              label: closed
-                  ? l.collectClosedAction
-                  : (_canSave ? l.collectSaveAndNext : l.commonNext),
-              icon: closed
-                  ? DhenuIcons.lock
-                  : (_canSave ? DhenuIcons.check : DhenuIcons.arrowRight),
+              // Once closed, recording is over and dispatch is the next step — so
+              // this becomes the way there rather than a dead "Closed" button.
+              // Close sits at the bottom of the list, so a CTA anywhere else would
+              // appear off-screen under the operator's thumb. The banner up top
+              // still explains the closed state and offers Reopen. Once the slot's
+              // milk is all on its way, the button retires rather than inviting a
+              // second dispatch the server would reject as over-quantity.
+              label: !closed
+                  ? (_canSave ? l.collectSaveAndNext : l.commonNext)
+                  : (leftToDispatch > 0 ? l.collectDispatchNow : l.homeAllDispatched),
+              icon: !closed
+                  ? (_canSave ? DhenuIcons.check : DhenuIcons.arrowRight)
+                  : (leftToDispatch > 0 ? DhenuIcons.transit : DhenuIcons.checkCircle),
               loading: _saving,
-              onPressed: (_saving || closed) ? null : _onPrimary,
+              onPressed: _saving || (closed && leftToDispatch <= 0)
+                  ? null
+                  : (closed ? _openDispatch : _onPrimary),
             ),
           ),
         ),
@@ -777,6 +797,30 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         ),
       ]),
     );
+  }
+
+  /// Closing is what unlocks dispatch, so go straight there instead of making the
+  /// operator back out to home → Dispatch and re-pick the same date and shift.
+  /// Opens on the slot just closed, and pops back to this screen when done.
+  Future<void> _openDispatch() async {
+    final l = AppLocalizations.of(context);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: DT(context).ink))),
+        body: VmccDispatchTab(
+          node: widget.node,
+          initialDate: _date,
+          // A BMC VMCC pools the whole day, so the slot's shift means nothing there.
+          initialShift: widget.node.hasBmc ? null : _shift,
+        ),
+      ),
+    ));
+    if (!mounted) return;
+    // Dispatching consumes the slot's milk. These providers aren't autoDispose, so
+    // without this the button keeps offering a dispatch that's already gone out.
+    ref.invalidate(shiftStatusForDateProvider((nodeId: widget.node.id, date: _date)));
+    ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
+    ref.invalidate(nodeAvailabilityProvider);
   }
 
   /// The WhatsApp shift roundup operators used to type by hand (audit E5):

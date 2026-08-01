@@ -135,6 +135,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get collectReopen => 'ಮರು ತೆರೆಯಿರಿ';
 
   @override
+  String get collectDispatchNow => 'ಈಗ ರವಾನಿಸಿ';
+
+  @override
   String get collectCloseBlockedPending =>
       'ಕೆಲವು ಸುರಿತಗಳು ಇನ್ನೂ ಸಿಂಕ್ ಆಗಿಲ್ಲ — ಸಿಂಕ್ ನಂತರ ಮುಚ್ಚಿ.';
 
@@ -564,6 +567,18 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get dispatchQtyHint => 'ರವಾನೆ ಪ್ರಮಾಣ (L)';
+
+  @override
+  String get dispatchErrorNoTypeSelected =>
+      'ರವಾನಿಸಲು ಕನಿಷ್ಠ ಒಂದು ಹಾಲಿನ ಬಗೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.';
+
+  @override
+  String dispatchTankerButtonMulti(int count) {
+    return '$count ಲೋಡ್ ರವಾನಿಸಿ';
+  }
+
+  @override
+  String get dispatchTypeHeldBack => 'ಮುಂದಿನ ರವಾನೆಗೆ ಉಳಿಸಲಾಗಿದೆ';
 
   @override
   String get dispatchContainerHint => 'ಕಂಟೇನರ್ ಸಂಖ್ಯೆ (ಐಚ್ಛಿಕ)';
@@ -2231,6 +2246,66 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get ppReceiveMeasuredAtPlant => 'ಪ್ಲಾಂಟ್‌ನಲ್ಲಿ ಅಳೆಯಲಾಗಿದೆ';
+
+  @override
+  String get ppManualReceiveButton => 'ರವಾನೆ ಇಲ್ಲದೆ ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ppManualReceiveTitle => 'ರವಾನೆ ಇಲ್ಲದೆ ಸ್ವೀಕರಿಸಿ';
+
+  @override
+  String get ppManualReceiveInfoBanner =>
+      'ಹಾಲು ಪ್ಲಾಂಟ್‌ಗೆ ತಲುಪಿದೆ ಆದರೆ CC ಇನ್ನೂ ತನ್ನ ಸಂಗ್ರಹವನ್ನು ನಮೂದಿಸಿಲ್ಲ ಎಂದಾದಾಗ ಇದನ್ನು ಬಳಸಿ. ಉತ್ಪಾದನೆಗೆ ಯೋಜಿಸಲು ಪ್ರತಿ ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೂ ಪ್ರತ್ಯೇಕವಾಗಿ ದಾಖಲಿಸಿ.';
+
+  @override
+  String get ppManualReceiveArrivedFrom => 'ಎಲ್ಲಿಂದ ಬಂದಿದೆ';
+
+  @override
+  String get ppManualReceiveSourceCc => 'ಶೀತಲೀಕರಣ ಕೇಂದ್ರ';
+
+  @override
+  String get ppManualReceivePerTypeLabel =>
+      'ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ, ಪ್ರತಿ ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೆ';
+
+  @override
+  String get ppManualReceiveNotReceived => 'ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String get ppManualReceiveSaveEmpty => 'ಪ್ರಮಾಣವನ್ನು ನಮೂದಿಸಿ';
+
+  @override
+  String manualReceiveSaveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ರಸೀದಿಗಳನ್ನು ಉಳಿಸಿ',
+      one: '1 ರಸೀದಿ ಉಳಿಸಿ',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String manualReceivePartialError(int saved, String error) {
+    String _temp0 = intl.Intl.pluralLogic(
+      saved,
+      locale: localeName,
+      other: '$saved ರಸೀದಿಗಳನ್ನು ಉಳಿಸಲಾಗಿದೆ',
+      one: '1 ರಸೀದಿ ಉಳಿಸಲಾಗಿದೆ',
+    );
+    return '$_temp0, ನಂತರ: $error';
+  }
+
+  @override
+  String get ppReceiveManualTag => 'ಕೈಬರಹ';
+
+  @override
+  String ppReceiveDeleteManualConfirm(String qty, String cc, String date) {
+    return '$date ರಂದು $cc ಯಿಂದ ಬಂದ $qty ಕೈಬರಹದ ರಸೀದಿಯನ್ನು ಅಳಿಸಬೇಕೇ? ಅದು ದಾಖಲಿಸಿದ ಕಚ್ಚಾ ಹಾಲಿನ ದಾಸ್ತಾನು ಹಿಂಪಡೆಯಲಾಗುತ್ತದೆ.';
+  }
+
+  @override
+  String get ppReceiveManualDuplicateWarning =>
+      'ಈ CC, ದಿನಾಂಕ ಮತ್ತು ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೆ ಈಗಾಗಲೇ ಕೈಬರಹದ ರಸೀದಿ ಇದೆ. ಈ ಟ್ಯಾಂಕರ್ ಅನ್ನೂ ಸ್ವೀಕರಿಸಿದರೆ ಹಾಲು ಎರಡು ಬಾರಿ ಎಣಿಕೆಯಾಗುತ್ತದೆ — ಒಂದನ್ನು ಅಳಿಸಿ.';
 
   @override
   String get ppTankersEmptyTitle => 'ಇಂದು ಯಾವುದೇ ಟ್ಯಾಂಕರ್ ಇಲ್ಲ';

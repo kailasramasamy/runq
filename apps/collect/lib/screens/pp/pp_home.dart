@@ -319,16 +319,28 @@ class PpHome extends ConsumerWidget {
           Text(names[c.fromNodeId] ?? 'CC',
               style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Row(children: [
-            Flexible(
-              child: Text('${c.containerNo ?? c.consignmentNo} · ',
-                  style: DhenuText.caption.copyWith(color: t.inkSoft),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            if (c.receiptFat != null)
-              QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
-                  grade: Grade.unknown, bands: bands, milkType: milkType),
-          ]),
+          // What the load is comes first — at the plant the milk type decides
+          // which raw-milk stock it lands in. Bands are read against the load's
+          // own type, not the plant's default, or buffalo gets graded as cow.
+          // Wrap, not Row: the type label and the QC readout together overrun the
+          // narrow left column on a phone, and both need to stay readable — so
+          // the badge drops to its own line rather than being clipped.
+          Wrap(
+            spacing: DhenuSpacing.sm,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // Legacy legs predate per-type consignments and carry no type.
+              if (c.milkType != null) MilkTypePill(milkType: c.milkType!),
+              if (c.receiptFat != null)
+                QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
+                    grade: Grade.unknown, bands: bands, milkType: c.milkType ?? milkType),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(c.containerNo ?? c.consignmentNo,
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),

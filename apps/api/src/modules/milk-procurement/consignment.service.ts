@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, inArray, gte, lte, or, isNull } from 'drizzle-orm';
+import { and, asc, eq, desc, sql, inArray, gte, lte, or, isNull } from 'drizzle-orm';
 import { mpConsignments, mpNodes, mpPours, mpGlSettings, mpRawMilkItems, stockLedger } from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -22,6 +22,15 @@ type MilkType = NonNullable<MpConsignmentRow['milkType']>;
 /** Milk on hand at a source node on a date: what it took in minus what it already sent on. */
 export interface ConsignmentAvailability {
   nodeId: string; collectionDate: string; nodeType: string;
+  collected: number; dispatched: number; available: number;
+  avgFat: number | null; avgSnf: number | null; avgWater: number | null;
+  /** One entry per milk type held at the node, so cow and buffalo are dispatched
+   * as separate consignments rather than blended into one untyped tanker. */
+  byMilkType: MilkTypeAvailability[];
+}
+
+export interface MilkTypeAvailability {
+  milkType: MilkType | null;
   collected: number; dispatched: number; available: number;
   avgFat: number | null; avgSnf: number | null; avgWater: number | null;
 }
@@ -93,16 +102,27 @@ export class ConsignmentService {
           : 'Close collection for this shift before dispatching.');
       }
     }
+    // One consignment carries one milk type, so the type survives to the plant's
+    // raw-milk stock. A caller that names none gets the derived type, and a source
+    // holding more than one is refused rather than blended into an untyped tanker.
+    const milkType = input.milkType
+      ?? await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
+    if (!milkType) {
+      throw new ValidationError(
+        'This milk is more than one type — dispatch each type as its own consignment.');
+    }
     // Never let dispatches exceed what's on hand — otherwise availability goes
-    // negative (e.g. dispatching an already-sent shift/pool).
+    // negative (e.g. dispatching an already-sent shift/pool). Scoped to the type,
+    // so cow litres can't be sent against buffalo stock.
     const available = overnight
-      ? await this.ccPoolAvailable(input.fromNodeId, input.collectionDate)
-      : await this.availableToDispatch(input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined);
+      ? await this.ccPoolAvailable(input.fromNodeId, input.collectionDate, milkType)
+      : await this.availableToDispatch(
+        input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined, milkType);
     if (input.dispatchQty - available > 1e-6) {
       const scope = shift ? `${shift.toUpperCase()} ` : '';
-      throw new ValidationError(`Only ${available} L of ${scope}milk available to dispatch from this node.`);
+      throw new ValidationError(
+        `Only ${available} L of ${scope}${milkType} milk available to dispatch from this node.`);
     }
-    const milkType = await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
     return this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
@@ -167,13 +187,37 @@ export class ConsignmentService {
   ): Promise<MpConsignmentRow> {
     assertNodeAccess(principal, input.toNodeId);
     assertNodeAccess(principal, input.fromNodeId);
-    const [from] = await this.db.select({ nodeType: mpNodes.nodeType, hasBmc: mpNodes.hasBmc, defaultMilkType: mpNodes.defaultMilkType }).from(mpNodes)
+    const [from] = await this.db.select({
+      nodeType: mpNodes.nodeType, hasBmc: mpNodes.hasBmc,
+      defaultMilkType: mpNodes.defaultMilkType, allowedMilkTypes: mpNodes.allowedMilkTypes,
+    }).from(mpNodes)
       .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
     const kind = from.nodeType === 'cc' ? 'cc_to_pp' : 'vmcc_to_cc';
     const shift = from.hasBmc ? null : input.shift ?? null;
     const qty = String(input.qty);
-    const milkType = await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift);
+    const [to] = await this.db.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.toNodeId)));
+    if (!to) throw new NotFoundError('Destination node');
+    // A PP receipt becomes a raw-milk batch that manufacturing draws on, so its
+    // type must be stated, never guessed. The usual reason for a manual receipt
+    // here is that the CC hasn't entered its VMCC data yet — so deriving from
+    // what the CC received returns nothing, and the fallbacks below would stamp
+    // the plant's intake with the CC's default type. Cow milk manufactured as
+    // buffalo is worse than a rejected entry.
+    if (to.nodeType === 'pp' && !input.milkType) {
+      throw new ValidationError(
+        'Select the milk type — the plant tracks raw-milk stock per type.');
+    }
+    // A manual receipt is entered for a VMCC that doesn't use the app, so there
+    // are no pours to derive from. Fall back to the centre's configuration: a
+    // node allowed exactly one milk type can only have sent that one. Without
+    // this the leg stays untyped and posts nothing to raw-milk stock.
+    const soleAllowed = from.allowedMilkTypes?.length === 1 ? from.allowedMilkTypes[0]! : null;
+    const milkType = input.milkType
+      ?? await this.deriveMilkType(this.db, input.fromNodeId, from.nodeType, input.collectionDate, shift)
+      ?? soleAllowed
+      ?? from.defaultMilkType;
     const result = await this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
@@ -289,6 +333,7 @@ export class ConsignmentService {
     if (!c.directReceive) throw new ConflictError('Only a manually-entered receipt can be deleted');
     if (c.status !== 'received') throw new ConflictError('Only a received receipt can be deleted');
     await this.assertReceiptUnlocked(c);
+    await this.assertBatchUnconsumed(c);
     return this.db.transaction(async (tx) => {
       const [row] = await tx.update(mpConsignments)
         .set({ status: 'reversed', updatedAt: new Date() })
@@ -298,6 +343,33 @@ export class ConsignmentService {
       }
       return row!;
     });
+  }
+
+  /** Reject if manufacturing has already drawn on the raw-milk batch this
+   * receipt posted. A PP has no shift closure to lock the receipt, so this is
+   * the gate there: undoing a consumed batch would drive its stock negative and
+   * leave a production run standing on milk the ledger says never arrived.
+   * Our own edit-receipt adjustments are not consumption, so they're excluded. */
+  private async assertBatchUnconsumed(c: MpConsignmentRow): Promise<void> {
+    if (!c.stockLedgerId) return;
+    const [orig] = await this.db.select({
+      itemId: stockLedger.itemId, warehouseId: stockLedger.warehouseId, batchNo: stockLedger.batchNo,
+    }).from(stockLedger)
+      .where(and(eq(stockLedger.tenantId, this.tenantId), eq(stockLedger.id, c.stockLedgerId)));
+    if (!orig?.batchNo) return;
+    const [drawn] = await this.db.select({ id: stockLedger.id }).from(stockLedger)
+      .where(and(
+        eq(stockLedger.tenantId, this.tenantId),
+        eq(stockLedger.itemId, orig.itemId),
+        eq(stockLedger.warehouseId, orig.warehouseId),
+        eq(stockLedger.batchNo, orig.batchNo),
+        sql`${stockLedger.qtyOut} > 0`,
+        sql`not (${stockLedger.sourceType} = 'mp_receipt_adjustment' and ${stockLedger.sourceId} = ${c.id})`,
+      )).limit(1);
+    if (drawn) {
+      throw new ConflictError(
+        'This milk has already been used in production — correct the quantity instead of deleting.');
+    }
   }
 
   /** Reject if the destination CC's slot for this receipt is closed — a BMC CC
@@ -318,67 +390,96 @@ export class ConsignmentService {
 
   /** Available-to-dispatch at a node: VMCC counts its pours, CC/PP count milk received in.
    * When `shift` is given, every figure is scoped to that shift (no-BMC, per-shift dispatch). */
-  async availability(nodeId: string, collectionDate: string, principal: MpPrincipal, shift?: 'am' | 'pm'): Promise<ConsignmentAvailability> {
+  async availability(
+    nodeId: string, collectionDate: string, principal: MpPrincipal,
+    shift?: 'am' | 'pm', milkType?: MilkType,
+  ): Promise<ConsignmentAvailability> {
     assertNodeAccess(principal, nodeId);
     const [node] = await this.db.select({ nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling })
       .from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
     if (!node) throw new NotFoundError('Node not found');
     const overnight = node.nodeType === 'cc' && node.overnightPooling;
-    const src = node.nodeType === 'vmcc'
+    const batches = node.nodeType === 'vmcc'
       ? await this.collectedFromPours(nodeId, collectionDate, shift)
       : overnight
         ? await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, collectionDate))
         : await this.collectedFromReceipts(nodeId, collectionDate, shift);
     // An overnight pool is dispatched as one tanker dated today (shift null), so
     // the dispatched side stays anchored on today regardless of the shift filter.
-    const dispatched = overnight
-      ? await this.sumDispatched(nodeId, collectionDate)
-      : await this.sumDispatched(nodeId, collectionDate, shift);
+    const dispatchRows = overnight
+      ? await this.dispatchedByType(nodeId, collectionDate)
+      : await this.dispatchedByType(nodeId, collectionDate, shift);
+
+    const left = drawDown(batches, dispatchRows);
+    const types = [...new Set([
+      ...batches.map((b) => b.milkType),
+      ...dispatchRows.filter((r) => r.milkType != null).map((r) => r.milkType),
+    ])];
+
+    const byMilkType: MilkTypeAvailability[] = types.map((t) => {
+      const collected = weigh(batches.filter((b) => b.milkType === t)).qty;
+      const rest = weigh(left.filter((b) => b.milkType === t));
+      return {
+        milkType: t, collected, dispatched: round3(collected - rest.qty), available: rest.qty,
+        avgFat: rest.fat, avgSnf: rest.snf, avgWater: rest.water,
+      };
+    }).sort((a, b) => b.available - a.available);
+
+    // Headline figures: one type when the caller scoped to it, else the whole node.
+    const scoped = milkType ? byMilkType.filter((r) => r.milkType === milkType) : byMilkType;
+    const scopedLeft = milkType ? left.filter((b) => b.milkType === milkType) : left;
+    const collected = round3(scoped.reduce((t, r) => t + r.collected, 0));
+    const dispatched = round3(scoped.reduce((t, r) => t + r.dispatched, 0));
+    // QC describes what's still on hand, not everything collected — the second
+    // dispatch of a day must prefill the remaining batch's FAT/SNF, not the blend.
+    const qc = weigh(scopedLeft);
     return {
       nodeId, collectionDate, nodeType: node.nodeType,
-      collected: src.qty, dispatched, available: round3(src.qty - dispatched),
-      avgFat: src.fat, avgSnf: src.snf, avgWater: src.water,
+      collected, dispatched, available: round3(collected - dispatched),
+      avgFat: qc.fat, avgSnf: qc.snf, avgWater: qc.water,
+      byMilkType,
     };
   }
 
   /** Litres still on hand to dispatch at a node for a date/shift (collected − dispatched). */
-  private async availableToDispatch(nodeId: string, date: string, nodeType: string, shift?: 'am' | 'pm'): Promise<number> {
-    const src = nodeType === 'vmcc'
+  private async availableToDispatch(
+    nodeId: string, date: string, nodeType: string, shift?: 'am' | 'pm', milkType?: MilkType,
+  ): Promise<number> {
+    const batches = nodeType === 'vmcc'
       ? await this.collectedFromPours(nodeId, date, shift)
       : await this.collectedFromReceipts(nodeId, date, shift);
-    const dispatched = await this.sumDispatched(nodeId, date, shift);
-    return round3(src.qty - dispatched);
+    const dispatched = await this.dispatchedByType(nodeId, date, shift);
+    return availableOf(batches, dispatched, milkType);
   }
 
-  /** Qty + volume-weighted FAT/SNF of recorded pours at a VMCC. */
-  private async collectedFromPours(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<SourceAgg> {
-    const [r] = await this.db.select({
-      qty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
-      fat: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.fat}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.fat} is not null), 0), 2)`,
-      snf: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.snf}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.snf} is not null), 0), 2)`,
-      water: sql<string | null>`round(sum(${mpPours.qtyLitres} * ${mpPours.water}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${mpPours.water} is not null), 0), 2)`,
+  /** Recorded pours at a VMCC, oldest first. */
+  private async collectedFromPours(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<Batch[]> {
+    const rows = await this.db.select({
+      qty: mpPours.qtyLitres, fat: mpPours.fat, snf: mpPours.snf, water: mpPours.water,
+      milkType: mpPours.milkType,
     }).from(mpPours).where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.nodeId, nodeId),
       eq(mpPours.collectionDate, date), eq(mpPours.status, 'recorded'),
-      ...(shift ? [eq(mpPours.shift, shift)] : [])));
-    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
+      ...(shift ? [eq(mpPours.shift, shift)] : [])))
+      .orderBy(asc(mpPours.createdAt));
+    return rows.map(toBatch);
   }
 
-  /** Qty + volume-weighted FAT/SNF of milk received in at a CC/PP. */
-  private async collectedFromReceipts(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<SourceAgg> {
-    const [r] = await this.db.select({
-      qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
-      fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
-      snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
-      water: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptWater}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptWater} is not null), 0), 2)`,
+  /** Milk received in at a CC/PP, oldest first. */
+  private async collectedFromReceipts(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<Batch[]> {
+    const rows = await this.db.select({
+      qty: mpConsignments.receiptQty, fat: mpConsignments.receiptFat,
+      snf: mpConsignments.receiptSnf, water: mpConsignments.receiptWater,
+      milkType: mpConsignments.milkType,
     }).from(mpConsignments).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.toNodeId, nodeId),
       eq(mpConsignments.collectionDate, date), eq(mpConsignments.status, 'received'),
-      ...(shift ? [eq(mpConsignments.shift, shift)] : [])));
-    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
+      ...(shift ? [eq(mpConsignments.shift, shift)] : [])))
+      .orderBy(asc(mpConsignments.receivedAt));
+    return rows.map(toBatch);
   }
 
   /** Qty + weighted QC of milk received in over an explicit set of (date, shift)
    * slots — an overnight CC's pool spans two calendar days. */
-  private async collectedFromReceiptsWindow(nodeId: string, slots: Slot[]): Promise<SourceAgg> {
+  private async collectedFromReceiptsWindow(nodeId: string, slots: Slot[]): Promise<Batch[]> {
     // A whole-day (null-shift) consignment maps to the AM slot, mirroring the
     // app's shiftFrom(null) === 'am'. Without this, milk from BMC VMCCs — which
     // dispatch whole-day with shift null — is dropped from an overnight CC's
@@ -390,29 +491,87 @@ export class ConsignmentService {
           ? or(eq(mpConsignments.shift, 'am'), isNull(mpConsignments.shift))
           : eq(mpConsignments.shift, s.shift),
       )));
-    const [r] = await this.db.select({
-      qty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
-      fat: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptFat}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptFat} is not null), 0), 2)`,
-      snf: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptSnf}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptSnf} is not null), 0), 2)`,
-      water: sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${mpConsignments.receiptWater}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${mpConsignments.receiptWater} is not null), 0), 2)`,
+    const rows = await this.db.select({
+      qty: mpConsignments.receiptQty, fat: mpConsignments.receiptFat,
+      snf: mpConsignments.receiptSnf, water: mpConsignments.receiptWater,
+      milkType: mpConsignments.milkType,
     }).from(mpConsignments).where(and(eq(mpConsignments.tenantId, this.tenantId),
-      eq(mpConsignments.toNodeId, nodeId), eq(mpConsignments.status, 'received'), slotCond));
-    return { qty: Number(r?.qty ?? 0), fat: numOrNull2(r?.fat), snf: numOrNull2(r?.snf), water: numOrNull2(r?.water) };
+      eq(mpConsignments.toNodeId, nodeId), eq(mpConsignments.status, 'received'), slotCond))
+      .orderBy(asc(mpConsignments.receivedAt));
+    return rows.map(toBatch);
   }
 
   /** Litres on hand for an overnight CC's pool (windowed receipts − today's dispatch). */
-  private async ccPoolAvailable(nodeId: string, anchorDate: string): Promise<number> {
-    const src = await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, anchorDate));
-    const dispatched = await this.sumDispatched(nodeId, anchorDate);
-    return round3(src.qty - dispatched);
+  private async ccPoolAvailable(nodeId: string, anchorDate: string, milkType?: MilkType): Promise<number> {
+    const batches = await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, anchorDate));
+    const dispatched = await this.dispatchedByType(nodeId, anchorDate);
+    return availableOf(batches, dispatched, milkType);
   }
 
   private async sumDispatched(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<number> {
-    const [r] = await this.db.select({ q: sql<string>`coalesce(sum(${mpConsignments.dispatchQty}), 0)` }).from(mpConsignments)
+    const rows = await this.dispatchedByType(nodeId, date, shift);
+    return rows.reduce((t, r) => t + r.qty, 0);
+  }
+
+  /** Dispatched litres split by the consignment's milk type. Legacy rows carry a
+   * null type; those litres can't be attributed to one type and are consumed
+   * across the pool afterwards (see `availability`). */
+  private async dispatchedByType(
+    nodeId: string, date: string, shift?: 'am' | 'pm',
+  ): Promise<{ milkType: MilkType | null; qty: number }[]> {
+    const rows = await this.db.select({
+      milkType: mpConsignments.milkType,
+      q: sql<string>`coalesce(sum(${mpConsignments.dispatchQty}), 0)`,
+    }).from(mpConsignments)
       .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.fromNodeId, nodeId),
         eq(mpConsignments.collectionDate, date), inArray(mpConsignments.status, ['in_transit', 'received']),
-        ...(shift ? [eq(mpConsignments.shift, shift)] : [])));
-    return Number(r?.q ?? 0);
+        ...(shift ? [eq(mpConsignments.shift, shift)] : [])))
+      .groupBy(mpConsignments.milkType);
+    return rows.map((r) => ({ milkType: r.milkType, qty: Number(r.q ?? 0) }));
+  }
+
+  /** What a litre of this leg cost to buy, from the pours it is made of.
+   *
+   * The plant's raw milk has to carry a cost or manufacturing consumes it at
+   * zero and every finished product is under-costed by its main input. The
+   * farmer's pour is where the price is actually struck (`rate_per_litre`
+   * resolved against the rate chart), so a volume-weighted average of the day's
+   * pours behind this leg is the real purchase cost per litre.
+   *
+   * Returns 0 when nothing links back to a pour — centres that don't use the
+   * app record no pours, so their cost isn't known until the VMCC bill. Those
+   * legs stay at zero for now rather than carry a guessed rate; see
+   * `docs/dhenu-raw-milk-valuation.md`.
+   *
+   * Bonuses and deductions settled later (quarterly bonus, advances, feed loans)
+   * are deliberately excluded — they are not per-litre purchase cost, and they
+   * land as variance when the cycle clears.
+   */
+  private async rawMilkUnitCost(db: Db | Tx, c: MpConsignmentRow): Promise<number> {
+    const [src] = await db.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, c.fromNodeId)));
+    if (!src) return 0;
+    // A CC's intake is its VMCCs' pours; a VMCC sending straight to the plant
+    // is its own source.
+    let nodeIds = [c.fromNodeId];
+    if (src.nodeType === 'cc') {
+      const kids = await db.select({ id: mpNodes.id }).from(mpNodes)
+        .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.parentNodeId, c.fromNodeId)));
+      nodeIds = kids.map((k) => k.id);
+    }
+    if (nodeIds.length === 0) return 0;
+    const [r] = await db.select({
+      qty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
+      amount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
+    }).from(mpPours).where(and(
+      eq(mpPours.tenantId, this.tenantId),
+      inArray(mpPours.nodeId, nodeIds),
+      eq(mpPours.collectionDate, c.collectionDate),
+      eq(mpPours.status, 'recorded'),
+      ...(c.milkType ? [eq(mpPours.milkType, c.milkType)] : []),
+    ));
+    const qty = Number(r?.qty ?? 0);
+    return qty > 0 ? round2(Number(r?.amount ?? 0) / qty) : 0;
   }
 
   /** Single milk type of the source's real composition for the day/shift, or
@@ -436,8 +595,10 @@ export class ConsignmentService {
   }
 
   /** PP intake → raw-milk stock_ledger batch. Best-effort: needs the warehouse +
-   *  a milk-type item mapped, else skipped. Valued at zero — real valuation + GL
-   *  arrive with P1.1 at payout lock. Returns the ledger id or null. */
+   *  a milk-type item mapped, else skipped. Valued from the pours behind the leg
+   *  (see `rawMilkUnitCost`); the matching GL entry is still to come, so stock
+   *  carries a value the ledger doesn't yet mirror — step 2 of
+   *  `docs/dhenu-raw-milk-valuation.md`. Returns the ledger id or null. */
   private async postRawMilkReceipt(
     tx: Tx, c: MpConsignmentRow, userId: string | undefined,
   ): Promise<string | null> {
@@ -449,14 +610,21 @@ export class ConsignmentService {
     const [settings] = await tx.select({ wh: mpGlSettings.rawMilkWarehouseId }).from(mpGlSettings)
       .where(eq(mpGlSettings.tenantId, this.tenantId));
     if (!settings?.wh) return null;
+    // An untyped consignment must never be given a type here. The old `?? 'mixed'`
+    // fallback resolved through the tenant's 'mixed' mapping — which points at the
+    // A1 raw-milk item — so a can holding both buffalo and cow milk landed in stock
+    // as pure A1 and would be manufactured as A1. Skipping leaves the milk off the
+    // raw-milk ledger, which is visible and fixable; mislabelling it is neither.
+    if (!c.milkType) return null;
     const [map] = await tx.select({ itemId: mpRawMilkItems.itemId }).from(mpRawMilkItems)
       .where(and(eq(mpRawMilkItems.tenantId, this.tenantId),
-        eq(mpRawMilkItems.milkType, c.milkType ?? 'mixed')));
+        eq(mpRawMilkItems.milkType, c.milkType)));
     if (!map) return null;
+    const unitCost = await this.rawMilkUnitCost(tx, c);
     const { ledgerId } = await new StockLedgerService(this.tenantId).recordMovement(tx, {
       itemId: map.itemId, warehouseId: settings.wh, batchNo: c.consignmentNo,
       movementType: 'grn', sourceType: 'mp_receipt', sourceId: c.id,
-      qtyDelta: qty, unitCost: 0, movedAt: new Date(`${c.collectionDate}T00:00:00Z`),
+      qtyDelta: qty, unitCost, movedAt: new Date(`${c.collectionDate}T00:00:00Z`),
       postedBy: userId ?? null,
     });
     await tx.update(mpConsignments).set({ stockLedgerId: ledgerId, updatedAt: new Date() })
@@ -499,6 +667,84 @@ export class ConsignmentService {
 }
 
 interface SourceAgg { qty: number; fat: number | null; snf: number | null; water: number | null }
+
+/** One receipt (or pour) as it landed — the unit FIFO consumes. `seq` preserves
+ * arrival order so batches can be regrouped by milk type and still consumed
+ * oldest-first afterwards. */
+interface Batch {
+  seq: number; milkType: MilkType | null;
+  qty: number; fat: number | null; snf: number | null; water: number | null;
+}
+
+type BatchRow = {
+  qty: string | null; fat: string | null; snf: string | null; water: string | null;
+  milkType: MilkType | null;
+};
+
+/** Numeric columns arrive as strings from pg; a null qty counts as zero litres. */
+function toBatch(r: BatchRow, seq: number): Batch {
+  return {
+    seq, milkType: r.milkType,
+    qty: Number(r.qty ?? 0), fat: numOrNull2(r.fat), snf: numOrNull2(r.snf), water: numOrNull2(r.water),
+  };
+}
+
+/** Volume-weighted QC over a batch list. A batch missing a metric is left out of
+ * that metric's weighting rather than counted as zero. */
+function weigh(batches: Batch[]): SourceAgg {
+  let qty = 0;
+  const acc = { fat: 0, snf: 0, water: 0 };
+  const wt = { fat: 0, snf: 0, water: 0 };
+  for (const b of batches) {
+    qty += b.qty;
+    for (const k of ['fat', 'snf', 'water'] as const) {
+      if (b[k] != null) { acc[k] += b.qty * b[k]!; wt[k] += b.qty; }
+    }
+  }
+  const avg = (k: 'fat' | 'snf' | 'water') => (wt[k] > 0 ? round2(acc[k] / wt[k]) : null);
+  return { qty: round3(qty), fat: avg('fat'), snf: avg('snf'), water: avg('water') };
+}
+
+/** What's still on hand: drop `dispatched` litres oldest-first and return the rest.
+ * Weighting every receipt — including already-dispatched ones — makes the second
+ * dispatch of a day prefill the whole day's blend instead of the batch actually
+ * left in the tank. The straddling batch is split pro-rata. */
+/** What's left after every dispatch is taken off. Each type is drawn down by its
+ * own dispatches first; untyped (pre-split) dispatches name no type, so they come
+ * off the whole pool in arrival order afterwards — otherwise a legacy tanker would
+ * leave every type looking fully available. */
+function drawDown(batches: Batch[], dispatched: { milkType: MilkType | null; qty: number }[]): Batch[] {
+  const typed = new Map<MilkType | null, number>();
+  let untyped = 0;
+  for (const r of dispatched) {
+    if (r.milkType == null) untyped += r.qty;
+    else typed.set(r.milkType, (typed.get(r.milkType) ?? 0) + r.qty);
+  }
+  const types = [...new Set([...batches.map((b) => b.milkType), ...typed.keys()])];
+  const afterTyped = types.flatMap((t) =>
+    remainderBatches(batches.filter((b) => b.milkType === t), typed.get(t) ?? 0));
+  return remainderBatches(afterTyped.sort((a, b) => a.seq - b.seq), untyped);
+}
+
+/** Litres on hand, optionally for one milk type. */
+function availableOf(
+  batches: Batch[], dispatched: { milkType: MilkType | null; qty: number }[], milkType?: MilkType,
+): number {
+  const left = drawDown(batches, dispatched);
+  return weigh(milkType ? left.filter((b) => b.milkType === milkType) : left).qty;
+}
+
+function remainderBatches(batches: Batch[], dispatched: number): Batch[] {
+  let toDrop = Math.max(0, dispatched);
+  const left: Batch[] = [];
+  for (const b of batches) {
+    if (toDrop <= 0) { left.push(b); continue; }
+    if (toDrop >= b.qty) { toDrop -= b.qty; continue; }
+    left.push({ ...b, qty: b.qty - toDrop });
+    toDrop = 0;
+  }
+  return left;
+}
 
 function numOrNull(v: number | null | undefined): string | null {
   return v != null ? String(v) : null;

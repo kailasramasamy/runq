@@ -14,6 +14,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
+import '../../widgets/dispatch_type_card.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
@@ -31,11 +32,10 @@ class CcDispatchTab extends ConsumerStatefulWidget {
 }
 
 class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
-  final _qtyCtrl = TextEditingController();
-  final _fatCtrl = TextEditingController();
-  final _snfCtrl = TextEditingController();
-  final _waterCtrl = TextEditingController();
-  final _containerCtrl = TextEditingController();
+  // One editable leg per milk type on hand. Cow and buffalo leave as separate
+  // consignments, so each needs its own qty, QC and container — and the operator
+  // needs to see which is which rather than two unlabelled numbers.
+  final Map<MilkType, DispatchTypeEntry> _entries = {};
   MpNode? _destPp;
   bool _saving = false;
   bool _closingBusy = false;
@@ -106,10 +106,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   void _clearInputs() {
-    _qtyCtrl.clear();
-    _fatCtrl.clear();
-    _snfCtrl.clear();
-    _waterCtrl.clear();
+    for (final e in _entries.values) {
+      e.clear();
+    }
   }
 
   @override
@@ -132,29 +131,34 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
 
   @override
   void dispose() {
-    _qtyCtrl.dispose();
-    _fatCtrl.dispose();
-    _snfCtrl.dispose();
-    _waterCtrl.dispose();
-    _containerCtrl.dispose();
+    for (final e in _entries.values) {
+      e.dispose();
+    }
     super.dispose();
   }
 
-  void _prefillFromAvailability(MpAvailability? avail) {
-    if (avail == null) return;
-    if (_qtyCtrl.text.isEmpty) {
-      _qtyCtrl.text = avail.available.toStringAsFixed(1);
+  /// Rebuild the per-type legs from availability, keeping anything already typed.
+  /// Types that fall to zero (just dispatched) drop out.
+  void _syncEntries(MpAvailability? avail) {
+    final rows = avail?.dispatchable ?? const <MpTypeAvailability>[];
+    final live = <MilkType>{};
+    for (final r in rows) {
+      if (r.milkType == null) continue;
+      final type = milkTypeFrom(r.milkType);
+      live.add(type);
+      final existing = _entries[type];
+      if (existing == null || existing.available != r.available) {
+        existing?.dispose();
+        _entries[type] = DispatchTypeEntry(r)..prefill();
+      }
     }
-    if (_fatCtrl.text.isEmpty && avail.avgFat != null) {
-      _fatCtrl.text = avail.avgFat!.toStringAsFixed(1);
-    }
-    if (_snfCtrl.text.isEmpty && avail.avgSnf != null) {
-      _snfCtrl.text = avail.avgSnf!.toStringAsFixed(1);
-    }
-    if (_waterCtrl.text.isEmpty && avail.avgWater != null) {
-      _waterCtrl.text = avail.avgWater!.toStringAsFixed(1);
+    for (final gone in _entries.keys.toList()) {
+      if (!live.contains(gone)) _entries.remove(gone)?.dispose();
     }
   }
+
+  List<DispatchTypeEntry> get _selected =>
+      _entries.values.where((e) => e.include).toList();
 
   Future<void> _pickPp(BuildContext context, WidgetRef ref) async {
     final pps = await ref.read(nodesByTypeProvider('pp').future);
@@ -180,42 +184,44 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       setState(() => _error = _closeFirstMsg(l));
       return;
     }
-    final qty = double.tryParse(_qtyCtrl.text);
-    final fat = double.tryParse(_fatCtrl.text);
-    final snf = double.tryParse(_snfCtrl.text);
-    final water = double.tryParse(_waterCtrl.text);
-    if (qty == null || fat == null || snf == null) {
-      setState(() => _error = l.ccDispatchErrorInvalidNumbers);
+    final legs = _selected;
+    if (legs.isEmpty) {
+      setState(() => _error = l.dispatchErrorNoTypeSelected);
       return;
     }
-    final available = ref.read(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.available ?? 0;
-    if (qty - available > 0.001) {
-      setState(() => _error = l.dispatchErrorOverQty(available.toStringAsFixed(1)));
+    if (legs.any((e) => !e.isValid)) {
+      setState(() => _error = l.ccDispatchErrorInvalidNumbers);
       return;
     }
     setState(() { _saving = true; _error = null; });
     try {
-      await mpRepo.dispatchConsignment({
-        'kind': 'cc_to_pp',
-        'fromNodeId': widget.node.id,
-        'toNodeId': _destPp!.id,
-        'collectionDate': _date,
-        if (_perShift) 'shift': _shift.name,
-        'dispatchQty': qty,
-        'dispatchFat': fat,
-        'dispatchSnf': snf,
-        'dispatchWater': ?water,
-        if (_containerCtrl.text.isNotEmpty) 'containerNo': _containerCtrl.text.trim(),
-      });
+      // One consignment per milk type, sent in sequence so each gets its own
+      // document number. A failure part-way leaves the earlier legs dispatched —
+      // availability refreshes below, so the form reflects what actually went.
+      for (final e in legs) {
+        await mpRepo.dispatchConsignment({
+          'kind': 'cc_to_pp',
+          'fromNodeId': widget.node.id,
+          'toNodeId': _destPp!.id,
+          'collectionDate': _date,
+          if (_perShift) 'shift': _shift.name,
+          'milkType': milkTypeToApi(e.type),
+          'dispatchQty': e.enteredQty,
+          'dispatchFat': e.enteredFat,
+          'dispatchSnf': e.enteredSnf,
+          'dispatchWater': ?e.enteredWater,
+          if (e.container.text.isNotEmpty) 'containerNo': e.container.text.trim(),
+        });
+      }
       setState(() { _saving = false; });
       _clearInputs();
-      _containerCtrl.clear();
       ref.invalidate(nodeOutboundForDateProvider(_dateArgs));
       ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });
+      ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
     }
   }
 
@@ -229,8 +235,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       for (final n in ref.watch(nodesByTypeProvider('pp')).value ?? const <MpNode>[]) n.id: n.name,
     };
 
-    availAsync.whenData(_prefillFromAvailability);
-    final canDispatch = (availAsync.asData?.value?.available ?? 0) > 0;
+    availAsync.whenData(_syncEntries);
+    final legs = _entries.values.toList();
+    final canDispatch = legs.isNotEmpty;
     final closeRequired = !_slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
 
     return Scaffold(
@@ -251,7 +258,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
         ]),
         const SizedBox(height: DhenuSpacing.sm),
-        _availCard(t, l, availAsync),
+        _availCard(t, l, availAsync, null),
         _closeControl(t, l, availAsync, closeRequired),
         const SizedBox(height: DhenuSpacing.xl),
         if (canDispatch) ...[
@@ -259,52 +266,25 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         const SizedBox(height: DhenuSpacing.md),
         _destPicker(context, t, l),
         const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _qtyCtrl,
-          keyboardType: TextInputType.number,
-          textCapitalization: TextCapitalization.none,
-          decoration: InputDecoration(hintText: l.dispatchQtyHint),
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _fatCtrl,
-              keyboardType: TextInputType.number,
-              textCapitalization: TextCapitalization.none,
-              decoration: InputDecoration(hintText: l.dispatchFatHint),
-            ),
+        // One block per milk type, each naming the milk and its litres, all sent
+        // by the single action below.
+        for (final e in legs) ...[
+          DispatchTypeCard(
+            entry: e,
+            selectable: legs.length > 1,
+            onChanged: () => setState(() {}),
           ),
-          const SizedBox(width: DhenuSpacing.md),
-          Expanded(
-            child: TextField(
-              controller: _snfCtrl,
-              keyboardType: TextInputType.number,
-              textCapitalization: TextCapitalization.none,
-              decoration: InputDecoration(hintText: l.dispatchSnfHint),
-            ),
-          ),
-        ]),
-        const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _waterCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textCapitalization: TextCapitalization.none,
-          decoration: const InputDecoration(hintText: 'Water % (optional)'),
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _containerCtrl,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(hintText: l.dispatchContainerHint),
-        ),
+          const SizedBox(height: DhenuSpacing.md),
+        ],
         if (_error != null) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
         ],
         const SizedBox(height: DhenuSpacing.lg),
         PrimaryAction(
-          label: l.dispatchTankerButton,
+          label: legs.length > 1
+              ? l.dispatchTankerButtonMulti(_selected.length)
+              : l.dispatchTankerButton,
           icon: DhenuIcons.truck,
           onPressed: (_saving || closeRequired) ? null : _dispatch,
           loading: _saving,
@@ -464,21 +444,32 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  Widget _availCard(DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync) {
+  /// Gauge for the selected milk type when the node holds more than one, so the
+  /// litres on screen are the litres the form will dispatch.
+  Widget _availCard(
+    DhenuTokens t, AppLocalizations l,
+    AsyncValue<MpAvailability?> availAsync, MpTypeAvailability? slice,
+  ) {
     return DhenuCard(
       child: availAsync.when(
         loading: () => const DhenuLoadingList(rows: 1),
         error: (e, _) => Text('—', style: DhenuText.body.copyWith(color: t.inkSoft)),
-        data: (a) => a == null
-            ? Text(l.dispatchNoData, style: DhenuText.body.copyWith(color: t.inkSoft))
-            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                TankGauge(current: a.available, capacity: a.collected, label: l.dispatchAvailableToDispatch),
-                const SizedBox(height: DhenuSpacing.sm),
-                Text(
-                  l.dispatchCollectedDispatched(litres(a.collected, unit: true), litres(a.dispatched, unit: true)),
-                  style: DhenuText.caption.copyWith(color: t.inkSoft),
-                ),
-              ]),
+        data: (a) {
+          if (a == null) {
+            return Text(l.dispatchNoData, style: DhenuText.body.copyWith(color: t.inkSoft));
+          }
+          final available = slice?.available ?? a.available;
+          final collected = slice?.collected ?? a.collected;
+          final dispatched = slice?.dispatched ?? a.dispatched;
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            TankGauge(current: available, capacity: collected, label: l.dispatchAvailableToDispatch),
+            const SizedBox(height: DhenuSpacing.sm),
+            Text(
+              l.dispatchCollectedDispatched(litres(collected, unit: true), litres(dispatched, unit: true)),
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+            ),
+          ]);
+        },
       ),
     );
   }

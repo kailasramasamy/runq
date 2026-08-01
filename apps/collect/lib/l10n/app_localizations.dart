@@ -322,6 +322,12 @@ abstract class AppLocalizations {
   /// **'Reopen'**
   String get collectReopen;
 
+  /// CTA on Record Collection once the slot is closed — jumps straight to Dispatch for that slot.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch now'**
+  String get collectDispatchNow;
+
   /// No description provided for @collectCloseBlockedPending.
   ///
   /// In en, this message translates to:
@@ -1101,6 +1107,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dispatch Qty (L)'**
   String get dispatchQtyHint;
+
+  /// No description provided for @dispatchErrorNoTypeSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Select at least one milk type to dispatch.'**
+  String get dispatchErrorNoTypeSelected;
+
+  /// Dispatch button when more than one milk type is on hand; count is the number ticked.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch {count} loads'**
+  String dispatchTankerButtonMulti(int count);
+
+  /// Shown on an unticked milk type in the dispatch form.
+  ///
+  /// In en, this message translates to:
+  /// **'Held back for a later dispatch'**
+  String get dispatchTypeHeldBack;
 
   /// No description provided for @dispatchContainerHint.
   ///
@@ -4003,6 +4027,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'MEASURED AT PLANT'**
   String get ppReceiveMeasuredAtPlant;
+
+  /// No description provided for @ppManualReceiveButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive without dispatch'**
+  String get ppManualReceiveButton;
+
+  /// No description provided for @ppManualReceiveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive without dispatch'**
+  String get ppManualReceiveTitle;
+
+  /// No description provided for @ppManualReceiveInfoBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this when milk reached the plant but the CC hasn\'t entered its collections yet. Record it per milk type so manufacturing can plan against it.'**
+  String get ppManualReceiveInfoBanner;
+
+  /// No description provided for @ppManualReceiveArrivedFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'ARRIVED FROM'**
+  String get ppManualReceiveArrivedFrom;
+
+  /// No description provided for @ppManualReceiveSourceCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Chilling centre'**
+  String get ppManualReceiveSourceCc;
+
+  /// No description provided for @ppManualReceivePerTypeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity received, per milk type'**
+  String get ppManualReceivePerTypeLabel;
+
+  /// No description provided for @ppManualReceiveNotReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Not received'**
+  String get ppManualReceiveNotReceived;
+
+  /// No description provided for @ppManualReceiveSaveEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a quantity'**
+  String get ppManualReceiveSaveEmpty;
+
+  /// Primary action on PP manual receive; one receipt is saved per milk type filled in
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Save 1 receipt} other{Save {count} receipts}}'**
+  String manualReceiveSaveCount(int count);
+
+  /// Shown when saving several per-type receipts fails partway, so the operator knows what already went through
+  ///
+  /// In en, this message translates to:
+  /// **'{saved, plural, =1{1 receipt saved} other{{saved} receipts saved}}, then: {error}'**
+  String manualReceivePartialError(int saved, String error);
+
+  /// No description provided for @ppReceiveManualTag.
+  ///
+  /// In en, this message translates to:
+  /// **'MANUAL'**
+  String get ppReceiveManualTag;
+
+  /// Confirm withdrawing a PP manual receipt, usually because the CC's own dispatch has now arrived
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the manual receipt of {qty} from {cc} on {date}? The raw-milk stock it posted is reversed.'**
+  String ppReceiveDeleteManualConfirm(String qty, String cc, String date);
+
+  /// No description provided for @ppReceiveManualDuplicateWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'A manual receipt for this CC, date and milk type is already in. Receiving this tanker too would count the milk twice — delete one.'**
+  String get ppReceiveManualDuplicateWarning;
 
   /// No description provided for @ppTankersEmptyTitle.
   ///

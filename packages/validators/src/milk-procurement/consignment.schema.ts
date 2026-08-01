@@ -6,12 +6,18 @@ import { z } from 'zod';
  * dispatch + receipt QC; variance computed on receipt.
  */
 
+const milkTypeEnum = z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']);
+
 export const createConsignmentSchema = z.object({
   kind: z.enum(['vmcc_to_cc', 'cc_to_pp']),
   fromNodeId: z.string().uuid(),
   toNodeId: z.string().uuid(),
   collectionDate: z.string().date(),
   shift: z.enum(['am', 'pm']).nullish(),
+  /** Each milk type travels as its own consignment so the type survives to the
+   * plant's raw-milk stock. Optional only for older clients; the service falls
+   * back to deriving it and rejects a dispatch that would blend two types. */
+  milkType: milkTypeEnum.nullish(),
   containerNo: z.string().max(40).nullish(),
   dispatchQty: z.number().positive(),
   dispatchFat: z.number().min(0).max(15).nullish(),
@@ -34,6 +40,8 @@ export const directReceiveConsignmentSchema = z.object({
   toNodeId: z.string().uuid(),
   collectionDate: z.string().date(),
   shift: z.enum(['am', 'pm']).nullish(),
+  /** Omit and the server resolves it from the source centre's configuration. */
+  milkType: milkTypeEnum.nullish(),
   qty: z.number().positive(),
   fat: z.number().min(0).max(15).nullish(),
   snf: z.number().min(0).max(15).nullish(),
@@ -58,6 +66,9 @@ export const consignmentAvailabilitySchema = z.object({
   nodeId: z.string().uuid(),
   collectionDate: z.string().date(),
   shift: z.enum(['am', 'pm']).optional(),
+  /** Scope the headline figures to one milk type. The response always carries the
+   * full per-type breakdown regardless, so callers can render one card per type. */
+  milkType: milkTypeEnum.optional(),
 });
 
 export type CreateConsignmentInput = z.infer<typeof createConsignmentSchema>;

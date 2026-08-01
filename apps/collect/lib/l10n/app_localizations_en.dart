@@ -135,6 +135,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get collectReopen => 'Reopen';
 
   @override
+  String get collectDispatchNow => 'Dispatch now';
+
+  @override
   String get collectCloseBlockedPending =>
       'Some pours haven\'t synced yet — wait for sync, then close.';
 
@@ -566,6 +569,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dispatchQtyHint => 'Dispatch Qty (L)';
+
+  @override
+  String get dispatchErrorNoTypeSelected =>
+      'Select at least one milk type to dispatch.';
+
+  @override
+  String dispatchTankerButtonMulti(int count) {
+    return 'Dispatch $count loads';
+  }
+
+  @override
+  String get dispatchTypeHeldBack => 'Held back for a later dispatch';
 
   @override
   String get dispatchContainerHint => 'Container No. (optional)';
@@ -2242,6 +2257,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ppReceiveMeasuredAtPlant => 'MEASURED AT PLANT';
+
+  @override
+  String get ppManualReceiveButton => 'Receive without dispatch';
+
+  @override
+  String get ppManualReceiveTitle => 'Receive without dispatch';
+
+  @override
+  String get ppManualReceiveInfoBanner =>
+      'Use this when milk reached the plant but the CC hasn\'t entered its collections yet. Record it per milk type so manufacturing can plan against it.';
+
+  @override
+  String get ppManualReceiveArrivedFrom => 'ARRIVED FROM';
+
+  @override
+  String get ppManualReceiveSourceCc => 'Chilling centre';
+
+  @override
+  String get ppManualReceivePerTypeLabel => 'Quantity received, per milk type';
+
+  @override
+  String get ppManualReceiveNotReceived => 'Not received';
+
+  @override
+  String get ppManualReceiveSaveEmpty => 'Enter a quantity';
+
+  @override
+  String manualReceiveSaveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Save $count receipts',
+      one: 'Save 1 receipt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String manualReceivePartialError(int saved, String error) {
+    String _temp0 = intl.Intl.pluralLogic(
+      saved,
+      locale: localeName,
+      other: '$saved receipts saved',
+      one: '1 receipt saved',
+    );
+    return '$_temp0, then: $error';
+  }
+
+  @override
+  String get ppReceiveManualTag => 'MANUAL';
+
+  @override
+  String ppReceiveDeleteManualConfirm(String qty, String cc, String date) {
+    return 'Delete the manual receipt of $qty from $cc on $date? The raw-milk stock it posted is reversed.';
+  }
+
+  @override
+  String get ppReceiveManualDuplicateWarning =>
+      'A manual receipt for this CC, date and milk type is already in. Receiving this tanker too would count the milk twice — delete one.';
 
   @override
   String get ppTankersEmptyTitle => 'No tankers today';

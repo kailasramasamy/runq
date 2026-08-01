@@ -37,6 +37,7 @@
   "collectDayClosedBanner": "ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ — ರವಾನೆಗೆ ಸಿದ್ಧ.",
   "collectClosedAction": "ಸಂಗ್ರಹ ಮುಚ್ಚಲಾಗಿದೆ",
   "collectReopen": "ಮರು ತೆರೆಯಿರಿ",
+  "collectDispatchNow": "ಈಗ ರವಾನಿಸಿ",
   "collectCloseBlockedPending": "ಕೆಲವು ಸುರಿತಗಳು ಇನ್ನೂ ಸಿಂಕ್ ಆಗಿಲ್ಲ — ಸಿಂಕ್ ನಂತರ ಮುಚ್ಚಿ.",
   "dispatchCloseFirst": "ರವಾನಿಸುವ ಮೊದಲು ಈ ಪಾಳಿಯ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.",
   "dispatchCloseFirstDay": "ರವಾನಿಸುವ ಮೊದಲು ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.",
@@ -167,6 +168,9 @@
   "dispatchAvailability": "ಲಭ್ಯತೆ",
   "dispatchToCollectionCentre": "ಸಂಗ್ರಹ ಕೇಂದ್ರಕ್ಕೆ ರವಾನಿಸಿ",
   "dispatchQtyHint": "ರವಾನೆ ಪ್ರಮಾಣ (L)",
+  "dispatchErrorNoTypeSelected": "ರವಾನಿಸಲು ಕನಿಷ್ಠ ಒಂದು ಹಾಲಿನ ಬಗೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+  "dispatchTankerButtonMulti": "{count} ಲೋಡ್ ರವಾನಿಸಿ",
+  "dispatchTypeHeldBack": "ಮುಂದಿನ ರವಾನೆಗೆ ಉಳಿಸಲಾಗಿದೆ",
   "dispatchContainerHint": "ಕಂಟೇನರ್ ಸಂಖ್ಯೆ (ಐಚ್ಛಿಕ)",
   "dispatchTankerButton": "ಟ್ಯಾಂಕರ್ ರವಾನಿಸಿ",
   "dispatchTodaysOutbound": "ಇಂದಿನ ಹೊರಗಡೆ",
@@ -650,6 +654,37 @@
   "ppReceiveNothingInTransitSubtitle": "ರವಾನಿಸಿದ ನಂತರ ಒಳಬರುವ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ",
   "ppReceiveDispatchedByCc": "CC ಯಿಂದ ರವಾನಿಸಲಾಗಿದೆ",
   "ppReceiveMeasuredAtPlant": "ಪ್ಲಾಂಟ್‌ನಲ್ಲಿ ಅಳೆಯಲಾಗಿದೆ",
+  "ppManualReceiveButton": "ರವಾನೆ ಇಲ್ಲದೆ ಸ್ವೀಕರಿಸಿ",
+  "ppManualReceiveTitle": "ರವಾನೆ ಇಲ್ಲದೆ ಸ್ವೀಕರಿಸಿ",
+  "ppManualReceiveInfoBanner": "ಹಾಲು ಪ್ಲಾಂಟ್‌ಗೆ ತಲುಪಿದೆ ಆದರೆ CC ಇನ್ನೂ ತನ್ನ ಸಂಗ್ರಹವನ್ನು ನಮೂದಿಸಿಲ್ಲ ಎಂದಾದಾಗ ಇದನ್ನು ಬಳಸಿ. ಉತ್ಪಾದನೆಗೆ ಯೋಜಿಸಲು ಪ್ರತಿ ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೂ ಪ್ರತ್ಯೇಕವಾಗಿ ದಾಖಲಿಸಿ.",
+  "ppManualReceiveArrivedFrom": "ಎಲ್ಲಿಂದ ಬಂದಿದೆ",
+  "ppManualReceiveSourceCc": "ಶೀತಲೀಕರಣ ಕೇಂದ್ರ",
+  "ppManualReceivePerTypeLabel": "ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ, ಪ್ರತಿ ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೆ",
+  "ppManualReceiveNotReceived": "ಸ್ವೀಕರಿಸಿಲ್ಲ",
+  "ppManualReceiveSaveEmpty": "ಪ್ರಮಾಣವನ್ನು ನಮೂದಿಸಿ",
+  "manualReceiveSaveCount": "{count, plural, =1{1 ರಸೀದಿ ಉಳಿಸಿ} other{{count} ರಸೀದಿಗಳನ್ನು ಉಳಿಸಿ}}",
+  "@manualReceiveSaveCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "manualReceivePartialError": "{saved, plural, =1{1 ರಸೀದಿ ಉಳಿಸಲಾಗಿದೆ} other{{saved} ರಸೀದಿಗಳನ್ನು ಉಳಿಸಲಾಗಿದೆ}}, ನಂತರ: {error}",
+  "@manualReceivePartialError": {
+    "placeholders": {
+      "saved": { "type": "int" },
+      "error": { "type": "String" }
+    }
+  },
+  "ppReceiveManualTag": "ಕೈಬರಹ",
+  "ppReceiveDeleteManualConfirm": "{date} ರಂದು {cc} ಯಿಂದ ಬಂದ {qty} ಕೈಬರಹದ ರಸೀದಿಯನ್ನು ಅಳಿಸಬೇಕೇ? ಅದು ದಾಖಲಿಸಿದ ಕಚ್ಚಾ ಹಾಲಿನ ದಾಸ್ತಾನು ಹಿಂಪಡೆಯಲಾಗುತ್ತದೆ.",
+  "@ppReceiveDeleteManualConfirm": {
+    "placeholders": {
+      "qty": { "type": "String" },
+      "cc": { "type": "String" },
+      "date": { "type": "String" }
+    }
+  },
+  "ppReceiveManualDuplicateWarning": "ಈ CC, ದಿನಾಂಕ ಮತ್ತು ಹಾಲಿನ ಪ್ರಕಾರಕ್ಕೆ ಈಗಾಗಲೇ ಕೈಬರಹದ ರಸೀದಿ ಇದೆ. ಈ ಟ್ಯಾಂಕರ್ ಅನ್ನೂ ಸ್ವೀಕರಿಸಿದರೆ ಹಾಲು ಎರಡು ಬಾರಿ ಎಣಿಕೆಯಾಗುತ್ತದೆ — ಒಂದನ್ನು ಅಳಿಸಿ.",
   "ppTankersEmptyTitle": "ಇಂದು ಯಾವುದೇ ಟ್ಯಾಂಕರ್ ಇಲ್ಲ",
   "ppTankersEmptySubtitle": "ಈ ಪ್ಲಾಂಟ್‌ಗೆ ರವಾನಿಸಿದ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ",
   "adminSwitchTitlePp": "ಸಂಸ್ಕರಣಾ ಘಟಕಗಳು",

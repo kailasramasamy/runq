@@ -222,6 +222,10 @@ class MilkTypePill extends StatelessWidget {
       ),
       child: Text(
         milkTypeL10n(AppLocalizations.of(context), milkType),
+        // Labels like "Cow A1 (regular)" outrun a narrow list column; ellipsise
+        // rather than overflow the row the pill sits in.
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: DhenuText.caption.copyWith(color: t.brand, fontWeight: FontWeight.w700),
       ),
     );

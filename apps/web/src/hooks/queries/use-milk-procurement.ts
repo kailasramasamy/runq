@@ -596,6 +596,13 @@ export interface MpConsignment {
   receiptFat: string | null; receiptSnf: string | null; receiptWater: number | null;
   varianceQty: string | null; variancePct: string | null;
   status: 'in_transit' | 'received' | 'reversed';
+  /** Each type travels as its own leg. Null on legs dispatched before the split. */
+  milkType: MilkType | null;
+}
+
+/** Table-friendly variant: em dash for legs dispatched before the type split. */
+export function milkTypeLabelOrDash(t: MilkType | null | undefined): string {
+  return t ? milkTypeLabel(t) : '—';
 }
 export function useConsignments(filters?: {
   kind?: string; toNodeId?: string; fromNodeId?: string; status?: string; shift?: string;

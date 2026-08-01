@@ -137,6 +137,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get collectReopen => 'மீண்டும் திற';
 
   @override
+  String get collectDispatchNow => 'இப்போது அனுப்பவும்';
+
+  @override
   String get collectCloseBlockedPending =>
       'சில ஊற்றுகள் இன்னும் ஒத்திசைக்கவில்லை — ஒத்திசைத்த பின் மூடவும்.';
 
@@ -571,6 +574,18 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get dispatchQtyHint => 'அனுப்பும் அளவு (L)';
+
+  @override
+  String get dispatchErrorNoTypeSelected =>
+      'அனுப்ப குறைந்தது ஒரு பால் வகையையாவது தேர்ந்தெடுக்கவும்.';
+
+  @override
+  String dispatchTankerButtonMulti(int count) {
+    return '$count சுமைகளை அனுப்பவும்';
+  }
+
+  @override
+  String get dispatchTypeHeldBack => 'அடுத்த அனுப்புதலுக்காக வைக்கப்பட்டுள்ளது';
 
   @override
   String get dispatchContainerHint => 'கொள்கலன் எண் (விருப்பமான)';
@@ -2251,6 +2266,66 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get ppReceiveMeasuredAtPlant => 'ஆலையில் அளக்கப்பட்டது';
+
+  @override
+  String get ppManualReceiveButton => 'அனுப்புதல் இல்லாமல் பெறுக';
+
+  @override
+  String get ppManualReceiveTitle => 'அனுப்புதல் இல்லாமல் பெறுக';
+
+  @override
+  String get ppManualReceiveInfoBanner =>
+      'பால் ஆலைக்கு வந்துவிட்டது ஆனால் CC இன்னும் தனது சேகரிப்பைப் பதிவு செய்யவில்லை எனும்போது இதைப் பயன்படுத்தவும். உற்பத்தித் திட்டமிடலுக்காக ஒவ்வொரு பால் வகைக்கும் தனித்தனியாகப் பதிவு செய்யவும்.';
+
+  @override
+  String get ppManualReceiveArrivedFrom => 'எங்கிருந்து வந்தது';
+
+  @override
+  String get ppManualReceiveSourceCc => 'குளிரூட்டும் மையம்';
+
+  @override
+  String get ppManualReceivePerTypeLabel =>
+      'பெறப்பட்ட அளவு, ஒவ்வொரு பால் வகைக்கும்';
+
+  @override
+  String get ppManualReceiveNotReceived => 'பெறவில்லை';
+
+  @override
+  String get ppManualReceiveSaveEmpty => 'அளவை உள்ளிடவும்';
+
+  @override
+  String manualReceiveSaveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ரசீதுகளைச் சேமி',
+      one: '1 ரசீதைச் சேமி',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String manualReceivePartialError(int saved, String error) {
+    String _temp0 = intl.Intl.pluralLogic(
+      saved,
+      locale: localeName,
+      other: '$saved ரசீதுகள் சேமிக்கப்பட்டன',
+      one: '1 ரசீது சேமிக்கப்பட்டது',
+    );
+    return '$_temp0, பிறகு: $error';
+  }
+
+  @override
+  String get ppReceiveManualTag => 'கைமுறை';
+
+  @override
+  String ppReceiveDeleteManualConfirm(String qty, String cc, String date) {
+    return '$date அன்று $cc இலிருந்து வந்த $qty கைமுறை ரசீதை நீக்கவா? அது பதிவு செய்த மூலப்பால் இருப்பு திரும்பப் பெறப்படும்.';
+  }
+
+  @override
+  String get ppReceiveManualDuplicateWarning =>
+      'இந்த CC, தேதி மற்றும் பால் வகைக்கு ஏற்கனவே ஒரு கைமுறை ரசீது உள்ளது. இந்த டேங்கரையும் பெற்றால் பால் இரண்டு முறை கணக்கிடப்படும் — ஒன்றை நீக்கவும்.';
 
   @override
   String get ppTankersEmptyTitle => 'இன்று டேங்கர்கள் இல்லை';

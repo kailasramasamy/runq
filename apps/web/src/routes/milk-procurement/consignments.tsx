@@ -9,6 +9,7 @@ import {
   useNodes, useConsignments, useDispatchConsignment, useReceiveConsignment, useNodeAvailability,
   useShiftStatus,
   type MpNode, type MpConsignment, type NodeType, type MpAvailability,
+  milkTypeLabelOrDash,
 } from '@/hooks/queries/use-milk-procurement';
 import { ConsignmentHistoryView } from './consignment-history';
 
@@ -226,7 +227,7 @@ function InboundCard({ leg, query, nodeMap }: { leg: Leg; query: ReturnType<type
       <CardHeader>Inbound · {leg.to.toUpperCase()} · {inbound.length} in transit</CardHeader>
       <CardContent className="p-0">
         <Table>
-          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Dispatched</Th><Th align="right">Action</Th></TableRow></TableHeader>
+          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Milk</Th><Th>Dispatched</Th><Th align="right">Action</Th></TableRow></TableHeader>
           <TableBody>
             {query.isLoading ? (
               <TableSkeleton rows={3} cols={4} />
@@ -237,6 +238,7 @@ function InboundCard({ leg, query, nodeMap }: { leg: Leg; query: ReturnType<type
                 <TableRow key={c.id}>
                   <TableCell className="text-xs">{c.consignmentNo}</TableCell>
                   <TableCell className="text-xs">{nm(c.fromNodeId)} → {nm(c.toNodeId)}</TableCell>
+                  <TableCell className="text-xs">{milkTypeLabelOrDash(c.milkType)}</TableCell>
                   <TableCell>{c.dispatchQty} L</TableCell>
                   <TableCell className="text-right"><Button size="sm" onClick={() => setReceiving(c)}>Receive</Button></TableCell>
                 </TableRow>
@@ -301,7 +303,7 @@ function RecentList({ kind, nodeMap }: { kind: LegKind; nodeMap: Map<string, MpN
       <CardHeader>Recent consignments</CardHeader>
       <CardContent className="p-0">
         <Table>
-          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Qty</Th><Th>Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Water Δ</Th><Th>Status</Th></TableRow></TableHeader>
+          <TableHeader><TableRow><Th>No.</Th><Th>From → To</Th><Th>Milk</Th><Th>Qty</Th><Th>Qty Δ</Th><Th>FAT Δ</Th><Th>SNF Δ</Th><Th>Water Δ</Th><Th>Status</Th></TableRow></TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableEmpty colSpan={8} message="No consignments yet." />
@@ -310,6 +312,7 @@ function RecentList({ kind, nodeMap }: { kind: LegKind; nodeMap: Map<string, MpN
                 <TableRow key={c.id}>
                   <TableCell className="text-xs">{c.consignmentNo}</TableCell>
                   <TableCell className="text-xs">{nm(c.fromNodeId)} → {nm(c.toNodeId)}</TableCell>
+                  <TableCell className="text-xs">{milkTypeLabelOrDash(c.milkType)}</TableCell>
                   <TableCell>{c.receiptQty ?? c.dispatchQty} L</TableCell>
                   <TableCell className={Number(c.varianceQty) < 0 ? 'text-red-600' : ''}>{c.varianceQty ?? '—'}</TableCell>
                   <DeltaCell receipt={c.receiptFat} dispatch={c.dispatchFat} />

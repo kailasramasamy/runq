@@ -251,19 +251,29 @@ class CcHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [
-        Expanded(child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
-            CcReceiveHistory(node: node))),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.trendingUp, l.ccHomeReportLink,
-            CcReportTab(node: node))),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.ccHomeQcReportLink,
-            CcQcReport(node: node))),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.grid, l.ccHomeRateChartLink,
-            const CcRateCharts())),
-      ]);
+  /// 2×2 grid. Four across left each card ~a quarter of the width, which wrapped
+  /// the two-word labels onto a second line and left the cards visibly uneven.
+  /// IntrinsicHeight keeps a pair level even if a translation still wraps.
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final links = <(IconData, String, Widget)>[
+      (DhenuIcons.history, l.homeHistory, CcReceiveHistory(node: node)),
+      (DhenuIcons.trendingUp, l.ccHomeReportLink, CcReportTab(node: node)),
+      (DhenuIcons.barChart, l.ccHomeQcReportLink, CcQcReport(node: node)),
+      (DhenuIcons.grid, l.ccHomeRateChartLink, const CcRateCharts()),
+    ];
+    Widget pair(int a, int b) => IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: _linkCard(context, t, links[a].$1, links[a].$2, links[a].$3)),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(child: _linkCard(context, t, links[b].$1, links[b].$2, links[b].$3)),
+          ]),
+        );
+    return Column(children: [
+      pair(0, 1),
+      const SizedBox(height: DhenuSpacing.md),
+      pair(2, 3),
+    ]);
+  }
 
   Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
       DhenuCard(
@@ -278,7 +288,7 @@ class CcHome extends ConsumerWidget {
         child: Column(children: [
           Icon(icon, color: t.brand),
           const SizedBox(height: DhenuSpacing.sm),
-          Text(label, style: DhenuText.label.copyWith(color: t.ink)),
+          Text(label, textAlign: TextAlign.center, style: DhenuText.label.copyWith(color: t.ink)),
         ]),
       );
 

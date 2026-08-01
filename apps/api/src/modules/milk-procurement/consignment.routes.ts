@@ -29,7 +29,7 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const q = consignmentAvailabilitySchema.parse(request.query);
     const principal = await resolveMpPrincipal(request);
     const service = new ConsignmentService(request.server.db, request.tenantId);
-    return { data: await service.availability(q.nodeId, q.collectionDate, principal, q.shift) };
+    return { data: await service.availability(q.nodeId, q.collectionDate, principal, q.shift, q.milkType) };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

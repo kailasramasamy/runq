@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
-import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
-import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
-import '../../utils/friendly_error.dart';
+import 'manual_receive_entry_screen.dart';
 
 /// Manual receive hub — for milk that arrived WITHOUT a dispatch entry (the VMCC
 /// operator forgot to mark dispatch, or works off a notebook). The operator
@@ -42,9 +40,11 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     return m;
   }
 
-  /// Tapping a VMCC: fresh receive, or — if it's already received — edit the
-  /// existing receipt (latest one, prefilled) rather than create a duplicate.
-  Future<void> _openEntry(MpNode vmcc, {MpConsignment? existing}) async {
+  /// Tapping a VMCC opens entry for this date + shift, carrying whatever is
+  /// already in for it. The entry screen prefills the types already received
+  /// and takes a fresh one for any type still missing, so a VMCC that sent both
+  /// cow and buffalo can be completed without a duplicate.
+  Future<void> _openEntry(MpNode vmcc, {List<MpConsignment> existing = const []}) async {
     final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
       builder: (_) => ManualReceiveEntryScreen(
         vmcc: vmcc, ccNodeId: widget.ccNodeId, date: _date, shift: _shift, existing: existing),
@@ -146,8 +146,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      // Editing targets the latest receipt for this VMCC; pending → fresh entry.
-      onTap: () => _openEntry(v, existing: done ? receipts.last : null),
+      onTap: () => _openEntry(v, existing: receipts),
       child: Row(children: [
         Container(
           width: 40, height: 40,
@@ -190,254 +189,5 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
             Icon(DhenuIcons.calendar, size: 18, color: t.inkSoft),
           ]),
         ),
-      );
-}
-
-/// Records the actual qty/FAT/SNF/Water measured at the CC for one VMCC's milk
-/// that arrived without a dispatch entry. Date + shift come fixed from the hub.
-class ManualReceiveEntryScreen extends ConsumerStatefulWidget {
-  const ManualReceiveEntryScreen({
-    super.key,
-    required this.vmcc,
-    required this.ccNodeId,
-    required this.date,
-    required this.shift,
-    this.existing,
-  });
-  final MpNode vmcc;
-  final String ccNodeId;
-  final DateTime date;
-  final Shift shift;
-  // When set, edit this already-received consignment instead of creating one.
-  final MpConsignment? existing;
-
-  @override
-  ConsumerState<ManualReceiveEntryScreen> createState() => _ManualReceiveEntryScreenState();
-}
-
-class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScreen> {
-  final _qty = TextEditingController();
-  final _fat = TextEditingController();
-  final _snf = TextEditingController();
-  final _water = TextEditingController();
-  final _qtyFocus = FocusNode();
-  final _fatFocus = FocusNode();
-  final _snfFocus = FocusNode();
-  final _waterFocus = FocusNode();
-  bool _saving = false;
-  String? _error;
-
-  String _trimNum(double n) =>
-      n == n.truncateToDouble() ? n.toInt().toString() : n.toString();
-
-  @override
-  void initState() {
-    super.initState();
-    final e = widget.existing;
-    if (e != null) {
-      if (e.receiptQty != null) _qty.text = _trimNum(e.receiptQty!);
-      if (e.receiptFat != null) _fat.text = _trimNum(e.receiptFat!);
-      if (e.receiptSnf != null) _snf.text = _trimNum(e.receiptSnf!);
-      if (e.receiptWater != null) _water.text = _trimNum(e.receiptWater!);
-    }
-    for (final c in [_qty, _fat, _snf, _water]) {
-      c.addListener(() => setState(() {}));
-    }
-  }
-
-  @override
-  void dispose() {
-    _qty.dispose();
-    _fat.dispose();
-    _snf.dispose();
-    _water.dispose();
-    _qtyFocus.dispose();
-    _fatFocus.dispose();
-    _snfFocus.dispose();
-    _waterFocus.dispose();
-    super.dispose();
-  }
-
-  double? _positive(TextEditingController c) {
-    final v = double.tryParse(c.text);
-    return (v != null && v > 0) ? v : null;
-  }
-
-  /// Water reading, where 0 is a real answer ("no added water") rather than a
-  /// blank — so it parses on its own instead of going through [_positive].
-  double? get _waterVal {
-    final v = double.tryParse(_water.text);
-    return (v != null && v >= 0) ? v : null;
-  }
-
-  // Water is required alongside the three measures: it is the adulteration
-  // signal, so a blank reading is a gap in the VMCC's quality record.
-  bool get _allEntered =>
-      _positive(_qty) != null && _positive(_fat) != null &&
-      _positive(_snf) != null && _waterVal != null;
-
-  /// "Next" handler — jump focus to the first field still missing, water
-  /// included, so the operator is guided field-by-field instead of hunting for
-  /// what's blank.
-  void _focusNext() {
-    if (_positive(_qty) == null) {
-      _qtyFocus.requestFocus();
-    } else if (_positive(_fat) == null) {
-      _fatFocus.requestFocus();
-    } else if (_positive(_snf) == null) {
-      _snfFocus.requestFocus();
-    } else if (_waterVal == null) {
-      _waterFocus.requestFocus();
-    }
-  }
-
-  Future<void> _save() async {
-    if (!_allEntered) {
-      setState(() => _error = AppLocalizations.of(context).ccManualReceiveErrorMissingFields);
-      return;
-    }
-    setState(() { _saving = true; _error = null; });
-    try {
-      final existing = widget.existing;
-      if (existing != null) {
-        await mpRepo.editReceipt(existing.id, {
-          'receiptQty': _positive(_qty),
-          'receiptFat': _positive(_fat),
-          'receiptSnf': _positive(_snf),
-          'receiptWater': _waterVal,
-        });
-      } else {
-        await mpRepo.directReceive({
-          'fromNodeId': widget.vmcc.id,
-          'toNodeId': widget.ccNodeId,
-          'collectionDate': isoDate(widget.date),
-          'shift': widget.shift.name,
-          'qty': _positive(_qty),
-          'fat': _positive(_fat),
-          'snf': _positive(_snf),
-          'water': _waterVal,
-        });
-      }
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      setState(() { _saving = false; _error = friendlyError(context, e); });
-    }
-  }
-
-  /// Delete this manually-entered receipt (server rejects unless it's a direct
-  /// receive that isn't yet locked for dispatch).
-  Future<void> _delete() async {
-    final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: Text(l.ccReceiveDeleteConfirmTitle),
-        content: Text(l.ccManualReceiveDeleteConfirmBody(widget.vmcc.name,
-            prettyDate(isoDate(widget.date)), widget.shift == Shift.am ? l.shiftAm : l.shiftPm)),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l.commonCancel)),
-          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l.syncDelete)),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    setState(() { _saving = true; _error = null; });
-    try {
-      await mpRepo.deleteReceipt(widget.existing!.id);
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      setState(() { _saving = false; _error = friendlyError(context, e); });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = DT(context);
-    final l = AppLocalizations.of(context);
-    final isAm = widget.shift == Shift.am;
-    return Scaffold(
-      backgroundColor: t.surface,
-      appBar: AppBar(title: Text(widget.vmcc.name)),
-      body: SafeArea(
-        child: Column(children: [
-          Expanded(child: ListView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.all(DhenuSpacing.screen),
-            children: [
-              DhenuCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Text(l.ccMeasuredAtCc, style: DhenuText.label.copyWith(color: t.brand)),
-                  const Spacer(),
-                  Text('${prettyDate(isoDate(widget.date))} · ',
-                      style: DhenuText.caption.copyWith(color: t.inkSoft)),
-                  Icon(isAm ? DhenuIcons.sun : DhenuIcons.moon, size: 12, color: t.inkSoft),
-                  const SizedBox(width: 4),
-                  Text(isAm ? l.shiftAm : l.shiftPm, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-                ]),
-                const SizedBox(height: DhenuSpacing.md),
-                // Qty / FAT / SNF on one line, Water at the same field width on
-                // the next — consistent with the VMCC record-collection layout.
-                Row(children: [
-                  Expanded(child: _field(_qty, l.ccManualReceiveQtyHint, focusNode: _qtyFocus, next: _fatFocus,
-                      autofocus: widget.existing == null)),
-                  const SizedBox(width: DhenuSpacing.md),
-                  Expanded(child: _field(_fat, 'FAT %', focusNode: _fatFocus, next: _snfFocus)),
-                  const SizedBox(width: DhenuSpacing.md),
-                  Expanded(child: _field(_snf, 'SNF %', focusNode: _snfFocus, next: _waterFocus)),
-                ]),
-                const SizedBox(height: DhenuSpacing.md),
-                Row(children: [
-                  Expanded(child: _field(_water, 'Water %', focusNode: _waterFocus)),
-                  const SizedBox(width: DhenuSpacing.md),
-                  const Expanded(child: SizedBox.shrink()),
-                  const SizedBox(width: DhenuSpacing.md),
-                  const Expanded(child: SizedBox.shrink()),
-                ]),
-              ])),
-              if (_error != null) ...[
-                const SizedBox(height: DhenuSpacing.sm),
-                Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
-              ],
-            ],
-          )),
-          Padding(
-            padding: const EdgeInsets.all(DhenuSpacing.screen),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              PrimaryAction(
-                label: _allEntered
-                    ? (widget.existing != null ? l.ccManualReceiveSaveChanges : l.ccManualReceiveMarkReceived)
-                    : l.commonNext,
-                icon: _allEntered ? DhenuIcons.check : DhenuIcons.chevronRight,
-                onPressed: _allEntered ? _save : _focusNext,
-                loading: _saving,
-              ),
-              if (widget.existing?.directReceive ?? false) ...[
-                const SizedBox(height: DhenuSpacing.sm),
-                TextButton.icon(
-                  onPressed: _saving ? null : _delete,
-                  icon: Icon(DhenuIcons.trash, size: 18, color: t.gradeC),
-                  label: Text(l.ccReceiveDeleteReceipt, style: DhenuText.label.copyWith(color: t.gradeC)),
-                ),
-              ],
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _field(TextEditingController ctrl, String hint,
-          {FocusNode? focusNode, FocusNode? next, bool autofocus = false}) =>
-      TextField(
-        controller: ctrl,
-        focusNode: focusNode,
-        autofocus: autofocus,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        textCapitalization: TextCapitalization.none,
-        textInputAction: next != null ? TextInputAction.next : TextInputAction.done,
-        onSubmitted: (_) => next?.requestFocus(),
-        // Larger, bolder value text so measured quantities read clearly at a glance.
-        style: DhenuText.h2.copyWith(color: DT(context).ink, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(labelText: hint),
       );
 }

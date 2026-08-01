@@ -23,6 +23,7 @@ import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
+import 'vmcc_dispatch_tab.dart';
 import 'vmcc_collection_history.dart';
 import 'vmcc_farmers_tab.dart';
 import 'vmcc_reports_tab.dart';
@@ -69,12 +70,7 @@ class VmccHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.md),
           _statsRow(ref, t, l, summary),
           const SizedBox(height: DhenuSpacing.lg),
-          PrimaryAction(
-            label: l.recordCollectionTitle,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
-            ),
-          ),
+          _primaryAction(context, ref, t, l),
           const SizedBox(height: DhenuSpacing.lg),
           _quickLinks(context, t, l),
           const SizedBox(height: DhenuSpacing.xl),
@@ -140,6 +136,42 @@ class VmccHome extends ConsumerWidget {
           ),
         ],
       );
+
+  /// Recording is the headline action only while the slot is open. Once it's
+  /// closed, offering "Record collection" leads to a screen with no form on it,
+  /// so the slot's next step — dispatch — takes the button instead. Recording
+  /// stays reachable underneath for back-dating or reopening.
+  Widget _primaryAction(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
+    final status = ref.watch(shiftStatusProvider(node.id)).asData?.value;
+    final shift = shiftFrom(currentShift());
+    final closed = status != null &&
+        (node.hasBmc ? status.dayClosed : status.closedFor(shift.name));
+    void openRecord() => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
+        );
+    if (!closed) {
+      return PrimaryAction(label: l.recordCollectionTitle, onPressed: openRecord);
+    }
+    return Column(children: [
+      PrimaryAction(
+        label: l.collectDispatchNow,
+        icon: DhenuIcons.transit,
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: VmccDispatchTab(
+              node: node,
+              initialShift: node.hasBmc ? null : shift,
+            ),
+          ),
+        )),
+      ),
+      TextButton(
+        onPressed: openRecord,
+        child: Text(l.recordCollectionTitle, style: DhenuText.label.copyWith(color: t.brand)),
+      ),
+    ]);
+  }
 
   /// End-of-shift reminder (audit E8): closing is what unlocks dispatch, but
   /// nothing used to nag an operator who walked away with an open shift. Shows
