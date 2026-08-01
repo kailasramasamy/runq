@@ -241,7 +241,6 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
                 step="0.001"
                 value={outputQty}
                 onChange={(e) => setOutputQty(e.target.value)}
-                placeholder="500"
                 error={errors.outputQty}
               />
               {errors.outputQty && <p className="mt-1 text-[11px] text-red-500">{errors.outputQty}</p>}

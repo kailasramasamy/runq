@@ -1,14 +1,14 @@
 import { Link } from '@tanstack/react-router';
 import {
   FlaskConical, Factory, ClipboardList, Plus,
-  PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3, CalendarClock,
+  PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3, CalendarClock, Milk,
 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Skeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useMfgDashboard } from '@/hooks/queries/use-mfg-reports';
 import { useWorkOrders } from '@/hooks/queries/use-work-orders';
-import { useExpiring, type ExpiryRow } from '@/hooks/queries/use-inventory';
+import { useExpiring, useOnHand, type ExpiryRow } from '@/hooks/queries/use-inventory';
 
 const ACCENT = '#E11D48';
 
@@ -158,6 +158,8 @@ export function ManufacturingHomePage() {
           </CardContent>
         </Card>
       </div>
+
+      <InputsOnHandTile />
 
       <PerishablesTile />
 
@@ -484,3 +486,89 @@ function WoStatusBadge({ status }: { status: string }) {
   );
 }
 
+
+
+/** What a BOM can actually consume today, grouped per input item with its
+ *  batches. Sits above the quick actions because "can I run this?" is the
+ *  question you have before writing a recipe or scheduling a run — and it was
+ *  previously only answerable by leaving for the Inventory module.
+ *
+ *  `inputs` is the item-class group covering raw_material + packaging, so this
+ *  is exactly the set a work order draws from. */
+function InputsOnHandTile() {
+  const { data, isLoading } = useOnHand({ itemClassGroup: 'inputs' });
+  const rows = data ?? [];
+
+  // Roll batches up per item: the BOM is written against an item, but the run
+  // consumes specific batches, so both numbers matter.
+  const byItem = new Map<string, {
+    itemId: string; itemName: string; itemUnit: string | null;
+    qty: number; value: number; batches: number; newestAt: string | null;
+  }>();
+  for (const r of rows) {
+    const cur = byItem.get(r.itemId) ?? {
+      itemId: r.itemId, itemName: r.itemName, itemUnit: r.itemUnit ?? null,
+      qty: 0, value: 0, batches: 0, newestAt: null,
+    };
+    cur.qty += r.qty;
+    cur.value += r.value;
+    cur.batches += 1;
+    if (r.receivedAt && (!cur.newestAt || r.receivedAt > cur.newestAt)) cur.newestAt = r.receivedAt;
+    byItem.set(r.itemId, cur);
+  }
+  const items = [...byItem.values()].sort((a, b) => b.qty - a.qty);
+
+  return (
+    <Card className="mt-6">
+      <CardContent>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--text-1)' }}>
+            <Milk size={15} style={{ color: ACCENT }} />
+            Raw materials on hand
+          </h2>
+          <Link to="/inventory/stock/on-hand" className="text-xs font-medium" style={{ color: ACCENT }}>
+            View all
+          </Link>
+        </div>
+        {isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : items.length === 0 ? (
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+            No raw materials or packaging in stock — a work order will have nothing to consume.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((it) => (
+              <div key={it.itemId} className="flex items-baseline justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>
+                    {it.itemName}
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+                    {it.batches} batch{it.batches === 1 ? '' : 'es'}
+                    {it.newestAt ? ` · newest ${new Date(it.newestAt).toLocaleString('en-IN', {
+                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+                    })}` : ''}
+                  </p>
+                </div>
+                <div className="whitespace-nowrap text-right">
+                  <p className="text-[13px] font-semibold tabular-nums" style={{ color: 'var(--text-1)' }}>
+                    {it.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+                    {it.itemUnit ? ` ${it.itemUnit}` : ''}
+                  </p>
+                  {/* Zero value is real and worth seeing: procurement milk is not
+                      costed yet, so anything made from it will be under-costed. */}
+                  <p className="text-[11px] tabular-nums" style={{ color: 'var(--text-3)' }}>
+                    {it.value > 0
+                      ? it.value.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
+                      : 'not costed'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

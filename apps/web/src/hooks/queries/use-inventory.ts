@@ -38,6 +38,9 @@ export interface OnHandRow {
   /** Earliest GRN expiry date for this (item, batch). Null when the batch
    *  isn't expiry-tracked or no GRN line carries a date. */
   expiryDate: string | null;
+  /** When the batch first came into stock. Unlike `lastMovementAt` this is the
+   *  post time, so same-day intake sorts in the order it actually arrived. */
+  receivedAt: string | null;
 }
 
 export interface LedgerRow {

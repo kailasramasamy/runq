@@ -61,11 +61,16 @@ export function OnHandPage() {
   // = Finished, falls through to Trading / Inputs / Other / All if empty.
   // Once the user clicks a pill it lands in the URL and overrides this.
   const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup('finished', counts);
-  const rows = allRows.filter((r) => {
-    if (classGroup !== 'all' && classGroupForItemClass(r.itemClass) !== classGroup) return false;
-    const q = search.toLowerCase();
-    return !q || r.itemName.toLowerCase().includes(q) || (r.itemSku ?? '').toLowerCase().includes(q) || r.batchNo.toLowerCase().includes(q);
-  });
+  const rows = allRows
+    .filter((r) => {
+      if (classGroup !== 'all' && classGroupForItemClass(r.itemClass) !== classGroup) return false;
+      const q = search.toLowerCase();
+      return !q || r.itemName.toLowerCase().includes(q) || (r.itemSku ?? '').toLowerCase().includes(q) || r.batchNo.toLowerCase().includes(q);
+    })
+    // Newest intake first. For short-life stock the question is almost always
+    // "what came in, and when" rather than "which item alphabetically" — and it
+    // puts today's tankers at the top. Batches with no recorded receipt sort last.
+    .sort((a, b) => (b.receivedAt ?? '').localeCompare(a.receivedAt ?? ''));
 
   const whOptions = [
     { value: '', label: 'All warehouses' },
@@ -134,6 +139,7 @@ export function OnHandPage() {
               <Th>SKU</Th>
               <Th>Warehouse</Th>
               <Th>Batch</Th>
+              <Th>Received</Th>
               <Th>Expiry</Th>
               <Th className="text-right">Qty</Th>
               <Th className="text-right">Avg cost</Th>
@@ -157,6 +163,7 @@ export function OnHandPage() {
                 <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
                 <TableCell>{r.warehouseName}</TableCell>
                 <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
                 <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
                 <TableCell className="text-right tabular-nums">
                   {r.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
@@ -196,4 +203,15 @@ function daysFromToday(iso: string): number | null {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((d.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** Batch intake stamp: date plus clock time, since several tankers can land on
+ *  the same day and the order they arrived is what matters for short-life stock. */
+function formatReceivedAt(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+  });
 }
