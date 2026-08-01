@@ -328,6 +328,10 @@ class _RootShellState extends ConsumerState<RootShell>
           },
           onFab: _toggleSheet,
           fabCtrl: _fabCtrl,
+          // Manufacturing puts the action button after its tabs rather than
+          // between them: with only three destinations, a centre FAB splits
+          // "BOMs" off from "WOs", which read as a pair.
+          fabSlot: module == AppModule.manufacturing ? tabs.length : 2,
         ),
       ),
     );
@@ -341,6 +345,10 @@ class _BottomNavPill extends StatelessWidget {
   final ValueChanged<int> onTap;
   final VoidCallback onFab;
   final AnimationController fabCtrl;
+
+  /// How many tabs sit before the action button. 2 centres it (the default
+  /// across modules); `tabs.length` parks it at the end.
+  final int fabSlot;
   const _BottomNavPill({
     required this.tabs,
     required this.activeIndex,
@@ -348,6 +356,7 @@ class _BottomNavPill extends StatelessWidget {
     required this.onTap,
     required this.onFab,
     required this.fabCtrl,
+    this.fabSlot = 2,
   });
 
   @override
@@ -375,7 +384,7 @@ class _BottomNavPill extends StatelessWidget {
             ),
             child: Row(
               children: [
-                for (var i = 0; i < 2; i++)
+                for (var i = 0; i < fabSlot && i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
                       tab: tabs[i],
@@ -385,7 +394,7 @@ class _BottomNavPill extends StatelessWidget {
                     ),
                   ),
                 _FabButton(onTap: onFab, fabCtrl: fabCtrl, accent: accent),
-                for (var i = 2; i < tabs.length; i++)
+                for (var i = fabSlot; i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
                       tab: tabs[i],

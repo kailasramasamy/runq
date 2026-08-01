@@ -123,12 +123,14 @@ import 'screens/hr/hr_rewards_screen.dart';
 import 'screens/manufacturing/manufacturing_home_screen.dart';
 import 'screens/manufacturing/manufacturing_more_screen.dart';
 import 'screens/manufacturing/bom_list_screen.dart';
+import 'screens/manufacturing/mfg_raw_materials_screen.dart';
 import 'screens/manufacturing/bom_detail_screen.dart';
 import 'screens/manufacturing/bom_create_screen.dart';
 import 'screens/manufacturing/wo_list_screen.dart';
 import 'screens/manufacturing/wo_detail_screen.dart';
 import 'screens/manufacturing/wo_create_screen.dart';
 import 'screens/manufacturing/wo_run_screen.dart';
+import 'screens/manufacturing/wo_run_simple_screen.dart';
 import 'screens/manufacturing/reports/wo_summary_screen.dart';
 import 'screens/manufacturing/reports/yield_trend_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -311,6 +313,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // onto root navigator so they take the full viewport.
             GoRoute(path: '/manufacturing', pageBuilder: _fadePage((_) => const ManufacturingHomeScreen())),
             GoRoute(path: '/manufacturing/boms', pageBuilder: _fadePage((_) => const BomListScreen())),
+            // Inputs a run can consume, kept inside Manufacturing so planning a
+            // run never bounces the operator into the Inventory module.
+            GoRoute(path: '/manufacturing/raw-materials',
+                pageBuilder: _fadePage((_) => const MfgRawMaterialsScreen())),
             GoRoute(path: '/manufacturing/wos', pageBuilder: (_, state) => CustomTransitionPage(
               key: state.pageKey,
               child: WoListScreen(
@@ -780,8 +786,19 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             key: state.pageKey,
           ),
         ),
+        // Default run view is the shop-floor one: enter units made, done. The
+        // tabbed consume/output screen stays available for supervisors who need
+        // per-line or ad-hoc entries.
         GoRoute(
           path: '/manufacturing/wos/:id/run',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            WoRunSimpleScreen(woId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/manufacturing/wos/:id/run/advanced',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
             WoRunScreen(woId: state.pathParameters['id']!),

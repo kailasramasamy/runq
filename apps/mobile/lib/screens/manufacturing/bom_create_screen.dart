@@ -18,9 +18,10 @@ class BomCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
+  // Matches the web form's default: one unit of output unless told otherwise.
   final _codeCtl = TextEditingController();
   final _nameCtl = TextEditingController();
-  final _outputQtyCtl = TextEditingController();
+  final _outputQtyCtl = TextEditingController(text: '1');
   final _notesCtl = TextEditingController();
   String? _outputItemId;
   String? _outputItemName;
@@ -157,7 +158,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
                               flex: 2,
                               child: _TextField(
                                 controller: _outputQtyCtl,
-                                label: 'Output qty',
+                                label: 'Unit size',
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 capitalization: TextCapitalization.none,
                                 onChanged: (_) => setState(() {}),
@@ -492,7 +493,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                                   flex: 2,
                                   child: _TextField(
                                     controller: _outputQtyCtl,
-                                    label: 'Output qty',
+                                    label: 'Unit size',
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     capitalization: TextCapitalization.none,
                                     onChanged: (_) => setState(() {}),

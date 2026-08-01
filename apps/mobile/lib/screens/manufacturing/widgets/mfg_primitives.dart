@@ -77,7 +77,7 @@ class _StatusStyle {
 
 /// WO status → display style. Status strings match the DB enum
 /// (`wo_status`): draft | in_progress | completed | closed | cancelled.
-_StatusStyle _woStatusStyle(String status) {
+_StatusStyle _woStatusStyle(BuildContext context, String status) {
   switch (status) {
     case 'in_progress':
       return _StatusStyle(MfgColors.infoBg, MfgColors.info, 'In Progress');
@@ -89,14 +89,17 @@ _StatusStyle _woStatusStyle(String status) {
       return _StatusStyle(MfgColors.errorBg, MfgColors.error, 'Cancelled');
     case 'draft':
     default:
-      return _StatusStyle(const Color(0x14000000), const Color(0xFF6B7280), 'Draft');
+      // Theme tokens, not fixed greys: 8% black on grey-500 disappears entirely
+      // on a dark background, which made Draft the one status you couldn't read.
+      final t = RT(context);
+      return _StatusStyle(t.hairline, t.ink2, 'Draft');
   }
 }
 
 /// BOM active/inactive status style.
-_StatusStyle _bomStatusStyle(bool isActive) => isActive
+_StatusStyle _bomStatusStyle(BuildContext context, bool isActive) => isActive
     ? _StatusStyle(MfgColors.successBg, MfgColors.success, 'Active')
-    : _StatusStyle(const Color(0x14000000), const Color(0xFF6B7280), 'Inactive');
+    : _StatusStyle(RT(context).hairline, RT(context).ink2, 'Inactive');
 
 /// Compact WO status badge.
 class MfgStatusPill extends StatelessWidget {
@@ -110,18 +113,19 @@ class MfgStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _woStatusStyle(status);
+    final s = _woStatusStyle(context, status);
     return Container(
       padding: padding,
       decoration: BoxDecoration(
         color: s.bg,
+        border: Border.all(color: s.fg.withValues(alpha: 0.35)),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         s.label,
         style: RunqText.micro.copyWith(
           color: s.fg,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -140,7 +144,7 @@ class MfgBomStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = _bomStatusStyle(isActive);
+    final s = _bomStatusStyle(context, isActive);
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -284,7 +288,7 @@ class MfgFilterPill extends StatelessWidget {
     final t = RT(context);
     final brand = activeColor ?? MfgColors.brand(context);
     return Material(
-      color: active ? brand : t.bgWarm,
+      color: active ? brand : t.surface,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -332,7 +336,7 @@ class MfgSearchBar extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-        fillColor: t.bgWarm,
+        fillColor: t.surface,
         hintText: placeholder,
         hintStyle: RunqText.body.copyWith(color: t.muted2),
         prefixIcon: Icon(Icons.search_rounded, color: t.muted2, size: 20),
@@ -398,6 +402,30 @@ class MfgDocListTile extends StatelessWidget {
   final bool? bomIsActive;
   final String? rightValue;
   final String? productLabel;
+
+  /// Promotes a domain headline above the document number. Work orders use this
+  /// for the product being made: on a shop-floor list "Farm Fresh Cow Milk ·
+  /// 600 500ml" is what identifies a row, while WO-20260730-0001 is a reference
+  /// you only need once you're in it. Null keeps the original layout, so the BOM
+  /// list is unaffected.
+  final String? headline;
+
+  /// Quantity shown under [headline], emphasised in the module accent.
+  final String? headlineValue;
+
+  /// Single muted line under the quantity — document number plus whatever else
+  /// identifies the row (date, shift). Replaces both the subtitle and the meta
+  /// chip row when set, so a work order reads as three lines rather than five.
+  final String? reference;
+
+  /// Scheduling facts on their own line under [reference] — kept separate so a
+  /// long document number can't push the date off the end.
+  final String? metaLine;
+
+  /// Unit rendered under [rightValue]. Together they form the row's magnitude
+  /// block: quantity large on the right, unit small beneath it, so the number
+  /// stops competing with the product name for the same line.
+  final String? rightUnit;
   final VoidCallback? onTap;
   const MfgDocListTile({
     super.key,
@@ -409,6 +437,11 @@ class MfgDocListTile extends StatelessWidget {
     this.bomIsActive,
     this.rightValue,
     this.productLabel,
+    this.headline,
+    this.headlineValue,
+    this.reference,
+    this.metaLine,
+    this.rightUnit,
     this.onTap,
   });
 
@@ -423,7 +456,7 @@ class MfgDocListTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: t.hairline),
@@ -448,12 +481,16 @@ class MfgDocListTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            title,
-                            style: RunqText.bodyStrong.copyWith(color: t.ink),
+                            headline ?? title,
+                            style: RunqText.bodyStrong.copyWith(
+                                color: t.ink,
+                                fontWeight:
+                                    headline != null ? FontWeight.w700 : null),
+                            maxLines: headline != null ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (status != null) ...[
+                        if (rightValue == null && status != null) ...[
                           const SizedBox(width: 6),
                           MfgStatusPill(status: status!),
                         ] else if (bomIsActive != null) ...[
@@ -462,7 +499,51 @@ class MfgDocListTile extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (subtitle != null) ...[
+                    if (headlineValue != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        headlineValue!,
+                        style: RunqText.bodyStrong.copyWith(
+                            color: brand, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                    // Document number drops to a muted reference line once a
+                    // headline is carrying the row's identity.
+                    if (reference != null) ...[
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        if (rightValue != null && status != null) ...[
+                          MfgStatusPill(status: status!),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            reference!,
+                            style: RunqText.caption.copyWith(color: t.muted2),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ]),
+                      if (metaLine != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          metaLine!,
+                          style: RunqText.caption.copyWith(color: t.muted2),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ] else if (headline != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle == null || subtitle == headline
+                            ? title
+                            : '$title · $subtitle',
+                        style: RunqText.caption.copyWith(color: t.muted2),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ] else if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         subtitle!,
@@ -509,10 +590,24 @@ class MfgDocListTile extends StatelessWidget {
                 ),
               ),
               if (rightValue != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  rightValue!,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      rightValue!,
+                      style: rightUnit == null
+                          ? RunqText.bodyStrong.copyWith(color: t.ink)
+                          : RunqText.h2.copyWith(
+                              color: t.ink, fontWeight: FontWeight.w800, height: 1),
+                    ),
+                    if (rightUnit != null) ...[
+                      const SizedBox(height: 2),
+                      Text(rightUnit!,
+                          style: RunqText.micro.copyWith(color: t.muted)),
+                    ],
+                  ],
                 ),
               ],
             ],

@@ -70,11 +70,10 @@ class _HeroCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _HeroMiniKpi(
-                      label: 'In Progress',
-                      value: d == null ? '–' : '${d.inProgressCount}',
-                      sub: 'runs',
-                      alert: (d?.inProgressCount ?? 0) > 0,
-                      onTap: () => context.push('/manufacturing/wos?status=in_progress'),
+                      label: 'Completed',
+                      value: d == null ? '–' : '${d.completedTodayCount}',
+                      sub: 'today',
+                      onTap: () => context.push('/manufacturing/wos?status=completed'),
                     ),
                   ),
                 ],
@@ -175,20 +174,16 @@ class _HeroMiniKpi extends StatelessWidget {
     required this.label,
     required this.value,
     required this.sub,
-    this.alert = false,
     this.onTap,
   });
   final String label;
   final String value;
   final String sub;
-  final bool alert;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bg = alert
-        ? const Color(0xFFEF4444).withValues(alpha: 0.38)
-        : Colors.black.withValues(alpha: 0.28);
+    final bg = Colors.black.withValues(alpha: 0.28);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(10),

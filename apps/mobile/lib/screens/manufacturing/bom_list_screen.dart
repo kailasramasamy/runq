@@ -5,7 +5,6 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
-import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
 const _bomTabs = <({bool? isActive, String label})>[
@@ -43,11 +42,6 @@ class _BomListScreenState extends ConsumerState<BomListScreen> {
 
     return Scaffold(
       backgroundColor: t.bgWarm,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: MfgColors.brand(context),
-        onPressed: () => context.push('/manufacturing/boms/new'),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
-      ),
       body: SafeArea(
         child: Column(
           children: [

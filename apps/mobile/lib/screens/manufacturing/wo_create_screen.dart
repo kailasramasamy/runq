@@ -7,6 +7,8 @@ import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
+import '../../api/inventory_models.dart';
+import '../../providers/inventory_providers.dart';
 import '../inventory/widgets/warehouse_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
@@ -26,16 +28,31 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
   String? _outputUom;
   DateTime _scheduledFor = DateTime.now();
   final _plannedQtyCtl = TextEditingController();
-  final _shiftCtl = TextEditingController();
+  String? _shift;
   String? _warehouseId;
   bool _busy = false;
 
   static const _shiftPresets = ['AM', 'PM', 'NIGHT'];
 
   @override
+  void initState() {
+    super.initState();
+    _applyDefaultWarehouse();
+  }
+
+  /// Most plants run every WO out of one warehouse, so making the operator pick
+  /// it each time is a tap that can only be got wrong. Falls back to the sole
+  /// warehouse when none is flagged default.
+  Future<void> _applyDefaultWarehouse() async {
+    final whs = await ref.read(invWarehousesProvider.future);
+    if (!mounted || _warehouseId != null || whs.isEmpty) return;
+    final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
+    setState(() => _warehouseId = pick.id);
+  }
+
+  @override
   void dispose() {
     _plannedQtyCtl.dispose();
-    _shiftCtl.dispose();
     super.dispose();
   }
 
@@ -82,7 +99,7 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
         plannedQty: double.parse(_plannedQtyCtl.text),
         scheduledFor: _scheduledFor.toIso8601String().substring(0, 10),
         warehouseId: _warehouseId!,
-        shift: _shiftCtl.text.trim().isEmpty ? null : _shiftCtl.text.trim(),
+        shift: _shift,
       );
       ref.invalidate(workOrderListProvider);
       if (mounted) context.pushReplacement('/manufacturing/wos/${wo.id}');
@@ -202,29 +219,43 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        _TextField(
-                          controller: _shiftCtl,
-                          label: 'Shift (AM / PM / NIGHT or custom)',
-                          capitalization: TextCapitalization.none,
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          children: _shiftPresets.map((s) => ActionChip(
-                            label: Text(s),
-                            labelStyle: RunqText.caption,
-                            onPressed: () {
-                              setState(() => _shiftCtl.text = s);
-                            },
-                            backgroundColor: _shiftCtl.text == s
-                                ? MfgColors.roseSubtle
-                                : null,
-                          )).toList(),
-                        ),
+                        const SizedBox(height: 12),
+                        // Label and chips share one row — three presets don't
+                        // justify two rows of height on a form this short.
+                        // Chips are the whole control: the free-text box let the
+                        // presets and any arbitrary string disagree, and a typo'd
+                        // shift is invisible until a report groups by it. Tapping
+                        // the selected chip clears it (shift is optional).
+                        Row(children: [
+                          Text('Shift', style: RunqText.caption.copyWith(color: t.muted)),
+                          const SizedBox(width: 10),
+                          for (final preset in _shiftPresets) ...[
+                            if (preset != _shiftPresets.first) const SizedBox(width: 6),
+                            Expanded(
+                              child: _ShiftChip(
+                                label: preset,
+                                selected: _shift == preset,
+                                onTap: () => setState(
+                                    () => _shift = _shift == preset ? null : preset),
+                              ),
+                            ),
+                          ],
+                        ]),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  // What this run will draw from stock, and whether it can.
+                  if (_bomId != null)
+                    _MaterialPlan(
+                      bomId: _bomId!,
+                      plannedQty: double.tryParse(_plannedQtyCtl.text) ?? 0,
+                      outputUom: _outputUom,
+                      warehouseId: _warehouseId,
+                      onUseMax: (qty) => setState(() {
+                        _plannedQtyCtl.text = qty.toStringAsFixed(0);
+                      }),
+                    ),
                   const SizedBox(height: 12),
                   // Warehouse
                   MfgCard(
@@ -249,16 +280,27 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
           ],
         ),
       ),
-      bottomSheet: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: SizedBox(
-            width: double.infinity,
-            child: MfgPrimaryButton(
-              label: 'Create Work Order',
-              loading: _busy,
-              onPressed: _canSave ? _save : null,
-              icon: Icons.check_rounded,
+      // Anchored action bar rather than a thin bottomSheet strip: the button now
+      // sits above the home indicator with real padding and a 52px tap target,
+      // and a hairline separates it from the scrolling form.
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: MfgPrimaryButton(
+                label: 'Create Work Order',
+                loading: _busy,
+                onPressed: _canSave ? _save : null,
+                icon: Icons.check_rounded,
+              ),
             ),
           ),
         ),
@@ -279,7 +321,7 @@ class WoEditScreen extends ConsumerStatefulWidget {
 
 class _WoEditScreenState extends ConsumerState<WoEditScreen> {
   final _plannedQtyCtl = TextEditingController();
-  final _shiftCtl = TextEditingController();
+  String? _shift;
   String? _warehouseId;
   DateTime? _scheduledFor;
   bool _busy = false;
@@ -290,14 +332,13 @@ class _WoEditScreenState extends ConsumerState<WoEditScreen> {
   @override
   void dispose() {
     _plannedQtyCtl.dispose();
-    _shiftCtl.dispose();
     super.dispose();
   }
 
   void _initFrom(WorkOrder wo) {
     if (_loaded) return;
     _plannedQtyCtl.text = wo.plannedQty.toString();
-    _shiftCtl.text = wo.shift ?? '';
+    _shift = wo.shift;
     _warehouseId = wo.warehouseId;
     _scheduledFor = DateTime.tryParse(wo.scheduledFor);
     _loaded = true;
@@ -330,7 +371,7 @@ class _WoEditScreenState extends ConsumerState<WoEditScreen> {
         'plannedQty': double.parse(_plannedQtyCtl.text),
         'scheduledFor': _scheduledFor!.toIso8601String().substring(0, 10),
         'warehouseId': _warehouseId!,
-        'shift': _shiftCtl.text.trim().isEmpty ? null : _shiftCtl.text.trim(),
+        'shift': _shift,
       });
       ref.invalidate(workOrderDetailProvider(widget.woId));
       ref.invalidate(workOrderListProvider);
@@ -465,24 +506,22 @@ class _WoEditScreenState extends ConsumerState<WoEditScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
-                            _TextField(
-                              controller: _shiftCtl,
-                              label: 'Shift',
-                              capitalization: TextCapitalization.none,
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 6,
-                              children: _shiftPresets.map((s) => ActionChip(
-                                label: Text(s),
-                                labelStyle: RunqText.caption,
-                                onPressed: () => setState(() => _shiftCtl.text = s),
-                                backgroundColor: _shiftCtl.text == s
-                                    ? MfgColors.roseSubtle
-                                    : null,
-                              )).toList(),
-                            ),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Text('Shift', style: RunqText.caption.copyWith(color: t.muted)),
+                              const SizedBox(width: 10),
+                              for (final preset in _shiftPresets) ...[
+                                if (preset != _shiftPresets.first) const SizedBox(width: 6),
+                                Expanded(
+                                  child: _ShiftChip(
+                                    label: preset,
+                                    selected: _shift == preset,
+                                    onTap: () => setState(
+                                        () => _shift = _shift == preset ? null : preset),
+                                  ),
+                                ),
+                              ],
+                            ]),
                           ],
                         ),
                       ),
@@ -823,6 +862,382 @@ class _PickerTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+/// Shift selector segment. The tick is the whole point — a tinted background
+/// alone reads as "highlighted" rather than "chosen", which matters when the
+/// field is optional and blank is a legitimate state.
+class _ShiftChip extends StatelessWidget {
+  const _ShiftChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final accent = MfgColors.brand(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(RunqRadii.chip),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.12) : t.bgWarm,
+          border: Border.all(
+            color: selected ? accent.withValues(alpha: 0.55) : t.hairline,
+            width: selected ? 1.5 : 1,
+          ),
+          borderRadius: BorderRadius.circular(RunqRadii.chip),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (selected) ...[
+            Icon(Icons.check_rounded, size: 15, color: accent),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: RunqText.body.copyWith(
+                color: selected ? t.ink : t.muted,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              )),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+
+// ── Material plan ─────────────────────────────────────────────────────────
+
+/// Turns the BOM into the run's actual shopping list: how much of each input
+/// this planned quantity consumes, what's on hand, and whether it's enough.
+///
+/// The plant manager's two questions are "can I run this?" and "what will it
+/// eat?" — both were previously unanswerable without leaving the form and doing
+/// arithmetic by hand.
+class _MaterialPlan extends ConsumerWidget {
+  const _MaterialPlan({
+    required this.bomId,
+    required this.plannedQty,
+    required this.outputUom,
+    required this.warehouseId,
+    required this.onUseMax,
+  });
+
+  final String bomId;
+  final double plannedQty;
+  final String? outputUom;
+
+  /// The run's warehouse. Consumption draws from here, so counting stock parked
+  /// at another site would overstate what this run can actually make.
+  final String? warehouseId;
+
+  /// Fills the planned-qty field with the capacity figure, so the manager can
+  /// act on the suggestion without transcribing it.
+  final ValueChanged<double> onUseMax;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final bom = ref.watch(bomDetailProvider(bomId)).asData?.value;
+    final stock = ref
+            .watch(invOnHandProvider(
+                (warehouseId: warehouseId, lowOnly: false, itemClassGroup: 'inputs')))
+            .asData
+            ?.value ??
+        const <InvOnHandRow>[];
+    if (bom == null) return const SizedBox.shrink();
+    if (bom.lines.isEmpty) {
+      return MfgCard(
+        child: Row(children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: t.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('This BOM has no input lines, so nothing will be consumed.',
+                style: RunqText.caption.copyWith(color: t.muted)),
+          ),
+        ]),
+      );
+    }
+
+    // Litres on hand per input item, summed across that warehouse's batches.
+    final available = <String, double>{};
+    for (final r in stock) {
+      available[r.itemId] = (available[r.itemId] ?? 0) + r.qty;
+    }
+    // Oldest batch still holding stock. Raw milk has no expiry date yet, so
+    // intake age is the only freshness signal — and a capacity figure that leans
+    // on yesterday's milk is not a capacity a dairy can actually use.
+    DateTime? oldest;
+    for (final r in stock) {
+      if (r.qty <= 0 || r.receivedAt == null) continue;
+      final at = DateTime.tryParse(r.receivedAt!);
+      if (at != null && (oldest == null || at.isBefore(oldest))) oldest = at;
+    }
+    final oldestAgeHrs =
+        oldest == null ? null : DateTime.now().difference(oldest).inHours;
+
+    // BOM quantities are per `bom.outputQty` of output, so scale by the run.
+    // Scrap is a percentage uplift on the consumed quantity.
+    final batches = bom.outputQty > 0 ? plannedQty / bom.outputQty : 0.0;
+    final rows = bom.lines.map((l) {
+      final need = l.qtyPerOutput * batches * (1 + l.scrapPct / 100);
+      final have = available[l.inputItemId] ?? 0;
+      return (line: l, need: need, have: have, short: need - have);
+    }).toList();
+
+    // How many units of output the tightest input allows. Optional lines don't
+    // gate a run, so they're excluded from the ceiling.
+    double? ceiling;
+    for (final r in rows) {
+      if (r.line.isOptional) continue;
+      final perUnit = r.line.qtyPerOutput * (1 + r.line.scrapPct / 100) / bom.outputQty;
+      if (perUnit <= 0) continue;
+      final canMake = r.have / perUnit;
+      if (ceiling == null || canMake < ceiling) ceiling = canMake;
+    }
+    final blocking = rows.where((r) => !r.line.isOptional && r.short > 0.0001).toList();
+    final planned = plannedQty > 0;
+
+    return MfgCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Material plan', style: RunqText.label),
+        const SizedBox(height: 10),
+        // Capacity first: the plant manager's opening question is "how much can
+        // I make with what's in the tank", and the answer used to be a small
+        // grey number they had to hunt for.
+        if (ceiling != null) _CapacityBanner(
+          canMake: ceiling.floorToDouble(),
+          outputUom: outputUom,
+          plannedQty: plannedQty,
+          oldestAgeHrs: oldestAgeHrs,
+          onUseMax: onUseMax,
+        ),
+        if (ceiling != null) const SizedBox(height: 10),
+        if (planned && blocking.isNotEmpty) ...[
+          _ShortfallBanner(rows: blocking, ceiling: ceiling, outputUom: outputUom),
+          const SizedBox(height: 10),
+        ],
+        for (final r in rows) ...[
+          _MaterialRow(
+            name: r.line.inputItemName,
+            uom: r.line.inputUom,
+            need: planned ? r.need : null,
+            have: r.have,
+            short: planned && !r.line.isOptional && r.short > 0.0001,
+            optional: r.line.isOptional,
+            scrapPct: r.line.scrapPct,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (!planned)
+          Text('Enter a planned quantity to see what the run consumes.',
+              style: RunqText.caption.copyWith(color: t.muted)),
+      ]),
+    );
+  }
+
+  static String _trim(double v) =>
+      v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
+}
+
+class _ShortfallBanner extends StatelessWidget {
+  const _ShortfallBanner({required this.rows, required this.ceiling, required this.outputUom});
+  final List<({BomLine line, double need, double have, double short})> rows;
+  final double? ceiling;
+  final String? outputUom;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final first = rows.first;
+    final more = rows.length - 1;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: MfgColors.orangeAlertBg,
+        border: Border.all(color: MfgColors.orangeAlert.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(RunqRadii.chip),
+      ),
+      child: Row(children: [
+        Icon(Icons.warning_amber_rounded, size: 18, color: MfgColors.orangeAlert),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Not enough stock for this quantity',
+                style: RunqText.bodyStrong.copyWith(color: t.ink)),
+            const SizedBox(height: 2),
+            Text(
+              'Short ${_MaterialPlan._trim(first.short)} ${first.line.inputUom} of '
+              '${first.line.inputItemName}'
+              '${more > 0 ? ' and $more other input${more == 1 ? '' : 's'}' : ''}.'
+              '${ceiling != null ? ' Stock covers about ${_MaterialPlan._trim(ceiling!)}'
+                  '${outputUom != null ? ' $outputUom' : ''}.' : ''}',
+              style: RunqText.caption.copyWith(color: t.muted),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _MaterialRow extends StatelessWidget {
+  const _MaterialRow({
+    required this.name,
+    required this.uom,
+    required this.need,
+    required this.have,
+    required this.short,
+    required this.optional,
+    required this.scrapPct,
+  });
+  final String name;
+  final String uom;
+  final double? need;
+  final double have;
+  final bool short;
+  final bool optional;
+  final double scrapPct;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final ratio = (need != null && need! > 0) ? (have / need!).clamp(0.0, 1.0) : 1.0;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(
+          child: Text(
+            optional ? '$name · optional' : name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: RunqText.body.copyWith(color: t.ink),
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (need != null)
+          Text('${_MaterialPlan._trim(need!)} $uom',
+              style: RunqText.body.copyWith(
+                  color: short ? MfgColors.orangeAlert : t.ink, fontWeight: FontWeight.w700)),
+      ]),
+      const SizedBox(height: 3),
+      Row(children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 4,
+              backgroundColor: t.hairline,
+              valueColor: AlwaysStoppedAnimation(
+                  short ? MfgColors.orangeAlert : MfgColors.brand(context)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'have ${_MaterialPlan._trim(have)} $uom'
+          '${scrapPct > 0 ? ' · +${_MaterialPlan._trim(scrapPct)}% scrap' : ''}',
+          style: RunqText.micro.copyWith(color: t.muted),
+        ),
+      ]),
+    ]);
+  }
+}
+
+
+/// "You can make N" headline, with a one-tap fill. Shows how much of capacity
+/// the current plan uses once a quantity is entered, so over- and under-running
+/// the tank are both visible.
+class _CapacityBanner extends StatelessWidget {
+  const _CapacityBanner({
+    required this.canMake,
+    required this.outputUom,
+    required this.plannedQty,
+    required this.oldestAgeHrs,
+    required this.onUseMax,
+  });
+
+  final double canMake;
+  final String? outputUom;
+  final double plannedQty;
+
+  /// Age of the oldest batch counted in [canMake], in hours. Null when no batch
+  /// records an intake time.
+  final int? oldestAgeHrs;
+  final ValueChanged<double> onUseMax;
+
+  /// Beyond this, the figure is leaning on stock a fresh-milk line shouldn't use.
+  static const _staleAfterHrs = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final accent = MfgColors.brand(context);
+    final over = plannedQty > canMake + 0.0001;
+    final uom = outputUom != null ? ' $outputUom' : '';
+    final used = canMake > 0 ? (plannedQty / canMake).clamp(0.0, 1.0) : 0.0;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: over ? MfgColors.orangeAlertBg : accent.withValues(alpha: 0.08),
+        border: Border.all(
+            color: (over ? MfgColors.orangeAlert : accent).withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(RunqRadii.chip),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(over ? Icons.warning_amber_rounded : Icons.factory_outlined,
+              size: 18, color: over ? MfgColors.orangeAlert : accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Stock supports ${_MaterialPlan._trim(canMake)}$uom',
+                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              const SizedBox(height: 2),
+              Text(
+                plannedQty <= 0
+                    ? 'Based on the tightest input on hand.'
+                    : over
+                        ? 'Planned ${_MaterialPlan._trim(plannedQty)}$uom — '
+                            '${_MaterialPlan._trim(plannedQty - canMake)}$uom beyond stock.'
+                        : 'Planned ${_MaterialPlan._trim(plannedQty)}$uom — '
+                            '${(used * 100).round()}% of what stock allows.',
+                style: RunqText.caption.copyWith(color: t.muted),
+              ),
+              if (oldestAgeHrs != null && oldestAgeHrs! >= _staleAfterHrs) ...[
+                const SizedBox(height: 3),
+                Text(
+                  'Includes stock received ${oldestAgeHrs! ~/ 24}d '
+                  '${oldestAgeHrs! % 24}h ago — check it is still usable.',
+                  style: RunqText.micro.copyWith(color: MfgColors.orangeAlert),
+                ),
+              ],
+            ]),
+          ),
+          if (canMake > 0 && plannedQty != canMake) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () => onUseMax(canMake),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              child: Text('Use max',
+                  style: RunqText.label.copyWith(color: accent, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ]),
+      ]),
     );
   }
 }

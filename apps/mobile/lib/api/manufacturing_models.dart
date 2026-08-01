@@ -251,7 +251,10 @@ class WorkOrderListRow {
 
   bool get isDraft => status == 'draft';
   bool get isInProgress => status == 'in_progress';
-  bool get isClosed => status == 'closed' || status == 'completed';
+  bool get isCompleted => status == 'completed';
+  // `completed` is NOT closed: close is what posts the GL entry and brings
+  // finished goods into stock, so lumping the two hid the Close action entirely.
+  bool get isClosed => status == 'closed';
   bool get isCancelled => status == 'cancelled';
 }
 
@@ -376,7 +379,7 @@ class WorkOrder {
         yieldVariance: _num(j['yieldVariance']),
         qcStatus: j['qcStatus'] as String?,
         jeId: j['jeId'] as String?,
-        expectedLines: (j['expectedLines'] as List? ?? const [])
+        expectedLines: ((j['expected'] ?? j['expectedLines']) as List? ?? const [])
             .cast<Map<String, dynamic>>()
             .map(WorkOrderExpectedLine.fromJson)
             .toList(),
@@ -386,7 +389,10 @@ class WorkOrder {
 
   bool get isDraft => status == 'draft';
   bool get isInProgress => status == 'in_progress';
-  bool get isClosed => status == 'closed' || status == 'completed';
+  bool get isCompleted => status == 'completed';
+  // `completed` is NOT closed: close is what posts the GL entry and brings
+  // finished goods into stock, so lumping the two hid the Close action entirely.
+  bool get isClosed => status == 'closed';
   bool get isCancelled => status == 'cancelled';
 }
 
@@ -570,6 +576,9 @@ class MfgDashboard {
   final int draftWoCount;
   final int scheduledTodayCount;
   final int inProgressCount;
+  /// Runs finished today, closed or not — a completed run stops being
+  /// "in progress" immediately, so that tile read 0 all afternoon.
+  final int completedTodayCount;
   final int wosCompletedPendingClose;
   final double todayPlannedOutput;
   final double todayActualOutput;
@@ -581,6 +590,7 @@ class MfgDashboard {
     required this.draftWoCount,
     required this.scheduledTodayCount,
     required this.inProgressCount,
+    this.completedTodayCount = 0,
     required this.wosCompletedPendingClose,
     required this.todayPlannedOutput,
     required this.todayActualOutput,
@@ -593,6 +603,7 @@ class MfgDashboard {
         draftWoCount: _int(j['draftWoCount']),
         scheduledTodayCount: _int(j['scheduledTodayCount']),
         inProgressCount: _int(j['inProgressCount']),
+        completedTodayCount: (j['completedTodayCount'] as num?)?.toInt() ?? 0,
         wosCompletedPendingClose: _int(j['wosCompletedPendingClose']),
         todayPlannedOutput: _num(j['todayPlannedOutput']),
         todayActualOutput: _num(j['todayActualOutput']),

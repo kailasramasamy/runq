@@ -5,7 +5,6 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
-import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
 const _woTabs = <({String? key, String label})>[
@@ -67,20 +66,15 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
 
     return Scaffold(
       backgroundColor: t.bgWarm,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: MfgColors.brand(context),
-        onPressed: () => context.push('/manufacturing/wos/new'),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
-      ),
       body: SafeArea(
         child: Column(
           children: [
             MfgPlainAppBar(title: 'Work Orders', showBack: false),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
               child: MfgSearchBar(
                 controller: _searchCtl,
-                placeholder: 'Search WO # or BOM…',
+                placeholder: 'Search product, WO # or BOM…',
                 onChanged: (v) => setState(() => _search = v),
               ),
             ),
@@ -102,7 +96,7 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
             Expanded(
               child: listAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -116,17 +110,31 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                       description: 'Create your first WO to schedule a run.',
                     );
                   }
+                  // Grouped by scheduled date: a plant runs many WOs a day, and
+                  // an undated stream gives no sense of which day's schedule you
+                  // are looking at. Server order is preserved within each day.
+                  final byDay = <String, List<WorkOrderListRow>>{};
+                  for (final wo in res.data) {
+                    byDay.putIfAbsent(wo.scheduledFor, () => []).add(wo);
+                  }
                   return RefreshIndicator(
                     onRefresh: () async =>
                         ref.invalidate(workOrderListProvider(params)),
-                    child: ListView.separated(
+                    child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
-                      itemCount: res.data.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (_, i) => _WoTile(wo: res.data[i]),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                      children: [
+                        for (final entry in byDay.entries) ...[
+                          _DayHeader(date: entry.key, count: entry.value.length),
+                          for (final wo in entry.value) ...[
+                            _WoTile(wo: wo),
+                            const SizedBox(height: 14),
+                          ],
+                          const SizedBox(height: 8),
+                        ],
+                      ],
                     ),
                   );
                 },
@@ -150,21 +158,43 @@ class _WoTile extends StatelessWidget {
       title: wo.woNumber,
       subtitle: '${wo.bomCode} v${wo.bomVersion}',
       status: wo.status,
-      productLabel:
-          '${wo.outputItemName} · ${_qty(wo.plannedQty)} x ${wo.outputUom}',
-      meta: [
-        MfgDocMeta(
-          icon: Icons.event_outlined,
-          label: mfgPrettyDate(wo.scheduledFor),
-        ),
-        if (wo.shift != null && wo.shift!.isNotEmpty)
-          MfgDocMeta(icon: Icons.access_time_outlined, label: wo.shift!),
-        MfgDocMeta(icon: Icons.warehouse_outlined, label: wo.warehouseName),
-      ],
+      headline: wo.outputItemName,
+      rightValue: _qty(wo.plannedQty),
+      rightUnit: wo.outputUom,
+      reference: wo.woNumber,
+      metaLine: [
+        if (wo.shift != null && wo.shift!.isNotEmpty) wo.shift!,
+        wo.warehouseName,
+      ].join(' · '),
       onTap: () => context.push('/manufacturing/wos/${wo.id}'),
     );
   }
 
   static String _qty(double v) =>
       v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+}
+
+
+/// Date band above each day's work orders, with the day's run count.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.date, required this.count});
+  final String date;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        Text(mfgPrettyDate(date),
+            style: RunqText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+        const SizedBox(width: 10),
+        Expanded(child: Divider(color: t.hairline, height: 1)),
+        const SizedBox(width: 10),
+        Text('$count run${count == 1 ? '' : 's'}',
+            style: RunqText.caption.copyWith(color: t.muted)),
+      ]),
+    );
+  }
 }

@@ -5,6 +5,8 @@ import '../../api/notifications_repo.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
+import '../inventory/widgets/inv_primitives.dart' show compactINR;
+import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -65,6 +67,10 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               // non-perishable tenants don't see noise. Driven by the same
               // /inventory/stock/expiring endpoint as the web Mfg tile.
               const _PerishablesSection(),
+              // What a run can actually consume. Previously this was only
+              // answerable by leaving for the Inventory module, which is the
+              // wrong place to be standing when writing a BOM.
+              const _RawMaterialsSection(),
               MfgSectionHeader(label: 'Quick actions'),
               const _QuickActionsGrid(),
               const SizedBox(height: 16),
@@ -114,19 +120,11 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                               title: wo.woNumber,
                               subtitle: wo.bomName,
                               status: wo.status,
-                              productLabel:
-                                  '${wo.outputItemName} · ${_fmtQty(wo.plannedQty)} ${wo.outputUom}',
-                              meta: [
-                                MfgDocMeta(
-                                  icon: Icons.event_outlined,
-                                  label: mfgPrettyDate(wo.scheduledFor),
-                                ),
-                                if (wo.shift != null && wo.shift!.isNotEmpty)
-                                  MfgDocMeta(
-                                    icon: Icons.access_time_outlined,
-                                    label: wo.shift!,
-                                  ),
-                              ],
+                              headline: wo.outputItemName,
+                              rightValue: _fmtQty(wo.plannedQty),
+                              rightUnit: wo.outputUom,
+                              reference: wo.woNumber,
+                              metaLine: _woMetaLine(wo),
                               onTap: () => context.push('/manufacturing/wos/${wo.id}'),
                             ),
                           ),
@@ -279,50 +277,44 @@ class _QuickActionsGrid extends ConsumerWidget {
       workOrderListProvider(const WoListParams(status: 'draft')),
     );
     final draftCount = draftAsync.maybeWhen(data: (r) => r.total, orElse: () => 0);
+    // Counts come from the same dashboard the hero uses, so the grid can't
+    // disagree with the numbers above it.
+    final dash = ref.watch(mfgDashboardProvider).asData?.value;
+    final bomCount = dash?.activeBomCount ?? 0;
+    final inProgress = dash?.inProgressCount ?? 0;
+    final scheduledToday = dash?.scheduledTodayCount ?? 0;
+    final pendingClose = dash?.wosCompletedPendingClose ?? 0;
 
     final tiles = <MfgQuickActionTile>[
       MfgQuickActionTile(
-        icon: Icons.add_chart_outlined,
-        title: 'New BOM',
-        subtitle: 'Define a recipe',
-        onTap: () => context.push('/manufacturing/boms/new'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.playlist_add_rounded,
-        title: 'New WO',
-        subtitle: 'Schedule a run',
-        badge: draftCount > 0 ? '$draftCount' : null,
-        onTap: () => context.push('/manufacturing/wos/new'),
-      ),
-      MfgQuickActionTile(
         icon: Icons.view_list_outlined,
-        title: 'Browse BOMs',
-        subtitle: 'All recipes',
+        title: 'BOMs',
+        subtitle: '$bomCount active',
         onTap: () => context.push('/manufacturing/boms'),
       ),
       MfgQuickActionTile(
         icon: Icons.assignment_outlined,
-        title: 'All WOs',
-        subtitle: 'Browse history',
+        title: 'Work orders',
+        subtitle: inProgress > 0 ? '$inProgress running' : 'Browse history',
+        badge: draftCount > 0 ? '$draftCount' : null,
         onTap: () => context.push('/manufacturing/wos'),
       ),
       MfgQuickActionTile(
         icon: Icons.today_outlined,
         title: "Today's runs",
-        subtitle: 'Scheduled today',
+        subtitle: '$scheduledToday scheduled',
         onTap: () {
           final today = DateTime.now().toIso8601String().substring(0, 10);
           context.push('/manufacturing/wos?scheduledFrom=$today&scheduledTo=$today');
         },
       ),
       MfgQuickActionTile(
-        icon: Icons.bar_chart_rounded,
-        title: 'Reports',
-        subtitle: 'WO summary & yield',
-        onTap: () => context.push('/manufacturing/reports/wo-summary'),
+        icon: Icons.lock_clock_outlined,
+        title: 'Awaiting close',
+        subtitle: '$pendingClose to close',
+        onTap: () => context.push('/manufacturing/wos?status=completed'),
       ),
     ];
-
     final rows = <Widget>[];
     for (var i = 0; i < tiles.length; i += 2) {
       if (i > 0) rows.add(const SizedBox(height: 12));
@@ -633,15 +625,11 @@ class _TodayWosSection extends ConsumerWidget {
                         title: wo.woNumber,
                         subtitle: wo.bomName,
                         status: wo.status,
-                        productLabel:
-                            '${wo.outputItemName} · ${_fmtQty(wo.plannedQty)} ${wo.outputUom}',
-                        meta: [
-                          if (wo.shift != null && wo.shift!.isNotEmpty)
-                            MfgDocMeta(
-                              icon: Icons.access_time_outlined,
-                              label: wo.shift!,
-                            ),
-                        ],
+                        headline: wo.outputItemName,
+                        rightValue: _fmtQty(wo.plannedQty),
+                        rightUnit: wo.outputUom,
+                        reference: wo.woNumber,
+                        metaLine: _woMetaLine(wo),
                         onTap: () => context.push('/manufacturing/wos/${wo.id}'),
                       ),
                     ),
@@ -680,4 +668,143 @@ class _RecentSkeleton extends StatelessWidget {
       )),
     );
   }
+}
+
+
+// ── Raw materials on hand ─────────────────────────────────────────────────
+
+/// The inputs a work order can draw from, rolled up per item. Tapping an item
+/// reveals its batches in place — jumping to the Inventory module to answer
+/// "which batches?" loses your place in the middle of planning a run.
+///
+/// `inputs` is the item-class group covering raw_material + packaging, i.e.
+/// exactly the set consumption pulls from.
+class _RawMaterialsSection extends ConsumerStatefulWidget {
+  const _RawMaterialsSection();
+  @override
+  ConsumerState<_RawMaterialsSection> createState() => _RawMaterialsSectionState();
+}
+
+class _RawMaterialsSectionState extends ConsumerState<_RawMaterialsSection> {
+  final _expanded = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final rows = ref
+            .watch(invOnHandProvider(
+                (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')))
+            .asData
+            ?.value ??
+        const <InvOnHandRow>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    // Batches grouped under their item, biggest holding first.
+    final byItem = <String, List<InvOnHandRow>>{};
+    for (final r in rows) {
+      byItem.putIfAbsent(r.itemId, () => []).add(r);
+    }
+    final itemIds = byItem.keys.toList()
+      ..sort((x, y) => _qtyOf(byItem[y]!).compareTo(_qtyOf(byItem[x]!)));
+
+    return Column(children: [
+      MfgSectionHeader(
+        label: 'Raw materials on hand',
+        trailing: TextButton(
+          onPressed: () => context.push('/manufacturing/raw-materials'),
+          child: Text('See all →',
+              style: RunqText.caption.copyWith(color: MfgColors.brand(context))),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: MfgCard(
+          child: Column(children: [
+            for (var i = 0; i < itemIds.length; i++) ...[
+              if (i > 0) Divider(color: t.hairline, height: 24),
+              ..._itemBlock(t, itemIds[i], byItem[itemIds[i]]!),
+            ],
+          ]),
+        ),
+      ),
+      const SizedBox(height: 8),
+    ]);
+  }
+
+  static double _qtyOf(List<InvOnHandRow> rs) =>
+      rs.fold<double>(0, (sum, r) => sum + r.qty);
+
+  List<Widget> _itemBlock(RunqTokens t, String itemId, List<InvOnHandRow> batches) {
+    final first = batches.first;
+    final qty = _qtyOf(batches);
+    final value = batches.fold<double>(0, (sum, r) => sum + r.value);
+    final unit = first.itemUnit != null && first.itemUnit!.isNotEmpty ? ' ${first.itemUnit}' : '';
+    final open = _expanded.contains(itemId);
+    return [
+      InkWell(
+        onTap: () => setState(() {
+          if (open) {
+            _expanded.remove(itemId);
+          } else {
+            _expanded.add(itemId);
+          }
+        }),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(first.itemName,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: RunqText.body.copyWith(color: t.ink)),
+                Text('${batches.length} batch${batches.length == 1 ? '' : 'es'}',
+                    style: RunqText.micro.copyWith(color: t.muted)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('${_trimQty(qty)}$unit',
+                  style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+              // Uncosted stock is worth surfacing: anything made from it carries
+              // an understated cost.
+              Text(value > 0 ? compactINR(value) : 'not costed',
+                  style: RunqText.micro.copyWith(color: t.muted)),
+            ]),
+            Icon(open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20, color: t.muted2),
+          ]),
+        ),
+      ),
+      if (open)
+        for (final b in batches)
+          Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 6),
+            child: Row(children: [
+              Icon(Icons.label_outline_rounded, size: 13, color: t.muted2),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(b.batchNo.isEmpty ? 'No batch' : b.batchNo,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: RunqText.micro.copyWith(color: t.muted)),
+              ),
+              Text(b.warehouseName,
+                  style: RunqText.micro.copyWith(color: t.muted2)),
+              const SizedBox(width: 8),
+              Text('${_trimQty(b.qty)}$unit',
+                  style: RunqText.micro.copyWith(color: t.ink)),
+            ]),
+          ),
+    ];
+  }
+
+  static String _trimQty(double v) =>
+      v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(3);
+}
+
+
+/// Date and shift, on their own line beneath the WO number so neither truncates.
+String _woMetaLine(WorkOrderListRow wo) {
+  final parts = <String>[mfgPrettyDate(wo.scheduledFor)];
+  if (wo.shift != null && wo.shift!.isNotEmpty) parts.add(wo.shift!);
+  return parts.join(' · ');
 }
