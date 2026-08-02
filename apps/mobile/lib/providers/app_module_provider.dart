@@ -12,7 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_provider.dart';
 
-enum AppModule { finance, hr, inventory, purchase, manufacturing }
+enum AppModule { finance, hr, purchase, inventory, manufacturing }
 
 extension AppModuleX on AppModule {
   String get label => switch (this) {

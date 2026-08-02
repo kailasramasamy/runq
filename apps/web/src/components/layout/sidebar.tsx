@@ -209,8 +209,8 @@ type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing' |
 const MODULES: { key: ModuleKey; label: string; chipLabel?: string; path: string; icon: LucideIcon; description: string }[] = [
   { key: 'finance', label: 'Finance', path: '/finance', icon: Wallet2, description: 'AR, AP, banking, GST' },
   { key: 'hr', label: 'HR & Payroll', path: '/hr', icon: UserCircle2, description: 'Employees, attendance' },
-  { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
   { key: 'purchase', label: 'Purchase', path: '/purchase', icon: ShoppingCart, description: 'POs, receipts, 3-way match' },
+  { key: 'inventory', label: 'Inventory', path: '/inventory', icon: Boxes, description: 'Stock, GRN, dispatch' },
   { key: 'manufacturing', label: 'Manufacturing', chipLabel: 'Mfg', path: '/manufacturing', icon: Factory, description: 'BOMs, work orders, costing' },
   { key: 'milk_procurement', label: 'Milk Procurement', chipLabel: 'Milk', path: '/milk-procurement', icon: Milk, description: 'Dhenu — farmers, collection, payout' },
 ];
