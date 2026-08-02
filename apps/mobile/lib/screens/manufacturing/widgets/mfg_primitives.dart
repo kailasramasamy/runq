@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'mfg_colors.dart';
+import 'mfg_doc_list.dart';
 
 // ── Numeric formatting ─────────────────────────────────────────────────────
 
@@ -426,6 +427,20 @@ class MfgDocListTile extends StatelessWidget {
   /// block: quantity large on the right, unit small beneath it, so the number
   /// stops competing with the product name for the same line.
   final String? rightUnit;
+
+  /// ISO date rendered as a bold leading block *instead of* [icon]. A repeated
+  /// module glyph told the reader nothing; the run's date is what they scan
+  /// for. Null keeps the icon.
+  final String? leadingDate;
+
+  /// Shift rendered in the leading block instead of [leadingDate]. Wins when
+  /// both are set: on a list already scoped to one day the date repeats down
+  /// every row, and the shift is the thing that actually varies.
+  final String? leadingShift;
+
+  /// Drops the tile's own border and background so it can sit as a row inside
+  /// a [MfgDividedCard] without a box-in-a-box.
+  final bool flat;
   final VoidCallback? onTap;
   const MfgDocListTile({
     super.key,
@@ -442,6 +457,9 @@ class MfgDocListTile extends StatelessWidget {
     this.reference,
     this.metaLine,
     this.rightUnit,
+    this.leadingDate,
+    this.leadingShift,
+    this.flat = false,
     this.onTap,
   });
 
@@ -450,28 +468,35 @@ class MfgDocListTile extends StatelessWidget {
     final t = RT(context);
     final brand = MfgColors.brand(context);
     return Material(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(12),
+      color: flat ? Colors.transparent : t.surface,
+      borderRadius: BorderRadius.circular(flat ? 0 : 12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(flat ? 0 : 12),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: t.hairline),
-          ),
+          decoration: flat
+              ? null
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: t.hairline),
+                ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: MfgColors.roseSubtle,
-                  borderRadius: BorderRadius.circular(10),
+              if (leadingShift != null && leadingShift!.isNotEmpty)
+                MfgShiftBlock(shift: leadingShift!)
+              else if (leadingDate != null)
+                MfgDateBlock(isoDate: leadingDate!)
+              else
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: MfgColors.roseSubtle,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: brand, size: 18),
                 ),
-                child: Icon(icon, color: brand, size: 18),
-              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -803,7 +828,7 @@ class MfgQuickActionTile extends StatelessWidget {
                     Text(
                       title,
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),

@@ -93,6 +93,7 @@ class ManufacturingRepo {
     String? warehouseId,
     String? scheduledFrom,
     String? scheduledTo,
+    String? activeOn,
     String? search,
     int page = 1,
     int limit = 25,
@@ -103,6 +104,7 @@ class ManufacturingRepo {
     if (warehouseId != null && warehouseId.isNotEmpty) qp['warehouseId'] = warehouseId;
     if (scheduledFrom != null && scheduledFrom.isNotEmpty) qp['scheduledFrom'] = scheduledFrom;
     if (scheduledTo != null && scheduledTo.isNotEmpty) qp['scheduledTo'] = scheduledTo;
+    if (activeOn != null && activeOn.isNotEmpty) qp['activeOn'] = activeOn;
     if (search != null && search.isNotEmpty) qp['search'] = search;
     final qs = qp.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
@@ -333,6 +335,59 @@ class ManufacturingRepo {
         .cast<Map<String, dynamic>>()
         .map(YieldTrendPoint.fromJson)
         .toList();
+  }
+
+  // ── Unplanned production ("Record Production") ──────────────────────────
+
+  /// Server-computed backflush + FEFO-allocation preview. Read-shaped (no
+  /// side effects), so it deliberately does NOT go through `WoRunQueue` —
+  /// offline surfaces a normal network error instead of a queued write.
+  Future<ProductionPreview> previewProduction({
+    String? bomId,
+    String? outputItemId,
+    required double producedQty,
+    required String warehouseId,
+    List<Map<String, dynamic>>? lines,
+  }) async {
+    final body = <String, dynamic>{
+      if (bomId != null) 'bomId': bomId,
+      if (outputItemId != null) 'outputItemId': outputItemId,
+      'producedQty': producedQty,
+      'warehouseId': warehouseId,
+      if (lines != null) 'lines': lines,
+    };
+    final res = await apiClient.post('/manufacturing/production/preview', body);
+    return ProductionPreview.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  /// Posts the production entry. Routes through `WoRunQueue` — see
+  /// `addConsumption` for the offline-queue contract. On success the server
+  /// creates + closes an unplanned WO in one shot.
+  Future<ProductionPostResult> recordProduction({
+    String? bomId,
+    String? outputItemId,
+    required double producedQty,
+    required String warehouseId,
+    List<Map<String, dynamic>>? lines,
+    String? batchNo,
+    String? expiryDate,
+    String? shift,
+    String? producedOn,
+    String? notes,
+  }) async {
+    final body = <String, dynamic>{
+      if (bomId != null) 'bomId': bomId,
+      if (outputItemId != null) 'outputItemId': outputItemId,
+      'producedQty': producedQty,
+      'warehouseId': warehouseId,
+      if (lines != null) 'lines': lines,
+      if (batchNo != null && batchNo.isNotEmpty) 'batchNo': batchNo,
+      if (expiryDate != null && expiryDate.isNotEmpty) 'expiryDate': expiryDate,
+      if (shift != null && shift.isNotEmpty) 'shift': shift,
+      if (producedOn != null && producedOn.isNotEmpty) 'producedOn': producedOn,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    };
+    return WoRunQueue.instance.recordProduction(body: body);
   }
 
   // ── Items search (for BOM pickers) ───────────────────────────────────────

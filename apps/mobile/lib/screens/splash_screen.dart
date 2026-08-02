@@ -107,10 +107,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
   }
 
   /// Pick the landing route. Non-admins always land in HR (their only
-  /// surface). Admins return to whichever module they were last in, so
+  /// surface) — except `technician`, the shop-floor persona, which has no
+  /// HR surface at all (manufacturing + inventory only, per
+  /// `roleAllowedModules` server-side) and would otherwise land on a blank
+  /// HR home. Admins return to whichever module they were last in, so
   /// hot-restart preserves context. Waits up to ~600ms for /hr/me so the
   /// role lookup doesn't race with the first paint.
   Future<String> _resolveLanding() async {
+    if (ref.read(authProvider).user?.role == 'technician') {
+      return AppModule.manufacturing.homeRoute;
+    }
     try {
       await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
     } catch (_) {

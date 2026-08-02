@@ -5,6 +5,7 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
 const _woTabs = <({String? key, String label})>[
@@ -110,13 +111,10 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                       description: 'Create your first WO to schedule a run.',
                     );
                   }
-                  // Grouped by scheduled date: a plant runs many WOs a day, and
-                  // an undated stream gives no sense of which day's schedule you
-                  // are looking at. Server order is preserved within each day.
-                  final byDay = <String, List<WorkOrderListRow>>{};
-                  for (final wo in res.data) {
-                    byDay.putIfAbsent(wo.scheduledFor, () => []).add(wo);
-                  }
+                  // One card, hairline-separated rows, each led by its own bold
+                  // date block. This replaced per-day headers over floating
+                  // cards: the date now travels with the row it describes, so
+                  // scrolling never loses which day you are looking at.
                   return RefreshIndicator(
                     onRefresh: () async =>
                         ref.invalidate(workOrderListProvider(params)),
@@ -126,14 +124,11 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
                       children: [
-                        for (final entry in byDay.entries) ...[
-                          _DayHeader(date: entry.key, count: entry.value.length),
-                          for (final wo in entry.value) ...[
-                            _WoTile(wo: wo),
-                            const SizedBox(height: 14),
+                        MfgDividedCard(
+                          children: [
+                            for (final wo in res.data) _WoTile(wo: wo),
                           ],
-                          const SizedBox(height: 8),
-                        ],
+                        ),
                       ],
                     ),
                   );
@@ -154,7 +149,9 @@ class _WoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MfgDocListTile(
+      flat: true,
       icon: Icons.precision_manufacturing_outlined,
+      leadingDate: wo.scheduledFor,
       title: wo.woNumber,
       subtitle: '${wo.bomCode} v${wo.bomVersion}',
       status: wo.status,
@@ -172,29 +169,4 @@ class _WoTile extends StatelessWidget {
 
   static String _qty(double v) =>
       v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
-}
-
-
-/// Date band above each day's work orders, with the day's run count.
-class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.date, required this.count});
-  final String date;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        Text(mfgPrettyDate(date),
-            style: RunqText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-        const SizedBox(width: 10),
-        Expanded(child: Divider(color: t.hairline, height: 1)),
-        const SizedBox(width: 10),
-        Text('$count run${count == 1 ? '' : 's'}',
-            style: RunqText.caption.copyWith(color: t.muted)),
-      ]),
-    );
-  }
 }

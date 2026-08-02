@@ -727,6 +727,182 @@ class YieldTrendPoint {
       );
 }
 
+// ── Unplanned production ("Record Production") ──────────────────────────────
+
+/// One FEFO-allocated batch slice within a [ProductionAllocation].
+class ProductionAllocationBatch {
+  final String? batchNo;
+  final double qty;
+  final double unitCost;
+  final String? expiryDate;
+
+  ProductionAllocationBatch({
+    this.batchNo,
+    required this.qty,
+    required this.unitCost,
+    this.expiryDate,
+  });
+
+  factory ProductionAllocationBatch.fromJson(Map<String, dynamic> j) =>
+      ProductionAllocationBatch(
+        batchNo: j['batchNo'] as String?,
+        qty: _num(j['qty']),
+        unitCost: _num(j['unitCost']),
+        expiryDate: j['expiryDate'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        if (batchNo != null) 'batchNo': batchNo,
+        'qty': qty,
+        'unitCost': unitCost,
+        if (expiryDate != null) 'expiryDate': expiryDate,
+      };
+}
+
+/// One BOM input, backflushed + FEFO-allocated for a production run.
+class ProductionAllocation {
+  final String? bomLineId;
+  final String inputItemId;
+  final String inputItemName;
+  final String uom;
+  final double requiredQty;
+  final double availableQty;
+  final bool isOptional;
+  final List<ProductionAllocationBatch> batches;
+
+  ProductionAllocation({
+    this.bomLineId,
+    required this.inputItemId,
+    required this.inputItemName,
+    required this.uom,
+    required this.requiredQty,
+    required this.availableQty,
+    required this.isOptional,
+    required this.batches,
+  });
+
+  /// Sum of the allocated batch quantities — what will actually be consumed
+  /// once the operator's edits (if any) are applied.
+  double get allocatedQty => batches.fold(0.0, (s, b) => s + b.qty);
+
+  factory ProductionAllocation.fromJson(Map<String, dynamic> j) =>
+      ProductionAllocation(
+        bomLineId: j['bomLineId'] as String?,
+        inputItemId: j['inputItemId'] as String,
+        inputItemName: (j['inputItemName'] as String?) ?? '',
+        uom: (j['uom'] as String?) ?? '',
+        requiredQty: _num(j['requiredQty']),
+        availableQty: _num(j['availableQty']),
+        isOptional: _bool(j['isOptional']),
+        batches: (j['batches'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ProductionAllocationBatch.fromJson)
+            .toList(),
+      );
+
+  ProductionAllocation copyWith({List<ProductionAllocationBatch>? batches}) =>
+      ProductionAllocation(
+        bomLineId: bomLineId,
+        inputItemId: inputItemId,
+        inputItemName: inputItemName,
+        uom: uom,
+        requiredQty: requiredQty,
+        availableQty: availableQty,
+        isOptional: isOptional,
+        batches: batches ?? this.batches,
+      );
+}
+
+/// An input the BOM demands but the warehouse can't cover. Blocks posting.
+class ProductionShortage {
+  final String inputItemId;
+  final String inputItemName;
+  final String uom;
+  final double requiredQty;
+  final double availableQty;
+  final double shortQty;
+
+  ProductionShortage({
+    required this.inputItemId,
+    required this.inputItemName,
+    required this.uom,
+    required this.requiredQty,
+    required this.availableQty,
+    required this.shortQty,
+  });
+
+  factory ProductionShortage.fromJson(Map<String, dynamic> j) => ProductionShortage(
+        inputItemId: (j['inputItemId'] as String?) ?? '',
+        inputItemName: (j['inputItemName'] as String?) ?? '',
+        uom: (j['uom'] as String?) ?? '',
+        requiredQty: _num(j['requiredQty']),
+        availableQty: _num(j['availableQty']),
+        shortQty: _num(j['shortQty']),
+      );
+}
+
+/// Server-computed preview for an unplanned production run — what the BOM
+/// backflushes, FEFO-allocated against on-hand stock in the target warehouse.
+class ProductionPreview {
+  final String bomId;
+  final int bomVersion;
+  final String bomCode;
+  final String bomName;
+  final String outputItemId;
+  final String outputItemName;
+  final String outputUom;
+  final double runs;
+  final double producedQty;
+  final String warehouseId;
+  final String warehouseName;
+  final bool outputTracksBatches;
+  final List<ProductionAllocation> allocations;
+  final List<ProductionShortage> shortages;
+  final double estimatedInputValue;
+
+  ProductionPreview({
+    required this.bomId,
+    required this.bomVersion,
+    required this.bomCode,
+    required this.bomName,
+    required this.outputItemId,
+    required this.outputItemName,
+    required this.outputUom,
+    required this.runs,
+    required this.producedQty,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.outputTracksBatches,
+    required this.allocations,
+    required this.shortages,
+    required this.estimatedInputValue,
+  });
+
+  factory ProductionPreview.fromJson(Map<String, dynamic> j) => ProductionPreview(
+        bomId: (j['bomId'] as String?) ?? '',
+        bomVersion: _int(j['bomVersion']),
+        bomCode: (j['bomCode'] as String?) ?? '',
+        bomName: (j['bomName'] as String?) ?? '',
+        outputItemId: (j['outputItemId'] as String?) ?? '',
+        outputItemName: (j['outputItemName'] as String?) ?? '',
+        outputUom: (j['outputUom'] as String?) ?? '',
+        runs: _num(j['runs']),
+        producedQty: _num(j['producedQty']),
+        warehouseId: (j['warehouseId'] as String?) ?? '',
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        outputTracksBatches: _bool(j['outputTracksBatches']),
+        allocations: (j['allocations'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ProductionAllocation.fromJson)
+            .toList(),
+        shortages: (j['shortages'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ProductionShortage.fromJson)
+            .toList(),
+        estimatedInputValue: _num(j['estimatedInputValue']),
+      );
+}
+
 /// Minimal item row for the item pickers used in BOM create/edit.
 class MfgItemRow {
   final String id;

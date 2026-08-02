@@ -60,6 +60,11 @@ class WoListParams {
   final String? warehouseId;
   final String? scheduledFrom;
   final String? scheduledTo;
+
+  /// Single day the WO was *active* on — scheduled for it, or started /
+  /// completed / closed on it. Wider than scheduledFrom/To by design: a run
+  /// scheduled yesterday and finished this morning is today's work.
+  final String? activeOn;
   final String? search;
   const WoListParams({
     this.status,
@@ -67,6 +72,7 @@ class WoListParams {
     this.warehouseId,
     this.scheduledFrom,
     this.scheduledTo,
+    this.activeOn,
     this.search,
   });
 
@@ -78,12 +84,13 @@ class WoListParams {
         other.warehouseId == warehouseId &&
         other.scheduledFrom == scheduledFrom &&
         other.scheduledTo == scheduledTo &&
+        other.activeOn == activeOn &&
         other.search == search;
   }
 
   @override
   int get hashCode =>
-      Object.hash(status, bomId, warehouseId, scheduledFrom, scheduledTo, search);
+      Object.hash(status, bomId, warehouseId, scheduledFrom, scheduledTo, activeOn, search);
 }
 
 class WoListResult {
@@ -101,6 +108,7 @@ final workOrderListProvider =
     warehouseId: p.warehouseId,
     scheduledFrom: p.scheduledFrom,
     scheduledTo: p.scheduledTo,
+    activeOn: p.activeOn,
     search: p.search,
   );
   return WoListResult(r.data, r.total, r.totalPages);

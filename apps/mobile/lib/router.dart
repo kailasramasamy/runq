@@ -129,6 +129,7 @@ import 'screens/manufacturing/bom_create_screen.dart';
 import 'screens/manufacturing/wo_list_screen.dart';
 import 'screens/manufacturing/wo_detail_screen.dart';
 import 'screens/manufacturing/wo_create_screen.dart';
+import 'screens/manufacturing/record_production_screen.dart';
 import 'screens/manufacturing/wo_run_screen.dart';
 import 'screens/manufacturing/wo_run_simple_screen.dart';
 import 'screens/manufacturing/reports/wo_summary_screen.dart';
@@ -234,6 +235,13 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         if (!auth.isAuthenticated || loc == '/splash' || loc == '/signin') {
           return null;
         }
+        // Shop-floor technicians have no HR surface at all (manufacturing +
+        // inventory only, per the server's `roleAllowedModules`) — bounce
+        // them to HR-gated `/hr/home` below would just be a dead end.
+        // `appRoleAsyncProvider` only classifies HR personas, so read the
+        // raw session role instead of waiting on /hr/me for this one.
+        if (auth.user?.role == 'technician') return null;
+
         final roleAsync = ref.read(appRoleAsyncProvider);
         final role = roleAsync.asData?.value;
         if (role == null) return null; // wait for /hr/me
@@ -769,6 +777,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/manufacturing/wos/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const WoCreateScreen(), key: state.pageKey),
+        ),
+        // Unplanned production entry — no WO exists yet; the server creates
+        // one on submit. See docs/manufacturing-plan.md §5.4.
+        GoRoute(
+          path: '/manufacturing/production/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const RecordProductionScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/manufacturing/wos/:id',

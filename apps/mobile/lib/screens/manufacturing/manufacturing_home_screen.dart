@@ -6,13 +6,13 @@ import '../../providers/auth_provider.dart';
 import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../inventory/widgets/inv_primitives.dart' show compactINR;
-import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
 import 'widgets/mfg_colors.dart';
+import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
 part '_mfg_home_hero.dart';
@@ -31,10 +31,22 @@ class ManufacturingHomeScreen extends ConsumerWidget {
     final t = RT(context);
     // Phase 3: single dashboard call replaces the 4 list queries.
     final dashAsync = ref.watch(mfgDashboardProvider);
-    // Recent WOs — all statuses, server-ordered by createdAt desc.
-    final recentAsync = ref.watch(
-      workOrderListProvider(const WoListParams()),
-    );
+    // Today's runs — what the floor is actually working on. Keyed on activity,
+    // not the schedule: a run planned yesterday and closed this morning still
+    // belongs to today, and filtering on scheduled_for alone hid exactly that.
+    final todayIso = DateTime.now().toIso8601String().substring(0, 10);
+    final todayAsync = ref.watch(workOrderListProvider(
+      WoListParams(activeOn: todayIso),
+    ));
+    // Early in a shift "today" is legitimately empty, and an empty card is a
+    // dead home screen. Fall back to the latest runs — relabelled, never
+    // dressed up as today's — so there is always something to act on.
+    final todayIsEmpty = todayAsync.asData?.value.data.isEmpty ?? false;
+    final fallbackAsync = todayIsEmpty
+        ? ref.watch(workOrderListProvider(const WoListParams()))
+        : null;
+    final showingFallback = fallbackAsync != null;
+    final woAsync = fallbackAsync ?? todayAsync;
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -74,22 +86,12 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               MfgSectionHeader(label: 'Quick actions'),
               const _QuickActionsGrid(),
               const SizedBox(height: 16),
-              // Today's scheduled WOs — only renders when something's
-              // scheduled today; hidden otherwise to keep the home tidy.
-              const _TodayWosSection(),
               MfgSectionHeader(
-                label: 'Recent work orders',
-                trailing: TextButton(
-                  onPressed: () => context.push('/manufacturing/wos'),
-                  child: Text(
-                    'See all →',
-                    style: RunqText.caption.copyWith(color: MfgColors.brand(context)),
-                  ),
-                ),
+                label: showingFallback ? 'Latest work orders' : "Today's work orders",
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: recentAsync.when(
+                child: woAsync.when(
                   loading: () => const _RecentSkeleton(),
                   error: (e, _) => Padding(
                     padding: const EdgeInsets.all(16),
@@ -99,9 +101,10 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                   data: (res) {
                     if (res.data.isEmpty) {
                       return MfgEmptyState(
-                        icon: Icons.precision_manufacturing_outlined,
+                        icon: Icons.event_available_outlined,
                         title: 'No work orders yet',
-                        description: 'Create your first WO to schedule a production run.',
+                        description:
+                            'Schedule a run, or log what was made without one.',
                         action: MfgPrimaryButton(
                           label: 'New WO',
                           icon: Icons.add_rounded,
@@ -109,24 +112,33 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                         ),
                       );
                     }
-                    final top = res.data.take(5).toList();
-                    return Column(
+                    final top = res.data.take(10).toList();
+                    return MfgDividedCard(
+                      footer: MfgSeeAllFooter(
+                        label: res.total > top.length
+                            ? 'See all ${res.total} work orders'
+                            : 'See all work orders',
+                        onTap: () => context.push('/manufacturing/wos'),
+                      ),
                       children: [
                         for (final wo in top)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: MfgDocListTile(
-                              icon: Icons.precision_manufacturing_outlined,
-                              title: wo.woNumber,
-                              subtitle: wo.bomName,
-                              status: wo.status,
-                              headline: wo.outputItemName,
-                              rightValue: _fmtQty(wo.plannedQty),
-                              rightUnit: wo.outputUom,
-                              reference: wo.woNumber,
-                              metaLine: _woMetaLine(wo),
-                              onTap: () => context.push('/manufacturing/wos/${wo.id}'),
-                            ),
+                          MfgDocListTile(
+                            flat: true,
+                            icon: Icons.precision_manufacturing_outlined,
+                            // Every row here is today, so the date block would
+                            // repeat identically down the card. Shift is what
+                            // separates one run from the next; the date falls
+                            // back in only when a run carries no shift.
+                            leadingDate: wo.scheduledFor,
+                            leadingShift: showingFallback ? null : wo.shift,
+                            title: wo.woNumber,
+                            subtitle: wo.bomName,
+                            status: wo.status,
+                            headline: wo.outputItemName,
+                            rightValue: _fmtQty(wo.plannedQty),
+                            rightUnit: wo.outputUom,
+                            reference: wo.woNumber,
+                            onTap: () => context.push('/manufacturing/wos/${wo.id}'),
                           ),
                       ],
                     );
@@ -283,9 +295,14 @@ class _QuickActionsGrid extends ConsumerWidget {
     final bomCount = dash?.activeBomCount ?? 0;
     final inProgress = dash?.inProgressCount ?? 0;
     final scheduledToday = dash?.scheduledTodayCount ?? 0;
-    final pendingClose = dash?.wosCompletedPendingClose ?? 0;
 
     final tiles = <MfgQuickActionTile>[
+      MfgQuickActionTile(
+        icon: Icons.bolt_rounded,
+        title: 'Record Production',
+        subtitle: 'No WO yet? Log what was made',
+        onTap: () => context.push('/manufacturing/production/new'),
+      ),
       MfgQuickActionTile(
         icon: Icons.view_list_outlined,
         title: 'BOMs',
@@ -307,12 +324,6 @@ class _QuickActionsGrid extends ConsumerWidget {
           final today = DateTime.now().toIso8601String().substring(0, 10);
           context.push('/manufacturing/wos?scheduledFrom=$today&scheduledTo=$today');
         },
-      ),
-      MfgQuickActionTile(
-        icon: Icons.lock_clock_outlined,
-        title: 'Awaiting close',
-        subtitle: '$pendingClose to close',
-        onTap: () => context.push('/manufacturing/wos?status=completed'),
       ),
     ];
     final rows = <Widget>[];
@@ -341,12 +352,10 @@ class _QuickActionsGrid extends ConsumerWidget {
   }
 }
 
-// ── Today's WOs section ───────────────────────────────────────────────────
+// ── Perishables section ───────────────────────────────────────────────────
 //
-// Shown above "Recent work orders" so operators land on what they actually
-// need to start *today* without filtering. Watches the same WO list provider
-// pinned to today's date on both ends, then hides itself when there's
-// nothing scheduled (no empty card, no header — pure absence).
+// Raw-material batches near expiry. Hides itself entirely when nothing is on
+// the clock, so non-perishable tenants see no empty card and no header.
 class _PerishablesSection extends ConsumerWidget {
   const _PerishablesSection();
 
@@ -585,69 +594,6 @@ class _PerishableGroupTile extends StatelessWidget {
       );
 }
 
-class _TodayWosSection extends ConsumerWidget {
-  const _TodayWosSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final todayIso = DateTime.now().toIso8601String().substring(0, 10);
-    final async = ref.watch(workOrderListProvider(
-      WoListParams(scheduledFrom: todayIso, scheduledTo: todayIso),
-    ));
-    return async.maybeWhen(
-      data: (res) {
-        if (res.data.isEmpty) return const SizedBox.shrink();
-        final top = res.data.take(5).toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            MfgSectionHeader(
-              label: "Today's runs",
-              trailing: TextButton(
-                onPressed: () => context.push(
-                  '/manufacturing/wos?scheduledFrom=$todayIso&scheduledTo=$todayIso',
-                ),
-                child: Text(
-                  res.total > top.length ? 'See all (${res.total}) →' : 'See all →',
-                  style: RunqText.caption.copyWith(color: MfgColors.brand(context)),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
-                children: [
-                  for (final wo in top)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: MfgDocListTile(
-                        icon: Icons.precision_manufacturing_outlined,
-                        title: wo.woNumber,
-                        subtitle: wo.bomName,
-                        status: wo.status,
-                        headline: wo.outputItemName,
-                        rightValue: _fmtQty(wo.plannedQty),
-                        rightUnit: wo.outputUom,
-                        reference: wo.woNumber,
-                        metaLine: _woMetaLine(wo),
-                        onTap: () => context.push('/manufacturing/wos/${wo.id}'),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-String _fmtQty(double v) =>
-    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
-
 class _RecentSkeleton extends StatelessWidget {
   const _RecentSkeleton();
 
@@ -803,8 +749,5 @@ class _RawMaterialsSectionState extends ConsumerState<_RawMaterialsSection> {
 
 
 /// Date and shift, on their own line beneath the WO number so neither truncates.
-String _woMetaLine(WorkOrderListRow wo) {
-  final parts = <String>[mfgPrettyDate(wo.scheduledFor)];
-  if (wo.shift != null && wo.shift!.isNotEmpty) parts.add(wo.shift!);
-  return parts.join(' · ');
-}
+String _fmtQty(double v) =>
+    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);

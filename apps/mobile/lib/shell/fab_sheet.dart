@@ -228,6 +228,13 @@ List<FabAction> manufacturingFabActions() => [
         tint: const Color(0xFFBE123C),
         onTap: (ctx) => ctx.push('/manufacturing/wos/new'),
       ),
+      FabAction(
+        icon: Icons.bolt_rounded,
+        title: 'Record Production',
+        sub: 'No WO yet — pick a BOM and log what was made',
+        tint: const Color(0xFF9F1239),
+        onTap: (ctx) => ctx.push('/manufacturing/production/new'),
+      ),
     ];
 
 class FabSheet extends StatelessWidget {

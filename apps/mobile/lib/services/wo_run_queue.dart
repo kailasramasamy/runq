@@ -104,12 +104,68 @@ class WoRunQueue {
   }) =>
       _enqueueOrSend(woId: woId, kind: PendingKind.output, body: body);
 
+  /// Unplanned production entry — no `woId` exists yet (the server creates
+  /// one on post), so entries are keyed on the sentinel [_productionWoId]
+  /// and surfaced separately via [pendingProduction].
+  ///
+  /// Unlike [recordConsumption] / [recordOutput], the caller needs the
+  /// server's response (the created WO number + output batch) to confirm
+  /// the run to the operator — so this mirrors `_enqueueOrSend`'s
+  /// online/offline + idempotency-key handling but returns the decoded
+  /// response body on an immediate send instead of discarding it.
+  Future<ProductionPostResult> recordProduction({
+    required Map<String, dynamic> body,
+  }) async {
+    if (_box == null) {
+      throw StateError('WoRunQueue.init() not called');
+    }
+    final bodyWithKey = Map<String, dynamic>.from(body);
+    bodyWithKey['idempotencyKey'] ??= _uuid.v4();
+
+    final entry = PendingEntry(
+      key: _uuid.v4(),
+      woId: _productionWoId,
+      kind: PendingKind.production,
+      bodyJson: jsonEncode(bodyWithKey),
+      createdAt: DateTime.now().toIso8601String(),
+      attempts: 0,
+      lastError: null,
+    );
+
+    if (!_online) {
+      await _box!.put(entry.key, entry.toBox());
+      _bump();
+      return ProductionPostResult(outcome: EnqueueOutcome.queued);
+    }
+
+    try {
+      final res = await apiClient.post('/manufacturing/production', bodyWithKey);
+      return ProductionPostResult(
+        outcome: EnqueueOutcome.sent,
+        response: (res as Map).cast<String, dynamic>(),
+      );
+    } catch (_) {
+      await _box!.put(entry.key, entry.toBox());
+      _bump();
+      return ProductionPostResult(outcome: EnqueueOutcome.queued);
+    }
+  }
+
   /// Read-only view of pending entries for a WO. Drives optimistic display.
   List<PendingEntry> pendingFor(String woId) {
     if (_box == null) return const [];
     return _box!.values
         .map(PendingEntry.fromBox)
         .where((e) => e.woId == woId)
+        .toList();
+  }
+
+  /// Read-only view of pending Record Production posts (not tied to a WO).
+  List<PendingEntry> pendingProduction() {
+    if (_box == null) return const [];
+    return _box!.values
+        .map(PendingEntry.fromBox)
+        .where((e) => e.kind == PendingKind.production)
         .toList();
   }
 
@@ -189,9 +245,11 @@ class WoRunQueue {
   }
 
   Future<void> _send(PendingEntry entry) async {
-    final path = entry.kind == PendingKind.consumption
-        ? '/manufacturing/wos/${entry.woId}/consumption'
-        : '/manufacturing/wos/${entry.woId}/output';
+    final path = switch (entry.kind) {
+      PendingKind.consumption => '/manufacturing/wos/${entry.woId}/consumption',
+      PendingKind.output => '/manufacturing/wos/${entry.woId}/output',
+      PendingKind.production => '/manufacturing/production',
+    };
     final body = jsonDecode(entry.bodyJson) as Map<String, dynamic>;
     await apiClient.post(path, body);
   }
@@ -205,10 +263,25 @@ class WoRunQueue {
   }
 }
 
-/// The two WO Run write endpoints the queue handles.
-enum PendingKind { consumption, output }
+/// The write endpoints the queue handles: the two per-WO Run posts, plus
+/// unplanned production (which has no WO yet — the server creates one).
+enum PendingKind { consumption, output, production }
+
+/// Sentinel `woId` for queued production entries — there's no WO until the
+/// post lands, so [pendingFor] (which is WO-scoped) never picks these up;
+/// [pendingProduction] does.
+const _productionWoId = '__production__';
 
 enum EnqueueOutcome { sent, queued }
+
+/// Result of [WoRunQueue.recordProduction] — carries the decoded response
+/// body (`{ data, warnings }`) when the post landed live so the caller can
+/// confirm the created WO to the operator.
+class ProductionPostResult {
+  final EnqueueOutcome outcome;
+  final Map<String, dynamic>? response;
+  ProductionPostResult({required this.outcome, this.response});
+}
 
 class PendingEntry {
   final String key;
@@ -231,6 +304,7 @@ class PendingEntry {
 
   bool get isConsumption => kind == PendingKind.consumption;
   bool get isOutput => kind == PendingKind.output;
+  bool get isProduction => kind == PendingKind.production;
   bool get hasFailed => attempts > 0 && lastError != null;
 
   Map<String, dynamic> get body =>
@@ -239,9 +313,11 @@ class PendingEntry {
   factory PendingEntry.fromBox(Map<dynamic, dynamic> m) => PendingEntry(
         key: m['key'] as String,
         woId: m['woId'] as String,
-        kind: (m['kind'] as String) == 'consumption'
-            ? PendingKind.consumption
-            : PendingKind.output,
+        kind: switch (m['kind'] as String) {
+          'output' => PendingKind.output,
+          'production' => PendingKind.production,
+          _ => PendingKind.consumption,
+        },
         bodyJson: m['bodyJson'] as String,
         createdAt: m['createdAt'] as String,
         attempts: (m['attempts'] as int?) ?? 0,
@@ -251,7 +327,11 @@ class PendingEntry {
   Map<String, dynamic> toBox() => {
         'key': key,
         'woId': woId,
-        'kind': kind == PendingKind.consumption ? 'consumption' : 'output',
+        'kind': switch (kind) {
+          PendingKind.consumption => 'consumption',
+          PendingKind.output => 'output',
+          PendingKind.production => 'production',
+        },
         'bodyJson': bodyJson,
         'createdAt': createdAt,
         'attempts': attempts,
