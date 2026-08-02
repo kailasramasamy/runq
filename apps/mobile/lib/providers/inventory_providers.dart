@@ -20,6 +20,12 @@ final invWarehouseValuesProvider =
   return inventoryRepo.warehouseValues();
 });
 
+/// Home stock strips, keyed by class bucket ('finished' | 'inputs').
+final invStockHighlightsProvider = FutureProvider.autoDispose
+    .family<List<InvStockHighlight>, String>((ref, group) async {
+  return inventoryRepo.stockHighlights(group: group);
+});
+
 final invWarehousesProvider = FutureProvider.autoDispose<List<InvWarehouse>>((ref) async {
   return inventoryRepo.warehouses();
 });

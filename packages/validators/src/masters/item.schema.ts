@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hsnSacCodeSchema } from '../common/hsn.schema';
+import { queryBool } from '../common/query-bool.schema';
 
 /**
  * Zod validator for a single catalogue attribute field. Mirrors the
@@ -124,6 +125,14 @@ export const itemFilterSchema = z.object({
   categoryId: z.string().uuid().optional(),
   category: z.string().optional(),
   subcategory: z.string().optional(),
+  /** Attach each row's total on-hand qty. Opt-in — it costs an extra
+   *  aggregate query, and only the inventory item screens display it. */
+  withStock: queryBool.optional(),
+  /** Row order within each class group. 'name' (default) is alphabetical;
+   *  'recent' puts the most recently active items first — last stock
+   *  movement, falling back to the item's own updated_at when it has never
+   *  held stock. Opt-in so the finance / purchase catalogues stay A–Z. */
+  sort: z.enum(['name', 'recent']).optional(),
 });
 
 export const bulkCreateItemsSchema = z.object({

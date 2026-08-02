@@ -854,10 +854,13 @@ class InvItemListRow {
   final double? defaultSellingPrice;
   final double? gstRate;
   final bool isActive;
+  /// Total on-hand qty. Null unless the list was fetched with withStock —
+  /// distinct from 0.0, which means "tracked, none left".
+  final double? stockQty;
   const InvItemListRow({
     required this.id, required this.name, this.sku, this.unit, this.type,
     this.itemClass, this.category, this.defaultSellingPrice, this.gstRate,
-    required this.isActive,
+    required this.isActive, this.stockQty,
   });
   factory InvItemListRow.fromJson(Map<String, dynamic> j) => InvItemListRow(
         id: j['id'] as String,
@@ -870,6 +873,43 @@ class InvItemListRow {
         defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
         gstRate: (j['gstRate'] as num?)?.toDouble(),
         isActive: j['isActive'] as bool? ?? true,
+        stockQty: (j['stockQty'] as num?)?.toDouble(),
+      );
+}
+
+// One row of the Home stock strips (GET /inventory/dashboard/stock-highlights)
+// — an item's total balance across batches, newest movement first.
+class InvStockHighlight {
+  final String itemId;
+  final String name;
+  final String? sku;
+  final String? unit;
+  final String? itemClass;
+  final double qty;
+  final double value;
+  final double? reorderLevel;
+  final DateTime? lastMovementAt;
+  const InvStockHighlight({
+    required this.itemId, required this.name, this.sku, this.unit,
+    this.itemClass, required this.qty, required this.value,
+    this.reorderLevel, this.lastMovementAt,
+  });
+
+  /// True when the balance has fallen to or below the item's reorder level.
+  bool get isLow => reorderLevel != null && qty <= reorderLevel!;
+
+  factory InvStockHighlight.fromJson(Map<String, dynamic> j) => InvStockHighlight(
+        itemId: j['itemId'] as String,
+        name: j['name'] as String,
+        sku: j['sku'] as String?,
+        unit: j['unit'] as String?,
+        itemClass: j['itemClass'] as String?,
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        value: (j['value'] as num?)?.toDouble() ?? 0,
+        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+        lastMovementAt: j['lastMovementAt'] == null
+            ? null
+            : DateTime.parse(j['lastMovementAt'] as String).toLocal(),
       );
 }
 

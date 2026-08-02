@@ -15,6 +15,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
+import 'widgets/inv_on_hand_sections.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
 
@@ -29,13 +30,11 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   bool lowOnly = false;
   bool hideZero = false;
   String query = '';
-  /// Preferred default — On-hand favors "what's available to sell".
-  /// Falls through to Trading / Inputs / Other when Finished is empty
-  /// (see resolveDefaultClassGroup). Cleared back to null whenever the
-  /// row set changes shape so the fall-through re-runs.
-  static const _preferredGroup = classGroupFinished;
-  String? classGroup;
-  bool _userPickedGroup = false;
+  /// On-hand opens on "All" — this screen answers "what's in the godown",
+  /// and hiding three quarters of it behind a pill made the total on the
+  /// summary strip disagree with the list under it. Picking a pill still
+  /// narrows to one bucket; until then the list is sectioned by group.
+  String classGroup = classGroupAll;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -50,7 +49,7 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   // row set in memory) and search doesn't trigger a round-trip per keystroke.
   List<InvOnHandRow> _apply(List<InvOnHandRow> rows) {
     final q = query.trim().toLowerCase();
-    final active = classGroup ?? classGroupAll;
+    final active = classGroup;
     return rows.where((r) {
       if (hideZero && r.qty <= 0) return false;
       if (active != classGroupAll &&
@@ -106,19 +105,12 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           ),
           data: (rows) {
             final counts = _bucketCounts(rows);
-            // Lock in a starting bucket the first time data arrives. Once
-            // the user taps a pill, we respect their choice even if it
-            // becomes empty (so they can clear filters without the tabs
-            // jumping under them).
-            if (!_userPickedGroup) {
-              final resolved = resolveDefaultClassGroup(_preferredGroup, counts);
-              if (classGroup != resolved) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) setState(() => classGroup = resolved);
-                });
-              }
-            }
             final filtered = _apply(rows);
+            // On "All", split into class-group sections; a single-bucket
+            // pill renders one flat list, where a lone header would be noise.
+            final sections = classGroup == classGroupAll
+                ? groupOnHandRows(filtered)
+                : const <OnHandSection>[];
             return CustomScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const AlwaysScrollableScrollPhysics(),
@@ -142,12 +134,9 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
                   child: Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: InvClassTabs(
-                      selected: classGroup ?? classGroupAll,
+                      selected: classGroup,
                       counts: counts,
-                      onChanged: (g) => setState(() {
-                        classGroup = g;
-                        _userPickedGroup = true;
-                      }),
+                      onChanged: (g) => setState(() => classGroup = g),
                     ),
                   ),
                 ),
@@ -170,7 +159,7 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
                           : 'Adjust filters above',
                     ),
                   )
-                else
+                else if (sections.isEmpty)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                     sliver: SliverList.separated(
@@ -178,7 +167,22 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (_, i) => _StockTile(row: filtered[i]),
                     ),
-                  ),
+                  )
+                else
+                  for (final s in sections)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        16, 0, 16, s.key == sections.last.key ? 120 : 0,
+                      ),
+                      sliver: SliverList.separated(
+                        // +1 for the section header at index 0.
+                        itemCount: s.rows.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) => i == 0
+                            ? InvGroupHeader(label: s.label, rows: s.rows)
+                            : _StockTile(row: s.rows[i - 1]),
+                      ),
+                    ),
               ],
             );
           },

@@ -21,6 +21,7 @@ import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/inv_stock_highlights.dart';
 
 class InventoryHomeScreen extends ConsumerWidget {
   const InventoryHomeScreen({super.key});
@@ -40,6 +41,7 @@ class InventoryHomeScreen extends ConsumerWidget {
             ref.invalidate(invKpisProvider);
             ref.invalidate(invRecentActivityProvider);
             ref.invalidate(invWarehouseValuesProvider);
+            ref.invalidate(invStockHighlightsProvider);
             await Future<void>.delayed(const Duration(milliseconds: 200));
           },
           child: kpisAsync.when(
@@ -76,6 +78,25 @@ class _HomeBody extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _QuickActions(k: k),
+          ),
+        ),
+        // What's actually on the floor right now — goods that just came off
+        // production, then the inputs left to run the next batch.
+        const SliverToBoxAdapter(
+          child: InvStockHighlightsCard(
+            title: 'Finished Goods',
+            group: 'finished',
+            emptyText: 'No finished goods in stock yet — record production to '
+                'see them here.',
+          ),
+        ),
+        const SliverToBoxAdapter(
+          child: InvStockHighlightsCard(
+            title: 'Raw Materials Available',
+            group: 'inputs',
+            emptyText: 'No raw material in stock — receive a GRN to start '
+                'tracking input balances.',
+            showValue: false,
           ),
         ),
         const SliverToBoxAdapter(child: _RecentActivityCard()),

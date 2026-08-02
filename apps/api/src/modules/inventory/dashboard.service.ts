@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
+import { ITEM_CLASS_GROUP_MEMBERS, type ItemClassGroup } from '@runq/validators';
 
 export class InventoryDashboardService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -188,6 +189,61 @@ export class InventoryDashboardService {
       itemSku: r.item_sku,
       itemUnit: r.item_unit,
       warehouseName: r.warehouse_name,
+    }));
+  }
+
+  /**
+   * Stock highlights for the home screens — the N item lines in a class
+   * bucket that moved most recently. Drives the "Finished goods" and "Raw
+   * materials available" strips.
+   *
+   * Ordered by last movement rather than the item master's created_at: after
+   * a production run the interesting rows are the goods that just landed, not
+   * catalogue entries created months ago. Batches are collapsed to one row
+   * per item so a 12-batch SKU doesn't crowd out the rest of the list.
+   */
+  async stockHighlights(group: ItemClassGroup, limit = 5) {
+    const classes = ITEM_CLASS_GROUP_MEMBERS[group];
+    const classFilter = group === 'all'
+      ? sql`TRUE`
+      : sql`i.item_class IN (${sql.join(classes.map((c) => sql`${c}`), sql`, `)})`;
+    const result = await this.db.execute(sql`
+      SELECT
+        i.id, i.name, i.sku, i.unit, i.item_class::text AS item_class,
+        i.reorder_level::text AS reorder_level,
+        SUM(soh.qty)::text AS qty,
+        SUM(soh.value)::text AS value,
+        MAX(soh.last_movement_at) AS last_movement_at
+      FROM stock_on_hand soh
+      INNER JOIN items i ON i.id = soh.item_id
+      WHERE soh.tenant_id = ${this.tenantId}
+        AND soh.qty > 0
+        AND ${classFilter}
+      GROUP BY i.id, i.name, i.sku, i.unit, i.item_class, i.reorder_level
+      ORDER BY MAX(soh.last_movement_at) DESC NULLS LAST
+      LIMIT ${limit}
+    `);
+    return (result as unknown as {
+      rows: Array<{
+        id: string; name: string; sku: string | null; unit: string | null;
+        item_class: string | null; reorder_level: string | null;
+        qty: string; value: string; last_movement_at: string | null;
+      }>;
+    }).rows.map((r) => ({
+      itemId: r.id,
+      name: r.name,
+      sku: r.sku,
+      unit: r.unit,
+      itemClass: r.item_class,
+      qty: Number(r.qty),
+      value: Number(r.value),
+      reorderLevel: r.reorder_level === null ? null : Number(r.reorder_level),
+      // pg hands back 'YYYY-MM-DD HH:MM:SS+05:30' for the aggregate. Node
+      // parses that, but Safari and Dart's DateTime.parse are stricter about
+      // the space separator — normalise to ISO so both clients agree.
+      lastMovementAt: r.last_movement_at === null
+        ? null
+        : new Date(r.last_movement_at).toISOString(),
     }));
   }
 

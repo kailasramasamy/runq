@@ -181,6 +181,31 @@ export function useRecentActivity() {
   });
 }
 
+export interface StockHighlightRow {
+  itemId: string;
+  name: string;
+  sku: string | null;
+  unit: string | null;
+  itemClass: string | null;
+  qty: number;
+  value: number;
+  reorderLevel: number | null;
+  lastMovementAt: string | null;
+}
+
+/** Home-screen strips — most-recently-moved stock in one class bucket. */
+export function useStockHighlights(group: 'finished' | 'inputs', limit = 5) {
+  return useQuery({
+    queryKey: ['inv', 'dashboard', 'highlights', group, limit] as const,
+    queryFn: () =>
+      api
+        .get<{ data: StockHighlightRow[] }>(
+          `/inventory/dashboard/stock-highlights${qs({ group, limit })}`,
+        )
+        .then(get),
+  });
+}
+
 export function useWarehouseBreakdown() {
   return useQuery({
     queryKey: ['inv', 'dashboard', 'wh-breakdown'] as const,

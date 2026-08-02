@@ -2,8 +2,9 @@ import { Link } from '@tanstack/react-router';
 import {
   Boxes, PackagePlus, PackageMinus, AlertTriangle, Warehouse, CalendarClock,
   PackageX, ArrowDownToLine, ArrowUpFromLine, History, AlarmClock, BarChart3,
-  Truck, MoveRight,
+  Truck, MoveRight, PackageCheck,
 } from 'lucide-react';
+import { StockHighlightsCard } from '@/components/inventory/stock-highlights-card';
 import {
   PageHeader, Card, CardContent, CardHeader, Badge, Skeleton, EmptyState,
 } from '@/components/ui';
@@ -179,6 +180,25 @@ export function InventoryDashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* ── What's in stock right now ──────────────────────────── */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StockHighlightsCard
+          title="Recently added finished goods"
+          group="finished"
+          icon={PackageCheck}
+          emptyTitle="No finished goods in stock yet"
+          emptyBody="Record production or receive stock to see them here."
+        />
+        <StockHighlightsCard
+          title="Raw materials available"
+          group="inputs"
+          icon={Boxes}
+          emptyTitle="No raw material in stock"
+          emptyBody="Receive a GRN to start tracking input balances."
+          showValue={false}
+        />
       </div>
 
       {/* ── Warehouse value breakdown ──────────────────────────── */}

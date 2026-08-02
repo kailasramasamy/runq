@@ -35,6 +35,13 @@ export const stockOnHandFilterSchema = z.object({
   expiringInDays: z.coerce.number().int().positive().max(365).optional(),
 });
 
+/** Home-screen "recent finished goods" / "raw material available" strips. */
+export const stockHighlightsQuerySchema = z.object({
+  group: itemClassGroupSchema.default('finished'),
+  limit: z.coerce.number().int().positive().max(20).default(5),
+});
+export type StockHighlightsQuery = z.infer<typeof stockHighlightsQuerySchema>;
+
 export const stockLedgerFilterSchema = z.object({
   itemId: z.string().uuid().optional(),
   warehouseId: z.string().uuid().optional(),

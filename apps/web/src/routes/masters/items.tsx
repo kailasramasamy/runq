@@ -16,6 +16,7 @@ import { api } from '@/lib/api-client';
 import {
   InvClassTabs, resolveDefaultClassGroup, type ItemClassGroup,
 } from '@/components/inventory/inv-class-tabs';
+import { groupItemsByClass, ItemSectionRow } from '@/components/inventory/item-sections';
 import type { Item } from '@/hooks/queries/use-items';
 import type { ItemAttributeField, PaginatedResponse } from '@runq/types';
 import {
@@ -74,8 +75,14 @@ export function ItemsPage() {
   // Default tab varies by module so each ops surface lands on what's relevant:
   // Purchase users care about inputs (raw material, packaging); finance/sales
   // users default to finished. Explicit ?classGroup in the URL still wins.
+  // Inventory opens on All and leans on the class sections to keep the list
+  // legible — on that surface the question is "what's in the catalogue",
+  // not "what can I sell". Finance and Purchase keep their focused defaults.
   const moduleDefaultClassGroup: ItemClassGroup = pathname.startsWith('/purchase')
-    ? 'inputs' : 'finished';
+    ? 'inputs'
+    : pathname.startsWith('/inventory')
+      ? 'all'
+      : 'finished';
   // Search + page are URL-backed so navigating to edit and back preserves
   // the filtered list. The previous local-state implementation reset on
   // every route change.
@@ -126,6 +133,10 @@ export function ItemsPage() {
     limit: LIMIT,
     ...(search ? { search } : {}),
     ...(classGroup !== 'all' ? { itemClassGroup: classGroup } : {}),
+    // Inventory sorts by activity so a freshly received batch surfaces
+    // instead of sitting pages down under its initial letter. The finance
+    // and purchase catalogues stay alphabetical.
+    ...(pathname.startsWith('/inventory') ? { sort: 'recent' as const } : {}),
   });
   const { data: schemaRes } = useItemAttributeSchema();
   const toggle = useToggleItem();
@@ -158,6 +169,17 @@ export function ItemsPage() {
   const totalPages = meta?.totalPages ?? 1;
   const total = meta?.total ?? 0;
   const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
+
+  // On 'all' the table is split into class-group sections; under a single
+  // bucket every row shares a group, so a lone header would be noise. The
+  // server orders by class rank, so a section never straddles a page break.
+  type ItemEntry = { header?: { label: string; count: number }; item?: (typeof items)[number] };
+  const displayEntries: ItemEntry[] = classGroup === 'all'
+    ? groupItemsByClass(items).flatMap((s) => [
+        { header: { label: s.label, count: s.rows.length } },
+        ...s.rows.map((item) => ({ item })),
+      ])
+    : items.map((item) => ({ item }));
 
   // Pick up to 2 short-form schema fields for the desktop table — textarea
   // fields are too long, so skip them. The rest of the schema still shows
@@ -374,7 +396,19 @@ export function ItemsPage() {
                 />
               </td>
             </tr>
-          ) : items.map((item) => (
+          ) : displayEntries.map((entry) => {
+            if (entry.header) {
+              return (
+                <ItemSectionRow
+                  key={`section-${entry.header.label}`}
+                  label={entry.header.label}
+                  count={entry.header.count}
+                  colSpan={12}
+                />
+              );
+            }
+            const item = entry.item!;
+            return (
             <TableRow key={item.id} onClick={() => openEdit(item.id)}>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <input
@@ -467,7 +501,8 @@ export function ItemsPage() {
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
 

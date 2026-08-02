@@ -15,6 +15,7 @@ import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
@@ -29,7 +30,13 @@ const _classFilters = <({String key, String label})>[
 ];
 
 class InventoryItemsListScreen extends ConsumerStatefulWidget {
-  const InventoryItemsListScreen({super.key});
+  const InventoryItemsListScreen({super.key, this.initialClassGroup});
+
+  /// Pre-selected class pill, passed as `?classGroup=` by the Home stock
+  /// strips so "See all" lands on the bucket the user tapped from. Unknown
+  /// values fall back to 'all'.
+  final String? initialClassGroup;
+
   @override
   ConsumerState<InventoryItemsListScreen> createState() => _State();
 }
@@ -52,6 +59,10 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   @override
   void initState() {
     super.initState();
+    final requested = widget.initialClassGroup;
+    if (requested != null && _classFilters.any((f) => f.key == requested)) {
+      _classGroup = requested;
+    }
     _scroll.addListener(_onScroll);
     _load(reset: true);
   }
@@ -87,6 +98,11 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         page: next,
         search: _search,
         itemClassGroup: _classGroup,
+        // Balance is the headline number on the tile, so the list needs it.
+        withStock: true,
+        // Most recently received / edited first within each group — a fresh
+        // batch of an alphabetically-late item would otherwise sit pages down.
+        sort: 'recent',
       );
       if (!mounted) return;
       setState(() {
@@ -184,6 +200,11 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         onAction: _openNew,
       );
     }
+    // On 'all' the list is split into class-group sections; under a single
+    // bucket every row shares a group, so a lone header would be noise.
+    final entries = _classGroup == 'all'
+        ? _sectionedEntries(_rows)
+        : List<Object>.from(_rows);
     return RefreshIndicator(
       color: InvColors.brand(context),
       onRefresh: () => _load(reset: true),
@@ -192,17 +213,80 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-        itemCount: _rows.length + (_page < _totalPages ? 1 : 0),
+        itemCount: entries.length + (_page < _totalPages ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
-          if (i >= _rows.length) {
+          if (i >= entries.length) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             );
           }
-          return _ItemTile(row: _rows[i]);
+          final e = entries[i];
+          return e is _SectionLabel
+              ? _SectionHeader(label: e.label, count: e.count)
+              : _ItemTile(row: e as InvItemListRow);
         },
+      ),
+    );
+  }
+}
+
+/// Marker entry in the flat list — a section title plus its row count.
+class _SectionLabel {
+  const _SectionLabel(this.label, this.count);
+  final String label;
+  final int count;
+}
+
+/// Bucket key for an item. Services get their own section rather than
+/// falling into "Consumables & spares", which they are not.
+String _sectionKey(InvItemListRow r) =>
+    r.type == 'service' ? 'services' : classGroupForItemClass(r.itemClass);
+
+const _sectionOrder = <({String key, String label})>[
+  (key: 'finished', label: 'Finished Goods'),
+  (key: 'inputs', label: 'Raw Materials & Inputs'),
+  (key: 'trading', label: 'Trading Goods'),
+  (key: 'other', label: 'Consumables & Spares'),
+  (key: 'services', label: 'Services'),
+];
+
+/// Flatten rows into [header, ...rows, header, ...rows]. Buckets are filled
+/// from the whole loaded set on every build, so load-more appends into the
+/// section a row belongs to instead of restarting the sequence.
+List<Object> _sectionedEntries(List<InvItemListRow> rows) {
+  final byKey = <String, List<InvItemListRow>>{};
+  for (final r in rows) {
+    byKey.putIfAbsent(_sectionKey(r), () => []).add(r);
+  }
+  return [
+    for (final s in _sectionOrder)
+      if ((byKey[s.key] ?? const []).isNotEmpty) ...[
+        _SectionLabel(s.label, byKey[s.key]!.length),
+        ...byKey[s.key]!,
+      ],
+  ];
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label, required this.count});
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label.toUpperCase(),
+                style: RunqText.label.copyWith(color: t.muted)),
+          ),
+          Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
+        ],
       ),
     );
   }
@@ -291,10 +375,26 @@ class _ItemTile extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // UOM trails the name in muted type — it qualifies the
+                    // product ("Milk, sold in 500ml") and belongs with it,
+                    // not stacked under the balance where it read as a
+                    // second number.
                     Expanded(
-                      child: Text(row.name,
+                      child: Text.rich(
+                        TextSpan(
+                          text: row.name,
                           style: RunqText.bodyStrong.copyWith(color: t.ink),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                          children: [
+                            if (row.unit?.isNotEmpty == true)
+                              TextSpan(
+                                text: '  ${row.unit}',
+                                style: RunqText.caption.copyWith(color: t.muted2),
+                              ),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     if (!row.isActive) ...[
                       const SizedBox(width: 6),
@@ -312,17 +412,22 @@ class _ItemTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          // Balance on hand is the headline figure — on an inventory screen
+          // "how much is left" outranks "what we sell it for", so price drops
+          // to the muted second line.
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (row.defaultSellingPrice != null)
-                Text(compactINR(row.defaultSellingPrice!),
-                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              if (row.gstRate != null) ...[
+              if (row.stockQty != null)
+                Text(_fmtQty(row.stockQty!),
+                    style: RunqText.bodyStrong.copyWith(
+                      color: row.stockQty! <= 0 ? t.muted2 : t.ink,
+                    )),
+              if (row.defaultSellingPrice != null) ...[
                 const SizedBox(height: 2),
-                Text('GST ${_pct(row.gstRate!)}%',
-                    style: RunqText.micro.copyWith(color: t.muted2)),
+                Text(compactINR(row.defaultSellingPrice!),
+                    style: RunqText.caption.copyWith(color: t.muted2)),
               ],
             ],
           ),
@@ -331,8 +436,8 @@ class _ItemTile extends StatelessWidget {
     );
   }
 
-  static String _pct(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  static String _fmtQty(double q) =>
+      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
 }
 
 class _InactivePill extends StatelessWidget {

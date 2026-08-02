@@ -403,8 +403,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/inventory/items',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) =>
-              _slidePage(const InventoryItemsListScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryItemsListScreen(
+              initialClassGroup: state.uri.queryParameters['classGroup'],
+            ),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/inventory/items/new',

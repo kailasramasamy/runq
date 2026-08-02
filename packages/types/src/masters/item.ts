@@ -81,6 +81,10 @@ export interface Item {
    *  Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. NULL = no template. */
   batchCodeTemplate: string | null;
   isActive: boolean;
+  /** Total on-hand quantity across warehouses and batches. Only populated
+   *  when the list endpoint is called with `withStock=true`; undefined
+   *  everywhere else so the masters reads stay a single-table query. */
+  stockQty?: number;
   createdAt: string;
   updatedAt: string;
 }

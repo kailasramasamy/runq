@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Boxes, Search } from 'lucide-react';
 import {
@@ -5,7 +6,26 @@ import {
   TableSkeleton, EmptyState, Badge,
 } from '@/components/ui';
 import { useOnHand, useWarehouses } from '@/hooks/queries/use-inventory';
-import { InvClassTabs, classGroupForItemClass, resolveDefaultClassGroup, type ItemClassGroup } from '@/components/inventory/inv-class-tabs';
+import { InvClassTabs, classGroupForItemClass, type ItemClassGroup } from '@/components/inventory/inv-class-tabs';
+import type { OnHandRow } from '@/hooks/queries/use-inventory';
+
+/** Section order + labels for the grouped ("All") view. Mirrors the tab
+ *  strip's order so the two read as the same taxonomy. */
+const SECTION_ORDER: ReadonlyArray<{ key: Exclude<ItemClassGroup, 'all'>; label: string }> = [
+  { key: 'finished', label: 'Finished goods' },
+  { key: 'inputs', label: 'Raw materials & inputs' },
+  { key: 'trading', label: 'Trading goods' },
+  { key: 'other', label: 'Consumables & spares' },
+];
+
+/** Split rows into class-group sections, dropping empty buckets so a tenant
+ *  that only stocks finished goods sees one header, not four. */
+function groupRows(rows: OnHandRow[]) {
+  return SECTION_ORDER.map((s) => ({
+    ...s,
+    rows: rows.filter((r) => classGroupForItemClass(r.itemClass) === s.key),
+  })).filter((s) => s.rows.length > 0);
+}
 
 type Params = { q?: string; warehouseId?: string; lowOnly?: string; classGroup?: string };
 
@@ -57,10 +77,11 @@ export function OnHandPage() {
     const g = classGroupForItemClass(r.itemClass) as Exclude<ItemClassGroup, 'all'>;
     counts[g] = (counts[g] ?? 0) + 1;
   }
-  // No URL choice → compute fall-through default from counts. Preferred
-  // = Finished, falls through to Trading / Inputs / Other / All if empty.
-  // Once the user clicks a pill it lands in the URL and overrides this.
-  const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup('finished', counts);
+  // Opens on "All" — this page answers "what's in the godown", and hiding
+  // three quarters of it behind a pill made the row count disagree with what
+  // the warehouse actually holds. On 'all' the table is split into class-group
+  // sections; picking a pill narrows to one bucket and renders flat.
+  const classGroup: ItemClassGroup = urlGroup ?? 'all';
   const rows = allRows
     .filter((r) => {
       if (classGroup !== 'all' && classGroupForItemClass(r.itemClass) !== classGroup) return false;
@@ -71,6 +92,9 @@ export function OnHandPage() {
     // "what came in, and when" rather than "which item alphabetically" — and it
     // puts today's tankers at the top. Batches with no recorded receipt sort last.
     .sort((a, b) => (b.receivedAt ?? '').localeCompare(a.receivedAt ?? ''));
+
+  // Grouped only on 'all' — under a single-bucket pill a lone header is noise.
+  const sections = classGroup === 'all' ? groupRows(rows) : [];
 
   const whOptions = [
     { value: '', label: 'All warehouses' },
@@ -147,39 +171,76 @@ export function OnHandPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r, i) => (
-              <TableRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`}>
-                <TableCell>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-medium">{r.itemName}</span>
-                    {r.itemUnit && (
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">{r.itemUnit}</span>
-                    )}
-                  </div>
-                  {r.reorderLevel != null && r.qty <= r.reorderLevel && (
-                    <Badge variant="warning" className="mt-1">Low stock</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
-                <TableCell>{r.warehouseName}</TableCell>
-                <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
-                <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {r.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  ₹{r.avgCost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                </TableCell>
-                <TableCell className="text-right tabular-nums font-medium">
-                  ₹{r.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                </TableCell>
-              </TableRow>
-            ))}
+            {sections.length === 0
+              ? rows.map((r, i) => (
+                  <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
+                ))
+              : sections.map((s) => (
+                  <Fragment key={s.key}>
+                    <SectionHeaderRow label={s.label} rows={s.rows} />
+                    {s.rows.map((r, i) => (
+                      <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
+                    ))}
+                  </Fragment>
+                ))}
           </TableBody>
         </Table>
       )}
     </div>
+  );
+}
+
+/** Class-group divider inside the table. Carries the section's own row count
+ *  and value subtotal so each block states its total instead of forcing a
+ *  mental tally down the column. */
+function SectionHeaderRow({ label, rows }: { label: string; rows: OnHandRow[] }) {
+  const value = rows.reduce((s, r) => s + r.value, 0);
+  return (
+    <TableRow className="bg-zinc-50/80 dark:bg-zinc-800/40">
+      <TableCell colSpan={6} className="py-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          {label}
+        </span>
+        <span className="ml-2 text-xs text-zinc-500">
+          {rows.length} {rows.length === 1 ? 'row' : 'rows'}
+        </span>
+      </TableCell>
+      <TableCell colSpan={3} className="py-2 text-right tabular-nums text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+        ₹{value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function StockRow({ row: r }: { row: OnHandRow }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-baseline gap-2">
+          <span className="font-medium">{r.itemName}</span>
+          {r.itemUnit && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{r.itemUnit}</span>
+          )}
+        </div>
+        {r.reorderLevel != null && r.qty <= r.reorderLevel && (
+          <Badge variant="warning" className="mt-1">Low stock</Badge>
+        )}
+      </TableCell>
+      <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
+      <TableCell>{r.warehouseName}</TableCell>
+      <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
+      <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
+      <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
+      <TableCell className="text-right tabular-nums">
+        {r.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        ₹{r.avgCost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+      </TableCell>
+      <TableCell className="text-right tabular-nums font-medium">
+        ₹{r.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+      </TableCell>
+    </TableRow>
   );
 }
 

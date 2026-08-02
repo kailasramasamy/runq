@@ -15,6 +15,8 @@ interface ItemFilters {
   search?: string;
   /** Operational bucket — server expands to the matching item_class set. */
   itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'all';
+  /** Row order within each class group. Omitted = alphabetical. */
+  sort?: 'name' | 'recent';
   page?: number;
   limit?: number;
   [key: string]: unknown;
@@ -124,6 +126,7 @@ export function useItems(filters?: ItemFilters) {
   if (filters?.itemClassGroup && filters.itemClassGroup !== 'all') {
     params.set('itemClassGroup', filters.itemClassGroup);
   }
+  if (filters?.sort) params.set('sort', filters.sort);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

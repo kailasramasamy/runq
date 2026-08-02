@@ -4,7 +4,7 @@ import {
   createGrnSchema, updateGrnSchema, cancelGrnSchema, grnFilterSchema,
   createDeliveryNoteSchema, updateDeliveryNoteSchema, cancelDeliveryNoteSchema,
   deliveryNoteFilterSchema,
-  stockOnHandFilterSchema, stockLedgerFilterSchema,
+  stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
   receiveTransferSchema, transferFilterSchema,
@@ -423,6 +423,12 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
   app.get('/dashboard/recent-activity', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
     return { data: await svc.recentActivity(10) };
+  });
+  // Home-screen strips: most-recently-moved stock in one class bucket.
+  app.get('/dashboard/stock-highlights', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { group, limit } = stockHighlightsQuerySchema.parse(req.query);
+    const svc = new InventoryDashboardService(req.server.db, req.tenantId);
+    return { data: await svc.stockHighlights(group, limit) };
   });
   app.get('/dashboard/warehouse-breakdown', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);

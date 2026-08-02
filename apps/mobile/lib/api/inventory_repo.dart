@@ -35,6 +35,18 @@ class InventoryRepo {
     return _dataList(res).map(InvActivity.fromJson).toList();
   }
 
+  /// Most-recently-moved stock in one class bucket. Drives the Home
+  /// "Finished goods" / "Raw materials available" strips.
+  Future<List<InvStockHighlight>> stockHighlights({
+    required String group,
+    int limit = 5,
+  }) async {
+    final res = await apiClient.get(
+      '/inventory/dashboard/stock-highlights${_qs({'group': group, 'limit': '$limit'})}',
+    );
+    return _dataList(res).map(InvStockHighlight.fromJson).toList();
+  }
+
   /// Stock value per warehouse. Splits the hero's single value figure across
   /// sites on Home.
   Future<List<InvWarehouseValue>> warehouseValues() async {
@@ -174,8 +186,12 @@ class InventoryRepo {
     int limit = 25,
     String? search,
     String? itemClassGroup,
+    bool withStock = false,
+    String? sort,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (withStock) qp['withStock'] = 'true';
+    if (sort != null) qp['sort'] = sort;
     if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
     if (itemClassGroup != null && itemClassGroup != 'all') {
       qp['itemClassGroup'] = itemClassGroup;

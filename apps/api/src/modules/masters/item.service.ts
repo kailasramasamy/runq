@@ -1,6 +1,6 @@
 import { eq, and, ilike, or, sql, gte, lte, isNull, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { items, categories, priceListItems, salesInvoices, salesInvoiceItems, tenants } from '@runq/db';
+import { items, categories, priceListItems, salesInvoices, salesInvoiceItems, tenants, stockOnHand } from '@runq/db';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 
 // Joined view of an item row + category leaf + parent. We compose this
@@ -8,6 +8,27 @@ import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 // display strings without each query repeating the join shape.
 const catLeaf = alias(categories, 'cat_leaf');
 const catParent = alias(categories, 'cat_parent');
+
+/** Sort rank matching the class-group tab order (Finished, Inputs, Trading,
+ *  Other), with services last. Keeps grouped list sections contiguous across
+ *  pagination. */
+const ITEM_CLASS_RANK = sql`CASE ${items.itemClass}
+  WHEN 'finished_good' THEN 1 WHEN 'semi_finished' THEN 1
+  WHEN 'raw_material'  THEN 2 WHEN 'packaging'     THEN 2
+  WHEN 'trading_good'  THEN 3
+  WHEN 'consumable'    THEN 4 WHEN 'spare_part'    THEN 4
+  ELSE 5 END`;
+
+/** Activity recency, newest first. A restock never touches the item master,
+ *  so ordering on updated_at alone buries goods that were just replenished;
+ *  we take the later of "last stock movement" and "row last edited".
+ *  GREATEST ignores a NULL side, so items that never held stock fall back to
+ *  updated_at rather than dropping to the bottom. */
+const ITEM_RECENCY_DESC = sql`GREATEST(
+  (SELECT MAX(soh.last_movement_at) FROM stock_on_hand soh
+    WHERE soh.tenant_id = ${items.tenantId} AND soh.item_id = ${items.id}),
+  ${items.updatedAt}
+) DESC NULLS LAST`;
 
 type ItemRowWithCategory = {
   item: typeof items.$inferSelect;
@@ -153,15 +174,47 @@ export class ItemService {
     );
 
     const [rows, countResult] = await Promise.all([
-      this.selectItemsWithCategory().where(baseWhere).orderBy(items.name).limit(limit).offset(offset),
+      this.selectItemsWithCategory()
+        .where(baseWhere)
+        // Class group first, then the caller's row order. The item screens
+        // render group sections, so rows must stay contiguous by bucket —
+        // ordering by name alone would split a group across page boundaries.
+        // Within a single-bucket filter the rank is constant and it's a no-op.
+        .orderBy(
+          ITEM_CLASS_RANK,
+          ...(filters.sort === 'recent' ? [ITEM_RECENCY_DESC] : []),
+          items.name,
+        )
+        .limit(limit)
+        .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(items).where(baseWhere),
     ]);
 
     const total = countResult[0]?.count ?? 0;
+    const data = rows.map((r) => this.toItem(r));
+    if (filters.withStock && data.length > 0) {
+      const qtyById = await this.onHandQtyByItem(data.map((d) => d.id));
+      for (const d of data) d.stockQty = qtyById.get(d.id) ?? 0;
+    }
     return {
-      data: rows.map((r) => this.toItem(r)),
+      data,
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
+  }
+
+  /** Total on-hand qty per item for the given ids. Kept as its own query
+   *  rather than a join on the shared item select, so every other masters
+   *  read (getById, variants, pickers) stays a plain single-table fetch. */
+  private async onHandQtyByItem(itemIds: string[]): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        itemId: stockOnHand.itemId,
+        qty: sql<string>`SUM(${stockOnHand.qty})`,
+      })
+      .from(stockOnHand)
+      .where(and(eq(stockOnHand.tenantId, this.tenantId), inArray(stockOnHand.itemId, itemIds)))
+      .groupBy(stockOnHand.itemId);
+    return new Map(rows.map((r) => [r.itemId, toNumber(r.qty)]));
   }
 
   /// Strip trailing size tokens from a name so siblings can be matched on

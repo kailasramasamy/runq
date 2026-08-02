@@ -2268,6 +2268,15 @@ const invSerialsRoute = createRoute({
 const invItemsRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/items',
+  // Declares what ItemsPage already reads off the URL, so the dashboard's
+  // "See all" links can hand it a class bucket type-safely.
+  validateSearch: (s: Record<string, unknown>): {
+    q?: string; page?: number; classGroup?: string;
+  } => ({
+    q: typeof s.q === 'string' ? s.q : undefined,
+    page: s.page === undefined ? undefined : Number(s.page) || undefined,
+    classGroup: typeof s.classGroup === 'string' ? s.classGroup : undefined,
+  }),
   component: ItemsPage,
 });
 const invItemsImportRoute = createRoute({
