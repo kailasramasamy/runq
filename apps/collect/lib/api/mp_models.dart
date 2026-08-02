@@ -66,9 +66,13 @@ class MpNode {
   final String id, code, name, nodeType;
   final String? parentNodeId, payeeVendorId, payoutMode, city, state;
   final bool hasBmc, isActive;
-  /// CC pooling: true → dispatch pool is previous-day PM + today AM; false →
-  /// same-day AM+PM. Only meaningful for CC nodes.
-  final bool overnightPooling;
+  /// How this node closes collection and dispatches:
+  ///  - `per_shift` — AM and PM close and dispatch independently (shift-tagged)
+  ///  - `day`       — today AM + PM leave as one untagged tanker
+  ///  - `overnight` — previous-day PM + today AM leave together; today's PM
+  ///    belongs to the next pool
+  /// Set on VMCCs and CCs alike.
+  final String dispatchMode;
   final double? capacityLitres;
   final DateTime? createdAt;
   /// `'analyzer'` (default, fat+SNF) or `'lactometer'` (CLR-only).
@@ -92,7 +96,7 @@ class MpNode {
     this.state,
     this.hasBmc = false,
     this.isActive = true,
-    this.overnightPooling = false,
+    this.dispatchMode = 'per_shift',
     this.capacityLitres,
     this.createdAt,
     this.measurementMode = 'analyzer',
@@ -105,6 +109,11 @@ class MpNode {
   bool get isCc => nodeType == 'cc';
   bool get isPp => nodeType == 'pp';
   bool get isLactometer => measurementMode == 'lactometer';
+
+  /// Milk leaves as one untagged tanker (`day` / `overnight`) rather than one
+  /// consignment per shift. Drives whether the UI offers a shift selector at all.
+  bool get isPooledDispatch => dispatchMode != 'per_shift';
+  bool get isOvernightPool => dispatchMode == 'overnight';
 
   /// The single milk type used to colour aggregate (mixed) FAT/SNF values at
   /// this node: explicit default, else the sole/first allowed type, else Cow A1.
@@ -129,7 +138,11 @@ class MpNode {
     state: _sn(j['state']),
     hasBmc: _b(j['hasBmc']),
     isActive: j['isActive'] != false,
-    overnightPooling: _b(j['overnightPooling']),
+    dispatchMode: switch (j['dispatchMode']) {
+      'day' => 'day',
+      'overnight' => 'overnight',
+      _ => 'per_shift',
+    },
     capacityLitres: _dn(j['capacityLitres']),
     createdAt: j['createdAt'] == null
         ? null

@@ -51,16 +51,18 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   // CC/PP modules downstream can receive it.
   late String _date = widget.initialDate ?? todayIso();
 
-  bool get _perShift => !widget.node.hasBmc;
+  // A pooled VMCC (day / overnight) sends one shift-null tanker per window; a
+  // per-shift VMCC dispatches AM and PM separately.
+  bool get _perShift => !widget.node.isPooledDispatch;
   AvailabilityDateArgs get _availArgs =>
       (nodeId: widget.node.id, date: _date, shift: _perShift ? _shift.name : null);
   NodeDateArgs get _dateArgs => (nodeId: widget.node.id, date: _date);
 
-  // Hard gate: collection must be closed before dispatch. BMC pools the whole
-  // day (both shifts closed); no-BMC needs just the selected shift.
+  // Hard gate: collection must be closed before dispatch. Pooled needs the whole
+  // window closed; per-shift needs just the selected shift.
   bool _slotClosed(MpShiftStatus? st) {
     if (st == null) return false;
-    return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
+    return _perShift ? st.closedFor(_shift.name) : st.dayClosed;
   }
 
   void _onShiftChanged(Shift s) {

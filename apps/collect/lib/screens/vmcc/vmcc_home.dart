@@ -145,7 +145,7 @@ class VmccHome extends ConsumerWidget {
     final status = ref.watch(shiftStatusProvider(node.id)).asData?.value;
     final shift = shiftFrom(currentShift());
     final closed = status != null &&
-        (node.hasBmc ? status.dayClosed : status.closedFor(shift.name));
+        (node.isPooledDispatch ? status.dayClosed : status.closedFor(shift.name));
     void openRecord() => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
         );
@@ -161,7 +161,7 @@ class VmccHome extends ConsumerWidget {
             appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
             body: VmccDispatchTab(
               node: node,
-              initialShift: node.hasBmc ? null : shift,
+              initialShift: node.isPooledDispatch ? null : shift,
             ),
           ),
         )),

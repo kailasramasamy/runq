@@ -68,7 +68,7 @@ export class NodeService {
         nodeType: input.nodeType,
         parentNodeId: input.parentNodeId ?? null,
         hasBmc: input.hasBmc,
-        overnightPooling: input.overnightPooling,
+        dispatchMode: input.dispatchMode,
         measurementMode: input.measurementMode,
         collectionShifts: input.collectionShifts,
         allowedMilkTypes: input.allowedMilkTypes ?? null,
@@ -99,7 +99,7 @@ export class NodeService {
     // already fixes which resource (and type) a node belongs to.
     assignDefined(patch, {
       name: input.name, hasBmc: input.hasBmc,
-      overnightPooling: input.overnightPooling,
+      dispatchMode: input.dispatchMode,
       measurementMode: input.measurementMode, collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,
       payoutMode: input.payoutMode, payeeVendorId: input.payeeVendorId,

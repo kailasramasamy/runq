@@ -16,13 +16,51 @@ export function prevDay(iso: string): string {
  *    with the next morning's collection)
  *
  * Today's PM under overnight belongs to the NEXT pool, so it's intentionally
- * excluded here. Overnight pooling assumes per-shift source VMCCs (the norm) —
- * a whole-day (null-shift) incoming consignment won't match a window slot.
+ * excluded here.
  */
 export function ccReceiveWindow(overnight: boolean, anchorDate: string): Slot[] {
   return overnight
     ? [{ date: prevDay(anchorDate), shift: 'pm' }, { date: anchorDate, shift: 'am' }]
     : [{ date: anchorDate, shift: 'am' }, { date: anchorDate, shift: 'pm' }];
+}
+
+/** How a node closes collection and dispatches. Mirrors the `mp_dispatch_mode`
+ * DB enum; see its comment for what each value means. */
+export type DispatchMode = 'per_shift' | 'day' | 'overnight';
+
+/** Pooled modes dispatch one untagged tanker (`shift = null`); `per_shift`
+ * tags each consignment with its own shift. This single predicate is what keeps
+ * close, dispatch, and availability agreeing on the shape of a pool. */
+export function isPooled(mode: DispatchMode): boolean {
+  return mode !== 'per_shift';
+}
+
+/**
+ * The slots a close or a dispatch covers, anchored on `anchorDate`.
+ *
+ * `per_shift` needs the caller to name which shift; the pooled modes ignore it
+ * because the pool's membership is fixed by the mode, not by what the operator
+ * has on screen. Returning the slot list (rather than a boolean each caller
+ * re-interprets) is what stopped close and dispatch drifting apart — they now
+ * gate on exactly the same set.
+ *
+ * Throws when `per_shift` is given no shift: silently defaulting would close or
+ * dispatch a shift the operator didn't pick.
+ */
+export function poolSlots(mode: DispatchMode, anchorDate: string, shift?: 'am' | 'pm'): Slot[] {
+  if (mode === 'overnight') return ccReceiveWindow(true, anchorDate);
+  if (mode === 'day') return ccReceiveWindow(false, anchorDate);
+  if (!shift) throw new Error('per_shift node requires a shift');
+  return [{ date: anchorDate, shift }];
+}
+
+/**
+ * The slots a status read reports on — always the node's whole current window,
+ * regardless of which shift the caller is looking at, so the UI can show both
+ * halves of a pool (and both shifts of a per-shift day) at once.
+ */
+export function statusSlots(mode: DispatchMode, anchorDate: string): Slot[] {
+  return ccReceiveWindow(mode === 'overnight', anchorDate);
 }
 
 /** An accrual window: both ends inclusive, ISO `yyyy-mm-dd`. */

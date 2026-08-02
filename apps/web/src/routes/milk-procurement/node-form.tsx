@@ -12,7 +12,7 @@ import {
 import { useVendors } from '@/hooks/queries/use-vendors';
 import {
   NODE_TYPE_META, PAYOUT_MODES, MEASUREMENT_MODES, COLLECTION_SHIFTS, SELECTABLE_MILK_TYPES,
-  VmccMilkTypeFields,
+  DISPATCH_MODES, DISPATCH_MODE_HELP, VmccMilkTypeFields,
 } from './_node-shared';
 
 const NODE_TYPES: NodeType[] = ['vmcc', 'cc', 'pp'];
@@ -78,7 +78,7 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
     parentNodeId: node?.parentNodeId ?? '',
     capacityLitres: node?.capacityLitres ?? '', payoutMode: node?.payoutMode ?? '',
     payeeVendorId: node?.payeeVendorId ?? '',
-    hasBmc: node?.hasBmc ?? false, overnightPooling: node?.overnightPooling ?? false,
+    hasBmc: node?.hasBmc ?? false, dispatchMode: node?.dispatchMode ?? 'per_shift',
     measurementMode: node?.measurementMode ?? 'analyzer',
     collectionShifts: node?.collectionShifts ?? 'both',
   });
@@ -130,11 +130,18 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
               Has integrated BMC (bulk-milk cooler)
             </label>
           )}
-          {nodeType === 'cc' && (
-            <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-              <input type="checkbox" checked={f.overnightPooling} onChange={(e) => setF({ ...f, overnightPooling: e.target.checked })} />
-              Overnight pooling (dispatch = previous-day PM + today AM)
-            </label>
+          {nodeType !== 'pp' && (
+            <>
+              <Combobox label="Close &amp; dispatch mode" value={f.dispatchMode}
+                onChange={(v) => setF({ ...f, dispatchMode: v })} options={DISPATCH_MODES} />
+              <p className="-mt-1 text-xs text-zinc-500">{DISPATCH_MODE_HELP[f.dispatchMode]}</p>
+              {f.dispatchMode !== 'per_shift' && !f.hasBmc && (
+                <p className="-mt-1 text-xs text-amber-600 dark:text-amber-500">
+                  Pooling holds milk until the whole window is collected. Without a BMC this node has
+                  nowhere to chill it — set the mode to per-shift unless the milk is stored elsewhere.
+                </p>
+              )}
+            </>
           )}
           {nodeType === 'vmcc' && (
             <>
@@ -164,9 +171,11 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
 
 type FormState = {
   code: string; name: string; parentNodeId: string; capacityLitres: string | number;
-  payoutMode: string; payeeVendorId: string; hasBmc: boolean; overnightPooling: boolean;
+  payoutMode: string; payeeVendorId: string; hasBmc: boolean; dispatchMode: string;
   measurementMode: string; collectionShifts: string;
 };
+
+type DispatchMode = 'per_shift' | 'day' | 'overnight';
 
 /** Assemble the type-specific request body (only the fields that type accepts). */
 function buildBody(nodeType: NodeType, f: FormState, allowedMilkTypes: MilkType[], defaultMilkType: string) {
@@ -178,13 +187,16 @@ function buildBody(nodeType: NodeType, f: FormState, allowedMilkTypes: MilkType[
   };
   if (nodeType === 'vmcc') {
     return {
-      ...base, hasBmc: f.hasBmc, payeeVendorId: f.payeeVendorId || null,
+      ...base, hasBmc: f.hasBmc, dispatchMode: f.dispatchMode as DispatchMode,
+      payeeVendorId: f.payeeVendorId || null,
       measurementMode: f.measurementMode as MeasurementMode,
       collectionShifts: f.collectionShifts as 'both' | 'am' | 'pm',
       allowedMilkTypes: allowedMilkTypes.length > 0 ? allowedMilkTypes : null,
       defaultMilkType: defaultMilkType ? (defaultMilkType as MilkType) : null,
     };
   }
-  if (nodeType === 'cc') return { ...base, hasBmc: f.hasBmc, overnightPooling: f.overnightPooling };
+  if (nodeType === 'cc') {
+    return { ...base, hasBmc: f.hasBmc, dispatchMode: f.dispatchMode as DispatchMode };
+  }
   return base;
 }

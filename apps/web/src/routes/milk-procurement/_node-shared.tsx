@@ -26,6 +26,19 @@ export const COLLECTION_SHIFTS = [
   { value: 'am', label: 'AM only' },
   { value: 'pm', label: 'PM only' },
 ];
+export const DISPATCH_MODES = [
+  { value: 'per_shift', label: 'Per shift (AM and PM separately)' },
+  { value: 'day', label: 'Whole day (today AM + PM together)' },
+  { value: 'overnight', label: 'Overnight pool (yesterday PM + today AM)' },
+];
+export const DISPATCH_MODE_HELP: Record<string, string> = {
+  per_shift: 'Each shift closes and dispatches on its own, and every consignment is tagged AM or PM — '
+    + 'shift-level traceability survives all the way to the plant.',
+  day: "Today's AM and PM close together and leave as one untagged tanker. Needs somewhere to hold the "
+    + 'morning milk until the evening run.',
+  overnight: "Yesterday's evening milk is chilled and leaves with this morning's collection as one "
+    + "tanker. Today's PM belongs to tomorrow's pool.",
+};
 
 // The four types operators can actually select; 'cow' is legacy-only.
 export const SELECTABLE_MILK_TYPES: MilkType[] = ['cow_a1', 'cow_a2', 'buffalo', 'mixed'];

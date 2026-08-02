@@ -33,7 +33,8 @@ export type MeasurementMode = 'analyzer' | 'lactometer';
 
 export interface MpNode {
   id: string; code: string; name: string; nodeType: NodeType;
-  parentNodeId: string | null; hasBmc: boolean; overnightPooling: boolean; capacityLitres: string | null;
+  parentNodeId: string | null; hasBmc: boolean;
+  dispatchMode: 'per_shift' | 'day' | 'overnight'; capacityLitres: string | null;
   payoutMode: PayoutMode | null; payeeVendorId: string | null;
   measurementMode: MeasurementMode;
   collectionShifts: 'both' | 'am' | 'pm';

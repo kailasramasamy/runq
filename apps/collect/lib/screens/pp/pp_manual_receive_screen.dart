@@ -97,7 +97,7 @@ class _PpManualReceiveScreenState extends ConsumerState<PpManualReceiveScreen> {
           'fromNodeId': cc.id,
           'toNodeId': widget.ppNodeId,
           'collectionDate': isoDate(_date),
-          if (!cc.hasBmc) 'shift': _shift.name,
+          if (!cc.isPooledDispatch) 'shift': _shift.name,
           'milkType': milkTypeToApi(m),
           'qty': row.qty,
           'fat': row.fat,
@@ -150,7 +150,7 @@ class _PpManualReceiveScreenState extends ConsumerState<PpManualReceiveScreen> {
                     _ccField(t, l, ccs),
                     // A CC with a BMC pools the whole day, exactly as its
                     // dispatches do; only a no-BMC centre sends per shift.
-                    if (_cc != null && !_cc!.hasBmc) ...[
+                    if (_cc != null && !_cc!.isPooledDispatch) ...[
                       const SizedBox(height: DhenuSpacing.md),
                       Row(children: [
                         Text(l.ccManualReceiveShiftLabel,

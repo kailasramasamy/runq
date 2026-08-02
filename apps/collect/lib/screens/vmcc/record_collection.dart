@@ -647,23 +647,23 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // shift. A closed slot freezes recording here and gates dispatch downstream.
   bool _slotClosed(MpShiftStatus? st) {
     if (st == null) return false;
-    return widget.node.hasBmc ? st.dayClosed : st.closedFor(_shift.name);
+    return widget.node.isPooledDispatch ? st.dayClosed : st.closedFor(_shift.name);
   }
 
   /// Don't close while unsynced pours for this slot sit in the offline queue —
   /// they'd otherwise land after the close and slip past the guard on sync.
   bool _hasPendingForClose() {
     final pending = PourQueue.instance.pendingFor(widget.node.id);
-    if (widget.node.hasBmc) return pending.isNotEmpty;
+    if (widget.node.isPooledDispatch) return pending.isNotEmpty;
     return pending.any((p) => p.shift == _shift.name);
   }
 
-  String? get _closeShiftArg => widget.node.hasBmc ? null : _shift.name;
+  String? get _closeShiftArg => widget.node.isPooledDispatch ? null : _shift.name;
 
   /// Availability for the slot on screen — a BMC VMCC pools the whole day, so it
   /// has no per-shift figure. Same key the dispatch screen uses, so the two agree.
   AvailabilityDateArgs get _availArgs =>
-      (nodeId: widget.node.id, date: _date, shift: widget.node.hasBmc ? null : _shift.name);
+      (nodeId: widget.node.id, date: _date, shift: widget.node.isPooledDispatch ? null : _shift.name);
 
   Future<void> _closeShift() async {
     if (_hasPendingForClose()) {
@@ -833,7 +833,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// Reopen affordance (server rejects reopen once anything has been dispatched).
   Widget _closedBanner(DhenuTokens t) {
     final l = AppLocalizations.of(context);
-    final msg = widget.node.hasBmc ? l.collectDayClosedBanner : l.collectClosedBanner(_shiftLabel);
+    final msg = widget.node.isPooledDispatch ? l.collectDayClosedBanner : l.collectClosedBanner(_shiftLabel);
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
@@ -871,7 +871,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           node: widget.node,
           initialDate: _date,
           // A BMC VMCC pools the whole day, so the slot's shift means nothing there.
-          initialShift: widget.node.hasBmc ? null : _shift,
+          initialShift: widget.node.isPooledDispatch ? null : _shift,
         ),
       ),
     ));
@@ -917,7 +917,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// dispatch. Disabled while unsynced pours for the slot are still queued.
   Widget _closeButton(DhenuTokens t) {
     final l = AppLocalizations.of(context);
-    final label = widget.node.hasBmc ? l.collectCloseDay : l.collectCloseShift(_shiftLabel);
+    final label = widget.node.isPooledDispatch ? l.collectCloseDay : l.collectCloseShift(_shiftLabel);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(

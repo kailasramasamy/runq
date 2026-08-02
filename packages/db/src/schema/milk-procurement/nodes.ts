@@ -3,7 +3,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { vendors } from '../ap/vendors';
-import { mpNodeType, mpPayoutMode, mpMeasurementMode, mpMilkType, mpCollectionShifts } from './enums';
+import {
+  mpNodeType, mpPayoutMode, mpMeasurementMode, mpMilkType, mpCollectionShifts, mpDispatchMode,
+} from './enums';
 
 /**
  * The collection network as a self-referencing tree: a VMCC's `parent` is its
@@ -18,9 +20,13 @@ export const mpNodes = pgTable('mp_nodes', {
   nodeType: mpNodeType('node_type').notNull(),
   parentNodeId: uuid('parent_node_id'),
   hasBmc: boolean('has_bmc').notNull().default(false),
-  // CC dispatch pooling: true → pool is previous-day PM + today AM (milk chilled
-  // overnight, sent with the next morning's collection); false → same-day AM+PM.
-  // Only meaningful for CC nodes.
+  // How this node closes and dispatches: per_shift | day | overnight. Set for
+  // VMCC and CC alike. See mpDispatchMode.
+  dispatchMode: mpDispatchMode('dispatch_mode').notNull().default('per_shift'),
+  // DEPRECATED — superseded by dispatchMode ('overnight'), which migration 0179
+  // backfills from this column. Retained so the backfill stays re-runnable and
+  // the column isn't dropped out from under a deploy; nothing reads it. Drop in
+  // a later migration once every environment is on dispatchMode.
   overnightPooling: boolean('overnight_pooling').notNull().default(false),
   // milk-testing capability: `analyzer` (fat/SNF) or `lactometer` (CLR-only).
   // Only meaningful for VMCCs; CC/PP always test on an analyzer.

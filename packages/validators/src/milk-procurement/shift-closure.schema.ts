@@ -4,8 +4,10 @@ import { z } from 'zod';
  * Dhenu milk-procurement — per-slot collection close validators.
  *
  * Closing a (node, date, shift) freezes pours/edits for it and gates dispatch.
- * `shift` is omitted for a BMC node (pools the whole day) — the service then
- * closes both am and pm; non-BMC nodes must name the shift.
+ * `shift` is omitted by a pooled node (`day` / `overnight` dispatch mode) — the
+ * service closes the mode's whole window; a `per_shift` node must name the
+ * shift. The requirement depends on node state, so it is enforced in the
+ * service, not here.
  */
 
 export const closeShiftSchema = z.object({

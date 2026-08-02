@@ -33,9 +33,15 @@ const baseNodeFields = z.object({
   lng: z.number().min(-180).max(180).nullish(),
 });
 
+// How a node closes collection and dispatches what it holds. Applies to VMCCs
+// and CCs alike — a VMCC that chills its PM milk overnight and sends it with the
+// next morning's collection needs `overnight` just as much as a CC does.
+const dispatchMode = z.enum(['per_shift', 'day', 'overnight']).default('per_shift');
+
 // VMCC-only: milk testing, collection shifts, and accepted milk types.
 const vmccFields = baseNodeFields.extend({
   hasBmc: z.boolean().default(false),
+  dispatchMode,
   // analyzer = fat/SNF testing; lactometer = CLR-only (VMCC without an analyzer)
   measurementMode: z.enum(['analyzer', 'lactometer']).default('analyzer'),
   // which shifts a VMCC collects in — both (default) | am | pm
@@ -48,10 +54,9 @@ const vmccFields = baseNodeFields.extend({
   rateChartId: z.string().uuid().nullish(),
 });
 
-// CC-only: overnight pooling (prev-day PM + today AM).
 const ccFields = baseNodeFields.extend({
   hasBmc: z.boolean().default(false),
-  overnightPooling: z.boolean().default(false),
+  dispatchMode,
 });
 
 // PP: shared fields only.
@@ -98,7 +103,7 @@ export type UpdateProcessingPlantInput = z.infer<typeof updateProcessingPlantSch
 // parsed typed-create object is assignable to these.
 type NodeTypeSpecific = {
   hasBmc?: boolean;
-  overnightPooling?: boolean;
+  dispatchMode?: z.infer<typeof dispatchMode>;
   measurementMode?: z.infer<typeof vmccFields>['measurementMode'];
   collectionShifts?: z.infer<typeof vmccFields>['collectionShifts'];
   allowedMilkTypes?: z.infer<typeof milkTypeEnum>[] | null;

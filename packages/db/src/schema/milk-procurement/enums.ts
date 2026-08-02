@@ -32,6 +32,20 @@ export const mpShift = pgEnum('mp_shift', ['am', 'pm']);
 // Which shifts a VMCC collects in. `both` (default) | `am` | `pm` — drives the
 // receive-screen VMCC list (only sources for the current shift are shown).
 export const mpCollectionShifts = pgEnum('mp_collection_shifts', ['both', 'am', 'pm']);
+/**
+ * How a node closes collection and dispatches what it holds.
+ *  - `per_shift` — AM and PM close and dispatch independently, each consignment
+ *    shift-tagged. Traceability per shift survives all the way downstream.
+ *  - `day`       — today AM + PM pool into one dispatch (shift null). Needs
+ *    somewhere to hold the AM milk until the PM tanker.
+ *  - `overnight` — previous-day PM + today AM pool into one dispatch, the
+ *    chilled-overnight pattern. Today's PM belongs to the NEXT pool.
+ *
+ * Replaces inferring the behaviour from `has_bmc` / `overnight_pooling`: those
+ * describe the equipment, this describes the operating pattern, and a node can
+ * have a BMC and still want per-shift traceability.
+ */
+export const mpDispatchMode = pgEnum('mp_dispatch_mode', ['per_shift', 'day', 'overnight']);
 export const mpCaptureSrc = pgEnum('mp_capture_src', ['manual', 'device']);
 export const mpPourStatus = pgEnum('mp_pour_status', ['recorded', 'reversed']);
 export const mpConsignmentKind = pgEnum('mp_consignment_kind', ['vmcc_to_cc', 'cc_to_pp']);

@@ -11,7 +11,9 @@ import { ConflictError, NotFoundError, ValidationError } from '../../utils/error
 import { StockLedgerService } from '../inventory/stock-ledger.service';
 import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
-import { ccReceiveWindow, type Slot } from './procurement-window';
+import {
+  ccReceiveWindow, poolSlots, isPooled, type Slot, type DispatchMode,
+} from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
 import { RateChartService } from './rate-chart.service';
@@ -69,37 +71,32 @@ export class ConsignmentService {
   async dispatch(input: CreateConsignmentInput, userId: string | undefined, principal: MpPrincipal): Promise<MpConsignmentRow> {
     // operators may only dispatch from a node they're assigned to
     assertNodeAccess(principal, input.fromNodeId);
-    // BMC nodes pool the whole day (shift null); no-BMC nodes dispatch each shift
-    // separately, so shift is required and scopes the consignment.
+    // The node's dispatch mode decides everything below: a pooled node (day /
+    // overnight) sends one untagged tanker, a per_shift node tags each
+    // consignment with its shift and needs the caller to name it.
     const [from] = await this.db.select({
-      hasBmc: mpNodes.hasBmc, nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling,
+      nodeType: mpNodes.nodeType, dispatchMode: mpNodes.dispatchMode,
     }).from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
-    const overnight = from.nodeType === 'cc' && from.overnightPooling;
-    // An overnight CC pools its whole window (prev PM + today AM) and dispatches
-    // as one shift-null tanker, exactly like a BMC node — so it never needs a
-    // per-shift selection even when it has no BMC of its own.
-    const pooled = from.hasBmc || overnight;
+    const mode = from.dispatchMode;
+    const pooled = isPooled(mode);
     if (!pooled && !input.shift) {
-      throw new ValidationError('This node has no BMC — select a shift (AM/PM) to dispatch.');
+      throw new ValidationError('This node dispatches per shift — select AM or PM.');
     }
     const shift = pooled ? null : input.shift ?? null;
-    // Hard gate: collection must be closed before milk leaves. An overnight CC's
-    // pool spans yesterday-PM + today-AM; a BMC node pools the whole day (both
-    // shifts); no-BMC needs just the one.
-    const mustBeClosed: Slot[] = overnight
-      ? ccReceiveWindow(true, input.collectionDate)
-      : from.hasBmc
-        ? [{ date: input.collectionDate, shift: 'am' }, { date: input.collectionDate, shift: 'pm' }]
-        : [{ date: input.collectionDate, shift: input.shift! }];
+    // Hard gate: collection must be closed before milk leaves. Same slot list the
+    // close path writes, so the two can't disagree about what a pool contains.
+    const mustBeClosed: Slot[] = poolSlots(mode, input.collectionDate, input.shift ?? undefined);
     for (const s of mustBeClosed) {
       const closed = await isShiftClosed(this.db, {
         tenantId: this.tenantId, nodeId: input.fromNodeId, collectionDate: s.date, shift: s.shift,
       });
       if (!closed) {
-        throw new ValidationError(overnight
+        throw new ValidationError(mode === 'overnight'
           ? 'Close both pool slots (yesterday PM + today AM) before dispatching.'
-          : 'Close collection for this shift before dispatching.');
+          : mode === 'day'
+            ? 'Close both shifts (AM + PM) before dispatching.'
+            : 'Close collection for this shift before dispatching.');
       }
     }
     // One consignment carries one milk type, so the type survives to the plant's
@@ -114,8 +111,9 @@ export class ConsignmentService {
     // Never let dispatches exceed what's on hand — otherwise availability goes
     // negative (e.g. dispatching an already-sent shift/pool). Scoped to the type,
     // so cow litres can't be sent against buffalo stock.
-    const available = overnight
-      ? await this.ccPoolAvailable(input.fromNodeId, input.collectionDate, milkType)
+    const available = mode === 'overnight'
+      ? await this.overnightPoolAvailable(
+        input.fromNodeId, from.nodeType, input.collectionDate, milkType)
       : await this.availableToDispatch(
         input.fromNodeId, input.collectionDate, from.nodeType, shift ?? undefined, milkType);
     if (input.dispatchQty - available > 1e-6) {
@@ -188,13 +186,15 @@ export class ConsignmentService {
     assertNodeAccess(principal, input.toNodeId);
     assertNodeAccess(principal, input.fromNodeId);
     const [from] = await this.db.select({
-      nodeType: mpNodes.nodeType, hasBmc: mpNodes.hasBmc,
+      nodeType: mpNodes.nodeType, dispatchMode: mpNodes.dispatchMode,
       defaultMilkType: mpNodes.defaultMilkType, allowedMilkTypes: mpNodes.allowedMilkTypes,
     }).from(mpNodes)
       .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.fromNodeId)));
     if (!from) throw new NotFoundError('Source node');
     const kind = from.nodeType === 'cc' ? 'cc_to_pp' : 'vmcc_to_cc';
-    const shift = from.hasBmc ? null : input.shift ?? null;
+    // Match how the source dispatches: a pooled source's milk is untagged, so a
+    // manual receipt claiming a shift would sit outside the pool it belongs to.
+    const shift = isPooled(from.dispatchMode) ? null : input.shift ?? null;
     const qty = String(input.qty);
     const [to] = await this.db.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
       .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, input.toNodeId)));
@@ -395,20 +395,17 @@ export class ConsignmentService {
     shift?: 'am' | 'pm', milkType?: MilkType,
   ): Promise<ConsignmentAvailability> {
     assertNodeAccess(principal, nodeId);
-    const [node] = await this.db.select({ nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling })
+    const [node] = await this.db.select({ nodeType: mpNodes.nodeType, dispatchMode: mpNodes.dispatchMode })
       .from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
     if (!node) throw new NotFoundError('Node not found');
-    const overnight = node.nodeType === 'cc' && node.overnightPooling;
-    const batches = node.nodeType === 'vmcc'
-      ? await this.collectedFromPours(nodeId, collectionDate, shift)
-      : overnight
-        ? await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, collectionDate))
-        : await this.collectedFromReceipts(nodeId, collectionDate, shift);
-    // An overnight pool is dispatched as one tanker dated today (shift null), so
-    // the dispatched side stays anchored on today regardless of the shift filter.
-    const dispatchRows = overnight
-      ? await this.dispatchedByType(nodeId, collectionDate)
-      : await this.dispatchedByType(nodeId, collectionDate, shift);
+    const mode = node.dispatchMode;
+    // A pooled node dispatches its whole window as one tanker, so a shift filter
+    // would report an availability the operator cannot actually draw against.
+    const effShift = isPooled(mode) ? undefined : shift;
+    const batches = await this.collectedFor(nodeId, node.nodeType, mode, collectionDate, effShift);
+    // A pool is dispatched as one tanker dated on the anchor day (shift null), so
+    // the dispatched side stays anchored there regardless of the shift filter.
+    const dispatchRows = await this.dispatchedByType(nodeId, collectionDate, effShift);
 
     const left = drawDown(batches, dispatchRows);
     const types = [...new Set([
@@ -441,6 +438,30 @@ export class ConsignmentService {
     };
   }
 
+  /**
+   * What the node holds, by its own mode: a VMCC counts its pours, a CC/PP counts
+   * milk received in, and an `overnight` node of either kind counts across the
+   * two-day window instead of a single date.
+   *
+   * The VMCC/CC split and the windowed/single-date split are orthogonal, which is
+   * why they're resolved together here rather than at each call site — an
+   * overnight VMCC was previously unreachable, because only the receipts path had
+   * a windowed variant.
+   */
+  private async collectedFor(
+    nodeId: string, nodeType: string, mode: DispatchMode, date: string, shift?: 'am' | 'pm',
+  ): Promise<Batch[]> {
+    const window = mode === 'overnight' ? ccReceiveWindow(true, date) : null;
+    if (nodeType === 'vmcc') {
+      return window
+        ? this.collectedFromPoursWindow(nodeId, window)
+        : this.collectedFromPours(nodeId, date, shift);
+    }
+    return window
+      ? this.collectedFromReceiptsWindow(nodeId, window)
+      : this.collectedFromReceipts(nodeId, date, shift);
+  }
+
   /** Litres still on hand to dispatch at a node for a date/shift (collected − dispatched). */
   private async availableToDispatch(
     nodeId: string, date: string, nodeType: string, shift?: 'am' | 'pm', milkType?: MilkType,
@@ -460,6 +481,20 @@ export class ConsignmentService {
     }).from(mpPours).where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.nodeId, nodeId),
       eq(mpPours.collectionDate, date), eq(mpPours.status, 'recorded'),
       ...(shift ? [eq(mpPours.shift, shift)] : [])))
+      .orderBy(asc(mpPours.createdAt));
+    return rows.map(toBatch);
+  }
+
+  /** Recorded pours at a VMCC over an explicit set of (date, shift) slots — an
+   * overnight VMCC chills its PM milk and sends it with the next morning's. */
+  private async collectedFromPoursWindow(nodeId: string, slots: Slot[]): Promise<Batch[]> {
+    const slotCond = or(...slots.map((s) => and(
+      eq(mpPours.collectionDate, s.date), eq(mpPours.shift, s.shift))));
+    const rows = await this.db.select({
+      qty: mpPours.qtyLitres, fat: mpPours.fat, snf: mpPours.snf, water: mpPours.water,
+      milkType: mpPours.milkType,
+    }).from(mpPours).where(and(eq(mpPours.tenantId, this.tenantId), eq(mpPours.nodeId, nodeId),
+      eq(mpPours.status, 'recorded'), slotCond))
       .orderBy(asc(mpPours.createdAt));
     return rows.map(toBatch);
   }
@@ -501,9 +536,12 @@ export class ConsignmentService {
     return rows.map(toBatch);
   }
 
-  /** Litres on hand for an overnight CC's pool (windowed receipts − today's dispatch). */
-  private async ccPoolAvailable(nodeId: string, anchorDate: string, milkType?: MilkType): Promise<number> {
-    const batches = await this.collectedFromReceiptsWindow(nodeId, ccReceiveWindow(true, anchorDate));
+  /** Litres on hand for an overnight node's pool (windowed intake − the anchor
+   * day's dispatch). Works for a VMCC (pours) and a CC (receipts) alike. */
+  private async overnightPoolAvailable(
+    nodeId: string, nodeType: string, anchorDate: string, milkType?: MilkType,
+  ): Promise<number> {
+    const batches = await this.collectedFor(nodeId, nodeType, 'overnight', anchorDate);
     const dispatched = await this.dispatchedByType(nodeId, anchorDate);
     return availableOf(batches, dispatched, milkType);
   }

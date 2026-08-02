@@ -41,7 +41,7 @@ class CcReceiveTab extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     _invalidateAfterReceipt(ref);
-    if (node.overnightPooling) {
+    if (node.isOvernightPool) {
       ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
     }
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
@@ -57,7 +57,7 @@ class CcReceiveTab extends ConsumerWidget {
     final children = allVmccs.where((n) => n.parentNodeId == node.id).toList();
     final shiftStatus = ref.watch(shiftStatusProvider(node.id)).asData?.value;
     // Overnight CC pools across yesterday + today, so the lists span both days.
-    final yest = node.overnightPooling
+    final yest = node.isOvernightPool
         ? (ref.watch(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1)))).asData?.value ??
             const <MpConsignment>[])
         : const <MpConsignment>[];
@@ -138,7 +138,7 @@ class CcReceiveTab extends ConsumerWidget {
   /// same key the dispatch screen uses, so the two can't disagree.
   AvailabilityArgs get _availArgs => (
         nodeId: node.id,
-        shift: (node.hasBmc || node.overnightPooling) ? null : currentShift(),
+        shift: node.isPooledDispatch ? null : currentShift(),
       );
 
   Future<void> _openDispatch(
@@ -293,7 +293,7 @@ class CcReceiveTab extends ConsumerWidget {
   /// not locked; the server re-checks and rejects a genuinely-locked delete.
   bool _lockedForDispatch(MpShiftStatus? st, MpConsignment c) {
     if (st == null) return false;
-    if (node.hasBmc) return st.dayClosed;
+    if (node.isPooledDispatch) return st.dayClosed;
     return c.shift != null && st.closedFor(c.shift!.name);
   }
 

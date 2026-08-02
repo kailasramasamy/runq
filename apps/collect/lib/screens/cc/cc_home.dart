@@ -52,7 +52,7 @@ class CcHome extends ConsumerWidget {
     ref.invalidate(ccVmccCollectionsProvider(node.id));
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
     ref.invalidate(nodeAvailabilityProvider);
-    if (node.overnightPooling) {
+    if (node.isOvernightPool) {
       ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
     }
     await Future.wait([
@@ -67,7 +67,7 @@ class CcHome extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final sync = ref.watch(syncProvider);
     final vmccsAsync = ref.watch(ccVmccCollectionsProvider(node.id));
-    final overnight = node.overnightPooling;
+    final overnight = node.isOvernightPool;
     final todayCons = ref.watch(nodeInboundConsignmentsProvider(node.id)).asData?.value ??
         const <MpConsignment>[];
     // Overnight CC: the pool is yesterday-PM + today-AM. Today's PM belongs to

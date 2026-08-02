@@ -4,18 +4,38 @@ import type { Db } from '@runq/db';
 import type { CloseShiftInput, ReopenShiftInput } from '@runq/validators';
 import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors';
 import { MpPrincipal, assertNodeAccess } from './access-scope';
-import { ccReceiveWindow, type Slot } from './procurement-window';
+import {
+  poolSlots, statusSlots, isPooled, type Slot, type DispatchMode,
+} from './procurement-window';
 
 type Shift = 'am' | 'pm';
-export interface ShiftStatus { am: boolean; pm: boolean }
-interface NodeMode { hasBmc: boolean; overnight: boolean }
+
+/** One slot of the node's window and whether collection is closed on it. */
+export interface ShiftSlotStatus { date: string; shift: Shift; closed: boolean }
+
+/**
+ * `am`/`pm` are the flat view every existing client reads: the closed-state of
+ * each slot keyed by its shift. For an overnight node `pm` is YESTERDAY's PM, so
+ * `am && pm` still means "the whole pool is closed" — which is why `slots`
+ * carries the dates explicitly. Prefer `slots` in new code; the flat pair cannot
+ * express a two-day window.
+ */
+export interface ShiftStatus {
+  am: boolean;
+  pm: boolean;
+  mode: DispatchMode;
+  slots: ShiftSlotStatus[];
+}
+
+interface NodeMode { mode: DispatchMode }
 
 /**
  * Per-slot collection close. Closing freezes pours/edits for a (node, date,
- * shift) and gates dispatch. A BMC node (pools the whole day) closes both am+pm;
- * an overnight CC closes its pool window (yesterday PM + today AM) so the gate
- * spans two calendar days. Reopen is blocked once a dispatch for the slot exists
- * — milk has physically left.
+ * shift) and gates dispatch. What a close covers is the node's `dispatchMode`:
+ * `per_shift` closes the named shift alone, `day` closes today's AM+PM, and
+ * `overnight` closes the pool window (yesterday PM + today AM) so the gate spans
+ * two calendar days. Reopen is blocked once a dispatch for the slot exists —
+ * milk has physically left.
  */
 export class ShiftClosureService {
   constructor(
@@ -61,54 +81,45 @@ export class ShiftClosureService {
     return this.status(input.nodeId, input.collectionDate, principal);
   }
 
-  /** Closed-state of the node's pool slots, mapped onto {am, pm} by each slot's
-   * shift. For an overnight CC, `am` = today-AM closed and `pm` = yesterday-PM
-   * closed, so `am && pm` still reads as "the whole pool is closed". */
+  /** Closed-state of every slot in the node's current window. */
   async status(nodeId: string, date: string, principal: MpPrincipal): Promise<ShiftStatus> {
     assertNodeAccess(principal, nodeId);
     const node = await this.loadNode(nodeId);
-    const slots = this.statusSlots(node, date);
-    const out: ShiftStatus = { am: false, pm: false };
-    for (const s of slots) {
+    const out: ShiftStatus = { am: false, pm: false, mode: node.mode, slots: [] };
+    for (const s of statusSlots(node.mode, date)) {
       const [row] = await this.db.select({ id: mpShiftClosures.id }).from(mpShiftClosures)
         .where(and(
           eq(mpShiftClosures.tenantId, this.tenantId), eq(mpShiftClosures.nodeId, nodeId),
           eq(mpShiftClosures.collectionDate, s.date), eq(mpShiftClosures.shift, s.shift),
           isNull(mpShiftClosures.reopenedAt),
         )).limit(1);
+      out.slots.push({ date: s.date, shift: s.shift, closed: !!row });
       if (row) out[s.shift] = true;
     }
     return out;
   }
 
   private async loadNode(nodeId: string): Promise<NodeMode> {
-    const [node] = await this.db.select({
-      hasBmc: mpNodes.hasBmc, nodeType: mpNodes.nodeType, overnightPooling: mpNodes.overnightPooling,
-    }).from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
+    const [node] = await this.db.select({ dispatchMode: mpNodes.dispatchMode })
+      .from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, nodeId)));
     if (!node) throw new NotFoundError('Node not found');
-    return { hasBmc: node.hasBmc, overnight: node.nodeType === 'cc' && node.overnightPooling };
+    return { mode: node.dispatchMode };
   }
 
-  /** Slots written by a close/reopen: overnight CC → pool window; BMC → both
-   * shifts today; no-BMC → the named shift. */
+  /** Slots written by a close/reopen — the node's mode decides, not the caller. */
   private closeSlots(node: NodeMode, anchorDate: string, inputShift?: Shift): Slot[] {
-    if (node.overnight) return ccReceiveWindow(true, anchorDate);
-    if (node.hasBmc) return [{ date: anchorDate, shift: 'am' }, { date: anchorDate, shift: 'pm' }];
-    if (!inputShift) throw new ValidationError('This node has no BMC — select a shift (AM/PM) to close.');
-    return [{ date: anchorDate, shift: inputShift }];
+    if (node.mode === 'per_shift' && !inputShift) {
+      throw new ValidationError('This node closes per shift — select AM or PM.');
+    }
+    return poolSlots(node.mode, anchorDate, inputShift);
   }
 
-  /** Slots reported by status — both shifts (or the overnight window). */
-  private statusSlots(node: NodeMode, anchorDate: string): Slot[] {
-    if (node.overnight) return ccReceiveWindow(true, anchorDate);
-    return [{ date: anchorDate, shift: 'am' }, { date: anchorDate, shift: 'pm' }];
-  }
-
-  /** A dispatch for the slot exists — BMC/overnight pool the whole day (shift
-   * null) on the anchor date; no-BMC is per-shift. */
+  /** A dispatch covering the slot exists — pooled modes send one untagged tanker
+   * on the anchor date; per_shift tags each consignment with its shift. */
   private async hasDispatch(nodeId: string, anchorDate: string, node: NodeMode, slot: Slot): Promise<boolean> {
-    const pooled = node.hasBmc || node.overnight;
-    const shiftCond = pooled ? isNull(mpConsignments.shift) : eq(mpConsignments.shift, slot.shift);
+    const shiftCond = isPooled(node.mode)
+      ? isNull(mpConsignments.shift)
+      : eq(mpConsignments.shift, slot.shift);
     const [row] = await this.db.select({ id: mpConsignments.id }).from(mpConsignments)
       .where(and(
         eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.fromNodeId, nodeId),
