@@ -57,6 +57,10 @@ export function sanitizeModuleCodes(input: readonly string[]): ModuleCode[] {
 const HR_ONLY_ROLES = new Set<string>(['hr']);
 // Dhenu personas are confined to milk_procurement, just as `hr` is to HR.
 const MILK_ONLY_ROLES = new Set<string>(['field_operator', 'farmer']);
+// Shop-floor technicians live on the plant side only — they run production and
+// need to see the stock behind it, but never Finance/HR/Purchase.
+const PLANT_ROLES = new Set<string>(['technician']);
+const PLANT_MODULES = new Set<string>(['manufacturing', 'inventory']);
 
 /**
  * Which enabled modules a role is *permitted* to access at all — the ceiling
@@ -72,6 +76,7 @@ export function roleAllowedModules(
 ): ModuleCode[] {
   if (HR_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'hr');
   if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
+  if (PLANT_ROLES.has(role ?? '')) return enabled.filter((code) => PLANT_MODULES.has(code));
   return [...enabled];
 }
 
@@ -89,5 +94,6 @@ export function defaultModulesForRole(
   if (role === 'owner' || role === 'client_owner') return [...enabled];
   if (role === 'accountant') return enabled.filter((code) => code === 'finance');
   if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
+  if (PLANT_ROLES.has(role ?? '')) return enabled.filter((code) => PLANT_MODULES.has(code));
   return enabled.filter((code) => code === 'hr');
 }

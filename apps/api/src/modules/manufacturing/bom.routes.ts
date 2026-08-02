@@ -10,7 +10,9 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { BomService } from './bom.service';
 
-const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
+// `technician` reads BOMs to pick one when recording production; authoring
+// stays with WRITE_ROLES.
+const READ_ROLES = ['owner', 'accountant', 'viewer', 'technician'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 
 const cloneBodySchema = z.object({

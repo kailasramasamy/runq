@@ -2,9 +2,12 @@
 // no Finance write. Added with mig 0084.
 // `field_operator` (VMCC/CC/PP collection staff) and `farmer` are Dhenu
 // milk-procurement personas: module-confined + row-scoped (mig 0132).
+// `technician` = shop-floor persona (packing tech / cook). Manufacturing +
+// Inventory only: may run production (consume, output, record unplanned runs)
+// but cannot author BOMs or work orders, and never sees Finance.
 export type UserRole =
   | 'owner' | 'accountant' | 'viewer' | 'client_owner' | 'hr'
-  | 'field_operator' | 'farmer';
+  | 'field_operator' | 'farmer' | 'technician';
 export type PlatformRole = 'super_admin' | 'support' | 'billing_ops' | 'read_only';
 
 export interface User {

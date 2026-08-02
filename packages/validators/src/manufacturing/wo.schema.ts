@@ -43,6 +43,12 @@ export const workOrderFilterSchema = z.object({
   warehouseId: z.string().uuid().optional(),
   scheduledFrom: z.string().date().optional(),
   scheduledTo: z.string().date().optional(),
+  /**
+   * "What happened on this day" — matches a WO scheduled for the date OR
+   * started / completed / closed on it. A run scheduled yesterday but finished
+   * this morning is today's work, and filtering on scheduled_for alone hid it.
+   */
+  activeOn: z.string().date().optional(),
   search: z.string().optional(),
 });
 

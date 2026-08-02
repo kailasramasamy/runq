@@ -153,12 +153,22 @@ WAC for inputs is read at consumption time (per batch / per warehouse), not at W
 
 ### 3.4 RBAC
 
-| Role | BOM | WO create | WO run (consume/output) | WO close | Reports |
+As built, against the real `user_role` enum (the earlier draft named roles that
+were never created):
+
+| Role | BOM | WO create/edit/cancel | WO run (start/consume/output/close) | Record Production (§5.6) | Reports |
 |---|---|---|---|---|---|
-| `production_operator` | view | — | record | — | own WOs |
-| `production_supervisor` | create / edit | create | record | close | full |
-| `finance_manager` | view | view | view | view | full |
+| `technician` | view | — | yes | yes | — |
+| `viewer` | view | — | — | — | full |
+| `accountant` | full | full | full | full | full |
 | `owner` | full | full | full | full | full |
+
+`technician` is the shop-floor persona: it is confined to the Manufacturing and
+Inventory modules (`roleAllowedModules` in `@runq/types`) and has read-only
+access within Inventory, so a device on the floor never carries Finance rights.
+Because module grants and rbac must stay in lockstep — a granted module that
+rbac rejects would 403 — `technician` is present in the Inventory and BOM
+`READ_ROLES` as well as the Manufacturing run roles.
 
 ---
 
@@ -378,6 +388,57 @@ GET    /manufacturing/dashboard
   → { wosInProgress, wosCompletedPendingClose, todayPlannedOutput,
       todayActualOutput, weekVariancePct, topBomsThisWeek }
 ```
+
+### 5.6 Unplanned production entry ("Record Production")
+
+```
+POST   /manufacturing/production/preview   backflush a BOM, FEFO-allocate, report shortages
+POST   /manufacturing/production           post the run as one unplanned WO
+```
+
+**Why it exists.** On a dairy floor the plant manager is not always on shift.
+Packing technicians and cooks make product anyway, from raw materials, with no
+work order authored for them. Without this they have no way to get finished
+goods into stock, and the raw materials they used stay on the books.
+
+**How it works.** The technician states the BOM (or the product) and how much
+came out. The server derives the inputs — `qtyPerOutput × runs × (1 +
+scrapPct/100)` where `runs = producedQty ÷ bom.outputQty` — allocates each one
+FEFO across the batches actually on hand, and posts the whole run in a single
+transaction: create WO (`entry_mode = 'unplanned'`) → start → consumption rows
+→ output row → complete → close.
+
+**Design decisions.**
+
+- **Reuses the WO engine rather than posting stock directly.** Costing, the
+  stock ledger, GL and every report stay single-sourced; there is no parallel
+  accounting path to keep in step. The only new logic is the backflush and the
+  FEFO allocation a manager would otherwise do by hand.
+- **One transaction.** `WoConsumptionService`, `WoOutputService` and
+  `WoLifecycleService` each expose an `*InTx` core alongside their public
+  method, so the run cannot half-post — stock consumed with no finished goods
+  to show for it is the failure mode this exists to prevent.
+- **Shortages block, they do not warn.** If on-hand cannot cover the BOM, the
+  entry is rejected with a 422 naming every short input and by how much
+  (`details.shortages`). Stock never goes negative; the floor fixes the receipt
+  first.
+- **FEFO is applied, not merely suggested.** Unlike the WO run screen — where
+  FEFO is advisory and the operator picks — the allocation here is computed and
+  pre-filled, then editable. An override replaces the server's allocation for
+  that item entirely and is still validated against on-hand.
+- **Yield variance is zero by construction.** Planned qty *is* what the
+  technician says was produced, so there is no plan to deviate from. Input
+  overrides move unit cost instead, which costing picks up.
+- **Idempotent at the WO level.** `work_orders.idempotency_key` is unique per
+  tenant, so a replayed mobile offline-queue entry returns the original run
+  rather than posting it twice.
+
+**Access.** Open to the `technician` role (see §3.4) as well as owner and
+accountant — a role that can run production and read BOMs and stock, but cannot
+author BOMs or work orders and never sees Finance.
+
+**Review.** Unplanned runs carry an `Unplanned` badge and filter on the WO
+list, so a returning manager can see exactly what was made while they were out.
 
 ---
 

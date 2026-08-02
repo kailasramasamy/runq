@@ -1,12 +1,14 @@
 import { and, eq, desc, or, sql, ilike, gte, lte, inArray } from 'drizzle-orm';
 import { workOrders, boms, bomLines, items, warehouses } from '@runq/db';
 import type { Db } from '@runq/db';
+import { istDate } from './mfg-day';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type {
   WorkOrderListRow,
   WorkOrderWithDetail,
   WorkOrderExpectedLine,
   WorkOrderStatus,
+  WoEntryMode,
 } from '@runq/types';
 import type { PaginationMeta } from '@runq/types';
 import type {
@@ -321,6 +323,16 @@ export class WorkOrderService {
       filters.warehouseId ? eq(workOrders.warehouseId, filters.warehouseId) : undefined,
       filters.scheduledFrom ? gte(workOrders.scheduledFor, filters.scheduledFrom) : undefined,
       filters.scheduledTo ? lte(workOrders.scheduledFor, filters.scheduledTo) : undefined,
+      // Timestamps bucket by IST day, not by the DB session timezone — see
+      // mfg-day.ts. scheduled_for is already a plain date and needs no cast.
+      filters.activeOn
+        ? or(
+            eq(workOrders.scheduledFor, filters.activeOn),
+            sql`${istDate(workOrders.startedAt)} = ${filters.activeOn}::date`,
+            sql`${istDate(workOrders.completedAt)} = ${filters.activeOn}::date`,
+            sql`${istDate(workOrders.closedAt)} = ${filters.activeOn}::date`,
+          )
+        : undefined,
       filters.search
         ? or(
             ilike(workOrders.woNumber, `%${filters.search}%`),
@@ -344,6 +356,7 @@ export class WorkOrderService {
       shift: row.shift ?? null,
       scheduledFor: row.scheduledFor,
       status: row.status as WorkOrderStatus,
+      entryMode: row.entryMode as WoEntryMode,
       startedAt: row.startedAt?.toISOString() ?? null,
       completedAt: row.completedAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null,

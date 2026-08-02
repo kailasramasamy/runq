@@ -35,7 +35,9 @@ import { NotFoundError } from '../../utils/errors';
 const lineParamSchema = z.object({ id: z.string().uuid(), lineId: z.string().uuid() });
 const itemWhParamSchema = z.object({ itemId: z.string().uuid(), warehouseId: z.string().uuid() });
 
-const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
+// `technician` is granted the inventory module (see roleAllowedModules) so it
+// must read here too, else a granted module 403s. Write stays finance-side.
+const READ_ROLES = ['owner', 'accountant', 'viewer', 'technician'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 
 export const inventoryRoutes: FastifyPluginAsync = async (app) => {

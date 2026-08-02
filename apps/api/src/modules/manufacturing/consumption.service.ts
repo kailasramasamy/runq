@@ -58,70 +58,84 @@ export class WoConsumptionService {
       if (existing) return existing;
     }
 
-    return this.db.transaction(async (tx: Tx) => {
-      const wo = await this.loadWo(tx, woId);
-      if (wo.status !== 'in_progress') {
-        throw new ConflictError(`WO must be in_progress to record consumption (current: ${wo.status})`);
-      }
+    return this.db.transaction((tx: Tx) => this.recordInTx(tx, woId, input, userId));
+  }
 
-      const item = await this.loadItem(tx, input.inputItemId);
+  /**
+   * Same as `record`, but joins a caller's transaction instead of opening its
+   * own. Used by the unplanned-production backflush, which must post the whole
+   * run — consumption, output and close — atomically.
+   *
+   * Skips the idempotency pre-check: that caller dedupes at the WO level.
+   */
+  async recordInTx(
+    tx: Tx,
+    woId: string,
+    input: RecordConsumptionInput,
+    userId?: string,
+  ): Promise<WoConsumption> {
+    const wo = await this.loadWo(tx, woId);
+    if (wo.status !== 'in_progress') {
+      throw new ConflictError(`WO must be in_progress to record consumption (current: ${wo.status})`);
+    }
 
-      if (item.trackBatches && !input.batchNo) {
-        throw new AppError(422, 'Batch required for batch-tracked item');
-      }
+    const item = await this.loadItem(tx, input.inputItemId);
 
-      const batchKey = input.batchNo ?? '';
-      const onHand = await this.readOnHand(tx, input.inputItemId, input.warehouseId, batchKey);
-      if (!onHand || onHand.qty < input.qty) {
-        throw new AppError(422, `Insufficient stock — batch ${batchKey || '(none)'} has only ${onHand?.qty ?? 0}`);
-      }
+    if (item.trackBatches && !input.batchNo) {
+      throw new AppError(422, 'Batch required for batch-tracked item');
+    }
 
-      const cachedWAC = onHand.avgCost;
-      const value = Math.round(input.qty * cachedWAC * 100) / 100;
+    const batchKey = input.batchNo ?? '';
+    const onHand = await this.readOnHand(tx, input.inputItemId, input.warehouseId, batchKey);
+    if (!onHand || onHand.qty < input.qty) {
+      throw new AppError(422, `Insufficient stock — batch ${batchKey || '(none)'} has only ${onHand?.qty ?? 0}`);
+    }
 
-      const { ledgerId } = await this.ledger.recordMovement(tx, {
-        itemId: input.inputItemId,
-        warehouseId: input.warehouseId,
-        batchNo: input.batchNo ?? null,
-        movementType: 'production_out',
-        sourceType: 'work_order',
-        sourceId: woId,
-        qtyDelta: -input.qty,
-        unitCost: cachedWAC,
-        movedAt: new Date(),
-        postedBy: userId ?? null,
-      });
+    const cachedWAC = onHand.avgCost;
+    const value = Math.round(input.qty * cachedWAC * 100) / 100;
 
-      const [row] = await tx
-        .insert(woConsumption)
-        .values({
-          tenantId: this.tenantId,
-          woId,
-          bomLineId: input.bomLineId ?? null,
-          inputItemId: input.inputItemId,
-          batchNo: input.batchNo ?? null,
-          warehouseId: input.warehouseId,
-          qty: String(input.qty),
-          uom: input.uom,
-          unitCost: String(cachedWAC),
-          value: String(value),
-          consumedBy: userId ?? null,
-          stockTxnId: ledgerId,
-          notes: input.notes ?? null,
-          idempotencyKey: input.idempotencyKey ?? null,
-        })
-        .returning();
-
-      await tx
-        .update(workOrders)
-        .set({
-          consumedValue: sql`${workOrders.consumedValue} + ${String(value)}`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workOrders.id, woId), eq(workOrders.tenantId, this.tenantId)));
-
-      return this.fetchRow(tx, row!.id);
+    const { ledgerId } = await this.ledger.recordMovement(tx, {
+      itemId: input.inputItemId,
+      warehouseId: input.warehouseId,
+      batchNo: input.batchNo ?? null,
+      movementType: 'production_out',
+      sourceType: 'work_order',
+      sourceId: woId,
+      qtyDelta: -input.qty,
+      unitCost: cachedWAC,
+      movedAt: new Date(),
+      postedBy: userId ?? null,
     });
+
+    const [row] = await tx
+      .insert(woConsumption)
+      .values({
+        tenantId: this.tenantId,
+        woId,
+        bomLineId: input.bomLineId ?? null,
+        inputItemId: input.inputItemId,
+        batchNo: input.batchNo ?? null,
+        warehouseId: input.warehouseId,
+        qty: String(input.qty),
+        uom: input.uom,
+        unitCost: String(cachedWAC),
+        value: String(value),
+        consumedBy: userId ?? null,
+        stockTxnId: ledgerId,
+        notes: input.notes ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+      })
+      .returning();
+
+    await tx
+      .update(workOrders)
+      .set({
+        consumedValue: sql`${workOrders.consumedValue} + ${String(value)}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workOrders.id, woId), eq(workOrders.tenantId, this.tenantId)));
+
+    return this.fetchRow(tx, row!.id);
   }
 
   async reverse(consumptionId: string, userId?: string): Promise<void> {

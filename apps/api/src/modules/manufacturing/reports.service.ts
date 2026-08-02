@@ -1,6 +1,7 @@
 import { and, eq, gte, lte, sql, ilike, inArray } from 'drizzle-orm';
 import { boms, workOrders, items, warehouses } from '@runq/db';
 import type { Db } from '@runq/db';
+import { istDate, istToday } from './mfg-day';
 import type {
   MfgDashboard,
   WoSummaryRow,
@@ -113,7 +114,7 @@ export class ManufacturingReportsService {
       .where(
         and(
           eq(workOrders.tenantId, tid),
-          sql`${workOrders.completedAt}::date = CURRENT_DATE`,
+          sql`${istDate(workOrders.completedAt)} = ${istToday()}`,
           sql`${workOrders.status} <> 'cancelled'`,
         ),
       );
@@ -127,7 +128,7 @@ export class ManufacturingReportsService {
       .where(
         and(
           eq(workOrders.tenantId, tid),
-          sql`${workOrders.scheduledFor} = CURRENT_DATE`,
+          sql`${workOrders.scheduledFor} = ${istToday()}`,
           sql`${workOrders.status} <> 'cancelled'`,
         ),
       );
@@ -146,7 +147,7 @@ export class ManufacturingReportsService {
       .where(
         and(
           eq(workOrders.tenantId, tid),
-          sql`${workOrders.scheduledFor} = CURRENT_DATE`,
+          sql`${workOrders.scheduledFor} = ${istToday()}`,
         ),
       );
     return { planned: r?.planned ?? null, actual: r?.actual ?? null };

@@ -83,6 +83,7 @@ export * from './manufacturing/bom.schema';
 export * from './manufacturing/wo.schema';
 export * from './manufacturing/run.schema';
 export * from './manufacturing/reports.schema';
+export * from './manufacturing/production.schema';
 export * from './milk-procurement/node.schema';
 export * from './milk-procurement/farmer.schema';
 export * from './milk-procurement/rate-chart.schema';

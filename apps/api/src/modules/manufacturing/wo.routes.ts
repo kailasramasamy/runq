@@ -19,8 +19,12 @@ import { BatchSuggestService } from './batch-suggest.service';
 import { WoLifecycleService } from './wo-lifecycle.service';
 import { computePreview } from './costing.service';
 
-const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
+const READ_ROLES = ['owner', 'accountant', 'viewer', 'technician'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
+// Running a WO is shop-floor work: technicians may start it, draw materials,
+// record output and close it. Authoring, editing and cancelling WOs stay with
+// WRITE_ROLES — a technician executes the plan, they don't set it.
+const RUN_ROLES = ['owner', 'accountant', 'technician'] as const;
 
 // ─── Work Order CRUD ────────────────────────────────────────────────────────
 
@@ -97,7 +101,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/:id/start',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const lifecycle = new WoLifecycleService(request.server.db, request.tenantId);
@@ -108,7 +112,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/:id/complete',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const lifecycle = new WoLifecycleService(request.server.db, request.tenantId);
@@ -119,7 +123,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/:id/close',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = closeWorkOrderSchema.parse(request.body ?? {});
@@ -169,7 +173,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/:id/consumption',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = recordConsumptionSchema.parse(request.body);
@@ -181,7 +185,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete(
     '/:id/consumption/:cid',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const { cid } = (request.params as { id: string; cid: string });
@@ -207,7 +211,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     '/:id/output',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = recordOutputSchema.parse(request.body);
@@ -219,7 +223,7 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete(
     '/:id/output/:oid',
-    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    { preHandler: [rbacHook([...RUN_ROLES])] },
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const { oid } = (request.params as { id: string; oid: string });

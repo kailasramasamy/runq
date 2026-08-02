@@ -29,6 +29,20 @@ export class ConflictError extends AppError {
   }
 }
 
+/**
+ * A request that is well-formed but cannot be satisfied by current state, with
+ * enough structure for the client to explain why. Used by the unplanned
+ * production entry to name every short input rather than just the first.
+ */
+export class UnprocessableError extends AppError {
+  constructor(
+    message: string,
+    public details?: Record<string, unknown>,
+  ) {
+    super(422, message, 'UnprocessableError');
+  }
+}
+
 export class ForbiddenError extends AppError {
   constructor(message = 'Insufficient permissions') {
     super(403, message, 'ForbiddenError');

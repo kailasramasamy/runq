@@ -14,6 +14,7 @@ export * from './manufacturing/bom';
 export * from './manufacturing/wo';
 export * from './manufacturing/run';
 export * from './manufacturing/reports';
+export * from './manufacturing/production';
 export * from './ar/customer';
 export * from './ar/invoice';
 export * from './ar/invoice-import';

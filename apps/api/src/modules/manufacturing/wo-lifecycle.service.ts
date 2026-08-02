@@ -47,40 +47,46 @@ export class WoLifecycleService {
   }
 
   async start(id: string, userId?: string): Promise<WorkOrderWithDetail> {
-    await this.db.transaction(async (tx: Tx) => {
-      const wo = await this.loadWo(tx, id);
-      if (wo.status !== 'draft') {
-        throw new ConflictError(`WO must be draft to start (current: ${wo.status})`);
-      }
-      await tx
-        .update(workOrders)
-        .set({ status: 'in_progress', startedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
-    });
+    await this.db.transaction((tx: Tx) => this.startInTx(tx, id));
     void userId;
     return this.woService.getById(id);
   }
 
+  /** `start`, joining a caller's transaction — see WoConsumptionService.recordInTx. */
+  async startInTx(tx: Tx, id: string): Promise<void> {
+    const wo = await this.loadWo(tx, id);
+    if (wo.status !== 'draft') {
+      throw new ConflictError(`WO must be draft to start (current: ${wo.status})`);
+    }
+    await tx
+      .update(workOrders)
+      .set({ status: 'in_progress', startedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
+  }
+
   async complete(id: string, userId?: string): Promise<WorkOrderWithDetail> {
-    await this.db.transaction(async (tx: Tx) => {
-      const wo = await this.loadWo(tx, id);
-      if (wo.status !== 'in_progress') {
-        throw new ConflictError(`WO must be in_progress to complete (current: ${wo.status})`);
-      }
-      const [outputCount] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(woOutput)
-        .where(and(eq(woOutput.woId, id), eq(woOutput.tenantId, this.tenantId)));
-      if ((outputCount?.n ?? 0) === 0) {
-        throw new ConflictError('Cannot complete WO with zero output rows');
-      }
-      await tx
-        .update(workOrders)
-        .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
-    });
+    await this.db.transaction((tx: Tx) => this.completeInTx(tx, id));
     void userId;
     return this.woService.getById(id);
+  }
+
+  /** `complete`, joining a caller's transaction. */
+  async completeInTx(tx: Tx, id: string): Promise<void> {
+    const wo = await this.loadWo(tx, id);
+    if (wo.status !== 'in_progress') {
+      throw new ConflictError(`WO must be in_progress to complete (current: ${wo.status})`);
+    }
+    const [outputCount] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(woOutput)
+      .where(and(eq(woOutput.woId, id), eq(woOutput.tenantId, this.tenantId)));
+    if ((outputCount?.n ?? 0) === 0) {
+      throw new ConflictError('Cannot complete WO with zero output rows');
+    }
+    await tx
+      .update(workOrders)
+      .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
   }
 
   async close(
@@ -89,136 +95,147 @@ export class WoLifecycleService {
     userId?: string,
   ): Promise<CloseResult> {
     const warnings: string[] = [];
+    await this.db.transaction((tx: Tx) => this.closeInTx(tx, id, input, warnings, userId));
+    return { data: await this.woService.getById(id), warnings };
+  }
 
-    await this.db.transaction(async (tx: Tx) => {
-      const wo = await this.loadWo(tx, id);
-      if (wo.status !== 'completed') {
-        throw new ConflictError(`WO must be completed to close (current: ${wo.status})`);
-      }
+  /**
+   * The close posting itself, joining a caller's transaction. Appends to
+   * `warnings` rather than returning them, so the wrapper can surface them
+   * after the transaction commits.
+   */
+  async closeInTx(
+    tx: Tx,
+    id: string,
+    input: CloseWorkOrderInput,
+    warnings: string[],
+    userId?: string,
+  ): Promise<void> {
+    const wo = await this.loadWo(tx, id);
+    if (wo.status !== 'completed') {
+      throw new ConflictError(`WO must be completed to close (current: ${wo.status})`);
+    }
 
-      type ConsumptionRow = typeof woConsumption.$inferSelect;
-      type OutputRow = typeof woOutput.$inferSelect;
+    type ConsumptionRow = typeof woConsumption.$inferSelect;
+    type OutputRow = typeof woOutput.$inferSelect;
 
-      const [consumptionRows, outputRows] = await Promise.all([
-        tx.select().from(woConsumption)
-          .where(and(eq(woConsumption.woId, id), eq(woConsumption.tenantId, this.tenantId))) as Promise<ConsumptionRow[]>,
-        tx.select().from(woOutput)
-          .where(and(eq(woOutput.woId, id), eq(woOutput.tenantId, this.tenantId))) as Promise<OutputRow[]>,
-      ]);
+    const [consumptionRows, outputRows] = await Promise.all([
+      tx.select().from(woConsumption)
+        .where(and(eq(woConsumption.woId, id), eq(woConsumption.tenantId, this.tenantId))) as Promise<ConsumptionRow[]>,
+      tx.select().from(woOutput)
+        .where(and(eq(woOutput.woId, id), eq(woOutput.tenantId, this.tenantId))) as Promise<OutputRow[]>,
+    ]);
 
-      if (outputRows.length === 0) {
-        throw new ConflictError('Cannot close WO with zero output rows');
-      }
+    if (outputRows.length === 0) {
+      throw new ConflictError('Cannot close WO with zero output rows');
+    }
 
-      // Load item classes for each consumed item
-      const itemIds = [...new Set(consumptionRows.map((c) => c.inputItemId))];
-      const itemClassMap = await this.loadItemClasses(tx, itemIds);
+    // Load item classes for each consumed item
+    const itemIds = [...new Set(consumptionRows.map((c) => c.inputItemId))];
+    const itemClassMap = await this.loadItemClasses(tx, itemIds);
 
-      // Load output items' trackBatches flags. wo_output.batch_no is always
-      // populated (production-lot identifier for traceability), but the
-      // inventory ledger refuses batch_no for items that don't track batches.
-      // Pass null at the ledger boundary when the item is non-batch.
-      const outputItemIds = [...new Set(outputRows.map((o) => o.outputItemId))];
-      const outputTracksMap = await this.loadTrackBatchesMap(tx, outputItemIds);
+    // Load output items' trackBatches flags. wo_output.batch_no is always
+    // populated (production-lot identifier for traceability), but the
+    // inventory ledger refuses batch_no for items that don't track batches.
+    // Pass null at the ledger boundary when the item is non-batch.
+    const outputItemIds = [...new Set(outputRows.map((o) => o.outputItemId))];
+    const outputTracksMap = await this.loadTrackBatchesMap(tx, outputItemIds);
 
-      const consumptionForCosting = consumptionRows.map((c) => ({
-        itemClass: itemClassMap.get(c.inputItemId) ?? null,
-        value: Number(c.value),
-      }));
-      const outputForCosting = outputRows.map((o) => ({
-        qty: Number(o.qty),
-      }));
+    const consumptionForCosting = consumptionRows.map((c) => ({
+      itemClass: itemClassMap.get(c.inputItemId) ?? null,
+      value: Number(c.value),
+    }));
+    const outputForCosting = outputRows.map((o) => ({
+      qty: Number(o.qty),
+    }));
 
-      const consumedValue = consumptionForCosting.reduce((s: number, c: { value: number }) => s + c.value, 0);
-      const costAssignment = assignOutputCosts(outputForCosting, consumedValue);
+    const consumedValue = consumptionForCosting.reduce((s: number, c: { value: number }) => s + c.value, 0);
+    const costAssignment = assignOutputCosts(outputForCosting, consumedValue);
 
-      // Back-fill unit_cost + value on each output row and create stock ledger entry
-      for (let i = 0; i < outputRows.length; i++) {
-        const row = outputRows[i]!;
-        const cost = costAssignment.rows[i]!;
+    // Back-fill unit_cost + value on each output row and create stock ledger entry
+    for (let i = 0; i < outputRows.length; i++) {
+      const row = outputRows[i]!;
+      const cost = costAssignment.rows[i]!;
 
-        await tx
-          .update(woOutput)
-          .set({
-            unitCost: String(cost.unitCost),
-            value: String(cost.value),
-          })
-          .where(eq(woOutput.id, row.id));
+      await tx
+        .update(woOutput)
+        .set({
+          unitCost: String(cost.unitCost),
+          value: String(cost.value),
+        })
+        .where(eq(woOutput.id, row.id));
 
-        const { ledgerId } = await this.ledger.recordMovement(tx, {
-          itemId: row.outputItemId,
-          warehouseId: row.warehouseId,
-          batchNo: outputTracksMap.get(row.outputItemId) ? row.batchNo : null,
-          movementType: 'production_in',
-          sourceType: 'work_order',
-          sourceId: id,
-          sourceLineId: row.id,
-          qtyDelta: Number(row.qty),
-          unitCost: cost.unitCost,
-          movedAt: new Date(),
-          postedBy: userId ?? null,
-        });
-
-        await tx
-          .update(woOutput)
-          .set({ stockTxnId: ledgerId })
-          .where(eq(woOutput.id, row.id));
-      }
-
-      // Costing preview for variance + warnings
-      const preview = computePreview({
-        woId: id,
-        plannedQty: Number(wo.plannedQty),
-        consumption: consumptionForCosting,
-        output: outputForCosting,
-      });
-
-      if (!input.varianceAcknowledged && isHighVariance(preview.varianceQty, preview.expectedOutputQty)) {
-        warnings.push(
-          `High yield variance: actual ${preview.actualOutputQty} vs expected ${preview.expectedOutputQty} (${Math.abs(preview.varianceQty / preview.expectedOutputQty * 100).toFixed(1)}%). Re-submit with varianceAcknowledged=true to confirm.`,
-        );
-      }
-
-      const outputValue = costAssignment.totalOutputValue;
-      const bomRow = await this.loadBom(tx, wo.bomId);
-      const consumedValueByClass = consumedByClass(consumptionForCosting);
-
-      const today = new Date().toISOString().slice(0, 10);
-      const poster = new ManufacturingGlPoster(tx, this.tenantId, userId);
-      const jeId = await poster.postClose({
-        date: today,
-        woId: id,
-        woNumber: wo.woNumber,
-        bomName: bomRow?.name ?? '',
-        outputValue,
-        consumedValue,
-        consumedValueByClass,
+      const { ledgerId } = await this.ledger.recordMovement(tx, {
+        itemId: row.outputItemId,
+        warehouseId: row.warehouseId,
+        batchNo: outputTracksMap.get(row.outputItemId) ? row.batchNo : null,
+        movementType: 'production_in',
+        sourceType: 'work_order',
+        sourceId: id,
+        sourceLineId: row.id,
+        qtyDelta: Number(row.qty),
+        unitCost: cost.unitCost,
+        movedAt: new Date(),
+        postedBy: userId ?? null,
       });
 
       await tx
-        .update(workOrders)
-        .set({
-          status: 'closed',
-          closedAt: new Date(),
-          jeId: jeId ?? null,
-          outputValue: String(outputValue),
-          consumedValue: String(consumedValue),
-          yieldVariance: String(preview.varianceValue),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
+        .update(woOutput)
+        .set({ stockTxnId: ledgerId })
+        .where(eq(woOutput.id, row.id));
+    }
 
-      if (jeId) {
-        await tx.execute(sql`
-          UPDATE stock_ledger SET journal_entry_id = ${jeId}
-          WHERE tenant_id = ${this.tenantId}
-            AND source_type = 'work_order'
-            AND source_id = ${id}
-        `);
-      }
+    // Costing preview for variance + warnings
+    const preview = computePreview({
+      woId: id,
+      plannedQty: Number(wo.plannedQty),
+      consumption: consumptionForCosting,
+      output: outputForCosting,
     });
 
-    return { data: await this.woService.getById(id), warnings };
+    if (!input.varianceAcknowledged && isHighVariance(preview.varianceQty, preview.expectedOutputQty)) {
+      warnings.push(
+        `High yield variance: actual ${preview.actualOutputQty} vs expected ${preview.expectedOutputQty} (${Math.abs(preview.varianceQty / preview.expectedOutputQty * 100).toFixed(1)}%). Re-submit with varianceAcknowledged=true to confirm.`,
+      );
+    }
+
+    const outputValue = costAssignment.totalOutputValue;
+    const bomRow = await this.loadBom(tx, wo.bomId);
+    const consumedValueByClass = consumedByClass(consumptionForCosting);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const poster = new ManufacturingGlPoster(tx, this.tenantId, userId);
+    const jeId = await poster.postClose({
+      date: today,
+      woId: id,
+      woNumber: wo.woNumber,
+      bomName: bomRow?.name ?? '',
+      outputValue,
+      consumedValue,
+      consumedValueByClass,
+    });
+
+    await tx
+      .update(workOrders)
+      .set({
+        status: 'closed',
+        closedAt: new Date(),
+        jeId: jeId ?? null,
+        outputValue: String(outputValue),
+        consumedValue: String(consumedValue),
+        yieldVariance: String(preview.varianceValue),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)));
+
+    if (jeId) {
+      await tx.execute(sql`
+        UPDATE stock_ledger SET journal_entry_id = ${jeId}
+        WHERE tenant_id = ${this.tenantId}
+          AND source_type = 'work_order'
+          AND source_id = ${id}
+      `);
+    }
   }
 
   async cancelWithReversal(

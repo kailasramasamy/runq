@@ -8,7 +8,7 @@
  * Plan: docs/manufacturing-plan.md §4.5, §5.3, §8.
  */
 
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { workOrders, woOutput, boms, items, warehouses } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, ConflictError, AppError } from '../../utils/errors';
@@ -50,49 +50,61 @@ export class WoOutputService {
       if (existing) return existing;
     }
 
-    return this.db.transaction(async (tx: Tx) => {
-      const wo = await this.loadWo(tx, woId);
-      if (!RECORDABLE_STATUSES.includes(wo.status as typeof RECORDABLE_STATUSES[number])) {
-        throw new ConflictError(`Cannot record output for WO in status: ${wo.status}`);
-      }
+    return this.db.transaction((tx: Tx) => this.recordInTx(tx, woId, input, userId));
+  }
 
-      const item = await this.loadItem(tx, input.outputItemId);
-      if (item.trackBatches && !input.expiryDate) {
-        throw new AppError(422, 'Expiry required for batch-tracked item');
-      }
+  /**
+   * Same as `record`, but joins a caller's transaction instead of opening its
+   * own — see WoConsumptionService.recordInTx for why.
+   */
+  async recordInTx(
+    tx: Tx,
+    woId: string,
+    input: RecordOutputInput,
+    userId?: string,
+  ): Promise<WoOutput> {
+    const wo = await this.loadWo(tx, woId);
+    if (!RECORDABLE_STATUSES.includes(wo.status as typeof RECORDABLE_STATUSES[number])) {
+      throw new ConflictError(`Cannot record output for WO in status: ${wo.status}`);
+    }
 
-      const batchNo = input.batchNo ?? (await this.generateBatchNo(tx, woId, wo.bomId));
-      const qty = input.qty;
+    const item = await this.loadItem(tx, input.outputItemId);
+    if (item.trackBatches && !input.expiryDate) {
+      throw new AppError(422, 'Expiry required for batch-tracked item');
+    }
 
-      const [row] = await tx
-        .insert(woOutput)
-        .values({
-          tenantId: this.tenantId,
-          woId,
-          outputItemId: input.outputItemId,
-          batchNo,
-          warehouseId: input.warehouseId,
-          qty: String(qty),
-          uom: input.uom,
-          unitCost: '0',
-          value: '0',
-          expiryDate: input.expiryDate ?? null,
-          producedBy: userId ?? null,
-          notes: input.notes ?? null,
-          idempotencyKey: input.idempotencyKey ?? null,
-        })
-        .returning();
+    const batchNo =
+      input.batchNo ?? (await this.generateBatchNo(tx, wo.bomId, input.outputItemId));
+    const qty = input.qty;
 
-      await tx
-        .update(workOrders)
-        .set({
-          outputQty: sql`${workOrders.outputQty} + ${String(qty)}`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workOrders.id, woId), eq(workOrders.tenantId, this.tenantId)));
+    const [row] = await tx
+      .insert(woOutput)
+      .values({
+        tenantId: this.tenantId,
+        woId,
+        outputItemId: input.outputItemId,
+        batchNo,
+        warehouseId: input.warehouseId,
+        qty: String(qty),
+        uom: input.uom,
+        unitCost: '0',
+        value: '0',
+        expiryDate: input.expiryDate ?? null,
+        producedBy: userId ?? null,
+        notes: input.notes ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+      })
+      .returning();
 
-      return this.fetchRow(tx, row!.id);
-    });
+    await tx
+      .update(workOrders)
+      .set({
+        outputQty: sql`${workOrders.outputQty} + ${String(qty)}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workOrders.id, woId), eq(workOrders.tenantId, this.tenantId)));
+
+    return this.fetchRow(tx, row!.id);
   }
 
   async reverse(outputId: string, _userId?: string): Promise<void> {
@@ -164,7 +176,16 @@ export class WoOutputService {
     return item;
   }
 
-  private async generateBatchNo(tx: Tx, woId: string, bomId: string): Promise<string> {
+  /**
+   * `<bom_code>-<YYYYMMDD>-<seq>`.
+   *
+   * The sequence is scoped to tenant + output item + day, matching the
+   * uq_wo_output_batch unique index. Scoping it to the work order instead
+   * (as it was originally) made every same-day run of a product restart at
+   * 001 and collide — an AM and a PM batch of the same product on one day is
+   * routine on a dairy floor, and unplanned entries add more same-day runs.
+   */
+  private async generateBatchNo(tx: Tx, bomId: string, outputItemId: string): Promise<string> {
     const [bom] = await tx
       .select({ bomCode: boms.bomCode })
       .from(boms)
@@ -172,14 +193,28 @@ export class WoOutputService {
       .limit(1);
     const bomCode = bom?.bomCode ?? 'WO';
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `${bomCode}-${today}-`;
 
-    const [countResult] = await tx
-      .select({ n: count() })
+    const [row] = await tx
+      .select({
+        maxN: sql<number | null>`MAX(
+          CASE
+            WHEN ${woOutput.batchNo} ~ ('^' || ${prefix} || '[0-9]+$')
+            THEN substring(${woOutput.batchNo} from char_length(${prefix}) + 1)::int
+            ELSE NULL
+          END
+        )`,
+      })
       .from(woOutput)
-      .where(and(eq(woOutput.woId, woId), eq(woOutput.tenantId, this.tenantId)));
-    const seq = ((countResult?.n ?? 0) as number) + 1;
+      .where(
+        and(
+          eq(woOutput.tenantId, this.tenantId),
+          eq(woOutput.outputItemId, outputItemId),
+          sql`${woOutput.batchNo} LIKE ${prefix + '%'}`,
+        ),
+      );
 
-    return `${bomCode}-${today}-${String(seq).padStart(3, '0')}`;
+    return `${prefix}${String(((row?.maxN ?? 0) as number) + 1).padStart(3, '0')}`;
   }
 
   private async fetchRow(tx: Tx, id: string): Promise<WoOutput> {

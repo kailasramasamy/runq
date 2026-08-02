@@ -24,6 +24,15 @@ export const woStatusEnum = pgEnum('wo_status', [
   'cancelled',
 ]);
 
+/**
+ * How the run reached the system.
+ *
+ * `planned`   — a manager authored the WO up front, then the floor ran it.
+ * `unplanned` — a technician recorded finished goods after the fact and the
+ *               inputs were backflushed from the BOM (no manager present).
+ */
+export const woEntryModeEnum = pgEnum('wo_entry_mode', ['planned', 'unplanned']);
+
 export const qcStatusEnum = pgEnum('qc_status', [
   'pending',
   'passed',
@@ -64,6 +73,12 @@ export const workOrders = pgTable(
     scheduledFor: date('scheduled_for').notNull(),
 
     status: woStatusEnum('status').notNull().default('draft'),
+    entryMode: woEntryModeEnum('entry_mode').notNull().default('planned'),
+
+    /** Dedupe key for the mobile offline queue. An unplanned entry posts as
+     * one atomic unit, so it needs a key at the WO level rather than only on
+     * the child consumption/output rows. Null for manager-authored WOs. */
+    idempotencyKey: varchar('idempotency_key', { length: 64 }),
 
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -101,6 +116,8 @@ export const workOrders = pgTable(
     index('idx_wo_tenant_bom').on(t.tenantId, t.bomId),
     index('idx_wo_tenant_scheduled').on(t.tenantId, t.scheduledFor),
     index('idx_wo_tenant_warehouse').on(t.tenantId, t.warehouseId),
+    index('idx_wo_tenant_entry_mode').on(t.tenantId, t.entryMode),
+    uniqueIndex('uq_wo_tenant_idempotency').on(t.tenantId, t.idempotencyKey),
   ],
 );
 

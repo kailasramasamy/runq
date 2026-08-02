@@ -12,6 +12,13 @@ export type WorkOrderStatus =
 
 export type QcStatus = 'pending' | 'passed' | 'failed' | 'conditional';
 
+/**
+ * `planned`   — manager authored the WO, floor ran it.
+ * `unplanned` — technician recorded finished goods after the fact; inputs were
+ *               backflushed from the BOM. See production-entry.service.
+ */
+export type WoEntryMode = 'planned' | 'unplanned';
+
 export interface WorkOrder {
   id: string;
   tenantId: string;
@@ -23,6 +30,7 @@ export interface WorkOrder {
   shift: string | null;
   scheduledFor: string;
   status: WorkOrderStatus;
+  entryMode: WoEntryMode;
   startedAt: string | null;
   completedAt: string | null;
   closedAt: string | null;
