@@ -16,11 +16,19 @@ import { bonusPeriodFor } from './procurement-window';
 // {{7}} bonus earned and {{8}} bonus so far this quarter — so the two templates
 // must keep this prefix identical.
 export function pourReceiptParams(farmerName: string, pour: MpPourRow): Record<string, string> {
+  // A pour that reversed an earlier one (containers combined, a reading replaced,
+  // an entry edited) sends a SECOND receipt for the same slot. Marking it in the
+  // header says "this supersedes the last one" instead of leaving the farmer to
+  // read two receipts as two collections. Rides an existing variable rather than
+  // a new template: Meta fixes the body text, but the values are ours to fill.
+  const superseded = pour.reversalOf ? ' · UPDATED' : '';
   return {
     name: nz(farmerName),
     // Milk type rides on the date/shift line so a farmer supplying more than one
     // type can tell their per-type receipts apart (each pour is its own message).
-    dateShift: nz(`${dateShift(pour.collectionDate, pour.shift)} · ${milkTypeLabel(pour.milkType)}`),
+    dateShift: nz(
+      `${dateShift(pour.collectionDate, pour.shift)} · ${milkTypeLabel(pour.milkType)}${superseded}`,
+    ),
     quantity: nz(trimNum(pour.qtyLitres)),
     quality: nz(quality(pour.fat, pour.snf, pour.water)),
     rate: nz(money(pour.ratePerLitre)),

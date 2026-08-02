@@ -47,6 +47,19 @@
   },
   "collectReplace": "Replace",
   "collectCombine": "Combine",
+  "collectAddMoreMilk": "Add more milk",
+  "collectCansTotal": "Total",
+  "collectCanN": "Can {n} · {qty}",
+  "@collectCanN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "qty": {
+        "type": "String"
+      }
+    }
+  },
   "collectSavedOnDevice": "Saved on device · will sync",
   "collectComputingRate": "Computing rate…",
   "collectEnterClrPreview": "Enter CLR to preview the rate",

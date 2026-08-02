@@ -16,6 +16,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
+import '../../widgets/can_list_strip.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/pending_pours_strip.dart';
@@ -48,6 +49,12 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   late String _date;
   late MilkType _milkType;
   final _qty = TextEditingController();
+  /// Litres of each container banked via "Add more milk", before the one still in
+  /// the qty field. A farmer arriving with several cans is ONE pour: banking the
+  /// cans here and saving once means a single insert, so the farmer gets a single
+  /// receipt for the true total instead of one per can (audit: combine confusion).
+  /// Quality is measured once for the farmer's milk, so only litres are per-can.
+  final List<double> _cans = [];
   final _fat = TextEditingController();
   final _snf = TextEditingController();
   final _water = TextEditingController();
@@ -135,6 +142,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   }
 
   double get _qtyVal => double.tryParse(_qty.text) ?? 0;
+  /// What actually gets recorded: banked cans plus whatever is in the qty field.
+  /// Every qty decision — save gating, rate preview, the typo guard, the amount
+  /// shown — reads this, never [_qtyVal] alone.
+  double get _totalQty => _cans.fold<double>(0, (s, c) => s + c) + _qtyVal;
   double? get _fatVal => double.tryParse(_fat.text);
   double? get _snfVal => double.tryParse(_snf.text);
   double? get _waterVal => double.tryParse(_water.text);
@@ -146,7 +157,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   // Water is required wherever it is captured: it is the adulteration signal, so
   // a blank reading is a gap in the farmer's quality record, not a neutral skip.
   // Lactometer nodes have no water field at all — they stay gated on CLR alone.
-  bool get _canSave => _farmer != null && _qtyVal > 0 && !_saving &&
+  bool get _canSave => _farmer != null && _totalQty > 0 && !_saving &&
       (widget.node.isLactometer
           ? _clrVal != null
           : _fatVal != null && _snfVal != null && _waterVal != null);
@@ -178,7 +189,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         fat: isLactometer ? null : fat,
         snf: isLactometer ? null : snf,
         clr: isLactometer ? clr : null,
-        cycleQtyLitres: _qtyVal > 0 ? _qtyVal : null,
+        cycleQtyLitres: _totalQty > 0 ? _totalQty : null,
         scopeNodeId: widget.node.id,
         // The farmer's assigned override chart must price the PREVIEW too,
         // not just the recorded pour — otherwise the operator quotes one rate
@@ -239,7 +250,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// missing it focuses the first empty field; once all are in, it saves.
   void _onPrimary() {
     if (_farmer == null) { _pickFarmer(); return; }
-    if (_qtyVal <= 0) { _qtyFocus.requestFocus(); return; }
+    if (_totalQty <= 0) { _qtyFocus.requestFocus(); return; }
     if (widget.node.isLactometer) {
       if (_clrVal == null) { _clrFocus.requestFocus(); return; }
     } else {
@@ -248,6 +259,27 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       if (_waterVal == null) { _waterFocus.requestFocus(); return; }
     }
     _save();
+  }
+
+  /// Bank the litres on screen as one container and clear the field for the next
+  /// can. Quality readings stay as entered — they describe the farmer's milk, not
+  /// the can. The pour isn't saved until the operator hits Save, so this never
+  /// sends a receipt on its own.
+  void _addCan() {
+    if (_qtyVal <= 0) { _qtyFocus.requestFocus(); return; }
+    setState(() {
+      _cans.add(_qtyVal);
+      _qty.clear();
+    });
+    // Same eyes-on-the-milk confirmation the save path gives (audit C1).
+    HapticFeedback.selectionClick();
+    _qtyFocus.requestFocus();
+    _onFieldChanged(); // re-price: the rate can be slabbed on total quantity
+  }
+
+  void _removeCan(int index) {
+    setState(() => _cans.removeAt(index));
+    _onFieldChanged();
   }
 
   /// Recorded pours at this node for the active entry date — today's list (kept
@@ -295,7 +327,9 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     }
     // Societies legitimately pour bulk; individual farmers above 100 L is a typo
     // more often than a herd.
-    if (_qtyVal > 100 && !(_farmer?.isSociety ?? false)) out.add(litres(_qtyVal, unit: true));
+    // Guards the TOTAL, not the can on screen — six plausible 20 L cans are still
+    // an implausible 120 L pour, and that's the number the farmer gets paid on.
+    if (_totalQty > 100 && !(_farmer?.isSociety ?? false)) out.add(litres(_totalQty, unit: true));
     return out;
   }
 
@@ -357,7 +391,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         asNewLot = true;
       }
     }
-    final qtyLabel = litres(_qtyVal, unit: true);
+    final qtyLabel = litres(_totalQty, unit: true);
     setState(() => _saving = true);
     final body = <String, dynamic>{
       'nodeId': widget.node.id,
@@ -365,7 +399,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       'collectionDate': _date,
       'shift': _shift.name,
       'milkType': milkTypeToApi(_milkType),
-      'qtyLitres': _qtyVal,
+      'qtyLitres': _totalQty,
       if (widget.node.isLactometer) 'clr': _clrVal
       else ...{'fat': _fatVal, 'snf': _snfVal, 'water': _waterVal},
       'asNewLot': asNewLot,
@@ -404,19 +438,22 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   /// quantities add up and FAT/SNF/Water/CLR are qty-weighted into one pour, then
   /// the prior lots are reversed and the merged reading recorded. Online-only —
   /// it depends on reversing server-side rows (mirrors [_saveEdit]).
+  ///
+  /// The priors are reversed by the server's own last-write-wins slot rule
+  /// (`asNewLot: false`) rather than by reversing each here first: one atomic
+  /// transaction instead of N+1 calls, and it leaves `reversalOf` set on the new
+  /// pour — which is what marks the farmer's second receipt as an update to the
+  /// first rather than a second collection.
   Future<void> _saveCombined(List<MpPour> existing, String name) async {
     if (_gateCorrectionOffline()) return;
-    final totalQty = _qtyVal + existing.fold<double>(0, (s, p) => s + p.qtyLitres);
-    final fat = _weightedAvg(existing, _qtyVal, _fatVal, (p) => p.fat);
-    final snf = _weightedAvg(existing, _qtyVal, _snfVal, (p) => p.snf);
-    final water = _weightedAvg(existing, _qtyVal, _waterVal, (p) => p.water);
-    final clr = _weightedAvg(existing, _qtyVal, _clrVal, (p) => p.clr);
+    final totalQty = _totalQty + existing.fold<double>(0, (s, p) => s + p.qtyLitres);
+    final fat = _weightedAvg(existing, _totalQty, _fatVal, (p) => p.fat);
+    final snf = _weightedAvg(existing, _totalQty, _snfVal, (p) => p.snf);
+    final water = _weightedAvg(existing, _totalQty, _waterVal, (p) => p.water);
+    final clr = _weightedAvg(existing, _totalQty, _clrVal, (p) => p.clr);
     final qtyLabel = litres(totalQty, unit: true);
     setState(() => _saving = true);
     try {
-      for (final p in existing) {
-        await mpRepo.reversePour(p.id);
-      }
       await mpRepo.recordPour({
         'nodeId': widget.node.id,
         'farmerId': _farmer!.id,
@@ -471,10 +508,13 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         'collectionDate': seed.collectionDate,
         'shift': _shift.name,
         'milkType': milkTypeToApi(_milkType),
-        'qtyLitres': _qtyVal,
+        'qtyLitres': _totalQty,
         if (widget.node.isLactometer) 'clr': _clrVal
         else ...{'fat': _fatVal, 'snf': _snfVal, 'water': _waterVal},
         'asNewLot': true,
+        // Reversed by id above, so the slot rule finds no prior to link. Name it
+        // explicitly, or the farmer's corrected receipt reads as a fresh pour.
+        'supersedesPourId': seed.id,
       });
       if (!mounted) return;
       ref.invalidate(nodeTodayPoursProvider(widget.node.id));
@@ -513,7 +553,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     // Capture now: _farmer is cleared on save while the sheet animates out.
     final capturedName = farmerName(context, _farmer!);
     final priorQty = existing.fold<double>(0, (s, p) => s + p.qtyLitres);
-    final combinedQty = priorQty + _qtyVal;
+    final combinedQty = priorQty + _totalQty;
     final first = existing.first;
     final bands = ref.read(qualityBandsProvider(widget.node.id)).valueOrNull;
     return showModalBottomSheet<bool>(
@@ -584,6 +624,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
     setState(() {
       _farmer = null;
       _qty.clear();
+      _cans.clear();
       _fat.clear();
       _snf.clear();
       _water.clear();
@@ -725,6 +766,25 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
                 const SizedBox(width: DhenuSpacing.md),
                 const Expanded(child: SizedBox.shrink()),
               ]),
+            ],
+            // Multi-can pours are entered as ONE record: bank each container
+            // here, save once. Editing an existing entry is single-valued, so
+            // the affordance stays out of that flow.
+            if (!_isEdit) ...[
+              if (_cans.isNotEmpty) ...[
+                const SizedBox(height: DhenuSpacing.lg),
+                CanListStrip(cans: _cans, pending: _qtyVal, onRemove: _removeCan),
+              ],
+              const SizedBox(height: DhenuSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _qtyVal > 0 ? _addCan : null,
+                  icon: Icon(DhenuIcons.add, size: 18, color: t.brand),
+                  label: Text(l.collectAddMoreMilk,
+                      style: DhenuText.label.copyWith(color: t.brand)),
+                ),
+              ),
             ],
             const SizedBox(height: DhenuSpacing.lg),
             _ratePreview(t),
@@ -1123,7 +1183,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
             style: DhenuText.body.copyWith(color: t.inkSoft),
           ));
     }
-    final line = _qtyVal * r.ratePerLitre;
+    final line = _totalQty * r.ratePerLitre;
     final bands = ref.watch(qualityBandsProvider(widget.node.id)).asData?.value;
     final lowLabels = _lowMetricLabels(bands);
     return _previewShell(
@@ -1150,10 +1210,10 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
           const SizedBox(height: DhenuSpacing.sm),
           _lowQualityChip(lowLabels, t, l),
         ],
-        if (_qtyVal > 0) ...[
+        if (_totalQty > 0) ...[
           const SizedBox(height: DhenuSpacing.sm),
           Row(children: [
-            Text('${litres(_qtyVal)} × ${rupees(r.ratePerLitre, paise: true)}',
+            Text('${litres(_totalQty)} × ${rupees(r.ratePerLitre, paise: true)}',
                 style: DhenuText.caption.copyWith(color: t.inkSoft)),
             const Spacer(),
             Text(rupees(line), style: DhenuText.number(size: 24, color: t.gradeA)),

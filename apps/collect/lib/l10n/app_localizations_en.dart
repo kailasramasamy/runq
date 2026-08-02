@@ -84,6 +84,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get collectCombine => 'Combine';
 
   @override
+  String get collectAddMoreMilk => 'Add more milk';
+
+  @override
+  String get collectCansTotal => 'Total';
+
+  @override
+  String collectCanN(int n, String qty) {
+    return 'Can $n · $qty';
+  }
+
+  @override
   String get collectSavedOnDevice => 'Saved on device · will sync';
 
   @override

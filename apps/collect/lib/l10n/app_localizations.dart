@@ -238,6 +238,24 @@ abstract class AppLocalizations {
   /// **'Combine'**
   String get collectCombine;
 
+  /// No description provided for @collectAddMoreMilk.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more milk'**
+  String get collectAddMoreMilk;
+
+  /// No description provided for @collectCansTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get collectCansTotal;
+
+  /// No description provided for @collectCanN.
+  ///
+  /// In en, this message translates to:
+  /// **'Can {n} · {qty}'**
+  String collectCanN(int n, String qty);
+
   /// No description provided for @collectSavedOnDevice.
   ///
   /// In en, this message translates to:

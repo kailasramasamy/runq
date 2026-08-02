@@ -84,6 +84,17 @@ class AppLocalizationsTa extends AppLocalizations {
   String get collectCombine => 'இணை';
 
   @override
+  String get collectAddMoreMilk => 'மேலும் பால் சேர்';
+
+  @override
+  String get collectCansTotal => 'மொத்தம்';
+
+  @override
+  String collectCanN(int n, String qty) {
+    return 'கேன் $n · $qty';
+  }
+
+  @override
   String get collectSavedOnDevice =>
       'சாதனத்தில் சேமிக்கப்பட்டது · ஒத்திசைக்கும்';
 

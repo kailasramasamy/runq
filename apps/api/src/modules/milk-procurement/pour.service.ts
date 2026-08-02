@@ -119,7 +119,7 @@ export class PourService {
         captureSource: input.captureSource,
         receiptNo,
         status: 'recorded',
-        reversalOf: priorId,
+        reversalOf: priorId ?? input.supersedesPourId ?? null,
         deviceLocalId: input.deviceLocalId ?? null,
         recordedBy: userId ?? null,
         syncedAt: new Date(),

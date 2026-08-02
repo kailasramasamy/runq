@@ -84,6 +84,17 @@ class AppLocalizationsKn extends AppLocalizations {
   String get collectCombine => 'ಒಗ್ಗೂಡಿಸಿ';
 
   @override
+  String get collectAddMoreMilk => 'ಇನ್ನಷ್ಟು ಹಾಲು ಸೇರಿಸಿ';
+
+  @override
+  String get collectCansTotal => 'ಒಟ್ಟು';
+
+  @override
+  String collectCanN(int n, String qty) {
+    return 'ಕ್ಯಾನ್ $n · $qty';
+  }
+
+  @override
   String get collectSavedOnDevice => 'ಸಾಧನದಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ · ಸಿಂಕ್ ಆಗುತ್ತದೆ';
 
   @override

@@ -31,6 +31,11 @@ export const recordPourSchema = z
     deviceLocalId: z.string().max(64).nullish(),
     // true → record an additional lot instead of replacing the prior same-slot pour
     asNewLot: z.boolean().default(false),
+    // The pour this one supersedes, when the caller reversed it by id rather than
+    // letting the slot reversal find it (the mobile edit path, which sets
+    // asNewLot). Recorded as `reversalOf` so the farmer's receipt is marked as a
+    // correction rather than reading like a second, additional collection.
+    supersedesPourId: z.string().uuid().nullish(),
   })
   .refine((d) => d.clr != null || (d.fat != null && d.snf != null), {
     message: 'provide clr (lactometer) or fat+snf (analyzer)',
