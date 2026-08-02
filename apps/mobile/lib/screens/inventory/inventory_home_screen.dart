@@ -707,41 +707,37 @@ class _HomeError extends StatelessWidget {
 
 // ── Today's throughput ────────────────────────────────────────────────────
 
-/// Received vs dispatched today, count and value. The pair that answers "what
-/// has moved today" without opening a report.
-class _TodayStrip extends StatelessWidget {
+/// The one outstanding-work number on this screen: invoices whose goods
+/// haven't shipped.
+///
+/// This slot used to hold a Received-today / Dispatched-today pair, but the
+/// hero card above already carries both as "Today In" / "Today Out" — the
+/// tiles restated them, and neither is actionable anyway. A full-width card
+/// also sidesteps the ragged heights two tiles get when one label wraps.
+class _TodayStrip extends ConsumerWidget {
   const _TodayStrip({required this.k});
   final InvKpis k;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `total`, not `rows.length` — the queue request is capped at 100 rows.
+    final pending = ref.watch(invPendingDispatchProvider).valueOrNull?.total;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(children: [
-        Expanded(
-          child: InvMiniStat(
-            icon: Icons.south_west_rounded,
-            iconColor: InvColors.success,
-            value: '${k.todayGrns}',
-            label: k.todayGrnsValue > 0
-                ? 'Received · ${_money(k.todayGrnsValue)}'
-                : 'Received today',
-            onTap: () => context.push('/inventory/grn'),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: InvMiniStat(
-            icon: Icons.north_east_rounded,
-            iconColor: InvColors.info,
-            value: '${k.todayDeliveries}',
-            label: k.todayDnsValue > 0
-                ? 'Dispatched · ${_money(k.todayDnsValue)}'
-                : 'Dispatched today',
-            onTap: () => context.push('/inventory/delivery'),
-          ),
-        ),
-      ]),
+      child: InvMiniStat(
+        icon: Icons.pending_actions_outlined,
+        // Amber while work is outstanding, green once the queue is clear —
+        // the tile should read as "nothing to do", not as a bare zero.
+        iconColor: (pending ?? 0) > 0 ? InvColors.brand(context) : InvColors.success,
+        value: pending == null ? '—' : '$pending',
+        label: switch (pending) {
+          null => 'Pending dispatch',
+          0 => 'All dispatched · nothing waiting',
+          1 => 'Invoice pending dispatch',
+          _ => 'Invoices pending dispatch',
+        },
+        onTap: () => context.push('/inventory/pending-dispatch'),
+      ),
     );
   }
 }

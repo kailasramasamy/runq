@@ -100,6 +100,7 @@ class _State extends ConsumerState<InventoryDeliveryScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _Stats(all: list)),
+                const SliverToBoxAdapter(child: _AwaitingDispatchBanner()),
                 SliverToBoxAdapter(child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: InvSearchBar(
@@ -137,6 +138,44 @@ class _State extends ConsumerState<InventoryDeliveryScreen> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Entry point into the invoice-driven lane. Hidden when the queue is empty
+/// so a tenant that dispatches straight off invoices never sees dead chrome.
+class _AwaitingDispatchBanner extends ConsumerWidget {
+  const _AwaitingDispatchBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(invPendingDispatchProvider);
+    final count = pending.valueOrNull?.total ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: InvCard(
+        onTap: () => context.push('/inventory/pending-dispatch'),
+        child: Row(
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 18, color: InvColors.brand(context)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$count invoice${count == 1 ? '' : 's'} awaiting dispatch',
+                      style: RunqText.bodyStrong),
+                  Text('Goods invoiced but not yet sent',
+                      style: RunqText.caption.copyWith(color: t.muted)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: t.muted),
+          ],
         ),
       ),
     );

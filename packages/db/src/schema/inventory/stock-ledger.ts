@@ -14,6 +14,9 @@ export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
   //   production_out — WO consumption (RM / packing → WIP)
   //   production_in  — WO output     (WIP → FG)
   'production_out', 'production_in',
+  // Goods coming back from a customer against a dispatch, at the original
+  // dispatch cost. Distinct from 'reversal' (which unwinds a cancelled doc).
+  'sales_return_in',
 ]);
 
 /**

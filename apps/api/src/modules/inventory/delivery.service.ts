@@ -23,6 +23,10 @@ export class DeliveryNoteService {
   async list(filter: DeliveryNoteFilter) {
     const conds = [eq(deliveryNotes.tenantId, this.ctx.tenantId)];
     if (filter.status) conds.push(eq(deliveryNotes.status, filter.status));
+    if (filter.direction) conds.push(eq(deliveryNotes.direction, filter.direction));
+    // Keyed-in dispatches carry no invoice — the list flags them "unlinked".
+    if (filter.source === 'linked') conds.push(sql`${deliveryNotes.invoiceId} IS NOT NULL`);
+    if (filter.source === 'unlinked') conds.push(sql`${deliveryNotes.invoiceId} IS NULL`);
     if (filter.warehouseId) conds.push(eq(deliveryNotes.warehouseId, filter.warehouseId));
     if (filter.customerId) conds.push(eq(deliveryNotes.customerId, filter.customerId));
     if (filter.from) conds.push(gte(deliveryNotes.dispatchDate, filter.from));
@@ -37,6 +41,12 @@ export class DeliveryNoteService {
           dn: deliveryNotes,
           customerName: customers.name,
           warehouseName: warehouses.name,
+          // Present only for invoice-raised rows; null renders the "unlinked"
+          // chip that flags a hand-keyed dispatch.
+          invoiceNumber: sql<string | null>`(
+            SELECT si.invoice_number FROM sales_invoices si
+            WHERE si.id = ${deliveryNotes.invoiceId}
+          )`.as('invoice_number'),
           // Per-row line count for the redesigned mobile DN tile.
           lineCount: sql<number>`(
             SELECT COUNT(*)::int FROM ${deliveryNoteLines}
@@ -79,6 +89,7 @@ export class DeliveryNoteService {
           totalValue,
           customerName: r.customerName,
           warehouseName: r.warehouseName,
+          invoiceNumber: r.invoiceNumber,
           lineCount: Number(r.lineCount ?? 0),
         };
       }),
@@ -91,7 +102,15 @@ export class DeliveryNoteService {
 
   async get(id: string) {
     const [row] = await this.ctx.db
-      .select({ dn: deliveryNotes, customerName: customers.name, warehouseName: warehouses.name })
+      .select({
+        dn: deliveryNotes,
+        customerName: customers.name,
+        warehouseName: warehouses.name,
+        invoiceNumber: sql<string | null>`(
+          SELECT si.invoice_number FROM sales_invoices si
+          WHERE si.id = ${deliveryNotes.invoiceId}
+        )`.as('invoice_number'),
+      })
       .from(deliveryNotes)
       .leftJoin(customers, eq(customers.id, deliveryNotes.customerId))
       .innerJoin(warehouses, eq(warehouses.id, deliveryNotes.warehouseId))
@@ -175,6 +194,7 @@ export class DeliveryNoteService {
       totalValue,
       customerName: row.customerName,
       warehouseName: row.warehouseName,
+      invoiceNumber: row.invoiceNumber,
       lines: enriched,
     };
   }
@@ -272,6 +292,9 @@ export class DeliveryNoteService {
         .limit(1);
       if (!dn) throw new NotFoundError('Delivery note');
       if (dn.status !== 'draft') throw new ConflictError(`Delivery note is ${dn.status}`);
+      // Returns are posted whole by SalesReturnService — they never sit in
+      // draft, so an inbound doc reaching here means something is wrong.
+      if (dn.direction !== 'out') throw new ConflictError('Sales returns are not dispatched');
 
       const lines = await tx
         .select()
@@ -365,6 +388,10 @@ export class DeliveryNoteService {
         .where(eq(deliveryNoteLines.dnId, id));
       const ledger = new StockLedgerService(this.ctx.tenantId);
       const now = new Date();
+      // Unwinding a dispatch puts stock back; unwinding a return takes it
+      // out again. Same code path, opposite sign.
+      const sign = dn.direction === 'in' ? -1 : 1;
+      const sourceType = dn.direction === 'in' ? 'sales_return' : 'delivery_note';
       let cogsTotal = 0;
       for (const line of lines) {
         const qty = Number(line.qty);
@@ -374,10 +401,10 @@ export class DeliveryNoteService {
           warehouseId: dn.warehouseId,
           batchNo: line.batchNo ?? null,
           movementType: 'reversal',
-          sourceType: 'delivery_note',
+          sourceType,
           sourceId: dn.id,
           sourceLineId: line.id,
-          qtyDelta: qty,
+          qtyDelta: sign * qty,
           unitCost,
           movedAt: now,
           postedBy: this.ctx.userId ?? null,
@@ -386,13 +413,22 @@ export class DeliveryNoteService {
       }
 
       const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
-      const jeId = await poster.reverseDelivery({
-        date: now.toISOString().slice(0, 10),
-        dnId: dn.id,
-        dnNo: dn.dnNo,
-        cogsValue: cogsTotal,
-        reason: input.reason,
-      });
+      // A cancelled return needs the dispatch JE shape (COGS Dr), and vice
+      // versa — reverseDelivery/postDelivery are exactly that pair.
+      const jeId = dn.direction === 'in'
+        ? await poster.postDelivery({
+          date: now.toISOString().slice(0, 10),
+          dnId: dn.id,
+          dnNo: dn.dnNo,
+          cogsValue: cogsTotal,
+        })
+        : await poster.reverseDelivery({
+          date: now.toISOString().slice(0, 10),
+          dnId: dn.id,
+          dnNo: dn.dnNo,
+          cogsValue: cogsTotal,
+          reason: input.reason,
+        });
 
       const [u] = await tx
         .update(deliveryNotes)

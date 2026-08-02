@@ -9,6 +9,8 @@ export const dnLineInputSchema = z.object({
   qty: z.number().positive(),
   uom: z.string().max(20).nullish(),
   notes: z.string().max(500).nullish(),
+  // Set only when the line originated from an AR invoice line.
+  invoiceLineId: z.string().uuid().nullish(),
 });
 
 export const createDeliveryNoteSchema = z.object({
@@ -26,12 +28,51 @@ export const updateDeliveryNoteSchema = createDeliveryNoteSchema.partial().exten
   lines: z.array(dnLineInputSchema).min(1).optional(),
 });
 
+/**
+ * Confirming a row off the "Awaiting dispatch" queue. Lines are echoed back
+ * from the preview so the operator can trim quantities or override the
+ * FEFO-suggested batch before stock moves.
+ */
+export const dispatchFromInvoiceSchema = z.object({
+  warehouseId: z.string().uuid(),
+  dispatchDate: dateString,
+  vehicleNo: z.string().max(30).nullish(),
+  lrNo: z.string().max(40).nullish(),
+  notes: z.string().max(500).nullish(),
+  lines: z.array(dnLineInputSchema.extend({
+    invoiceLineId: z.string().uuid(),
+  })).min(1, 'At least one line is required'),
+});
+
+export const pendingDispatchFilterSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
+  q: z.string().max(120).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
+/** Records goods coming back against a dispatched DN, at its original cost. */
+export const salesReturnSchema = z.object({
+  returnDate: dateString,
+  reason: z.string().min(1).max(500),
+  creditNoteId: z.string().uuid().nullish(),
+  lines: z.array(z.object({
+    dnLineId: z.string().uuid(),
+    qty: z.number().positive(),
+  })).min(1, 'At least one line is required'),
+});
+
 export const cancelDeliveryNoteSchema = z.object({
   reason: z.string().min(1).max(500),
 });
 
 export const deliveryNoteFilterSchema = z.object({
   status: z.enum(['draft', 'dispatched', 'cancelled']).optional(),
+  direction: z.enum(['out', 'in']).optional(),
+  // 'linked' = raised from an invoice, 'unlinked' = keyed in by hand.
+  source: z.enum(['linked', 'unlinked']).optional(),
   warehouseId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional(),
   from: dateString.optional(),
@@ -46,3 +87,6 @@ export type UpdateDeliveryNoteInput = z.infer<typeof updateDeliveryNoteSchema>;
 export type DnLineInput = z.infer<typeof dnLineInputSchema>;
 export type DeliveryNoteFilter = z.infer<typeof deliveryNoteFilterSchema>;
 export type CancelDeliveryNoteInput = z.infer<typeof cancelDeliveryNoteSchema>;
+export type DispatchFromInvoiceInput = z.infer<typeof dispatchFromInvoiceSchema>;
+export type PendingDispatchFilter = z.infer<typeof pendingDispatchFilterSchema>;
+export type SalesReturnInput = z.infer<typeof salesReturnSchema>;

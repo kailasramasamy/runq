@@ -233,7 +233,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
     label: 'Movement',
     items: [
       { key: 'inv-grn', label: 'Receipts (GRN)', icon: PackageCheck, path: '/inventory/grn' },
-      { key: 'inv-delivery', label: 'Dispatches', icon: Truck, path: '/inventory/delivery' },
+      { key: 'inv-delivery', label: 'Sales dispatch', icon: Truck, path: '/inventory/delivery' },
       { key: 'inv-transfers', label: 'Transfers', icon: MoveRight, path: '/inventory/transfers' },
       { key: 'inv-adjustments', label: 'Adjustments', icon: Split, path: '/inventory/adjustments' },
       { key: 'inv-stock-take', label: 'Stock take', icon: ClipboardCheck, path: '/inventory/stock-take' },

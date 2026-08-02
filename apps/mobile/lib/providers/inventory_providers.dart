@@ -5,6 +5,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/inventory_models.dart';
 import '../api/inventory_repo.dart';
+import '../api/sales_dispatch_models.dart';
+import '../api/sales_dispatch_repo.dart';
 
 final invKpisProvider = FutureProvider.autoDispose<InvKpis>((ref) async {
   return inventoryRepo.kpis();
@@ -69,6 +71,20 @@ final invDnListProvider = FutureProvider.autoDispose.family<List<InvDn>, String?
 final invDnDetailProvider = FutureProvider.autoDispose
     .family<InvDnDetail, String>((ref, id) async {
   return inventoryRepo.dnGet(id);
+});
+
+/// Invoices awaiting dispatch. Defaults to the last 60 days — see
+/// SalesDispatchRepo.pending for why the floor exists.
+final invPendingDispatchProvider =
+    FutureProvider.autoDispose<PendingPage>((ref) async {
+  final floor = DateTime.now().subtract(const Duration(days: 60));
+  return salesDispatchRepo.pending(from: floor.toIso8601String().substring(0, 10));
+});
+
+/// (invoiceId, warehouseId) — availability and FEFO batches are per-warehouse.
+final invDispatchPreviewProvider = FutureProvider.autoDispose
+    .family<InvDispatchPreview, ({String invoiceId, String warehouseId})>((ref, arg) async {
+  return salesDispatchRepo.preview(arg.invoiceId, arg.warehouseId);
 });
 
 final invTransferListProvider = FutureProvider.autoDispose

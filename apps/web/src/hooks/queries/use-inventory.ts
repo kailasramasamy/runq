@@ -110,6 +110,12 @@ export interface DeliveryNote {
   customerName: string | null;
   dispatchDate: string;
   status: 'draft' | 'dispatched' | 'cancelled';
+  /** 'in' is a sales return — the same document run backwards. */
+  direction: 'out' | 'in';
+  invoiceId: string | null;
+  /** Null on hand-keyed dispatches; drives the "unlinked" chip. */
+  invoiceNumber: string | null;
+  returnOfDnId: string | null;
   totalValue: string;
   notes: string | null;
   vehicleNo: string | null;

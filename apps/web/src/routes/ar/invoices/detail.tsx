@@ -24,6 +24,7 @@ import {
   ConfirmationDialog, useToast, Input, DateInput,
 } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
+import { DispatchStatusStrip } from '@/components/ar/dispatch-status-strip';
 
 interface Props { invoiceId: string }
 interface UPILinkData { deepLink: string; qrData: string }
@@ -247,6 +248,9 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </>
         }
       />
+
+      {/* Has the stock actually left? Inventory owns the quantity leg. */}
+      <DispatchStatusStrip invoiceId={invoice.id} status={invoice.status} />
 
       {/* Pending payment-report banner */}
       {pendingClaim && (

@@ -5,6 +5,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Input,
 } from '@/components/ui';
 import { useDn, useDispatchDn, useCancelDn } from '@/hooks/queries/use-inventory';
+import { ReturnDialog } from './_return-dialog';
 
 export function DeliveryNoteDetailPage() {
   const { id } = useParams({ strict: false }) as { id: string };
@@ -15,6 +16,7 @@ export function DeliveryNoteDetailPage() {
 
   const [confirmDispatch, setConfirmDispatch] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [reason, setReason] = useState('');
 
   if (isLoading || !dn) return <div className="p-4 text-sm text-zinc-500">Loading…</div>;
@@ -44,8 +46,15 @@ export function DeliveryNoteDetailPage() {
     <div>
       <PageHeader
         title={dn.dnNo}
-        titleBadge={<StatusBadge status={dn.status} />}
-        description={`Dispatch ${dn.dispatchDate} · ${dn.warehouseName}${dn.customerName ? ` · ${dn.customerName}` : ''}`}
+        titleBadge={
+          <div className="flex items-center gap-1.5">
+            <StatusBadge status={dn.status} />
+            {dn.direction === 'in' && <Badge variant="warning">Return</Badge>}
+            {dn.invoiceNumber && <Badge variant="default">Inv {dn.invoiceNumber}</Badge>}
+            {dn.direction === 'out' && !dn.invoiceId && <Badge variant="default">Unlinked</Badge>}
+          </div>
+        }
+        description={`${dn.direction === 'in' ? 'Returned' : 'Dispatch'} ${dn.dispatchDate} · ${dn.warehouseName}${dn.customerName ? ` · ${dn.customerName}` : ''}`}
         actions={
           <div className="flex gap-2">
             {dn.status === 'draft' && (
@@ -53,8 +62,11 @@ export function DeliveryNoteDetailPage() {
                 <Button variant="secondary">Edit</Button>
               </Link>
             )}
-            {dn.status === 'draft' && (
+            {dn.status === 'draft' && dn.direction === 'out' && (
               <Button variant="primary" onClick={() => setConfirmDispatch(true)}>Dispatch</Button>
+            )}
+            {dn.status === 'dispatched' && dn.direction === 'out' && (
+              <Button variant="secondary" onClick={() => setReturnOpen(true)}>Record return</Button>
             )}
             {dn.status !== 'cancelled' && (
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>Cancel</Button>
@@ -109,6 +121,8 @@ export function DeliveryNoteDetailPage() {
           <CardContent><p className="whitespace-pre-line text-sm">{dn.notes}</p></CardContent>
         </Card>
       )}
+
+      {returnOpen && <ReturnDialog dnId={id} onClose={() => setReturnOpen(false)} />}
 
       <ConfirmationDialog
         open={confirmDispatch}

@@ -3,7 +3,8 @@ import {
   createWarehouseSchema, updateWarehouseSchema,
   createGrnSchema, updateGrnSchema, cancelGrnSchema, grnFilterSchema,
   createDeliveryNoteSchema, updateDeliveryNoteSchema, cancelDeliveryNoteSchema,
-  deliveryNoteFilterSchema,
+  deliveryNoteFilterSchema, dispatchFromInvoiceSchema, pendingDispatchFilterSchema,
+  salesReturnSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
@@ -21,6 +22,8 @@ import { rbacHook } from '../../hooks/rbac';
 import { WarehouseService } from './warehouse.service';
 import { GrnService } from './grn.service';
 import { DeliveryNoteService } from './delivery.service';
+import { SalesDispatchService } from './sales-dispatch.service';
+import { SalesReturnService } from './sales-return.service';
 import { StockQueryService } from './stock-query.service';
 import { InventoryDashboardService } from './dashboard.service';
 import { TransferService } from './transfer.service';
@@ -218,6 +221,59 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const input = cancelDeliveryNoteSchema.parse(req.body);
     const svc = new DeliveryNoteService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
     return { data: await svc.cancel(id, input) };
+  });
+
+  // ─── Sales dispatch (invoice → stock) ────────────────────────────────
+  // The queue of issued invoices whose goods haven't left yet.
+  app.get('/sales-dispatch/pending', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = pendingDispatchFilterSchema.parse(req.query);
+    const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId });
+    return await svc.listPendingInvoices(filter);
+  });
+
+  app.get('/sales-dispatch/:id/preview', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const { warehouseId } = z.object({ warehouseId: z.string().uuid() }).parse(req.query);
+    const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: await svc.previewInvoice(id, warehouseId) };
+  });
+
+  // Creates the draft DN only. The client follows with the normal dispatch
+  // call, so a shortage leaves a fixable draft instead of a partial posting.
+  app.post('/sales-dispatch/:id', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = dispatchFromInvoiceSchema.parse(req.body);
+    const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
+    return reply.status(201).send({ data: await svc.createFromInvoice(id, input) });
+  });
+
+  app.get('/sales-dispatch/:id/status', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: await svc.invoiceDispatchStatus(id) };
+  });
+
+  app.post('/sales-dispatch/item-aliases', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {
+    const input = z.object({
+      sourceName: z.string().min(1).max(255),
+      itemId: z.string().uuid(),
+    }).parse(req.body);
+    const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
+    return reply.status(201).send({ data: await svc.saveItemAlias(input.sourceName, input.itemId) });
+  });
+
+  // ─── Sales returns (stock back in) ───────────────────────────────────
+  app.get('/delivery-notes/:id/returnable', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SalesReturnService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: await svc.returnableLines(id) };
+  });
+
+  app.post('/delivery-notes/:id/return', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = salesReturnSchema.parse(req.body);
+    const svc = new SalesReturnService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
+    return reply.status(201).send({ data: await svc.create(id, input) });
   });
 
   // ─── Transfers ───────────────────────────────────────────────────────

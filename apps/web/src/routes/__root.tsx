@@ -265,6 +265,7 @@ import { DeliveryListPage } from './inventory/delivery/index';
 import { NewDeliveryNotePage } from './inventory/delivery/new';
 import { DeliveryNoteDetailPage } from './inventory/delivery/detail';
 import { EditDeliveryNotePage } from './inventory/delivery/edit';
+import { DispatchFromInvoicePage } from './inventory/delivery/from-invoice';
 import { TransferListPage } from './inventory/transfers/index';
 import { NewTransferPage } from './inventory/transfers/new';
 import { TransferDetailPage } from './inventory/transfers/detail';
@@ -2164,6 +2165,13 @@ const invDeliveryNewRoute = createRoute({
   path: '/delivery/new',
   component: NewDeliveryNotePage,
 });
+// Must be declared before '/delivery/$id' so "from-invoice" isn't swallowed
+// as a DN id by the param route.
+const invDispatchFromInvoiceRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/delivery/from-invoice/$id',
+  component: DispatchFromInvoicePage,
+});
 const invDeliveryDetailRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/delivery/$id',
@@ -2988,6 +2996,7 @@ export const routeTree = rootRoute.addChildren([
       invGrnDetailRoute,
       invDeliveryRoute,
       invDeliveryNewRoute,
+      invDispatchFromInvoiceRoute,
       invDeliveryDetailRoute,
       invDeliveryEditRoute,
       invTransfersRoute,

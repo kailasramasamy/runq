@@ -225,6 +225,31 @@ export class InventoryGlPoster {
     return je.id;
   }
 
+  /**
+   * Sales return: Inventory Asset Dr / COGS Cr, at the original dispatch
+   * cost. Same shape as reverseDelivery but a distinct sourceType — a return
+   * is a real event to report on, not the unwinding of a mistake.
+   */
+  async postSalesReturn(args: {
+    date: string;
+    dnId: string;
+    dnNo: string;
+    cogsValue: number;
+  }): Promise<string> {
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Sales return ${args.dnNo}`,
+      sourceType: 'sales_return',
+      sourceId: args.dnId,
+      lines: [
+        { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: args.cogsValue, credit: 0, description: 'Stock returned' },
+        { accountCode: INV_ACCOUNTS.COGS, debit: 0, credit: args.cogsValue },
+      ],
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
   /** Reversal of a dispatched DN. */
   async reverseDelivery(args: {
     date: string;
