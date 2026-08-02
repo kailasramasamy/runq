@@ -472,7 +472,7 @@ export class ConsignmentService {
       milkType: mpConsignments.milkType,
     }).from(mpConsignments).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.toNodeId, nodeId),
       eq(mpConsignments.collectionDate, date), eq(mpConsignments.status, 'received'),
-      ...(shift ? [eq(mpConsignments.shift, shift)] : [])))
+      ...receiptShiftCond(shift)))
       .orderBy(asc(mpConsignments.receivedAt));
     return rows.map(toBatch);
   }
@@ -525,7 +525,7 @@ export class ConsignmentService {
     }).from(mpConsignments)
       .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.fromNodeId, nodeId),
         eq(mpConsignments.collectionDate, date), inArray(mpConsignments.status, ['in_transit', 'received']),
-        ...(shift ? [eq(mpConsignments.shift, shift)] : [])))
+        ...receiptShiftCond(shift)))
       .groupBy(mpConsignments.milkType);
     return rows.map((r) => ({ milkType: r.milkType, qty: Number(r.q ?? 0) }));
   }
@@ -674,6 +674,29 @@ interface SourceAgg { qty: number; fat: number | null; snf: number | null; water
 interface Batch {
   seq: number; milkType: MilkType | null;
   qty: number; fat: number | null; snf: number | null; water: number | null;
+}
+
+/**
+ * Shift filter for a per-shift consignment figure.
+ *
+ * A whole-day consignment carries `shift = null` (a BMC node pools its day and
+ * dispatches one tanker). Filtering those rows out with a bare `shift = 'am'`
+ * makes them vanish: milk a BMC VMCC dispatches whole-day is RECEIVED by a
+ * per-shift CC downstream but contributes 0 L to either of that CC's shifts, so
+ * it can never be dispatched onward. Folding null onto AM mirrors the app's
+ * `shiftFrom(null) === 'am'` and the overnight window's own fold
+ * (`collectedFromReceiptsWindow`), which had this right already.
+ *
+ * Applied to the dispatched side too. A node switched from day-pooled to
+ * per-shift has historic null-shift dispatch rows; ignoring them would count
+ * that milk as still on hand and let it be dispatched twice. Attributing them to
+ * AM can only understate what's available, which is the safe direction.
+ */
+function receiptShiftCond(shift?: 'am' | 'pm') {
+  if (!shift) return [];
+  return [shift === 'am'
+    ? or(eq(mpConsignments.shift, 'am'), isNull(mpConsignments.shift))
+    : eq(mpConsignments.shift, shift)];
 }
 
 type BatchRow = {
