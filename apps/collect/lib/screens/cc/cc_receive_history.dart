@@ -314,28 +314,36 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Litres are the number this row exists for, so they are laid out first
+        // and never shrink. The labels share what's left: the milk-type pill
+        // ellipsises (its label runs long — "Cow A1 (regular)"), which on a
+        // narrow phone is what used to push the litres off the right edge.
         Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 3),
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(DhenuRadii.pill)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_shiftIcon(c.shift), size: 13, color: color),
-              const SizedBox(width: 4),
-              Text(label, style: DhenuText.label.copyWith(color: color)),
+          Expanded(
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 3),
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(DhenuRadii.pill)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_shiftIcon(c.shift), size: 13, color: color),
+                  const SizedBox(width: 4),
+                  Text(label, style: DhenuText.label.copyWith(color: color)),
+                ]),
+              ),
+              if (showMilkType && c.milkType != null) ...[
+                const SizedBox(width: DhenuSpacing.sm),
+                Flexible(child: MilkTypePill(milkType: c.milkType!)),
+              ],
+              if (rate != null) ...[
+                const SizedBox(width: DhenuSpacing.sm),
+                Text('₹/L ${rate.toStringAsFixed(2)}',
+                    style: DhenuText.number(size: 13, color: t.brand)),
+              ],
             ]),
           ),
-          if (showMilkType && c.milkType != null) ...[
-            const SizedBox(width: DhenuSpacing.sm),
-            MilkTypePill(milkType: c.milkType!),
-          ],
-          if (rate != null) ...[
-            const SizedBox(width: DhenuSpacing.sm),
-            Text('₹/L ${rate.toStringAsFixed(2)}',
-                style: DhenuText.number(size: 13, color: t.brand)),
-          ],
-          const Spacer(),
+          const SizedBox(width: DhenuSpacing.sm),
           Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 18, color: t.ink)),
         ]),
         const SizedBox(height: DhenuSpacing.sm),

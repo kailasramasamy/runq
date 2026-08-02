@@ -653,7 +653,10 @@ class _DayRowState extends ConsumerState<_DayRow> {
                   style: DhenuText.number(size: 15, w: FontWeight.w700, color: t.ink)),
               if (widget.showMilkType) ...[
                 const SizedBox(width: DhenuSpacing.sm),
-                MilkTypePill(milkType: p.milkType),
+                // Flexible so a long type label ("Cow A1 (regular)") ellipsises
+                // instead of running past the row — the pill only knows to
+                // ellipsise when something bounds its width.
+                Flexible(child: MilkTypePill(milkType: p.milkType)),
               ],
             ]),
             const SizedBox(height: 2),
