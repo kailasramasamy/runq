@@ -245,6 +245,7 @@ import { NewWorkOrderPage } from './manufacturing/wos/new';
 import { EditWorkOrderPage } from './manufacturing/wos/edit';
 import { WorkOrderDetailPage } from './manufacturing/wos/detail';
 import { WorkOrderRunPage } from './manufacturing/wos/run';
+import { RecordProductionPage } from './manufacturing/production/new';
 import { WoSummaryReportPage } from './manufacturing/reports/wo-summary';
 import { YieldTrendReportPage } from './manufacturing/reports/yield-trend';
 import { BomUsageReportPage } from './manufacturing/reports/bom-usage';
@@ -2408,6 +2409,12 @@ const mfgWoRunRoute = createRoute({
   },
 });
 
+const mfgProductionNewRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/production/new',
+  component: RecordProductionPage,
+});
+
 // ─── Manufacturing Report Routes ─────────────────────────────────────────────
 
 const mfgReportWoSummaryRoute = createRoute({
@@ -2926,6 +2933,7 @@ export const routeTree = rootRoute.addChildren([
       mfgWoDetailRoute,
       mfgWoEditRoute,
       mfgWoRunRoute,
+      mfgProductionNewRoute,
       mfgReportWoSummaryRoute,
       mfgReportYieldTrendRoute,
       mfgReportBomUsageRoute,

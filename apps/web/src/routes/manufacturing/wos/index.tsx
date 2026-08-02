@@ -47,6 +47,7 @@ export function WorkOrderListPage() {
   const [bomId, setBomId] = useState('');
   const [scheduledFrom, setScheduledFrom] = useState('');
   const [scheduledTo, setScheduledTo] = useState('');
+  const [unplannedOnly, setUnplannedOnly] = useState(false);
   const [page, setPage] = useState(1);
 
   const { data: bomsData } = useBoms({ limit: 200 });
@@ -68,7 +69,11 @@ export function WorkOrderListPage() {
     limit: 25,
   });
 
-  const rows = data?.data ?? [];
+  // entryMode has no server-side filter yet — the list is small enough per
+  // page that a client-side pass is fine for "what did the floor make while
+  // I was away."
+  const allRows = data?.data ?? [];
+  const rows = unplannedOnly ? allRows.filter((wo) => wo.entryMode === 'unplanned') : allRows;
 
   return (
     <div>
@@ -134,6 +139,18 @@ export function WorkOrderListPage() {
         />
       </div>
 
+      {/* Unplanned filter — how a returning manager reviews what got made
+          off-plan while they were away. */}
+      <label className="mb-3 flex w-fit items-center gap-2 text-[12px]" style={{ color: 'var(--text-2)' }}>
+        <input
+          type="checkbox"
+          checked={unplannedOnly}
+          onChange={(e) => { setUnplannedOnly(e.target.checked); setPage(1); }}
+          className="h-3.5 w-3.5 rounded border-zinc-300 text-[#E11D48] focus:ring-[#E11D48]"
+        />
+        Unplanned runs only
+      </label>
+
       {isLoading ? (
         <p className="px-2 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</p>
       ) : isError ? (
@@ -169,9 +186,19 @@ export function WorkOrderListPage() {
                   }
                 >
                   <TableCell>
-                    <span className="num text-[12.5px] font-medium" style={{ color: ACCENT }}>
-                      {wo.woNumber}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="num text-[12.5px] font-medium" style={{ color: ACCENT }}>
+                        {wo.woNumber}
+                      </span>
+                      {wo.entryMode === 'unplanned' && (
+                        <span
+                          className="inline-flex rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide"
+                          style={{ background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }}
+                        >
+                          Unplanned
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="text-[12px]">{wo.bomCode}</span>
