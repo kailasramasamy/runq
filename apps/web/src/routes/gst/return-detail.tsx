@@ -16,6 +16,7 @@ import {
   CardSkeleton, useToast, Modal,
 } from '@/components/ui';
 import { PageHeader } from '@/components/ar/primitives';
+import { api } from '@/lib/api-client';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -190,9 +191,8 @@ async function downloadGstr1Csv(id: string, gstin: string, period: string) {
   await downloadFile(`/gst/returns/${id}/export.csv`, `GSTR1_${gstin}_${period}.csv`);
 }
 async function downloadFile(path: string, filename: string) {
-  const token = localStorage.getItem('runq-token');
   const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: api.authHeaders(),
   });
   if (!res.ok) { alert('Failed to download'); return; }
   const blob = await res.blob();

@@ -4,18 +4,13 @@ import type { ApiSuccess } from '@runq/types';
 
 // Auth-gated <img src> — fetch the binary as blob, hand back an object URL
 // the <img> can render. Same pattern as employee photos.
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('runq-token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export function usePunchSelfieSrc(punchId: string | null, hasSelfie: boolean) {
   return useQuery({
     queryKey: ['punch-selfie', punchId],
     enabled: !!punchId && hasSelfie,
     queryFn: async () => {
       const res = await fetch(`/api/v1/hr/punches/${punchId}/selfie`, {
-        headers: authHeaders(),
+        headers: api.authHeaders(),
         cache: 'no-cache',
       });
       if (!res.ok) return null;

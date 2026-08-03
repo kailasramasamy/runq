@@ -42,7 +42,8 @@ class ApiClient {
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    if (options.body) {
+    // FormData sets its own multipart boundary — forcing JSON breaks uploads.
+    if (options.body && !(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
 
@@ -119,6 +120,22 @@ class ApiClient {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     });
+  }
+
+  /**
+   * Auth + tenant headers for the few callers that must use raw `fetch`
+   * (blob/image streams that need an object URL rather than a download).
+   */
+  authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    if (this.tenantId) headers['X-Tenant-Id'] = this.tenantId;
+    return headers;
+  }
+
+  /** Multipart upload. Goes through `request` so auth + X-Tenant-Id are sent. */
+  upload<T>(path: string, form: FormData) {
+    return this.request<T>(path, { method: 'POST', body: form });
   }
 
   delete<T>(path: string) {

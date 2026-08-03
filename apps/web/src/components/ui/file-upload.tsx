@@ -3,6 +3,7 @@ import { Upload, FileText, Trash2, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAttachments, useUploadAttachment, useDeleteAttachment } from '@/hooks/queries/use-attachments';
 import type { AttachmentEntityType, DocumentAttachment } from '@runq/types';
+import { api } from '@/lib/api-client';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.xlsx', '.csv'];
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -202,10 +203,9 @@ function formatSize(bytes: number): string {
  */
 async function openAttachment(att: DocumentAttachment): Promise<void> {
   try {
-    const token = localStorage.getItem('runq-token');
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`/api/v1/common/attachments/${att.id}/download`, { headers });
+    const res = await fetch(`/api/v1/common/attachments/${att.id}/download`, {
+      headers: api.authHeaders(),
+    });
     if (!res.ok) {
       // eslint-disable-next-line no-alert
       alert(`Could not download attachment (HTTP ${res.status})`);

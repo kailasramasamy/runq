@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api-client';
+import { api, ApiClientError } from '../../lib/api-client';
 import type { ApiSuccess } from '@runq/types';
 
 const CUSTOMER_ORDER_KEYS = {
@@ -189,22 +189,19 @@ export function useUploadOrderFile() {
       if (vars.sourceMetadata) {
         fd.append('sourceMetadata', JSON.stringify(vars.sourceMetadata));
       }
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch('/api/v1/ar/po-uploads', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new CustomerOrderUploadError(
-          body.message || `Upload failed (${res.status})`,
-          res.status,
-          body.error,
-          body.details,
-        );
+      try {
+        return await api.upload<ApiSuccess<UploadResultRow>>('/ar/po-uploads', fd);
+      } catch (err) {
+        if (err instanceof ApiClientError) {
+          throw new CustomerOrderUploadError(
+            err.message,
+            err.statusCode,
+            err.error,
+            err.details as unknown as Record<string, unknown> | undefined,
+          );
+        }
+        throw err;
       }
-      return (await res.json()) as ApiSuccess<UploadResultRow>;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: CUSTOMER_ORDER_KEYS.all }),
   });

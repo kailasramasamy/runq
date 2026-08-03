@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api-client';
 
-const TOKEN_KEY = 'runq-token';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -160,17 +159,13 @@ export async function streamSupportTurn(opts: {
   onEvent: (event: SupportStreamEvent) => void;
   signal?: AbortSignal;
 }): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY);
   const path = opts.conversationId
     ? `/api/v1/support/conversations/${opts.conversationId}/stream`
     : '/api/v1/support/conversations/stream';
 
   const res = await fetch(path, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json', ...api.authHeaders() },
     body: JSON.stringify({ message: opts.message }),
     signal: opts.signal,
   });

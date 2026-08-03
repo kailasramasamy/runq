@@ -15,6 +15,8 @@ import { useToast } from '@/components/ui';
 import { INDIAN_STATE_OPTIONS } from '@/lib/indian-states';
 import { INDUSTRY_LIST, type Industry } from '@runq/validators';
 import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
+import type { ApiSuccess } from '@runq/types';
 
 const MONTH_OPTIONS = [
   { value: '1', label: 'January' },
@@ -598,14 +600,10 @@ export function CompanySettingsPage() {
                       try {
                         const form = new FormData();
                         form.append('file', file);
-                        const token = localStorage.getItem('runq-token');
-                        const res = await fetch('/api/v1/hr/company-logo', {
-                          method: 'POST',
-                          headers: token ? { Authorization: `Bearer ${token}` } : {},
-                          body: form,
-                        });
-                        if (!res.ok) throw new Error((await res.json().catch(() => ({} as any)))?.message ?? `Upload failed (${res.status})`);
-                        const out = await res.json();
+                        const out = await api.upload<ApiSuccess<{ storageKey: string }>>(
+                          '/hr/company-logo',
+                          form,
+                        );
                         setCompanyLogoUrl(out.data.storageKey);
                         toast('Logo uploaded — save changes to apply', 'success');
                       } catch (err: any) {
@@ -698,17 +696,10 @@ export function CompanySettingsPage() {
                         try {
                           const form = new FormData();
                           form.append('file', file);
-                          const token = localStorage.getItem('runq-token');
-                          const res = await fetch(`/api/v1/hr/signature-image`, {
-                            method: 'POST',
-                            headers: token ? { Authorization: `Bearer ${token}` } : {},
-                            body: form,
-                          });
-                          if (!res.ok) {
-                            const err = await res.json().catch(() => ({} as any));
-                            throw new Error(err?.message ?? `Upload failed (${res.status})`);
-                          }
-                          const out = await res.json();
+                          const out = await api.upload<ApiSuccess<{ storageKey: string }>>(
+                            '/hr/signature-image',
+                            form,
+                          );
                           setHrSignatureImageUrl(out.data.storageKey);
                           toast('Signature uploaded — save changes to apply', 'success');
                         } catch (err: any) {
@@ -766,10 +757,7 @@ function ImagePreview({
     let cancelled = false;
     let revokedUrl: string | null = null;
     async function load() {
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch(endpoint, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(endpoint, { headers: api.authHeaders() });
       if (!res.ok) { if (!cancelled) setMissing(true); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

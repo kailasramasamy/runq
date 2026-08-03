@@ -15,6 +15,7 @@ import {
   usePoLinkedDocuments,
 } from '@/hooks/queries/use-purchase-orders';
 import { formatINR } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 
 interface Props { poId: string }
 
@@ -71,9 +72,8 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
     if (downloading) return;
     setDownloading(true);
     try {
-      const token = localStorage.getItem('runq-token');
       const res = await fetch(`/api/v1/purchase/pos/${poId}/pdf?format=pdf`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: api.authHeaders(),
       });
       if (!res.ok) throw new Error('Could not generate PO PDF');
       const blob = await res.blob();

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../lib/api-client';
 
 interface ExtractedItem {
   itemName: string;
@@ -58,29 +59,15 @@ interface ScanImportResult {
   billNumber: string;
 }
 
-const BASE = '/api/v1/ap/purchase-invoices';
-
-async function uploadFile<T>(url: string, file: File, token: string | null): Promise<T> {
-  const formData = new FormData();
-  formData.append('file', file);
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(url, { method: 'POST', headers, body: formData });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw err;
-  }
-  return res.json();
-}
-
-function getToken(): string | null {
-  try { return localStorage.getItem('runq-token'); } catch { return null; }
-}
+const BASE = '/ap/purchase-invoices';
 
 export function useExtractInvoice() {
   return useMutation({
-    mutationFn: (file: File) =>
-      uploadFile<{ data: ExtractionResult }>(`${BASE}/extract`, file, getToken()),
+    mutationFn: (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return api.upload<{ data: ExtractionResult }>(`${BASE}/extract`, formData);
+    },
   });
 }
 
@@ -96,21 +83,7 @@ export function useScanCommit() {
       // Round-trip the extractionId from /extract so the server can bind
       // the staged S3 file to the new bill as an attachment.
       extractionId?: string;
-    }) => {
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${BASE}/scan-commit`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(params),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw err;
-      }
-      return res.json() as Promise<{ data: ScanImportResult }>;
-    },
+    }) => api.post<{ data: ScanImportResult }>(`${BASE}/scan-commit`, params),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
       qc.invalidateQueries({ queryKey: ['vendors'] });

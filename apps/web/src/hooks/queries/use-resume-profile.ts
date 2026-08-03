@@ -9,14 +9,7 @@ import type { ApiSuccess, ResumeProfile } from '@runq/types';
  * step; edits are management corrections to the extracted data.
  */
 
-const BASE_URL = '/api/v1';
-
 const KEY = (employeeId: string) => ['hr', 'resume-profile', employeeId] as const;
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('runq-token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export interface ResumeProfileInput {
   summary: string | null;
@@ -45,13 +38,11 @@ export function useUploadResume(employeeId: string) {
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${BASE_URL}/hr/employees/${employeeId}/resume`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: form,
-      });
-      if (!res.ok) throw await res.json();
-      return (await res.json()).data as ResumeProfile;
+      const json = await api.upload<ApiSuccess<ResumeProfile>>(
+        `/hr/employees/${employeeId}/resume`,
+        form,
+      );
+      return json.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY(employeeId) });
@@ -92,13 +83,8 @@ export function useUploadMyResume() {
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${BASE_URL}/hr/me/resume`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: form,
-      });
-      if (!res.ok) throw await res.json();
-      return (await res.json()).data as ResumeProfile;
+      const json = await api.upload<ApiSuccess<ResumeProfile>>('/hr/me/resume', form);
+      return json.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ME_KEY }),
   });

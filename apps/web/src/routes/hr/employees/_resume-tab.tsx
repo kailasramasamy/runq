@@ -12,6 +12,7 @@ import { documentDownloadUrl } from '@/hooks/queries/use-employee-documents';
 import { useAuth, canManageHrModule } from '@/providers/auth-provider';
 import { SectionLabel } from './_employee-tabs';
 import { ResumeEditForm } from './_resume-edit-form';
+import { api } from '@/lib/api-client';
 
 const ACCEPT = 'application/pdf,image/png,image/jpeg,image/jpg,image/webp';
 
@@ -276,10 +277,7 @@ function ConfidenceBadge({ profile }: { profile: ResumeProfile }) {
 
 function ViewFileButton({ attachmentId }: { attachmentId: string }) {
   async function open() {
-    const token = localStorage.getItem('runq-token');
-    const res = await fetch(documentDownloadUrl(attachmentId), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await fetch(documentDownloadUrl(attachmentId), { headers: api.authHeaders() });
     if (!res.ok) return;
     const url = URL.createObjectURL(await res.blob());
     window.open(url, '_blank', 'noopener,noreferrer');

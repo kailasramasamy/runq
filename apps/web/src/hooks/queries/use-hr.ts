@@ -799,13 +799,11 @@ export function useUploadAnnouncementImage() {
     mutationFn: async (params: { announcementId: string; file: File }) => {
       const form = new FormData();
       form.append('file', params.file);
-      const res = await fetch(`/api/v1/hr/announcements/${params.announcementId}/image`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('runq-token') ?? ''}` },
-        body: form,
-      });
-      if (!res.ok) throw await res.json().catch(() => ({ message: 'Upload failed' }));
-      return (await res.json()).data as { storageKey: string };
+      const json = await api.upload<ApiSuccess<{ storageKey: string }>>(
+        `/hr/announcements/${params.announcementId}/image`,
+        form,
+      );
+      return json.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hr', 'announcements'] }),
   });
@@ -846,7 +844,7 @@ export function useAnnouncementImageSrc(announcementId: string, imageUrl: string
     enabled: !!announcementId && !!imageUrl,
     queryFn: async () => {
       const res = await fetch(`/api/v1/hr/announcements/${announcementId}/image`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('runq-token') ?? ''}` },
+        headers: api.authHeaders(),
         cache: 'no-cache',
       });
       if (!res.ok) return null;

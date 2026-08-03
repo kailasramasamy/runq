@@ -73,28 +73,16 @@ export function useDeleteCustomerAlias() {
 /**
  * Hooks for the invoice import feature.
  *
- * /parse takes multipart files (so we hit fetch directly to attach the
- * Authorization header — the api-client wrapper only handles JSON bodies)
- * and returns the staged ParsedInvoice[]. /commit is a normal JSON POST
- * via the api-client.
+ * /parse takes multipart files (api.upload) and returns the staged
+ * ParsedInvoice[]. /commit is a normal JSON POST.
  */
 export function useParseInvoices() {
   return useMutation({
     mutationFn: async (vars: { files: File[]; format?: ImportFormat }) => {
       const fd = new FormData();
       for (const f of vars.files) fd.append('files', f);
-      const url = `/api/v1/ar/invoice-imports${vars.format ? `?format=${vars.format}` : ''}`;
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Parse failed' }));
-        throw new Error(err.message || err.error || `Parse failed (${res.status})`);
-      }
-      const json = (await res.json()) as ApiSuccess<ParseFilesResult>;
+      const url = `/ar/invoice-imports${vars.format ? `?format=${vars.format}` : ''}`;
+      const json = await api.upload<ApiSuccess<ParseFilesResult>>(url, fd);
       return json.data;
     },
   });

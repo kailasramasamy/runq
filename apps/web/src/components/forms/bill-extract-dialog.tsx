@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Upload, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 import { Button, Card, CardContent, Table, TableHeader, TableBody, TableRow, TableCell, Th } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 
@@ -96,22 +97,13 @@ export function BillExtractDialog({ open, onClose, onExtracted }: Props) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = localStorage.getItem('runq-token');
     setState('extracting');
 
     try {
-      const res = await fetch('/api/v1/ap/purchase-invoices/extract', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || `Extraction failed (${res.status})`);
-      }
-
-      const json = await res.json();
+      const json = await api.upload<{ data: ExtractionResult }>(
+        '/ap/purchase-invoices/extract',
+        formData,
+      );
       setResult(json.data);
       setState('preview');
     } catch (err) {

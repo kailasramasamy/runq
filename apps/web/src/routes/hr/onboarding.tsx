@@ -15,6 +15,7 @@ import {
 } from '@/hooks/queries/use-hr-phase-next';
 import { useEmployees } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
+import { api } from '@/lib/api-client';
 
 const STATUS_VARIANT: Record<string, any> = {
   in_progress: 'warning', completed: 'success', cancelled: 'danger',
@@ -293,10 +294,7 @@ function WorkflowDetailModal({ id, onClose, toast }: { id: string; onClose: () =
 
 function AttachmentRow({ id, fileName }: { id: string; fileName: string }) {
   async function open() {
-    const token = localStorage.getItem('runq-token');
-    const res = await fetch(documentDownloadUrl(id), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await fetch(documentDownloadUrl(id), { headers: api.authHeaders() });
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

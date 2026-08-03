@@ -12,6 +12,7 @@ import {
 } from '@/hooks/queries/use-hr-phase-next';
 import { useEmployees } from '@/hooks/queries/use-hr';
 import { useIsReadOnly } from '@/providers/auth-provider';
+import { api } from '@/lib/api-client';
 
 const KIND_OPTIONS = [
   'offer', 'appointment', 'confirmation', 'increment',
@@ -296,10 +297,7 @@ function LetterPreview({ id, onClose }: { id: string; onClose: () => void }) {
   const safeName = (l?.subject ?? l?.kind ?? 'letter').replace(/[^a-z0-9_\- ]/gi, '_');
 
   async function fetchPdfBlob(): Promise<Blob | null> {
-    const token = localStorage.getItem('runq-token');
-    const res = await fetch(`/api/v1/hr/letters/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await fetch(`/api/v1/hr/letters/${id}/pdf`, { headers: api.authHeaders() });
     if (!res.ok) return null;
     return res.blob();
   }

@@ -116,21 +116,10 @@ export interface ScanCommitResult {
  */
 export function useScanPreview() {
   return useMutation({
-    mutationFn: async ({ poId, file }: { poId: string; file: File }) => {
+    mutationFn: ({ poId, file }: { poId: string; file: File }) => {
       const fd = new FormData();
       fd.append('file', file);
-      // api.post stringifies JSON bodies — bypass and use fetch directly.
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch(`/api/v1/purchase/pos/${poId}/scan-preview`, {
-        method: 'POST', body: fd,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Scan failed' }));
-        throw new Error(err.error?.message ?? err.error ?? err.message ?? 'Scan failed');
-      }
-      const json = (await res.json()) as ApiSuccess<ScanPreviewResult>;
-      return json;
+      return api.upload<ApiSuccess<ScanPreviewResult>>(`/purchase/pos/${poId}/scan-preview`, fd);
     },
   });
 }

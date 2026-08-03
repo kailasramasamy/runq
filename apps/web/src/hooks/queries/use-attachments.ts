@@ -1,32 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { DocumentAttachment, AttachmentEntityType } from '@runq/types';
-
-const BASE_URL = '/api/v1';
+import type { ApiSuccess, DocumentAttachment, AttachmentEntityType } from '@runq/types';
+import { api } from '../../lib/api-client';
 
 const ATTACHMENT_KEYS = {
   byEntity: (entityType: string, entityId: string) =>
     ['attachments', entityType, entityId] as const,
 };
 
-function getToken(): string | null {
-  return localStorage.getItem('runq-token');
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function fetchAttachments(
   entityType: string,
   entityId: string,
 ): Promise<DocumentAttachment[]> {
-  const res = await fetch(
-    `${BASE_URL}/common/attachments/${entityType}/${entityId}`,
-    { headers: authHeaders() },
+  const json = await api.get<ApiSuccess<DocumentAttachment[]>>(
+    `/common/attachments/${entityType}/${entityId}`,
   );
-  if (!res.ok) throw await res.json();
-  const json = await res.json();
   return json.data;
 }
 
@@ -38,21 +25,15 @@ async function uploadAttachment(params: {
   const form = new FormData();
   form.append('file', params.file);
 
-  const res = await fetch(
-    `${BASE_URL}/common/attachments/${params.entityType}/${params.entityId}`,
-    { method: 'POST', headers: authHeaders(), body: form },
+  const json = await api.upload<ApiSuccess<DocumentAttachment>>(
+    `/common/attachments/${params.entityType}/${params.entityId}`,
+    form,
   );
-  if (!res.ok) throw await res.json();
-  const json = await res.json();
   return json.data;
 }
 
-async function deleteAttachment(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/common/attachments/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw await res.json();
+function deleteAttachment(id: string): Promise<void> {
+  return api.delete(`/common/attachments/${id}`);
 }
 
 export function useAttachments(entityType: AttachmentEntityType, entityId: string) {

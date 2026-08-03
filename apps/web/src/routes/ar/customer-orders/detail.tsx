@@ -47,6 +47,7 @@ import {
   type CustomerOrderLineRaw,
 } from '@/hooks/queries/use-customer-orders';
 import { formatINR } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 
 interface Props {
   uploadId: string;
@@ -493,9 +494,8 @@ function FilePreview({ draft }: { draft: CustomerOrderDetail }) {
 
     void (async () => {
       try {
-        const token = localStorage.getItem('runq-token');
         const res = await fetch(`/api/v1/ar/po-uploads/${draft.id}/file`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: api.authHeaders(),
         });
         if (!res.ok) throw new Error(`Preview unavailable (${res.status})`);
 

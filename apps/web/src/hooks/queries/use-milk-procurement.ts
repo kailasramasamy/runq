@@ -242,16 +242,11 @@ export function useUploadFarmerAttachment(farmerId: string) {
       const form = new FormData();
       form.append('file', file);
       form.append('kind', kind);
-      const token = localStorage.getItem('runq-token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const tenantId = localStorage.getItem('runq-active-tenant-id');
-      if (tenantId) headers['X-Tenant-Id'] = tenantId;
-      const res = await fetch(`/api/v1${BASE}/farmers/${farmerId}/attachments`, {
-        method: 'POST', headers, body: form,
-      });
-      if (!res.ok) throw await res.json();
-      return (await res.json()).data as MpFarmerAttachment;
+      const json = await api.upload<ApiSuccess<MpFarmerAttachment>>(
+        `${BASE}/farmers/${farmerId}/attachments`,
+        form,
+      );
+      return json.data;
     },
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'farmers'] }),
   });

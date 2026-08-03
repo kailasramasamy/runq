@@ -302,20 +302,10 @@ export interface BulkImportResult {
 
 export function useExtractItemsFromFile() {
   return useMutation<ApiSuccess<ExtractionResult>, Error, File>({
-    mutationFn: async (file: File) => {
+    mutationFn: (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch('/api/v1/masters/items/extract', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Extraction failed' }));
-        throw new Error(err.message ?? 'Extraction failed');
-      }
-      return res.json();
+      return api.upload<ApiSuccess<ExtractionResult>>('/masters/items/extract', formData);
     },
   });
 }

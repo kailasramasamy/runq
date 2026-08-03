@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { DocumentAttachment, EmployeeDocumentKind } from '@runq/types';
+import type { ApiSuccess, DocumentAttachment, EmployeeDocumentKind } from '@runq/types';
+import { api } from '../../lib/api-client';
 
 /**
  * Hooks for HR-specific employee asset uploads:
@@ -17,20 +18,13 @@ const KEYS = {
   photo: (employeeId: string) => ['employee-photo', employeeId] as const,
 };
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('runq-token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 // ─── Documents ──────────────────────────────────────────────────────────────
 
 async function fetchDocuments(employeeId: string): Promise<DocumentAttachment[]> {
-  const res = await fetch(
-    `${BASE_URL}/common/attachments/employee/${employeeId}`,
-    { headers: authHeaders() },
+  const json = await api.get<ApiSuccess<DocumentAttachment[]>>(
+    `/common/attachments/employee/${employeeId}`,
   );
-  if (!res.ok) throw await res.json();
-  return (await res.json()).data;
+  return json.data;
 }
 
 async function uploadDocument(params: {
@@ -44,20 +38,15 @@ async function uploadDocument(params: {
   form.append('file', params.file);
   form.append('kind', params.kind);
   if (params.expiryDate) form.append('expiryDate', params.expiryDate);
-  const res = await fetch(
-    `${BASE_URL}/common/attachments/employee/${params.employeeId}`,
-    { method: 'POST', headers: authHeaders(), body: form },
+  const json = await api.upload<ApiSuccess<DocumentAttachment>>(
+    `/common/attachments/employee/${params.employeeId}`,
+    form,
   );
-  if (!res.ok) throw await res.json();
-  return (await res.json()).data;
+  return json.data;
 }
 
-async function deleteDocument(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/common/attachments/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw await res.json();
+function deleteDocument(id: string): Promise<void> {
+  return api.delete(`/common/attachments/${id}`);
 }
 
 export function useEmployeeDocuments(employeeId: string) {
@@ -103,18 +92,15 @@ async function uploadPhoto(params: {
 }): Promise<{ storageKey: string }> {
   const form = new FormData();
   form.append('file', params.file);
-  const res = await fetch(`${BASE_URL}/hr/employees/${params.employeeId}/photo`, {
-    method: 'POST', headers: authHeaders(), body: form,
-  });
-  if (!res.ok) throw await res.json();
-  return (await res.json()).data;
+  const json = await api.upload<ApiSuccess<{ storageKey: string }>>(
+    `/hr/employees/${params.employeeId}/photo`,
+    form,
+  );
+  return json.data;
 }
 
-async function deletePhoto(employeeId: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/hr/employees/${employeeId}/photo`, {
-    method: 'DELETE', headers: authHeaders(),
-  });
-  if (!res.ok) throw await res.json();
+function deletePhoto(employeeId: string): Promise<void> {
+  return api.delete(`/hr/employees/${employeeId}/photo`);
 }
 
 /**
@@ -162,7 +148,7 @@ export function useEmployeePhotoSrc(employeeId: string, photoKey: string | null)
     enabled: !!employeeId && !!photoKey,
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/hr/employees/${employeeId}/photo`, {
-        headers: authHeaders(),
+        headers: api.authHeaders(),
         cache: 'no-cache',
       });
       if (!res.ok) return null;

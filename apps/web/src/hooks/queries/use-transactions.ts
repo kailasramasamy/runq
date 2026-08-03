@@ -141,17 +141,10 @@ export function useParseStatement() {
     mutationFn: async (files: File[]) => {
       const fd = new FormData();
       for (const f of files) fd.append('files', f);
-      const token = localStorage.getItem('runq-token');
-      const res = await fetch('/api/v1/banking/statement-import/parse', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Parse failed' }));
-        throw new Error(err.message || err.error || `Parse failed (${res.status})`);
-      }
-      const json = (await res.json()) as ApiSuccess<StatementParseResult>;
+      const json = await api.upload<ApiSuccess<StatementParseResult>>(
+        '/banking/statement-import/parse',
+        fd,
+      );
       return json.data;
     },
   });

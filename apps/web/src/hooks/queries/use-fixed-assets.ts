@@ -10,7 +10,6 @@ import type {
   CreateFixedAssetInput, UpdateFixedAssetInput,
 } from '@runq/validators';
 
-const BASE_URL = '/api/v1';
 
 const FA_KEYS = {
   all: ['fixed-assets'] as const,
@@ -148,22 +147,10 @@ export function useBlockOfAssets(financialYear: string) {
 export function useImportAssets() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      const token = (api as any).token as string | null;
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await fetch(`${BASE_URL}/fa/import`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw error;
-      }
-      return response.json();
+      return api.upload<ApiSuccess<unknown>>('/fa/import', formData);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: FA_KEYS.all }),
   });

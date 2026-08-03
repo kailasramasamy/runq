@@ -9,6 +9,7 @@ import {
   useEmployeeDocuments, useUploadEmployeeDocument, useDeleteEmployeeDocument,
   documentDownloadUrl,
 } from '@/hooks/queries/use-employee-documents';
+import { api } from '@/lib/api-client';
 
 /** Kinds with a natural expiry date — only these prompt for one on upload. */
 const KINDS_WITH_EXPIRY: ReadonlySet<EmployeeDocumentKind> = new Set([
@@ -324,10 +325,7 @@ function DocRow({
   // token in headers, we can't just put the URL in an <a href> — fetch as a
   // blob and trigger a download or open in a new tab.
   async function open(action: 'view' | 'download') {
-    const token = localStorage.getItem('runq-token');
-    const res = await fetch(documentDownloadUrl(doc.id), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await fetch(documentDownloadUrl(doc.id), { headers: api.authHeaders() });
     if (!res.ok) return;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

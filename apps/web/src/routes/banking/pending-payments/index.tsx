@@ -14,6 +14,7 @@ import {
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { useGLAccounts } from '@/hooks/queries/use-gl';
 import { formatINR } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 
 type Filter = 'all' | PendingPaymentStatus;
 
@@ -31,9 +32,8 @@ function statusBadge(s: string): { label: string; variant: 'warning' | 'success'
 }
 
 async function openAttachment(id: string): Promise<void> {
-  const token = localStorage.getItem('runq-token');
   const res = await fetch(`/api/v1/common/attachments/${id}/download`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: api.authHeaders(),
   });
   if (!res.ok) return;
   const url = URL.createObjectURL(await res.blob());
