@@ -750,9 +750,11 @@ class MfgEmptyState extends StatelessWidget {
 
 // ── Quick Action Tile (pixel-match of Purchase's _ActionTile) ─────────────
 
-/// Quick action tile for the manufacturing home screen's 2×3 grid.
-/// Structure is pixel-for-pixel identical to `_ActionTile` in
-/// `purchase_home_screen.dart` — only the rose palette is different.
+/// Quick action tile for the manufacturing home screen's grid.
+/// Same anatomy and metrics as `_ActionTile` in `purchase_home_screen.dart`
+/// (icon square + title + subtitle, 10/10/12/10 padding), but the flat surface
+/// is replaced by a rose wash and a corner bloom so the grid carries the
+/// module's brand rather than reading as four plain boxes.
 class MfgQuickActionTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -771,77 +773,117 @@ class MfgQuickActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // Rose wash that deepens toward the bottom-right, over the card surface so
+    // the tint reads the same in both themes. Blended (not overlaid at alpha)
+    // so text keeps its contrast against an opaque colour.
+    final washStrength = Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.09;
+    final wash = Color.alphaBlend(MfgColors.rose.withValues(alpha: washStrength), t.surface);
     return Material(
-      color: t.surface,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: t.hairline),
+      child: Ink(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: MfgColors.rose.withValues(alpha: 0.14)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [t.surface, wash],
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 36, height: 36,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          // Rounded clip, not the Stack's rectangular one — otherwise the
+          // corner bloom paints over the rounded corner and squares it off.
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                // Decorative bloom tucked into the top-right corner — gives the
+                // flat wash a light source without competing with the content.
+                Positioned(
+                  right: -26,
+                  top: -30,
+                  child: Container(
+                    width: 76,
+                    height: 76,
                     decoration: BoxDecoration(
-                      color: MfgColors.roseSubtle,
-                      borderRadius: BorderRadius.circular(10),
+                      shape: BoxShape.circle,
+                      color: MfgColors.rose.withValues(alpha: 0.07),
                     ),
-                    child: Icon(icon, color: MfgColors.brand(context), size: 20),
                   ),
-                  if (badge != null)
-                    Positioned(
-                      right: -4, top: -4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: MfgColors.brand(context),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: t.surface, width: 1.5),
-                        ),
-                        constraints: const BoxConstraints(minWidth: 18),
-                        child: Text(
-                          badge!,
-                          textAlign: TextAlign.center,
-                          style: RunqText.micro.copyWith(
-                            color: Colors.white, fontWeight: FontWeight.w700, height: 1,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: t.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: MfgColors.rose.withValues(alpha: 0.18)),
+                            ),
+                            child: Icon(icon, color: MfgColors.brand(context), size: 20),
                           ),
+                          if (badge != null)
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: MfgColors.brand(context),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: t.surface, width: 1.5),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 18),
+                                child: Text(
+                                  badge!,
+                                  textAlign: TextAlign.center,
+                                  style: RunqText.micro.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              style: RunqText.bodyStrong.copyWith(color: t.ink),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: RunqText.caption.copyWith(color: t.muted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

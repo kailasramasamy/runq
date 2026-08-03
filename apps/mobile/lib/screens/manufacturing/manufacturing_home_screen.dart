@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -326,30 +328,49 @@ class _QuickActionsGrid extends ConsumerWidget {
         },
       ),
     ];
-    final rows = <Widget>[];
-    for (var i = 0; i < tiles.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 12));
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: tiles[i]),
-              const SizedBox(width: 12),
-              if (i + 1 < tiles.length)
-                Expanded(child: tiles[i + 1])
-              else
-                const Expanded(child: SizedBox()),
-            ],
-          ),
-        ),
-      );
-    }
+    // Every tile gets the same box. Row-wise IntrinsicHeight only matched the
+    // two tiles beside each other, so a title that wrapped to two lines made
+    // its whole row taller than the other. Size for the worst case — a
+    // two-line title — measuring real font metrics rather than deriving them
+    // from fontSize * height, which lands ~2px short and overflows.
+    final scaler = MediaQuery.textScalerOf(context);
+    final titleTwoLines = _lineBoxHeight(RunqText.bodyStrong, 2, scaler);
+    final subtitleLine = _lineBoxHeight(RunqText.caption, 1, scaler);
+    const tilePadding = 10.0 + 10.0; // MfgQuickActionTile's vertical padding
+    const tileBorder = 1.0 + 1.0; // its 1px border insets the content box
+    final tileHeight = tilePadding +
+        tileBorder +
+        // 36 is the icon square — the floor when the text stack is shorter.
+        math.max(36.0, titleTwoLines + 2 + subtitleLine);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(children: rows),
+      child: GridView(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: tileHeight,
+        ),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        children: tiles,
+      ),
     );
   }
+}
+
+/// Height a `Text` of [lines] lines occupies in [style] at the active text
+/// scale. Uses the real font metrics — `fontSize * height * lines` disagrees
+/// with what the engine lays out and leaves the box a couple of pixels short.
+double _lineBoxHeight(TextStyle style, int lines, TextScaler scaler) {
+  final painter = TextPainter(
+    text: TextSpan(text: List.filled(lines, 'Ag').join('\n'), style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: scaler,
+  )..layout();
+  return painter.height;
 }
 
 // ── Perishables section ───────────────────────────────────────────────────

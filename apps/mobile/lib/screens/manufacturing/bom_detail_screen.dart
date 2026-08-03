@@ -86,6 +86,69 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
     }
   }
 
+  Future<void> _delete(Bom bom) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this BOM permanently?'),
+        content: Text(
+          '${bom.bomCode} and its input lines will be removed. If any work '
+          'orders reference this BOM, deletion is blocked — deactivate it '
+          'instead to preserve audit history.',
+          style: RunqText.body,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete', style: TextStyle(color: MfgColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await manufacturingRepo.deleteBom(widget.bomId);
+      ref.invalidate(bomListProvider);
+      if (mounted) {
+        showRunqSnack(context, 'BOM ${bom.bomCode} deleted', kind: SnackKind.success);
+        context.go('/manufacturing/boms');
+      }
+    } catch (e) {
+      // The 409 body carries the "used by N work order(s)" guidance.
+      if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Single entry point for every BOM action — keeps the detail screen chrome
+  /// to one button instead of an app-bar icon row plus a footer.
+  Future<void> _showActions(Bom bom) async {
+    final action = await showModalBottomSheet<_BomAction>(
+      context: context,
+      backgroundColor: RT(context).surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _BomActionsSheet(bom: bom),
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case _BomAction.edit:
+        context.push('/manufacturing/boms/${bom.id}/edit');
+      case _BomAction.clone:
+        await _clone(bom);
+      case _BomAction.activate:
+        await _activate();
+      case _BomAction.deactivate:
+        await _deactivate();
+      case _BomAction.delete:
+        await _delete(bom);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
@@ -106,10 +169,9 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                 title: bom.bomCode,
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    onPressed: _busy
-                        ? null
-                        : () => context.push('/manufacturing/boms/${bom.id}/edit'),
+                    icon: const Icon(Icons.more_vert_rounded, size: 20),
+                    tooltip: 'Actions',
+                    onPressed: _busy ? null : () => _showActions(bom),
                   ),
                 ],
               ),
@@ -120,7 +182,10 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                  // No footer bar — actions live in the app-bar overflow — so
+                  // the list only needs enough tail room to clear the home
+                  // indicator.
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   children: [
                     // Header pill
                     const SizedBox(height: 8),
@@ -221,43 +286,6 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                 ),
               ),
             ),
-            // Bottom action bar. The white background extends through the
-            // home-indicator inset so the empty strip below the buttons is
-            // white too — bgWarm peeking through there made the bar look
-            // like it was floating on a cream stripe.
-            Container(
-              decoration: BoxDecoration(
-                color: t.surface,
-                border: Border(top: BorderSide(color: t.hairline)),
-              ),
-              // Flat 32px breathing room top + bottom; no SafeArea wrap so
-              // the white background extends edge-to-edge under the buttons.
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-              child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : () => _clone(bom),
-                        icon: const Icon(Icons.copy_outlined, size: 16),
-                        label: const Text('Clone'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: MfgColors.brand(context),
-                          side: BorderSide(color: MfgColors.brand(context)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: MfgPrimaryButton(
-                        label: bom.isActive ? 'Deactivate' : 'Activate',
-                        loading: _busy,
-                        onPressed: bom.isActive ? _deactivate : _activate,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
@@ -266,6 +294,133 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
 
   static String _qty(double v) =>
       v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+}
+
+enum _BomAction { edit, clone, activate, deactivate, delete }
+
+/// Overflow sheet for BOM actions — same shape as the invoice detail sheet
+/// (grab handle, icon + label + one-line why) so the app reads consistently.
+class _BomActionsSheet extends StatelessWidget {
+  final Bom bom;
+  const _BomActionsSheet({required this.bom});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: t.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            _SheetItem(
+              icon: Icons.edit_outlined,
+              label: 'Edit BOM',
+              subtitle: 'Change output, inputs, quantities',
+              onTap: () => Navigator.pop(context, _BomAction.edit),
+            ),
+            _SheetItem(
+              icon: Icons.copy_outlined,
+              label: 'Clone BOM',
+              subtitle: 'Start a new recipe from this one',
+              onTap: () => Navigator.pop(context, _BomAction.clone),
+            ),
+            if (bom.isActive)
+              _SheetItem(
+                icon: Icons.pause_circle_outline_rounded,
+                label: 'Deactivate BOM',
+                subtitle: 'Hide from new work orders — history is kept',
+                onTap: () => Navigator.pop(context, _BomAction.deactivate),
+              )
+            else
+              _SheetItem(
+                icon: Icons.play_circle_outline_rounded,
+                label: 'Activate BOM',
+                subtitle: 'Make this the active recipe for its output item',
+                onTap: () => Navigator.pop(context, _BomAction.activate),
+              ),
+            _SheetItem(
+              icon: Icons.delete_outline_rounded,
+              label: 'Delete BOM',
+              subtitle: 'Permanently remove — blocked if work orders use it',
+              onTap: () => Navigator.pop(context, _BomAction.delete),
+              destructive: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool destructive;
+  const _SheetItem({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final fg = destructive ? MfgColors.error : t.ink;
+    // Each action sits on its own tinted tile so the sheet reads as a list of
+    // targets rather than one undivided block. Destructive picks up the error
+    // wash; the rest use the warm surface that cards use elsewhere.
+    final tileBg = destructive ? MfgColors.errorBg : t.bgWarm;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Material(
+        color: tileBg,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                Icon(icon, color: fg, size: 22),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: RunqText.body
+                              .copyWith(color: fg, fontWeight: FontWeight.w600)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!,
+                            style: RunqText.caption.copyWith(color: t.muted)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _InfoRow extends StatelessWidget {

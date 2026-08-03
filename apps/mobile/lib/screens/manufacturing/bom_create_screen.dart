@@ -22,10 +22,10 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
   final _codeCtl = TextEditingController();
   final _nameCtl = TextEditingController();
   final _outputQtyCtl = TextEditingController(text: '1');
+  final _outputUomCtl = TextEditingController();
   final _notesCtl = TextEditingController();
   String? _outputItemId;
   String? _outputItemName;
-  String _outputUom = '';
   DateTime? _effectiveFrom;
   final List<_BomLineInput> _lines = [];
   bool _busy = false;
@@ -35,6 +35,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
     _codeCtl.dispose();
     _nameCtl.dispose();
     _outputQtyCtl.dispose();
+    _outputUomCtl.dispose();
     _notesCtl.dispose();
     for (final l in _lines) l.dispose();
     super.dispose();
@@ -45,8 +46,12 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
       _nameCtl.text.trim().isNotEmpty &&
       _outputItemId != null &&
       (double.tryParse(_outputQtyCtl.text) ?? 0) > 0 &&
+      _outputUomCtl.text.trim().isNotEmpty &&
       _lines.isNotEmpty &&
-      _lines.every((l) => l.inputItemId != null && (double.tryParse(l.qtyCtl.text) ?? 0) > 0);
+      _lines.every((l) =>
+          l.inputItemId != null &&
+          (double.tryParse(l.qtyCtl.text) ?? 0) > 0 &&
+          l.inputUom.isNotEmpty);
 
   Future<void> _pickOutputItem() async {
     final picked = await _showItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
@@ -54,7 +59,8 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
       setState(() {
         _outputItemId = picked.id;
         _outputItemName = picked.name;
-        _outputUom = picked.uom;
+        // Pre-fill only — never clobber a UoM the user already typed.
+        if (_outputUomCtl.text.trim().isEmpty) _outputUomCtl.text = picked.uom;
         if (_nameCtl.text.isEmpty) _nameCtl.text = picked.name;
         if (_codeCtl.text.isEmpty) _codeCtl.text = 'BOM-${picked.sku.isEmpty ? picked.name.substring(0, 3).toUpperCase() : picked.sku.toUpperCase()}';
       });
@@ -99,7 +105,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
         name: _nameCtl.text.trim(),
         outputItemId: _outputItemId!,
         outputQty: double.parse(_outputQtyCtl.text),
-        outputUom: _outputUom,
+        outputUom: _outputUomCtl.text.trim(),
         effectiveFrom: _effectiveFrom?.toIso8601String().substring(0, 10),
         notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
         lines: _lines.asMap().entries.map((e) => {
@@ -112,7 +118,10 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
         }).toList(),
       );
       ref.invalidate(bomListProvider);
-      if (mounted) context.pushReplacement('/manufacturing/boms/${bom.id}');
+      if (mounted) {
+        showRunqSnack(context, 'BOM ${bom.bomCode} created', kind: SnackKind.success);
+        context.go('/manufacturing/boms');
+      }
     } catch (e) {
       if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);
     } finally {
@@ -167,11 +176,10 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: _TextField(
-                                controller: TextEditingController(text: _outputUom),
+                                controller: _outputUomCtl,
                                 label: 'UOM',
                                 capitalization: TextCapitalization.none,
-                                onChanged: (v) => _outputUom = v,
-                                enabled: _outputItemId != null,
+                                onChanged: (_) => setState(() {}),
                               ),
                             ),
                           ],
@@ -301,10 +309,10 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
   final _codeCtl = TextEditingController();
   final _nameCtl = TextEditingController();
   final _outputQtyCtl = TextEditingController();
+  final _outputUomCtl = TextEditingController();
   final _notesCtl = TextEditingController();
   String? _outputItemId;
   String? _outputItemName;
-  String _outputUom = '';
   DateTime? _effectiveFrom;
   final List<_BomLineInput> _lines = [];
   bool _busy = false;
@@ -316,6 +324,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
     _codeCtl.dispose();
     _nameCtl.dispose();
     _outputQtyCtl.dispose();
+    _outputUomCtl.dispose();
     _notesCtl.dispose();
     for (final l in _lines) l.dispose();
     super.dispose();
@@ -326,7 +335,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
     _codeCtl.text = bom.bomCode;
     _nameCtl.text = bom.name;
     _outputQtyCtl.text = bom.outputQty.toString();
-    _outputUom = bom.outputUom;
+    _outputUomCtl.text = bom.outputUom;
     _notesCtl.text = bom.notes ?? '';
     _outputItemId = bom.outputItemId;
     _outputItemName = bom.outputItemName;
@@ -348,12 +357,15 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
   }
 
   bool get _canSave =>
-      _codeCtl.text.trim().isNotEmpty &&
       _nameCtl.text.trim().isNotEmpty &&
       _outputItemId != null &&
       (double.tryParse(_outputQtyCtl.text) ?? 0) > 0 &&
+      _outputUomCtl.text.trim().isNotEmpty &&
       _lines.isNotEmpty &&
-      _lines.every((l) => l.inputItemId != null && (double.tryParse(l.qtyCtl.text) ?? 0) > 0);
+      _lines.every((l) =>
+          l.inputItemId != null &&
+          (double.tryParse(l.qtyCtl.text) ?? 0) > 0 &&
+          l.inputUom.isNotEmpty);
 
   Future<void> _addLine() async {
     final picked = await _showItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
@@ -388,12 +400,13 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
     if (!_canSave) return;
     setState(() => _busy = true);
     try {
+      // bomCode is immutable — updateBomSchema types it as `never`, so sending
+      // it back fails validation. Mirrors the web edit route, which strips it.
       await manufacturingRepo.updateBom(widget.bomId, {
-        'bomCode': _codeCtl.text.trim(),
         'name': _nameCtl.text.trim(),
         'outputItemId': _outputItemId!,
         'outputQty': double.parse(_outputQtyCtl.text),
-        'outputUom': _outputUom,
+        'outputUom': _outputUomCtl.text.trim(),
         'effectiveFrom': _effectiveFrom?.toIso8601String().substring(0, 10),
         'notes': _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
         'lines': _lines.asMap().entries.map((e) => {
@@ -481,7 +494,9 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                                   setState(() {
                                     _outputItemId = picked.id;
                                     _outputItemName = picked.name;
-                                    _outputUom = picked.uom;
+                                    if (_outputUomCtl.text.trim().isEmpty) {
+                                      _outputUomCtl.text = picked.uom;
+                                    }
                                   });
                                 }
                               },
@@ -502,10 +517,10 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: _TextField(
-                                    controller: TextEditingController(text: _outputUom),
+                                    controller: _outputUomCtl,
                                     label: 'UOM',
                                     capitalization: TextCapitalization.none,
-                                    onChanged: (v) => _outputUom = v,
+                                    onChanged: (_) => setState(() {}),
                                   ),
                                 ),
                               ],
@@ -522,9 +537,9 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                             const SizedBox(height: 10),
                             _TextField(
                               controller: _codeCtl,
-                              label: 'BOM code',
+                              label: 'BOM code (fixed)',
                               capitalization: TextCapitalization.none,
-                              onChanged: (_) => setState(() {}),
+                              enabled: false,
                             ),
                             const SizedBox(height: 10),
                             _TextField(
@@ -619,26 +634,34 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
 class _BomLineInput {
   String? inputItemId;
   String inputItemName;
-  String inputUom;
   bool isOptional;
   final TextEditingController qtyCtl;
   final TextEditingController scrapCtl;
+  // UoM is editable per line, like the web form: the item's stocking unit is
+  // only a pre-fill (a recipe may be written in mL while the item stocks in L),
+  // and items with no unit set would otherwise post an empty string, which the
+  // API rejects.
+  final TextEditingController uomCtl;
 
   _BomLineInput({
     this.inputItemId,
     this.inputItemName = '',
-    this.inputUom = '',
+    String inputUom = '',
     double initialQty = 1,
     double initialScrap = 0,
     this.isOptional = false,
   })  : qtyCtl = TextEditingController(text: initialQty == 1 ? '' : '$initialQty'),
         scrapCtl = TextEditingController(
           text: initialScrap == 0 ? '' : initialScrap.toStringAsFixed(2),
-        );
+        ),
+        uomCtl = TextEditingController(text: inputUom);
+
+  String get inputUom => uomCtl.text.trim();
 
   void dispose() {
     qtyCtl.dispose();
     scrapCtl.dispose();
+    uomCtl.dispose();
   }
 }
 
@@ -700,13 +723,17 @@ class _BomLineEditorState extends State<_BomLineEditor> {
               flex: 2,
               child: _TextField(
                 controller: widget.line.qtyCtl,
-                // Suffix the UoM in the label so the user sees the picked
-                // unit (kg / L / pcs) without us having to claim another
-                // column on this already-narrow row.
-                label: widget.line.inputUom.isEmpty
-                    ? 'Qty per output'
-                    : 'Qty per output (${widget.line.inputUom})',
+                label: 'Qty per output',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                capitalization: TextCapitalization.none,
+                onChanged: (_) => widget.onChange(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _TextField(
+                controller: widget.line.uomCtl,
+                label: 'UOM',
                 capitalization: TextCapitalization.none,
                 onChanged: (_) => widget.onChange(),
               ),

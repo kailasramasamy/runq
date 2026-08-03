@@ -71,9 +71,14 @@ class ManufacturingRepo {
   }
 
   Future<Bom> cloneBom(String id, String newCode) async {
-    final res = await apiClient.post('/manufacturing/boms/$id/clone', {'newCode': newCode});
+    final res = await apiClient.post('/manufacturing/boms/$id/clone', {'bomCode': newCode});
     return Bom.fromJson((res['data'] as Map).cast<String, dynamic>());
   }
+
+  /// 409 when work orders reference the BOM — the API's message tells the user
+  /// to deactivate instead, so surface it verbatim.
+  Future<void> deleteBom(String id) =>
+      apiClient.delete('/manufacturing/boms/$id');
 
   Future<Bom> activateBom(String id) async {
     final res = await apiClient.post('/manufacturing/boms/$id/activate', const {});

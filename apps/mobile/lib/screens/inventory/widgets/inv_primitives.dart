@@ -602,70 +602,113 @@ class InvActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // Amber wash deepening toward the bottom-right, blended onto the surface
+    // (not overlaid at alpha) so the fill stays opaque and text keeps contrast.
+    final washStrength = Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.09;
+    final wash = Color.alphaBlend(
+      InvColors.amber.withValues(alpha: washStrength),
+      t.surface,
+    );
     return Material(
-      color: t.surface,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          // Inline layout — icon on the left, title + subtitle stacked beside
-          // it. Shorter than the old stacked card so the 2x3 grid takes less
-          // vertical real-estate on Home.
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: t.hairline),
-            borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: InvColors.amber.withValues(alpha: 0.14)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [t.surface, wash],
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: InvColors.amberSubtle,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 20, color: InvColors.brand(context)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          // Rounded clip, not the Stack's rectangular one — otherwise the
+          // corner bloom paints over the rounded corner and squares it off.
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                // Decorative bloom in the top-right — gives the flat wash a
+                // light source without competing with the content.
+                Positioned(
+                  right: -26,
+                  top: -30,
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: InvColors.amber.withValues(alpha: 0.07),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (badge != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: InvColors.error,
-                    borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text(
-                    badge!,
-                    style: RunqText.micro.copyWith(color: Colors.white, letterSpacing: 0.2),
+                ),
+                Padding(
+                  // Inline layout — icon on the left, title + subtitle stacked
+                  // beside it. Shorter than the old stacked card so the grid
+                  // takes less vertical real-estate on Home.
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          // Outlined on the surface colour — a solid tint would
+                          // muddy against the washed card.
+                          color: t.surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: InvColors.amber.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Icon(icon, size: 20, color: InvColors.brand(context)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: RunqText.caption.copyWith(color: t.muted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: InvColors.error,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            badge!,
+                            style: RunqText.micro.copyWith(
+                                color: Colors.white, letterSpacing: 0.2),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
