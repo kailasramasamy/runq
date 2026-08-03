@@ -57,10 +57,27 @@ class ManufacturingHomeScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: MfgColors.brand(context),
           onRefresh: () async {
-            ref.invalidate(mfgDashboardProvider);
-            ref.invalidate(workOrderListProvider);
-            ref.invalidate(invExpiringProvider);
-            await Future<void>.delayed(const Duration(milliseconds: 200));
+            // Await the real refetches. The old version invalidated and then
+            // slept 200ms, so the spinner retracted long before any response
+            // landed — the data did reload, just after the gesture had visibly
+            // "finished", which reads as a refresh that did nothing.
+            await Future.wait([
+              ref.refresh(mfgDashboardProvider.future),
+              ref.refresh(
+                  workOrderListProvider(WoListParams(activeOn: todayIso)).future),
+              ref.refresh(workOrderListProvider(const WoListParams()).future),
+              ref.refresh(
+                  workOrderListProvider(const WoListParams(status: 'draft')).future),
+              ref.refresh(invExpiringProvider(2).future),
+              ref.refresh(invOnHandProvider((
+                warehouseId: null,
+                lowOnly: false,
+                itemClassGroup: 'inputs',
+              )).future),
+              // The bell reads scopedUnreadCountProvider, which derives from
+              // this — it was never refreshed before, so the count went stale.
+              ref.refresh(notificationsProvider.future),
+            ].map(_settled));
           },
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -360,6 +377,14 @@ class _QuickActionsGrid extends ConsumerWidget {
     );
   }
 }
+
+/// Completes when [f] does, whether it succeeded or failed.
+///
+/// Pull-to-refresh awaits every card's fetch at once. A card that fails already
+/// renders its own error state from its `AsyncValue`, so the failure must not
+/// propagate out of `Future.wait` and leave the gesture hanging on an
+/// unhandled error — the await here is only about spinner timing.
+Future<void> _settled(Future<Object?> f) => f.then((_) {}, onError: (Object _) {});
 
 /// Height a `Text` of [lines] lines occupies in [style] at the active text
 /// scale. Uses the real font metrics — `fontSize * height * lines` disagrees

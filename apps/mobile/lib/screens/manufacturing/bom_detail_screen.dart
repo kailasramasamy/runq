@@ -495,5 +495,5 @@ class _BomLineRow extends StatelessWidget {
   }
 
   static String _qty(double v) =>
-      v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(4);
+      v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
 }
