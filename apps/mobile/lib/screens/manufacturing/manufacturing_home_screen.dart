@@ -88,11 +88,6 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               const _Greeting(),
               _HeroCard(dashboard: dashAsync),
               const SizedBox(height: 16),
-              // "This week" analytics card — shown below hero when dashboard loads.
-              dashAsync.whenOrNull(
-                data: (d) => _ThisWeekCard(dashboard: d),
-              ) ?? const SizedBox.shrink(),
-              const SizedBox(height: 8),
               // Perishable raw-material batches expiring in the next 2 days
               // (or already expired). Hidden when nothing's on the clock, so
               // non-perishable tenants don't see noise. Driven by the same
@@ -164,6 +159,14 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                   },
                 ),
               ),
+              // "This week" is a look-back, not something to act on — it sits
+              // after the operational sections (what's expiring, what's on
+              // hand, what to do, today's runs) rather than above them.
+              const SizedBox(height: 16),
+              dashAsync.whenOrNull(
+                    data: (d) => _ThisWeekCard(dashboard: d),
+                  ) ??
+                  const SizedBox.shrink(),
             ],
           ),
         ),

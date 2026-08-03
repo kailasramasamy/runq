@@ -75,7 +75,14 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
     final brand = MfgColors.brand(context);
     final a = widget.allocation;
 
-    return Padding(
+    // The sheet is opened with a transparent barrier background so it can own
+    // its rounded top corners — which means it also has to paint its own
+    // surface, or it renders straight onto the page behind it.
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

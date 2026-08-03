@@ -120,13 +120,19 @@ class _BomPickerSheetState extends State<_BomPickerSheet> {
                           itemCount: _results.length,
                           itemBuilder: (_, i) {
                             final bom = _results[i];
+                            // Lead with what the BOM makes: on the floor you
+                            // know you produced curd, not that you ran
+                            // BOM-BUF-CURD-400G. The code stays underneath as
+                            // the identifier.
                             return ListTile(
                               title: Text(
-                                bom.bomCode,
+                                bom.outputItemName.isNotEmpty
+                                    ? bom.outputItemName
+                                    : bom.name,
                                 style: RunqText.bodyStrong.copyWith(color: t.ink),
                               ),
                               subtitle: Text(
-                                bom.name,
+                                bom.bomCode,
                                 style: RunqText.caption.copyWith(color: t.muted),
                               ),
                               trailing: MfgBomStatusPill(isActive: bom.isActive),

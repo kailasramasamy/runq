@@ -8,9 +8,9 @@
 // Mirrors `wo_create_screen.dart` for form chrome and `wo_run_screen.dart`
 // for the preview/submit split, but the preview here is server-computed
 // (POST /manufacturing/production/preview) rather than a client-side
-// stock-vs-BOM estimate. Form cards, the allocation list, the line-edit
-// sheet, and the result dialog are split into sibling `_record_production_*`
-// files to keep this one under the house 500-line cap.
+// stock-vs-BOM estimate. Form cards, the allocation list and the line-edit
+// sheet are split into sibling `_record_production_*` files to keep this one
+// under the house 500-line cap.
 
 library;
 
@@ -30,7 +30,6 @@ import '../../widgets/runq_snack.dart';
 import '_record_production_alloc_list.dart';
 import '_record_production_form_cards.dart';
 import '_record_production_line_sheet.dart';
-import '_record_production_result_dialog.dart';
 import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
@@ -202,7 +201,7 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         Navigator.pop(context);
         return;
       }
-      await _showResult(result.response);
+      _showResult(result.response);
     } on ApiException catch (e) {
       if (!mounted) return;
       _handleSubmitError(e);
@@ -252,32 +251,23 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     return list.cast<Map<String, dynamic>>().map(ProductionShortage.fromJson).toList();
   }
 
-  Future<void> _showResult(Map<String, dynamic>? response) async {
+  /// Confirm and get out of the way. The WO number is the one thing worth
+  /// carrying back; the output batch no longer costs a `listOutput` round
+  /// trip to display, since it's on the work order itself.
+  void _showResult(Map<String, dynamic>? response) {
     final data = (response?['data'] as Map?)?.cast<String, dynamic>();
     final warnings = (response?['warnings'] as List? ?? const []).cast<String>();
-    final woId = data?['id'] as String?;
     final woNumber = (data?['woNumber'] as String?) ?? '';
-    String? outputBatchNo;
-    if (woId != null) {
-      try {
-        final outputs = await manufacturingRepo.listOutput(woId);
-        outputBatchNo = outputs.isNotEmpty ? outputs.first.batchNo : null;
-      } catch (_) {
-        // Best-effort only — the confirmation is still useful without it.
-      }
-    }
-    if (!mounted) return;
     ref.invalidate(workOrderListProvider);
     ref.invalidate(mfgDashboardProvider);
-    await showDialog<void>(
-      context: context,
-      builder: (_) => RecordProductionResultDialog(
-        woNumber: woNumber,
-        outputBatchNo: outputBatchNo,
-        warnings: warnings,
-      ),
+    final posted = woNumber.isEmpty ? 'Production posted' : 'Posted as $woNumber';
+    showRunqSnack(
+      context,
+      warnings.isEmpty ? posted : '$posted — ${warnings.first}',
+      kind: warnings.isEmpty ? SnackKind.success : SnackKind.info,
+      duration: Duration(seconds: warnings.isEmpty ? 3 : 5),
     );
-    if (mounted) Navigator.pop(context);
+    Navigator.pop(context);
   }
 
   static String _isoDate(DateTime d) => d.toIso8601String().substring(0, 10);

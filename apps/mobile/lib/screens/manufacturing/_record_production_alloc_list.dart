@@ -34,10 +34,13 @@ class RecordProductionAllocList extends StatelessWidget {
         ],
         _CostingStrip(preview: preview),
         const SizedBox(height: 12),
-        MfgSectionHeader(label: 'Will consume'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+          child: Text('WILL CONSUME', style: RunqText.label),
+        ),
         for (final a in preview.allocations)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: _AllocationRow(allocation: a, onTap: () => onEditLine(a)),
           ),
       ],
@@ -55,7 +58,6 @@ class _ShortageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: MfgColors.errorBg,
@@ -99,7 +101,6 @@ class _CostingStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: BorderRadius.circular(12),
@@ -165,8 +166,12 @@ class _StripDivider extends StatelessWidget {
   }
 }
 
-// ── Allocation row ────────────────────────────────────────────────────────────
+// ── Allocation row ───────────────────────────────────────────────────────────
 
+/// One backflushed input, laid out as three bands: what it is, the three
+/// numbers that matter (needed / on hand / left after), then the batches it
+/// pulls from. Batches were chips in a Wrap before, which turned any line with
+/// more than one batch into a block of text nobody reads on a plant floor.
 class _AllocationRow extends StatelessWidget {
   final ProductionAllocation allocation;
   final VoidCallback onTap;
@@ -184,49 +189,23 @@ class _AllocationRow extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: short ? MfgColors.error.withValues(alpha: 0.4) : t.hairline),
+            border: Border.all(
+              color: short ? MfgColors.error.withValues(alpha: 0.4) : t.hairline,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      allocation.isOptional
-                          ? '${allocation.inputItemName} · optional'
-                          : allocation.inputItemName,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('${_trim(allocation.requiredQty)} ${allocation.uom}',
-                      style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 4),
-                  Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
-                ],
-              ),
-              const SizedBox(height: 4),
-              _StockBalanceLine(allocation: allocation),
-              const SizedBox(height: 6),
-              if (allocation.batches.isEmpty)
-                Text(
-                  allocation.isOptional ? 'Nothing on hand — skipped' : 'Nothing on hand',
-                  style: RunqText.caption.copyWith(color: t.muted),
-                )
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final b in allocation.batches) _BatchChip(batch: b, uom: allocation.uom),
-                  ],
-                ),
+              _Header(allocation: allocation),
+              const SizedBox(height: 12),
+              _MetricStrip(allocation: allocation),
+              const SizedBox(height: 12),
+              Divider(height: 1, thickness: 0.5, color: t.hairline),
+              const SizedBox(height: 10),
+              _Batches(allocation: allocation),
             ],
           ),
         ),
@@ -235,80 +214,190 @@ class _AllocationRow extends StatelessWidget {
   }
 }
 
-/// Raw-material balance for one input: what is on hand now, and what will be
-/// left once this run consumes its share. The "left" figure is what tells a
-/// technician whether the next run can go ahead, so it carries the emphasis.
-class _StockBalanceLine extends StatelessWidget {
+class _Header extends StatelessWidget {
+  const _Header({required this.allocation});
   final ProductionAllocation allocation;
-  const _StockBalanceLine({required this.allocation});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final balance = allocation.availableQty - allocation.allocatedQty;
-    final depleted = balance <= 0.0001;
-
     return Row(
       children: [
-        Icon(Icons.inventory_2_outlined, size: 12, color: t.muted2),
-        const SizedBox(width: 5),
         Expanded(
-          child: RichText(
-            maxLines: 1,
+          child: Text(
+            allocation.inputItemName,
+            style: RunqText.bodyStrong.copyWith(color: t.ink),
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            text: TextSpan(
-              style: RunqText.caption.copyWith(color: t.muted),
-              children: [
-                TextSpan(text: 'In stock ${_trim(allocation.availableQty)} ${allocation.uom}'),
-                const TextSpan(text: '  ·  balance after '),
-                TextSpan(
-                  text: '${_trim(balance < 0 ? 0 : balance)} ${allocation.uom}',
-                  style: RunqText.caption.copyWith(
-                    color: depleted ? MfgColors.error : t.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
+        if (allocation.isOptional) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: t.bgWarm,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: t.hairline),
+            ),
+            child: Text('Optional', style: RunqText.micro.copyWith(color: t.muted)),
+          ),
+        ],
+        const SizedBox(width: 4),
+        Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
       ],
     );
   }
 }
 
-class _BatchChip extends StatelessWidget {
+/// Needed / on hand / left after, as one labelled band. "Left after" is the
+/// figure that tells a technician whether the next run can go ahead, so it
+/// carries the emphasis and turns red when the run empties the bin.
+class _MetricStrip extends StatelessWidget {
+  const _MetricStrip({required this.allocation});
+  final ProductionAllocation allocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final a = allocation;
+    final balance = a.availableQty - a.allocatedQty;
+    final depleted = balance <= 0.0001;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: t.bgWarm,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _Metric(label: 'Needs', value: '${_trim(a.requiredQty)} ${a.uom}'),
+          _MetricDivider(),
+          _Metric(label: 'In stock', value: '${_trim(a.availableQty)} ${a.uom}'),
+          _MetricDivider(),
+          _Metric(
+            label: 'Left after',
+            value: '${_trim(balance < 0 ? 0 : balance)} ${a.uom}',
+            tone: depleted ? MfgColors.error : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value, this.tone});
+  final String label;
+  final String value;
+  final Color? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: RunqText.micro.copyWith(color: t.muted)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: RunqText.caption.copyWith(
+              color: tone ?? t.ink,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 26,
+      color: RT(context).hairline,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+    );
+  }
+}
+
+class _Batches extends StatelessWidget {
+  const _Batches({required this.allocation});
+  final ProductionAllocation allocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    if (allocation.batches.isEmpty) {
+      return Text(
+        allocation.isOptional ? 'Nothing on hand — skipped' : 'Nothing on hand',
+        style: RunqText.caption.copyWith(color: t.muted),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TAKING FROM', style: RunqText.micro.copyWith(color: t.muted2)),
+        const SizedBox(height: 6),
+        for (final b in allocation.batches)
+          _BatchRow(batch: b, uom: allocation.uom),
+      ],
+    );
+  }
+}
+
+/// One batch the run draws down: label left, quantity right. Full-width rows
+/// stack cleanly however many batches FEFO picks.
+class _BatchRow extends StatelessWidget {
+  const _BatchRow({required this.batch, required this.uom});
   final ProductionAllocationBatch batch;
   final String uom;
-  const _BatchChip({required this.batch, required this.uom});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final brand = MfgColors.brand(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: MfgColors.roseSubtle,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: MfgColors.roseHairline),
-      ),
+    final labelled = batch.batchNo != null && batch.batchNo!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.label_outline_rounded, size: 12, color: brand),
-          const SizedBox(width: 4),
-          Text(
-            batch.batchNo == null || batch.batchNo!.isEmpty ? 'No batch' : batch.batchNo!,
-            style: RunqText.caption.copyWith(color: brand, fontWeight: FontWeight.w600),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(Icons.label_outline_rounded, size: 13, color: brand),
           ),
-          const SizedBox(width: 6),
-          Text('${_trim(batch.qty)} $uom', style: RunqText.caption.copyWith(color: t.ink)),
-          if (batch.expiryDate != null) ...[
-            const SizedBox(width: 6),
-            Text('exp ${mfgPrettyDate(batch.expiryDate!)}',
-                style: RunqText.caption.copyWith(color: t.muted)),
-          ],
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  labelled ? batch.batchNo! : 'No batch',
+                  style: RunqText.caption.copyWith(
+                    color: labelled ? t.ink : t.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (batch.expiryDate != null)
+                  Text('Expires ${mfgPrettyDate(batch.expiryDate!)}',
+                      style: RunqText.micro.copyWith(color: t.muted)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('${_trim(batch.qty)} $uom',
+              style: RunqText.caption.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
         ],
       ),
     );

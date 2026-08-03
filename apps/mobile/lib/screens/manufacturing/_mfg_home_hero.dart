@@ -238,6 +238,10 @@ class _HeroMiniKpi extends StatelessWidget {
 
 // ── "This week" analytics card ────────────────────────────────────────────
 
+/// Week-to-date output, laid out as a header, a KPI band and a ranked BOM
+/// list. The three figures used to be left-packed chips with fixed gaps, so
+/// they bunched at one edge and left the rest of the card empty; they now sit
+/// in an even band, ordered plan → actual → the variance between them.
 class _ThisWeekCard extends StatelessWidget {
   final MfgDashboard dashboard;
   const _ThisWeekCard({required this.dashboard});
@@ -245,13 +249,6 @@ class _ThisWeekCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final brand = MfgColors.brand(context);
-    final varPct = dashboard.weekVariancePct;
-    final isNegVar = varPct != null && varPct < 0;
-    final varLabel = varPct == null
-        ? '—'
-        : '${varPct >= 0 ? '+' : ''}${varPct.toStringAsFixed(1)}%';
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: MfgCard(
@@ -259,105 +256,172 @@ class _ThisWeekCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text('This week', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => context.push(
-                    '/manufacturing/reports/wo-summary?status=completed',
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${dashboard.wosCompletedPendingClose} pending close',
-                        style: RunqText.caption.copyWith(color: brand),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(Icons.chevron_right_rounded, size: 16, color: brand),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _WeekKpiChip(
-                  label: 'Variance',
-                  value: varLabel,
-                  valueColor: isNegVar ? MfgColors.error : MfgColors.success,
-                ),
-                const SizedBox(width: 12),
-                _WeekKpiChip(
-                  label: 'Planned',
-                  value: dashboard.todayPlannedOutput.toStringAsFixed(1),
-                ),
-                const SizedBox(width: 12),
-                _WeekKpiChip(
-                  label: 'Actual',
-                  value: dashboard.todayActualOutput.toStringAsFixed(1),
-                ),
-              ],
-            ),
+            _header(context, t),
+            const SizedBox(height: 12),
+            _kpiBand(t),
             if (dashboard.topBomsThisWeek.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text('TOP BOMS', style: RunqText.label.copyWith(color: t.muted2)),
-              const SizedBox(height: 6),
-              for (final bom in dashboard.topBomsThisWeek.take(3))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(
-                          color: brand, shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          bom.bomCode,
-                          style: RunqText.caption.copyWith(color: t.ink),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        '${bom.runs} run${bom.runs == 1 ? '' : 's'}',
-                        style: RunqText.caption.copyWith(color: t.muted),
-                      ),
-                    ],
-                  ),
-                ),
+              Divider(height: 1, thickness: 0.5, color: t.hairline),
+              const SizedBox(height: 10),
+              _topBoms(t),
             ],
           ],
         ),
       ),
     );
   }
+
+  Widget _header(BuildContext context, RunqTokens t) {
+    final brand = MfgColors.brand(context);
+    final pending = dashboard.wosCompletedPendingClose;
+    // Nothing pending is good news, not a call to action — don't dress a zero
+    // up in brand colour as though it needs attention.
+    final tone = pending > 0 ? brand : t.muted;
+    return Row(
+      children: [
+        Text('This week', style: RunqText.bodyStrong.copyWith(color: t.ink)),
+        const Spacer(),
+        GestureDetector(
+          onTap: () => context.push(
+            '/manufacturing/reports/wo-summary?status=completed',
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$pending pending close',
+                  style: RunqText.caption.copyWith(color: tone)),
+              const SizedBox(width: 2),
+              Icon(Icons.chevron_right_rounded, size: 16, color: tone),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _kpiBand(RunqTokens t) {
+    final varPct = dashboard.weekVariancePct;
+    final varLabel = varPct == null
+        ? '—'
+        : '${varPct >= 0 ? '+' : ''}${varPct.toStringAsFixed(1)}%';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: t.bgWarm,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _WeekKpi(
+            label: 'Planned',
+            value: dashboard.todayPlannedOutput.toStringAsFixed(1),
+          ),
+          _KpiDivider(),
+          _WeekKpi(
+            label: 'Actual',
+            value: dashboard.todayActualOutput.toStringAsFixed(1),
+          ),
+          _KpiDivider(),
+          _WeekKpi(
+            label: 'Variance',
+            value: varLabel,
+            valueColor: varPct == null
+                ? null
+                : (varPct < 0 ? MfgColors.error : MfgColors.success),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _topBoms(RunqTokens t) {
+    final top = dashboard.topBomsThisWeek.take(3).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TOP BOMS', style: RunqText.micro.copyWith(color: t.muted2)),
+        const SizedBox(height: 6),
+        for (var i = 0; i < top.length; i++)
+          _TopBomRow(rank: i + 1, bom: top[i]),
+      ],
+    );
+  }
 }
 
-class _WeekKpiChip extends StatelessWidget {
+class _WeekKpi extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
-  const _WeekKpiChip({required this.label, required this.value, this.valueColor});
+  const _WeekKpi({required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: RunqText.micro.copyWith(color: t.muted2)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: RunqText.bodyStrong.copyWith(color: valueColor ?? t.ink),
-        ),
-      ],
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: RunqText.micro.copyWith(color: t.muted)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: RunqText.bodyStrong.copyWith(color: valueColor ?? t.ink),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 1,
+        height: 26,
+        color: RT(context).hairline,
+        margin: const EdgeInsets.symmetric(horizontal: 10),
+      );
+}
+
+/// A ranked run count. Leads with the BOM's name rather than its code — on
+/// the floor "Buffalo Curd" identifies a line, "BOM-BUF-CURD-400G" doesn't.
+class _TopBomRow extends StatelessWidget {
+  final int rank;
+  final MfgTopBom bom;
+  const _TopBomRow({required this.rank, required this.bom});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            child: Text('$rank',
+                style: RunqText.micro.copyWith(color: t.muted2),
+                textAlign: TextAlign.center),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              bom.bomName.isNotEmpty ? bom.bomName : bom.bomCode,
+              style: RunqText.caption.copyWith(color: t.ink),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${bom.runs} run${bom.runs == 1 ? '' : 's'}',
+            style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
