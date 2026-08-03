@@ -23,7 +23,11 @@ import { useToast } from '@/components/ui';
 import { AddEmployeeSection } from '@/components/settings/add-employee-section';
 import { InviteUserSection } from '@/components/settings/invite-user-section';
 import { TenantModulesCard, ModuleGrantEditor } from '@/components/settings/module-access';
-import { assignableRoleOptions, roleBadgeVariant } from '@/components/settings/roles';
+import {
+  assignableRoleOptions,
+  isInlineEditableRole,
+  roleBadgeVariant,
+} from '@/components/settings/roles';
 
 // Owner/accountant memberships are owner-managed only; an hr admin can't edit or
 // remove them (mirrors the API escalation guard).
@@ -70,7 +74,7 @@ function UserRow({
       </TableCell>
       <TableCell className="text-zinc-600 dark:text-zinc-400">{user.email}</TableCell>
       <TableCell>
-        {canManage ? (
+        {canManage && isInlineEditableRole(user.role, actorRole) ? (
           <select
             value={user.role}
             onChange={(e) => handleRoleChange(e.target.value)}

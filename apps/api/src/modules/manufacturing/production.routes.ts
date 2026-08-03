@@ -9,7 +9,8 @@ import { ProductionEntryService } from './production-entry.service';
  * Open to technicians (the shop-floor persona) as well as owner/accountant:
  * this exists precisely for when no manager is on shift to author the WO.
  */
-const ENTRY_ROLES = ['owner', 'accountant', 'technician'] as const;
+// `field_operator` spelled out: no `viewer` here for the rbac alias to widen.
+const ENTRY_ROLES = ['owner', 'accountant', 'technician', 'field_operator'] as const;
 
 export const productionRoutes: FastifyPluginAsync = async (app) => {
   app.post(

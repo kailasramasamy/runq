@@ -24,7 +24,10 @@ const WRITE_ROLES = ['owner', 'accountant'] as const;
 // Running a WO is shop-floor work: technicians may start it, draw materials,
 // record output and close it. Authoring, editing and cancelling WOs stay with
 // WRITE_ROLES — a technician executes the plan, they don't set it.
-const RUN_ROLES = ['owner', 'accountant', 'technician'] as const;
+// `field_operator` is spelled out because these lists carry no `viewer` for
+// the rbac alias to widen: at a small dairy the operator who collects the
+// milk is often the one who runs the plant.
+const RUN_ROLES = ['owner', 'accountant', 'technician', 'field_operator'] as const;
 
 // ─── Work Order CRUD ────────────────────────────────────────────────────────
 

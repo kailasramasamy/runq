@@ -198,6 +198,36 @@ void openNotificationTarget(BuildContext context, String targetUrl) {
   }
 }
 
+/// Mobile route prefixes owned by a backend module code. Mirrors the web
+/// app's `BUSINESS_PREFIXES`; the Finance surfaces are deliberately absent
+/// because they span a dozen unprefixed roots (`/home`, `/sales`, `/money`…)
+/// that the role gate below already owns.
+const _modulePrefixes = <String, String>{
+  '/manufacturing': 'manufacturing',
+  '/inventory': 'inventory',
+  '/purchase': 'purchase',
+};
+
+/// Where to send a user who has landed on a module they weren't granted.
+///
+/// Returns null when the location isn't module-owned, when the grant covers
+/// it, or when the user has no modules at all — in that last case there is
+/// nowhere better to send them, and redirecting anyway risks a loop.
+String? _moduleRedirect(String loc, List<String> modules) {
+  final entry = _modulePrefixes.entries
+      .where((e) => loc.startsWith(e.key))
+      .firstOrNull;
+  if (entry == null || modules.contains(entry.value)) return null;
+  if (modules.contains('finance')) return '/home';
+  if (modules.contains('hr')) return '/hr/home';
+  // Fall back to any other module the user does hold, so a technician who
+  // lost Manufacturing still lands on Inventory rather than nowhere.
+  for (final e in _modulePrefixes.entries) {
+    if (modules.contains(e.value)) return e.key;
+  }
+  return null;
+}
+
 final routerProvider = Provider<GoRouter>((ref) => _buildRouter(ref));
 
 GoRouter _buildRouter(Ref ref) => GoRouter(
@@ -237,11 +267,23 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         if (!auth.isAuthenticated || loc == '/splash' || loc == '/signin') {
           return null;
         }
+        // Module gating. The server's effective grant (from /auth/me) is the
+        // source of truth and the API 403s regardless; this only stops a user
+        // landing on a module screen whose every call will fail. Runs before
+        // the role checks so a revoked module wins over the role's default
+        // landing surface.
+        final blockedHome = _moduleRedirect(loc, auth.modules);
+        if (blockedHome != null) return blockedHome;
+
         // Shop-floor technicians have no HR surface at all (manufacturing +
         // inventory only, per the server's `roleAllowedModules`) — bounce
         // them to HR-gated `/hr/home` below would just be a dead end.
         // `appRoleAsyncProvider` only classifies HR personas, so read the
         // raw session role instead of waiting on /hr/me for this one.
+        //
+        // Field operators are deliberately NOT in here: an operator is also an
+        // employee of the dairy, so HR self-service is a surface they may hold.
+        // The module guard above already decides what they can reach.
         if (auth.user?.role == 'technician') return null;
 
         final roleAsync = ref.read(appRoleAsyncProvider);

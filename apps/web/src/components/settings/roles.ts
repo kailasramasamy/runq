@@ -19,6 +19,20 @@ export function assignableRoleOptions(actorRole: string | null | undefined) {
   return ROLE_OPTIONS.filter((o) => o.value === 'hr' || o.value === 'technician' || o.value === 'viewer');
 }
 
+/**
+ * Can this role be edited with the inline role <select>?
+ *
+ * Dhenu personas (`field_operator`, `farmer`) are provisioned by the milk
+ * procurement module — phone credentials plus a node or farmer record — and
+ * `client_owner` is minted at signup. None of them appear in ROLE_OPTIONS, and
+ * a native <select> whose value matches no <option> renders as its *first*
+ * entry: a field operator displayed as "Owner". Worse, the change would be
+ * one-way, with no option to put the original role back. Show a badge instead.
+ */
+export function isInlineEditableRole(role: string | null | undefined, actorRole: string | null | undefined) {
+  return assignableRoleOptions(actorRole).some((o) => o.value === role);
+}
+
 // Roles offered on an email invite — the backend only accepts these two for
 // join_tenant invites (createInviteSchema). Owner/HR/Technician are shop-floor
 // or admin personas assigned directly (Add Employee as User), not via an
