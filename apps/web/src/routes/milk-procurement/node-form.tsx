@@ -133,7 +133,7 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
           {nodeType !== 'pp' && (
             <>
               <Combobox label="Close &amp; dispatch mode" value={f.dispatchMode}
-                onChange={(v) => setF({ ...f, dispatchMode: v })} options={DISPATCH_MODES} />
+                onChange={(v) => setF({ ...f, dispatchMode: v as DispatchMode })} options={DISPATCH_MODES} />
               <p className="-mt-1 text-xs text-zinc-500">{DISPATCH_MODE_HELP[f.dispatchMode]}</p>
               {f.dispatchMode !== 'per_shift' && !f.hasBmc && (
                 <p className="-mt-1 text-xs text-amber-600 dark:text-amber-500">
