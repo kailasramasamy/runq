@@ -151,7 +151,11 @@ export function PurchaseOrderListPage() {
                 <TableCell numeric style={{ color: 'var(--text-2)' }}>{po.poDate}</TableCell>
                 <TableCell numeric style={{ color: 'var(--text-2)' }}>{po.expectedDate ?? '—'}</TableCell>
                 <TableCell align="right" numeric>{po.lineCount}</TableCell>
-                <TableCell align="right" numeric className="font-semibold">{formatINR(po.total)}</TableCell>
+                {/* Unpriced POs (the norm now — rate lands with the vendor
+                    bill) show a dash rather than a misleading ₹0. */}
+                <TableCell align="right" numeric className="font-semibold">
+                  {po.total > 0 ? formatINR(po.total) : '—'}
+                </TableCell>
                 <TableCell>
                   <span
                     className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold"

@@ -79,13 +79,24 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
     return t;
   }
 
-  bool get _canSubmit {
+  /// A PO no longer carries pricing, so "post at PO rate" would value the
+  /// GRN at zero. Only the legacy priced POs may take the manual lane; the
+  /// rest must attach the vendor invoice so the bill supplies the rate.
+  bool _isPriced(ReceiveTemplate tpl) => tpl.lines.any((l) => l.unitRate > 0);
+
+  bool _canSubmit(ReceiveTemplate tpl) {
+    if (!_isPriced(tpl)) return false;
     if (_warehouseId == null) return false;
     return _rows.values.any((r) => (double.tryParse(r.qty.text) ?? 0) > 0);
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(ReceiveTemplate tpl) async {
     if (_busy) return;
+    if (!_isPriced(tpl)) {
+      showRunqSnack(context, 'Attach the vendor invoice — this PO has no rate',
+          kind: SnackKind.error);
+      return;
+    }
     if (_warehouseId == null) {
       showRunqSnack(context, 'Pick a warehouse', kind: SnackKind.error);
       return;
@@ -174,6 +185,7 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     children: [
                       _InvoiceAttachCard(
+                        required: !_isPriced(tpl),
                         onAttach: () => context.push('/purchase/pos/${widget.poId}/scan-receive'),
                       ),
                       const SizedBox(height: 12),
@@ -206,11 +218,11 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
                   ),
                 ),
                 PoStickyBar(
-                  total: _totalValue,
+                  total: _isPriced(tpl) ? _totalValue : null,
                   busy: _busy,
-                  enabled: _canSubmit && !_busy,
+                  enabled: _canSubmit(tpl) && !_busy,
                   onCancel: _busy ? null : () => context.pop(),
-                  onSave: _submit,
+                  onSave: () => _submit(tpl),
                   saveLabel: 'Post receipt',
                 ),
               ],
@@ -436,13 +448,15 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
               Expanded(
                 child: _StatBox(label: 'Ordered', value: _qtyText(ordered)),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatBox(
-                  label: 'Rate',
-                  value: indianINR(l.unitRate, decimals: 2),
+              if (l.unitRate > 0) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _StatBox(
+                    label: 'Rate',
+                    value: indianINR(l.unitRate, decimals: 2),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -690,8 +704,11 @@ class _ExpiryChip extends StatelessWidget {
 /// the natural reading order goes invoice → receipt info → lines. Without
 /// it the warehouse staff defaults to posting at the PO rate.
 class _InvoiceAttachCard extends StatelessWidget {
+  /// True when the PO has no rate to fall back on — the invoice is then the
+  /// only source of cost, so the manual lane below is disabled.
+  final bool required;
   final VoidCallback onAttach;
-  const _InvoiceAttachCard({required this.onAttach});
+  const _InvoiceAttachCard({required this.required, required this.onAttach});
 
   @override
   Widget build(BuildContext context) {
@@ -715,11 +732,17 @@ class _InvoiceAttachCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Step 1 · Attach vendor invoice',
-                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                Text(
+                  required
+                      ? 'Attach vendor invoice to receive'
+                      : 'Step 1 · Attach vendor invoice',
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  "Without it we'll post at the PO rate. With it, qty + rate + tax come from the vendor's bill.",
+                  required
+                      ? "This PO carries no rate, so the bill is the only source of cost. Qty + rate + tax come from the vendor's invoice."
+                      : "Without it we'll post at the PO rate. With it, qty + rate + tax come from the vendor's bill.",
                   style: RunqText.caption.copyWith(color: t.muted),
                 ),
                 const SizedBox(height: 10),

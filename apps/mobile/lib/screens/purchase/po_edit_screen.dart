@@ -77,11 +77,6 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
     _seeded = true;
   }
 
-  double get _subtotal => _lines.fold(0, (s, l) => s + l.amount);
-  double get _taxTotal =>
-      _lines.fold(0, (s, l) => s + l.amount * (double.tryParse(l.taxRate.text) ?? 0) / 100);
-  double get _total => _subtotal + _taxTotal;
-
   bool get _canSave =>
       _vendorId != null &&
       _lines.isNotEmpty &&
@@ -147,9 +142,7 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
       row.catalogItemId = e.id;
       row.description.text = e.description;
       if (e.defaultUom != null) row.uom.text = e.defaultUom!;
-      if (e.defaultRate != null) row.unitRate.text = e.defaultRate!.toStringAsFixed(2);
       if (e.hsnSacCode != null) row.hsn.text = e.hsnSacCode!;
-      if (e.defaultTaxRate != null) row.taxRate.text = e.defaultTaxRate!.toStringAsFixed(2);
     } else {
       row.catalogItemId = null;
       row.description.text = result.customDescription ?? '';
@@ -210,9 +203,6 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
           'paymentTerms': _paymentTerm,
         if (_notesCtl.text.trim().isNotEmpty) 'notes': _notesCtl.text.trim(),
         'lines': _lines.map((l) => l.toJson()).toList(),
-        'subtotal': _subtotal,
-        'taxTotal': _taxTotal,
-        'total': _total,
       });
       ref.invalidate(purchaseOrderDetailProvider(widget.poId));
       ref.invalidate(purchaseOrderListProvider);
@@ -305,15 +295,12 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
                 onEdit: (row) => _openLineEditor(existing: row),
               ),
               const SizedBox(height: 16),
-              PoTotalsCard(subtotal: _subtotal, tax: _taxTotal, total: _total),
-              const SizedBox(height: 12),
               PoNotesCard(controller: _notesCtl),
               const SizedBox(height: 16),
             ],
           ),
         ),
         PoStickyBar(
-          total: _total,
           busy: _busy,
           enabled: _canSave && !_busy,
           onCancel: _busy ? null : () => context.pop(),

@@ -311,6 +311,17 @@ export class PurchaseOrderService {
       if (input.taxTotal !== undefined) patch.taxTotal = String(input.taxTotal);
       if (input.total !== undefined) patch.total = String(input.total);
 
+      // Lines are replaced wholesale, and callers no longer send money (a PO
+      // commits qty, not price). Derive the header from the new lines so a
+      // legacy priced PO can't keep a stale total after its rates are gone.
+      if (input.lines && input.subtotal === undefined) {
+        const subtotal = input.lines.reduce((s, l) => s + l.amount, 0);
+        const taxTotal = input.lines.reduce((s, l) => s + (l.taxAmount ?? 0), 0);
+        patch.subtotal = String(subtotal);
+        patch.taxTotal = String(taxTotal);
+        patch.total = String(subtotal + taxTotal);
+      }
+
       await tx
         .update(purchaseOrdersV2)
         .set(patch)

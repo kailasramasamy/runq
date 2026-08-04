@@ -7,7 +7,6 @@ import {
 } from '@/components/ui';
 import { useVendors } from '@/hooks/queries/use-vendors';
 import { useVendorCatalog } from '@/hooks/queries/use-vendor-catalog';
-import { formatINR } from '@/lib/utils';
 import {
   createPurchaseOrderSchema,
   type CreatePurchaseOrderInput,
@@ -21,24 +20,19 @@ interface Props {
   editingId?: string;
 }
 
+// A PO commits QUANTITY, not price — the rate is only known once the
+// vendor's invoice arrives, so there are no money fields on this form.
 interface POLineUI {
   description: string;
   catalogItemId: string;
   uom: string;
   hsnSacCode: string;
   qtyOrdered: string;
-  unitRate: string;
-  taxRate: string;
 }
 
 const EMPTY_LINE: POLineUI = {
-  description: '', catalogItemId: '', uom: '', hsnSacCode: '',
-  qtyOrdered: '', unitRate: '', taxRate: '0',
+  description: '', catalogItemId: '', uom: '', hsnSacCode: '', qtyOrdered: '',
 };
-
-function lineAmount(l: POLineUI): number {
-  return (parseFloat(l.qtyOrdered) || 0) * (parseFloat(l.unitRate) || 0);
-}
 
 export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingId }: Props) {
   const { data: vendorsData } = useVendors({ limit: 100 });
@@ -65,9 +59,7 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
     { value: '', label: 'Free text…' },
     ...catalogRows.map((c) => ({
       value: c.id,
-      label: c.defaultRate
-        ? `${c.description}  ·  ₹${Number(c.defaultRate).toLocaleString('en-IN')}`
-        : c.description,
+      label: c.defaultUom ? `${c.description}  ·  ${c.defaultUom}` : c.description,
     })),
   ];
 
@@ -86,8 +78,6 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
         uom: l.uom ?? '',
         hsnSacCode: l.hsnSacCode ?? '',
         qtyOrdered: String(l.qtyOrdered ?? ''),
-        unitRate: String(l.unitRate ?? ''),
-        taxRate: String(l.taxRate ?? 0),
       })));
     }
   }, [initialData]);
@@ -105,8 +95,6 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
       description: entry.description,
       uom: entry.defaultUom ?? l.uom,
       hsnSacCode: entry.hsnSacCode ?? l.hsnSacCode,
-      unitRate: entry.defaultRate ?? l.unitRate,
-      taxRate: entry.defaultTaxRate ?? l.taxRate,
     } : l));
   }
 
@@ -115,10 +103,6 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
   }
   function addLine() { setLines((prev) => [...prev, { ...EMPTY_LINE }]); }
   function removeLine(idx: number) { setLines((prev) => prev.filter((_, i) => i !== idx)); }
-
-  const subtotal = lines.reduce((s, l) => s + lineAmount(l), 0);
-  const taxTotal = lines.reduce((s, l) => s + lineAmount(l) * (parseFloat(l.taxRate) || 0) / 100, 0);
-  const total = Math.round((subtotal + taxTotal) * 100) / 100;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,15 +119,15 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
         uom: l.uom || null,
         hsnSacCode: l.hsnSacCode || null,
         qtyOrdered: parseFloat(l.qtyOrdered) || 0,
-        unitRate: parseFloat(l.unitRate) || 0,
-        amount: lineAmount(l),
-        taxRate: parseFloat(l.taxRate) || 0,
-        taxAmount: Math.round(lineAmount(l) * (parseFloat(l.taxRate) || 0)) / 100,
+        unitRate: 0,
+        amount: 0,
+        taxRate: null,
+        taxAmount: null,
         notes: null,
       })),
-      subtotal,
-      taxTotal: Math.round(taxTotal * 100) / 100,
-      total,
+      subtotal: 0,
+      taxTotal: 0,
+      total: 0,
     };
     const parsed = createPurchaseOrderSchema.safeParse(payload);
     if (!parsed.success) {
@@ -206,13 +190,11 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
           <Table noOverflow>
             <TableHeader>
               <tr>
-                <Th className="w-[28%]">From catalog (optional)</Th>
-                <Th className="w-[22%]">Description</Th>
-                <Th align="right" className="w-[8%]">Qty</Th>
-                <Th align="right" className="w-[10%]">Rate</Th>
-                <Th align="right" className="w-[8%]">Tax %</Th>
-                <Th align="right" className="w-[12%]">Amount</Th>
-                <Th className="w-[8%]">HSN</Th>
+                <Th className="w-[32%]">From catalog (optional)</Th>
+                <Th className="w-[28%]">Description</Th>
+                <Th align="right" className="w-[12%]">Qty</Th>
+                <Th className="w-[12%]">UOM</Th>
+                <Th className="w-[13%]">HSN</Th>
                 <Th className="w-[3%]" />
               </tr>
             </TableHeader>
@@ -243,23 +225,13 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
                       placeholder="0" className="text-right"
                     />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell>
                     <Input
-                      type="number" min="0" step="0.01"
-                      value={line.unitRate}
-                      onChange={(e) => updateLine(idx, 'unitRate', e.target.value)}
-                      placeholder="0.00" className="text-right"
+                      value={line.uom}
+                      onChange={(e) => updateLine(idx, 'uom', e.target.value)}
+                      placeholder="pcs / kg"
                     />
                   </TableCell>
-                  <TableCell align="right">
-                    <Input
-                      type="number" min="0" max="100" step="0.01"
-                      value={line.taxRate}
-                      onChange={(e) => updateLine(idx, 'taxRate', e.target.value)}
-                      placeholder="0" className="text-right"
-                    />
-                  </TableCell>
-                  <TableCell align="right" numeric>{formatINR(lineAmount(line))}</TableCell>
                   <TableCell>
                     <Input
                       value={line.hsnSacCode}
@@ -282,34 +254,15 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="justify-between">
           <Button type="button" variant="ghost" size="sm" onClick={addLine}>
             <Plus size={14} />
             Add line
           </Button>
+          <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+            No pricing on a PO — rate + tax come from the vendor's invoice at receipt.
+          </span>
         </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader title="Totals" />
-        <CardContent>
-          <div className="flex flex-col items-end gap-2 text-sm">
-            <div className="flex w-56 justify-between gap-4">
-              <span className="text-zinc-500 dark:text-zinc-400">Subtotal</span>
-              <span className="font-mono tabular-nums">{formatINR(subtotal)}</span>
-            </div>
-            <div className="flex w-56 justify-between gap-4">
-              <span className="text-zinc-500 dark:text-zinc-400">Tax</span>
-              <span className="font-mono tabular-nums">{formatINR(Math.round(taxTotal * 100) / 100)}</span>
-            </div>
-            <div className="flex w-56 justify-between gap-4 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Total</span>
-              <span className="font-mono font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                {formatINR(total)}
-              </span>
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
       <Card>

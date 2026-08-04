@@ -46,10 +46,9 @@ class PurchaseRepo {
     String? deliveryAddress,
     String? notes,
     required List<Map<String, dynamic>> lines,
-    required double subtotal,
-    required double taxTotal,
-    required double total,
   }) async {
+    // No money fields — a PO is a quantity commitment; the server defaults
+    // subtotal/taxTotal/total to zero until the vendor bill prices it.
     final body = <String, dynamic>{
       'vendorId': vendorId,
       'poDate': poDate,
@@ -58,9 +57,6 @@ class PurchaseRepo {
       if (deliveryAddress != null) 'deliveryAddress': deliveryAddress,
       if (notes != null) 'notes': notes,
       'lines': lines,
-      'subtotal': subtotal,
-      'taxTotal': taxTotal,
-      'total': total,
     };
     final res = await apiClient.post('/purchase/pos', body);
     return PurchaseOrderWithLines.fromJson((res['data'] as Map).cast<String, dynamic>());

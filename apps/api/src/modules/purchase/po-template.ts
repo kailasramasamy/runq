@@ -8,6 +8,11 @@ import { fmtINR, fmtDate, numToWords } from '../ar/invoice-template-helpers';
  * totals, words) but reframes the document as the BUYER's commitment to the
  * VENDOR. Status pill + sent-on metadata help vendors identify the live
  * version after the buyer re-issues a PO.
+ *
+ * A PO commits QUANTITY, not price — the rate is only known once the vendor
+ * invoices. So the Rate/Amount/totals block renders only for POs that carry
+ * a value (the legacy ones raised before that rule); an unpriced PO prints
+ * as an item + qty + UOM order sheet and asks the vendor to quote.
  */
 
 export interface PoVendorInfo {
@@ -50,7 +55,12 @@ function escapeHtml(s: string): string {
   );
 }
 
-function buildLineRows(lines: PurchaseOrderLine[], showHsn: boolean, showTax: boolean): string {
+function buildLineRows(
+  lines: PurchaseOrderLine[],
+  showHsn: boolean,
+  showTax: boolean,
+  showMoney: boolean,
+): string {
   return lines.map((l, i) => {
     const taxRateCell = showTax
       ? `<td class="cell center">${l.taxRate != null ? `${l.taxRate}%` : ''}</td>
@@ -66,8 +76,8 @@ function buildLineRows(lines: PurchaseOrderLine[], showHsn: boolean, showTax: bo
         </td>
         ${hsnCell}
         <td class="cell right">${fmtINR(Number(l.qtyOrdered))}</td>
-        <td class="cell right">${fmtINR(Number(l.unitRate))}</td>
-        <td class="cell right">${fmtINR(Number(l.amount))}</td>
+        ${showMoney ? `<td class="cell right">${fmtINR(Number(l.unitRate))}</td>
+        <td class="cell right">${fmtINR(Number(l.amount))}</td>` : ''}
         ${taxRateCell}
       </tr>`;
   }).join('');
@@ -125,11 +135,11 @@ export function renderPoHTML(
   const tenantAddr = joinAddress([settings.addressLine1, settings.addressLine2, settings.city, settings.state, settings.pincode]);
   const vendorAddr = joinAddress([vendor.addressLine1, vendor.addressLine2, vendor.city, vendor.state, vendor.pincode]);
   const showHsn = lines.some((l) => !!l.hsnSacCode);
+  const showMoney = po.total > 0;
   const showTax = po.taxTotal > 0;
-  const colCount = 5 + (showHsn ? 1 : 0) + (showTax ? 2 : 0);
-  const itemRows = buildLineRows(lines, showHsn, showTax);
-  const totalsRows = buildTotals(po, colCount);
-  const amountWords = numToWords(po.total);
+  const colCount = 3 + (showMoney ? 2 : 0) + (showHsn ? 1 : 0) + (showTax ? 2 : 0);
+  const itemRows = buildLineRows(lines, showHsn, showTax, showMoney);
+  const totalsRows = showMoney ? buildTotals(po, colCount) : '';
   const vendorExtras = [
     vendor.pan ? `PAN: ${escapeHtml(vendor.pan)}` : '',
     vendor.phone ? `Phone: ${escapeHtml(vendor.phone)}` : '',
@@ -180,8 +190,8 @@ ${buildStyleBlock()}
         <th style="text-align:left">Description</th>
         ${showHsn ? '<th style="text-align:left;width:80px">HSN/SAC</th>' : ''}
         <th style="text-align:right;width:70px">Qty</th>
-        <th style="text-align:right;width:80px">Rate (₹)</th>
-        <th style="text-align:right;width:100px">Amount (₹)</th>
+        ${showMoney ? `<th style="text-align:right;width:80px">Rate (₹)</th>
+        <th style="text-align:right;width:100px">Amount (₹)</th>` : ''}
         ${showTax ? '<th style="text-align:center;width:55px">Tax %</th><th style="text-align:right;width:90px">Tax (₹)</th>' : ''}
       </tr>
     </thead>
@@ -190,9 +200,9 @@ ${buildStyleBlock()}
       ${totalsRows}
     </tbody>
   </table>
-  <div class="words-box">
-    <strong>Amount in words:</strong> ${amountWords}
-  </div>
+  ${showMoney
+    ? `<div class="words-box"><strong>Amount in words:</strong> ${numToWords(po.total)}</div>`
+    : `<div class="words-box">Rates are not fixed on this order. Please quote your rates on the invoice against PO ${escapeHtml(po.poNumber)}.</div>`}
   ${po.notes ? `<div class="notes-box"><div class="label">Notes</div><div class="value">${escapeHtml(po.notes)}</div></div>` : ''}
   <div class="footer-note">
     This is a Purchase Order issued by ${escapeHtml(tenant.name)} to ${escapeHtml(vendor.name)}.

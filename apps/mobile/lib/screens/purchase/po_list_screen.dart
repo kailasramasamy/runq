@@ -125,7 +125,9 @@ class _PoTile extends StatelessWidget {
       title: po.poNumber,
       subtitle: po.vendorName,
       status: po.status,
-      rightValue: indianINR(po.total),
+      // Unpriced (the norm now — rate lands with the vendor bill) shows no
+      // amount at all rather than a misleading ₹0.
+      rightValue: po.total > 0 ? indianINR(po.total) : null,
       meta: [
         PurDocMeta(icon: Icons.event_outlined, label: prettyShortDate(po.poDate)),
         if (po.expectedDate != null)

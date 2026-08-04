@@ -58,6 +58,10 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
   ];
 
   const tpl = templateRes?.data;
+  // A PO no longer carries pricing, so "post at PO rate" would value the GRN
+  // at zero. Only legacy priced POs may take the manual lane; everything else
+  // must attach the vendor invoice so the bill supplies the rate.
+  const priced = !!tpl?.lines.some((l) => l.unitRate > 0);
   const [warehouseId, setWarehouseId] = useState('');
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
   const [vehicleNo, setVehicleNo] = useState('');
@@ -111,6 +115,10 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!priced) {
+      toast('Attach the vendor invoice — this PO has no rate', 'error');
+      return;
+    }
     if (!warehouseId) { toast('Pick a warehouse', 'error'); return; }
     const lines = rows
       .filter((r) => parseFloat(r.qty) > 0 && r.catalogItemId)
@@ -159,6 +167,7 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
       <InvoiceAttachCard
         poId={poId}
+        required={!priced}
         preview={scanPreview}
         attachedName={attachedName}
         onAttached={(file, p) => {
@@ -232,7 +241,8 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
                         <TableCell>
                           <div className="text-[12.5px]">{row.description}</div>
                           <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>
-                            {row.hsnSacCode ? `HSN ${row.hsnSacCode} · ` : ''}Rate {formatINR(row.unitRate)}
+                            {row.hsnSacCode ? `HSN ${row.hsnSacCode} · ` : ''}
+                            {priced ? `Rate ${formatINR(row.unitRate)}` : 'Rate from invoice'}
                             {!tracked && ' · not stock-tracked'}
                           </div>
                         </TableCell>
@@ -282,8 +292,8 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
               onClick={() => navigate({ to: '/purchase/pos/$poId', params: { poId } })}>
               Cancel
             </Button>
-            <Button type="submit" loading={mutation.isPending}>
-              Post receipt at PO rate
+            <Button type="submit" loading={mutation.isPending} disabled={!priced}>
+              {priced ? 'Post receipt at PO rate' : 'Attach invoice to receive'}
             </Button>
           </div>
         </form>
@@ -301,13 +311,16 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
 interface InvoiceAttachProps {
   poId: string;
+  /// True when the PO has no rate to fall back on — the invoice is then the
+  /// only source of cost, so the manual lane below is disabled.
+  required: boolean;
   preview: ScanPreviewResult | null;
   attachedName: string | null;
   onAttached: (file: File, preview: ScanPreviewResult) => void;
   onRemove: () => void;
 }
 
-function InvoiceAttachCard({ poId, preview, attachedName, onAttached, onRemove }: InvoiceAttachProps) {
+function InvoiceAttachCard({ poId, required, preview, attachedName, onAttached, onRemove }: InvoiceAttachProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewM = useScanPreview();
@@ -375,11 +388,12 @@ function InvoiceAttachCard({ poId, preview, attachedName, onAttached, onRemove }
               </div>
               <div>
                 <div className="text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>
-                  Step 1 · Attach the vendor invoice
+                  {required ? 'Attach the vendor invoice to receive' : 'Step 1 · Attach the vendor invoice'}
                 </div>
                 <p className="text-[12px]" style={{ color: 'var(--text-2)' }}>
-                  Without it, we'll receive at the PO rate. With it, qty + rate + tax come from the vendor's bill
-                  and a single GRN + Bill posts together.
+                  {required
+                    ? "This PO carries no rate, so the bill is the only source of cost. Qty + rate + tax come from the vendor's invoice and a single GRN + Bill posts together."
+                    : "Without it, we'll receive at the PO rate. With it, qty + rate + tax come from the vendor's bill and a single GRN + Bill posts together."}
                 </p>
               </div>
             </div>

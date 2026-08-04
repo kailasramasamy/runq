@@ -9,6 +9,11 @@ import { hsnSacCodeSchema } from '../common/hsn.schema';
  * master). `catalogItemId` is optional and lets the picker carry the
  * vendor-catalog reuse linkage forward when the user picks from the
  * suggestion combobox.
+ *
+ * A PO is a QUANTITY commitment, not a price commitment — the price is
+ * only known when the vendor's invoice arrives. So every money field is
+ * optional and defaults to 0. A zero-valued PO is the normal case; the
+ * legacy priced ones (created before this change) still round-trip.
  */
 
 export const PURCHASE_ORDER_STATUS_VALUES = [
@@ -21,8 +26,8 @@ const poLineSchema = z.object({
   uom: z.string().max(20).nullish(),
   hsnSacCode: hsnSacCodeSchema.nullish(),
   qtyOrdered: z.number().positive('Qty must be positive'),
-  unitRate: z.number().nonnegative('Rate cannot be negative'),
-  amount: z.number().refine((n) => n !== 0, { message: 'Amount cannot be zero' }),
+  unitRate: z.number().nonnegative('Rate cannot be negative').default(0),
+  amount: z.number().nonnegative('Amount cannot be negative').default(0),
   taxRate: z.number().min(0).max(100).nullish(),
   taxAmount: z.number().nonnegative().nullish(),
   notes: z.string().nullish(),
@@ -36,9 +41,9 @@ export const createPurchaseOrderSchema = z.object({
   paymentTerms: z.string().max(100).nullish(),
   notes: z.string().nullish(),
   lines: z.array(poLineSchema).min(1, 'At least one line required'),
-  subtotal: z.number().nonnegative(),
+  subtotal: z.number().nonnegative().default(0),
   taxTotal: z.number().nonnegative().default(0),
-  total: z.number().positive('Total must be positive'),
+  total: z.number().nonnegative().default(0),
 });
 
 export const updatePurchaseOrderSchema = createPurchaseOrderSchema.partial();

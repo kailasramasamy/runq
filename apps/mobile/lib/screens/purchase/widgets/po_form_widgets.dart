@@ -11,12 +11,16 @@
 //   • PoPaymentTermsCard          — preset chips (Net 0 / 15 / 30 / 45 / 60)
 //   • PoItemsSection              — count badge + summary cards + Add CTA
 //   • PoLineEditorSheet           — modal sheet for add / edit one line
-//   • PoTotalsCard / PoNotesCard  — totals + notes cards
-//   • PoStickyBar                 — total + cancel + primary save
+//   • PoNotesCard                 — notes card
+//   • PoStickyBar                 — optional total + cancel + primary save
 //   • DottedBorderBox             — public dashed-border helper
 //
 // Catalog-picker UX is centralised in `catalog_picker_screen.dart`. This
 // file calls into the host screen via callbacks for the actual pick.
+//
+// NOTE: a PO carries NO pricing. The rate is unknown until the vendor's
+// invoice lands, so these forms capture item + qty + UOM only. Money
+// fields are sent as zero and the server defaults them.
 
 library;
 
@@ -33,15 +37,13 @@ String _isoDate(DateTime d) => d.toIso8601String().substring(0, 10);
 
 // ── PoLineRow ─────────────────────────────────────────────────────────────
 
-/// One PO line — wraps the per-field text controllers, derived amount, and
-/// JSON serialisation. The host state class owns the list of rows and is
+/// One PO line — wraps the per-field text controllers and JSON
+/// serialisation. The host state class owns the list of rows and is
 /// responsible for calling [dispose].
 class PoLineRow {
   String? catalogItemId;
   final TextEditingController description = TextEditingController();
   final TextEditingController qty = TextEditingController();
-  final TextEditingController unitRate = TextEditingController();
-  final TextEditingController taxRate = TextEditingController(text: '0');
   final TextEditingController hsn = TextEditingController();
   final TextEditingController uom = TextEditingController();
 
@@ -51,16 +53,14 @@ class PoLineRow {
   PoLineRow.fromExisting(PurchaseOrderLine l) {
     catalogItemId = l.catalogItemId;
     description.text = l.description;
-    qty.text = _trimZeros(l.qtyOrdered);
-    unitRate.text = l.unitRate.toStringAsFixed(2);
-    taxRate.text = (l.taxRate ?? 0).toStringAsFixed(
-      (l.taxRate ?? 0) % 1 == 0 ? 0 : 2,
-    );
+    qty.text = trimZeros(l.qtyOrdered);
     hsn.text = l.hsnSacCode ?? '';
     uom.text = l.uom ?? '';
   }
 
-  static String _trimZeros(double v) {
+  /// Drops trailing zeros so "5.000" reads as "5" — shared with the
+  /// summary card and the receive screen's qty rendering.
+  static String trimZeros(double v) {
     if (v == v.truncateToDouble()) return v.toStringAsFixed(0);
     return v
         .toStringAsFixed(3)
@@ -68,30 +68,17 @@ class PoLineRow {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
-  double get amount =>
-      (double.tryParse(qty.text) ?? 0) * (double.tryParse(unitRate.text) ?? 0);
-
-  Map<String, dynamic> toJson() {
-    final amt = amount;
-    final tax = double.tryParse(taxRate.text) ?? 0;
-    return {
-      'description': description.text.trim(),
-      if (catalogItemId != null) 'catalogItemId': catalogItemId,
-      if (uom.text.trim().isNotEmpty) 'uom': uom.text.trim(),
-      'qtyOrdered': double.tryParse(qty.text) ?? 0,
-      'unitRate': double.tryParse(unitRate.text) ?? 0,
-      'amount': amt,
-      if (hsn.text.trim().isNotEmpty) 'hsnSacCode': hsn.text.trim(),
-      'taxRate': tax,
-      'taxAmount': (amt * tax / 100).toDouble(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'description': description.text.trim(),
+        if (catalogItemId != null) 'catalogItemId': catalogItemId,
+        if (uom.text.trim().isNotEmpty) 'uom': uom.text.trim(),
+        'qtyOrdered': double.tryParse(qty.text) ?? 0,
+        if (hsn.text.trim().isNotEmpty) 'hsnSacCode': hsn.text.trim(),
+      };
 
   void dispose() {
     description.dispose();
     qty.dispose();
-    unitRate.dispose();
-    taxRate.dispose();
     hsn.dispose();
     uom.dispose();
   }
@@ -398,10 +385,8 @@ class _LineSummaryCard extends StatelessWidget {
     final t = RT(context);
     final brand = PurColors.brand(context);
     final qty = double.tryParse(row.qty.text) ?? 0;
-    final rate = double.tryParse(row.unitRate.text) ?? 0;
-    final tax = double.tryParse(row.taxRate.text) ?? 0;
+    final uom = row.uom.text.trim();
     final desc = row.description.text.trim();
-    final hasDetails = qty > 0 && rate > 0;
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(14),
@@ -434,57 +419,50 @@ class _LineSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      desc.isEmpty ? 'Untitled item' : desc,
-                      style: RunqText.bodyStrong.copyWith(
-                          color: desc.isEmpty ? t.muted2 : t.ink),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            desc.isEmpty ? 'Untitled item' : desc,
+                            style: RunqText.bodyStrong.copyWith(
+                                color: desc.isEmpty ? t.muted2 : t.ink),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (uom.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          PoUomChip(uom: uom),
+                        ],
+                      ],
                     ),
-                    if (hasDetails) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${_qty(qty)}'
-                        '${row.uom.text.trim().isEmpty ? '' : ' ${row.uom.text.trim()}'}'
-                        ' × ${indianINR(rate, decimals: 2)}'
-                        '${tax > 0 ? '  ·  ${tax.toStringAsFixed(tax % 1 == 0 ? 0 : 1)}% tax' : ''}',
-                        style: RunqText.caption.copyWith(color: t.muted),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                    ] else ...[
-                      const SizedBox(height: 2),
-                      Text('Tap to set qty + rate',
-                          style: RunqText.caption.copyWith(color: PurColors.orangeAlert)),
-                    ],
+                    const SizedBox(height: 2),
+                    qty > 0
+                        ? Text(
+                            'Qty ${PoLineRow.trimZeros(qty)}'
+                            '${uom.isEmpty ? '' : ' $uom'}',
+                            style: RunqText.caption.copyWith(color: t.muted),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          )
+                        : Text('Tap to set qty',
+                            style: RunqText.caption
+                                .copyWith(color: PurColors.orangeAlert)),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    indianINR(row.amount, decimals: 2),
-                    style: RunqText.bodyStrong.copyWith(color: t.ink),
-                  ),
-                  if (row.catalogItemId != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check_circle_rounded,
-                              size: 11, color: PurColors.success),
-                          const SizedBox(width: 3),
-                          Text('Catalog',
-                              style: RunqText.micro.copyWith(
-                                  color: PurColors.success,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+              if (row.catalogItemId != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        size: 11, color: PurColors.success),
+                    const SizedBox(width: 3),
+                    Text('Catalog',
+                        style: RunqText.micro.copyWith(
+                            color: PurColors.success,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
               Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
             ],
           ),
@@ -492,10 +470,28 @@ class _LineSummaryCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  static String _qty(double v) {
-    if (v == v.truncateToDouble()) return v.toStringAsFixed(0);
-    return v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+/// Small pill carrying a line's unit of measure, shown right after the
+/// item name so the buyer sees "Groundnut Oil · L" at a glance.
+class PoUomChip extends StatelessWidget {
+  final String uom;
+  const PoUomChip({super.key, required this.uom});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: PurColors.violetSubtle,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        uom,
+        style: RunqText.micro.copyWith(
+            color: PurColors.brand(context), fontWeight: FontWeight.w600),
+      ),
+    );
   }
 }
 
@@ -649,7 +645,7 @@ class PoLineEditorSheet extends StatefulWidget {
 }
 
 class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
-  bool _advancedOpen = false;
+  bool _hsnOpen = false;
 
   bool get _canCommit =>
       widget.row.description.text.trim().isNotEmpty &&
@@ -751,6 +747,7 @@ class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
                         onTap: _pickCatalog,
                       ),
                       const SizedBox(height: 10),
+                      // Qty + UOM only — a PO commits quantity, never price.
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -764,60 +761,46 @@ class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Icon(Icons.close_rounded, size: 14, color: t.muted2),
-                          ),
-                          const SizedBox(width: 8),
                           Expanded(
                             child: PoLabelledField(
-                              label: 'Rate',
-                              controller: r.unitRate,
-                              hint: '0.00',
-                              isNumber: true,
+                              label: 'UOM',
+                              controller: r.uom,
+                              hint: 'pcs / kg',
                               onChanged: () => setState(() {}),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: PurColors.violetSubtle,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Text('Line total',
-                                style: RunqText.caption.copyWith(color: t.muted)),
-                            const Spacer(),
-                            Text(
-                              indianINR(r.amount, decimals: 2),
-                              style: RunqText.bodyStrong.copyWith(
-                                  color: PurColors.violetDeep,
-                                  fontWeight: FontWeight.w700),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 13, color: t.muted2),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'Rate comes from the vendor bill at receipt.',
+                              style: RunqText.caption.copyWith(color: t.muted2),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       InkWell(
-                        onTap: () => setState(() => _advancedOpen = !_advancedOpen),
+                        onTap: () => setState(() => _hsnOpen = !_hsnOpen),
                         borderRadius: BorderRadius.circular(6),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             children: [
                               Icon(
-                                _advancedOpen
+                                _hsnOpen
                                     ? Icons.keyboard_arrow_up_rounded
                                     : Icons.keyboard_arrow_down_rounded,
                                 size: 18, color: brand,
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                _advancedOpen ? 'Hide UOM / Tax / HSN' : 'UOM, Tax %, HSN',
+                                _hsnOpen ? 'Hide HSN / SAC' : 'HSN / SAC',
                                 style: RunqText.caption.copyWith(
                                     color: brand, fontWeight: FontWeight.w600),
                               ),
@@ -829,40 +812,12 @@ class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
                         duration: const Duration(milliseconds: 180),
                         curve: Curves.easeOut,
                         alignment: Alignment.topCenter,
-                        child: _advancedOpen
-                            ? Column(
-                                children: [
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: PoLabelledField(
-                                          label: 'UOM',
-                                          controller: r.uom,
-                                          hint: 'pcs / kg',
-                                          onChanged: () => setState(() {}),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: PoLabelledField(
-                                          label: 'Tax %',
-                                          controller: r.taxRate,
-                                          hint: '0',
-                                          isNumber: true,
-                                          onChanged: () => setState(() {}),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  PoLabelledField(
-                                    label: 'HSN / SAC',
-                                    controller: r.hsn,
-                                    hint: 'Optional',
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                ],
+                        child: _hsnOpen
+                            ? PoLabelledField(
+                                label: 'HSN / SAC',
+                                controller: r.hsn,
+                                hint: 'Optional',
+                                onChanged: () => setState(() {}),
                               )
                             : const SizedBox.shrink(),
                       ),
@@ -1074,55 +1029,7 @@ class _DescriptionLauncher extends StatelessWidget {
   }
 }
 
-// ── PoTotalsCard / PoNotesCard ────────────────────────────────────────────
-
-class PoTotalsCard extends StatelessWidget {
-  final double subtotal, tax, total;
-  const PoTotalsCard({
-    super.key,
-    required this.subtotal,
-    required this.tax,
-    required this.total,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return PurCard(
-      child: Column(
-        children: [
-          _row(t, 'Subtotal', subtotal),
-          const SizedBox(height: 4),
-          _row(t, 'Tax', tax),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Container(height: 1, color: t.hairline),
-          ),
-          Row(
-            children: [
-              Text('Total', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              const Spacer(),
-              Text(
-                indianINR(total, decimals: 2),
-                style: RunqText.h3.copyWith(
-                    color: PurColors.violetDeep, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(RunqTokens t, String label, double v) => Row(
-        children: [
-          Text(label, style: RunqText.body.copyWith(color: t.muted)),
-          const Spacer(),
-          Text(indianINR(v, decimals: 2),
-              style: RunqText.body.copyWith(color: t.ink)),
-        ],
-      );
-}
+// ── PoNotesCard ───────────────────────────────────────────────────────────
 
 class PoNotesCard extends StatelessWidget {
   final TextEditingController controller;
@@ -1173,7 +1080,9 @@ class PoNotesCard extends StatelessWidget {
 // ── PoStickyBar ───────────────────────────────────────────────────────────
 
 class PoStickyBar extends StatelessWidget {
-  final double total;
+  /// Null on the PO forms — a PO has no value to show. The receive flows
+  /// still pass a figure because a GRN *is* valued.
+  final double? total;
   final bool busy;
   final bool enabled;
   final String saveLabel;
@@ -1181,7 +1090,7 @@ class PoStickyBar extends StatelessWidget {
   final VoidCallback onSave;
   const PoStickyBar({
     super.key,
-    required this.total,
+    this.total,
     required this.busy,
     required this.enabled,
     required this.onCancel,
@@ -1206,27 +1115,29 @@ class PoStickyBar extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Top row: TOTAL label + amount, both right-aligned and tight.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text('TOTAL',
-                  style: RunqText.micro.copyWith(
-                      color: t.muted, letterSpacing: 0.6)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    indianINR(total, decimals: 2),
-                    style: RunqText.h3.copyWith(
-                        color: t.ink, fontWeight: FontWeight.w800),
+          if (total != null) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text('TOTAL',
+                    style: RunqText.micro.copyWith(
+                        color: t.muted, letterSpacing: 0.6)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      indianINR(total!, decimals: 2),
+                      style: RunqText.h3.copyWith(
+                          color: t.ink, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           // Bottom row: Cancel + Save side-by-side, equal-weight buttons.
           Row(
             children: [

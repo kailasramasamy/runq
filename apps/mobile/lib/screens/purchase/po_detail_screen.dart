@@ -234,6 +234,10 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
             final canClose = ['sent', 'partially_received', 'received'].contains(po.status);
             final canCancel = !['cancelled', 'closed'].contains(po.status);
             final canDownload = po.status != 'draft' && po.status != 'cancelled';
+            // New POs carry no pricing (rate arrives with the vendor bill).
+            // Legacy POs raised before that change still have values, so the
+            // money UI stays but only renders when there's something to show.
+            final priced = po.total > 0;
             return Column(
               children: [
                 PurPlainAppBar(
@@ -293,10 +297,12 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                       for (final l in po.lines)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: _LineCard(line: l),
+                          child: _LineCard(line: l, priced: priced),
                         ),
-                      const SizedBox(height: 6),
-                      _TotalsCard(subtotal: po.subtotal, tax: po.taxTotal, total: po.total),
+                      if (priced) ...[
+                        const SizedBox(height: 6),
+                        _TotalsCard(subtotal: po.subtotal, tax: po.taxTotal, total: po.total),
+                      ],
                       if ((po.notes ?? '').isNotEmpty) ...[
                         const SizedBox(height: 12),
                         _NotesCard(notes: po.notes!),
@@ -311,7 +317,7 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                   ),
                 ),
                 _StickyBar(
-                  total: po.total,
+                  total: priced ? po.total : null,
                   vendorName: po.vendorName,
                   busy: _busy,
                   primary: canSend
@@ -542,7 +548,8 @@ class _ItemsHeader extends StatelessWidget {
 
 class _LineCard extends StatelessWidget {
   final PurchaseOrderLine line;
-  const _LineCard({required this.line});
+  final bool priced;
+  const _LineCard({required this.line, required this.priced});
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +564,7 @@ class _LineCard extends StatelessWidget {
         ? PurColors.success
         : (partial ? PurColors.orangeAlert : t.hairline);
 
-    final lineTotal = line.amount + (line.taxAmount ?? 0);
+    final lineTotal = priced ? line.amount + (line.taxAmount ?? 0) : 0.0;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -593,9 +600,11 @@ class _LineCard extends StatelessWidget {
                 child: Text(line.description,
                     style: RunqText.bodyStrong.copyWith(color: t.ink)),
               ),
-              const SizedBox(width: 8),
-              Text(indianINR(lineTotal, decimals: 2),
-                  style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              if (priced) ...[
+                const SizedBox(width: 8),
+                Text(indianINR(lineTotal, decimals: 2),
+                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -618,12 +627,13 @@ class _LineCard extends StatelessWidget {
                       : (partial ? PurColors.orangeAlert : t.muted2),
                 ),
               ),
-              Expanded(
-                child: _StatCell(
-                  label: 'Rate',
-                  value: indianINR(line.unitRate, decimals: 2),
+              if (priced)
+                Expanded(
+                  child: _StatCell(
+                    label: 'Rate',
+                    value: indianINR(line.unitRate, decimals: 2),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -849,7 +859,9 @@ class _PrimaryAction {
 }
 
 class _StickyBar extends StatelessWidget {
-  final double total;
+  /// Null for unpriced POs — the value only exists once the vendor bill
+  /// prices the order, so the bar shows the vendor alone until then.
+  final double? total;
   final String vendorName;
   final bool busy;
   final _PrimaryAction? primary;
@@ -900,29 +912,31 @@ class _StickyBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('TOTAL',
-                      style: RunqText.micro.copyWith(
-                          color: t.muted, letterSpacing: 0.6)),
-                  const SizedBox(height: 2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 200),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        indianINR(total, decimals: 2),
-                        style: RunqText.h3.copyWith(
-                            color: t.ink, fontWeight: FontWeight.w800),
+              if (total != null) ...[
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('TOTAL',
+                        style: RunqText.micro.copyWith(
+                            color: t.muted, letterSpacing: 0.6)),
+                    const SizedBox(height: 2),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 200),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          indianINR(total!, decimals: 2),
+                          style: RunqText.h3.copyWith(
+                              color: t.ink, fontWeight: FontWeight.w800),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ],
           ),
           if (primary != null) ...[

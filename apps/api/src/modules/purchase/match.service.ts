@@ -128,6 +128,7 @@ export class MatchService {
         status: purchaseOrdersV2.status,
         vendorId: purchaseOrdersV2.vendorId,
         subtotal: purchaseOrdersV2.subtotal,
+        total: purchaseOrdersV2.total,
       })
       .from(purchaseOrdersV2)
       .where(and(
@@ -143,9 +144,13 @@ export class MatchService {
     const openValue = await this.computePoOpenValue(input.matchedPoId);
     const billTotal = Number(bill.totalAmount);
     const absDelta = Math.abs(billTotal - openValue);
-    const pctDelta = openValue > 0 ? (absDelta / openValue) * 100 : 100;
     const tolerancePct = await this.effectiveTolerance(bill.vendorId);
-    const amountOk = pctDelta <= tolerancePct;
+    // A PO commits quantity, not price — an unpriced PO has nothing to
+    // compare the bill total against, so the match degrades to qty-only
+    // and the amount check is skipped rather than failed.
+    const poPriced = Number(po.total) > 0;
+    const pctDelta = poPriced ? (openValue > 0 ? (absDelta / openValue) * 100 : 100) : 0;
+    const amountOk = !poPriced || pctDelta <= tolerancePct;
 
     // Per-line mappings — when supplied, every mapping must pass tolerance
     // for the match to be 'matched'. Otherwise 'mismatch' + override.
@@ -180,7 +185,8 @@ export class MatchService {
         const billAmt = m.amount ?? Number(billLine.amount);
         const poAmt = Number(poLine.unitRate) * Number(billQty);
         const qtyOk = Math.abs(billQty - openQty) <= openQty * (tolerancePct / 100);
-        const priceOk = Math.abs(billAmt - poAmt) <= poAmt * (tolerancePct / 100);
+        const priceOk = !poPriced
+          || Math.abs(billAmt - poAmt) <= poAmt * (tolerancePct / 100);
         if (!qtyOk || !priceOk) { lineOk = false; break; }
       }
     }
@@ -188,7 +194,9 @@ export class MatchService {
     const matchedOk = amountOk && lineOk;
     if (!matchedOk && (input.overrideReason == null || input.overrideReason.trim() === '')) {
       throw new ConflictError(
-        `Match outside tolerance (${pctDelta.toFixed(2)}% > ${tolerancePct}%). Provide an override reason to commit anyway.`,
+        poPriced
+          ? `Match outside tolerance (${pctDelta.toFixed(2)}% > ${tolerancePct}%). Provide an override reason to commit anyway.`
+          : `Billed qty is outside the ${tolerancePct}% tolerance on the PO's open qty. Provide an override reason to commit anyway.`,
       );
     }
 

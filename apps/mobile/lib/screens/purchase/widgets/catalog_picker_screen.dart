@@ -6,6 +6,7 @@ import '../../../api/purchase_models.dart';
 import '../../../api/purchase_repo.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
+import 'po_form_widgets.dart';
 import 'pur_colors.dart';
 import 'pur_primitives.dart';
 
@@ -181,37 +182,31 @@ class _CatalogRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(entry.description,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
-                    if (entry.defaultUom != null || entry.hsnSacCode != null) ...[
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(entry.description,
+                              style: RunqText.bodyStrong.copyWith(color: t.ink),
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ),
+                        if (entry.defaultUom != null) ...[
+                          const SizedBox(width: 6),
+                          PoUomChip(uom: entry.defaultUom!),
+                        ],
+                      ],
+                    ),
+                    if (entry.hsnSacCode != null) ...[
                       const SizedBox(height: 3),
-                      Text(
-                        [
-                          if (entry.defaultUom != null) entry.defaultUom,
-                          if (entry.hsnSacCode != null) 'HSN ${entry.hsnSacCode}',
-                        ].whereType<String>().join(' · '),
-                        style: RunqText.caption.copyWith(color: t.muted),
-                      ),
+                      Text('HSN ${entry.hsnSacCode}',
+                          style: RunqText.caption.copyWith(color: t.muted)),
                     ],
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (entry.defaultRate != null)
-                    Text(indianINR(entry.defaultRate!, decimals: 2),
-                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  if (entry.defaultTaxRate != null && entry.defaultTaxRate! > 0) ...[
-                    const SizedBox(height: 2),
-                    Text('Tax ${entry.defaultTaxRate}%',
-                        style: RunqText.caption.copyWith(color: t.muted)),
-                  ],
-                ],
-              ),
+              if (entry.defaultRate != null)
+                Text('Last ${indianINR(entry.defaultRate!, decimals: 2)}',
+                    style: RunqText.caption.copyWith(color: t.muted2)),
               const SizedBox(width: 4),
               Icon(Icons.chevron_right_rounded, color: t.muted2),
             ],

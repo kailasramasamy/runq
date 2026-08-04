@@ -67,6 +67,9 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
   const canCancel = !['cancelled', 'closed'].includes(po.status);
   const canDownload = po.status !== 'draft' && po.status !== 'cancelled';
   const canWhatsApp = po.status !== 'cancelled' && po.lines.length > 0;
+  // POs no longer carry pricing — the rate arrives with the vendor bill.
+  // Legacy priced POs keep their money columns so history still reads right.
+  const priced = po.total > 0;
 
   async function downloadPdf() {
     if (downloading) return;
@@ -273,10 +276,11 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
                     <Th>#</Th>
                     <Th>Description</Th>
                     <Th align="right">Qty</Th>
+                    <Th>UOM</Th>
                     <Th align="right">Received</Th>
-                    <Th align="right">Rate</Th>
-                    <Th align="right">Tax %</Th>
-                    <Th align="right">Amount (incl. tax)</Th>
+                    {priced && <Th align="right">Rate</Th>}
+                    {priced && <Th align="right">Tax %</Th>}
+                    {priced && <Th align="right">Amount (incl. tax)</Th>}
                   </tr>
                 </TableHeader>
                 <TableBody>
@@ -290,14 +294,21 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
                         )}
                       </TableCell>
                       <TableCell align="right" numeric>{l.qtyOrdered}</TableCell>
+                      <TableCell>{l.uom || '—'}</TableCell>
                       <TableCell align="right" numeric>
                         {l.qtyReceived > 0 ? l.qtyReceived : '—'}
                       </TableCell>
-                      <TableCell align="right" numeric>{formatINR(l.unitRate)}</TableCell>
-                      <TableCell align="right" numeric>{l.taxRate ?? 0}%</TableCell>
-                      <TableCell align="right" numeric>
-                        {formatINR(Number(l.amount) + Number(l.taxAmount ?? 0))}
-                      </TableCell>
+                      {priced && (
+                        <TableCell align="right" numeric>{formatINR(l.unitRate)}</TableCell>
+                      )}
+                      {priced && (
+                        <TableCell align="right" numeric>{l.taxRate ?? 0}%</TableCell>
+                      )}
+                      {priced && (
+                        <TableCell align="right" numeric>
+                          {formatINR(Number(l.amount) + Number(l.taxAmount ?? 0))}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -307,16 +318,18 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader title="Totals" />
-            <CardContent>
-              <div className="flex flex-col gap-2 text-[13px]">
-                <Row label="Subtotal" value={formatINR(po.subtotal)} />
-                <Row label="Tax" value={formatINR(po.taxTotal)} />
-                <Row label="Total" value={formatINR(po.total)} bold />
-              </div>
-            </CardContent>
-          </Card>
+          {priced && (
+            <Card>
+              <CardHeader title="Totals" />
+              <CardContent>
+                <div className="flex flex-col gap-2 text-[13px]">
+                  <Row label="Subtotal" value={formatINR(po.subtotal)} />
+                  <Row label="Tax" value={formatINR(po.taxTotal)} />
+                  <Row label="Total" value={formatINR(po.total)} bold />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader title="Linked documents" />
