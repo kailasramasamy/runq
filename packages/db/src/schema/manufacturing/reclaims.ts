@@ -96,6 +96,14 @@ export const mfgReclaimLines = pgTable(
     recoveredValue: decimal('recovered_value', { precision: 18, scale: 2 }).notNull().default('0'),
     expiryDate: date('expiry_date'),
 
+    /**
+     * What the recovered material is earmarked for — paneer, curd. Intent
+     * only: it moves no stock and posts no GL, because the product is made
+     * later as its own run. Recorded here so the floor's decision survives
+     * the shift and reports can show where reclaimed milk went.
+     */
+    destinationItemId: uuid('destination_item_id').references(() => items.id),
+
     notes: text('notes'),
   },
   (t) => [

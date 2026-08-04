@@ -910,6 +910,10 @@ class MfgItemRow {
   final String sku;
   final String uom;
   final String itemClass;
+  /// Whether the item is batch-tracked. Pickers use it to decide if a batch
+  /// field is even worth showing — posting a batch on an item that doesn't
+  /// track them is rejected by the ledger, and vice versa.
+  final bool trackBatches;
 
   MfgItemRow({
     required this.id,
@@ -917,6 +921,7 @@ class MfgItemRow {
     required this.sku,
     required this.uom,
     required this.itemClass,
+    this.trackBatches = false,
   });
 
   factory MfgItemRow.fromJson(Map<String, dynamic> j) => MfgItemRow(
@@ -927,6 +932,7 @@ class MfgItemRow {
         // in case any caller still hands us the renamed shape.
         uom: (j['unit'] as String?) ?? (j['uom'] as String?) ?? '',
         itemClass: (j['itemClass'] as String?) ?? '',
+        trackBatches: j['trackBatches'] == true,
       );
 }
 
@@ -1027,5 +1033,71 @@ class Reclaim {
             .cast<Map<String, dynamic>>()
             .map(ReclaimLine.fromJson)
             .toList(),
+      );
+}
+
+/// One product the technician can tear down this morning, with everything the
+/// screen would otherwise have to ask for already worked out server-side:
+/// how much raw material a single pack releases, and what that material can
+/// be turned into. Both come from the active BOMs, so a new recipe shows up
+/// here without a code change.
+class ReclaimOption {
+  final String fgItemId;
+  final String fgItemName;
+  final String? fgUnit;
+  final double onHandQty;
+  final String recoveredItemId;
+  final String recoveredItemName;
+  final String? recoveredUnit;
+  final double yieldPerUnit;
+  /// What tearing down the whole shelf would release — the ceiling on this
+  /// row, shown so the technician can sanity-check before typing.
+  final double projectedRecoveryQty;
+  /// Axis-2 category tree: leaf and its parent. Both null when uncategorised.
+  final String? categoryName;
+  final String? categoryGroup;
+  final List<ReclaimDestination> destinations;
+
+  ReclaimOption({
+    required this.fgItemId,
+    required this.fgItemName,
+    required this.fgUnit,
+    required this.onHandQty,
+    required this.recoveredItemId,
+    required this.recoveredItemName,
+    required this.recoveredUnit,
+    required this.yieldPerUnit,
+    required this.projectedRecoveryQty,
+    required this.categoryName,
+    required this.categoryGroup,
+    required this.destinations,
+  });
+
+  factory ReclaimOption.fromJson(Map<String, dynamic> j) => ReclaimOption(
+        fgItemId: (j['fgItemId'] as String?) ?? '',
+        fgItemName: (j['fgItemName'] as String?) ?? '',
+        fgUnit: j['fgUnit'] as String?,
+        onHandQty: _num(j['onHandQty']),
+        recoveredItemId: (j['recoveredItemId'] as String?) ?? '',
+        recoveredItemName: (j['recoveredItemName'] as String?) ?? '',
+        recoveredUnit: j['recoveredUnit'] as String?,
+        yieldPerUnit: _num(j['yieldPerUnit']),
+        projectedRecoveryQty: _num(j['projectedRecoveryQty']),
+        categoryName: j['categoryName'] as String?,
+        categoryGroup: j['categoryGroup'] as String?,
+        destinations: (j['destinations'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ReclaimDestination.fromJson)
+            .toList(),
+      );
+}
+
+class ReclaimDestination {
+  final String itemId;
+  final String itemName;
+  ReclaimDestination({required this.itemId, required this.itemName});
+  factory ReclaimDestination.fromJson(Map<String, dynamic> j) => ReclaimDestination(
+        itemId: (j['itemId'] as String?) ?? '',
+        itemName: (j['itemName'] as String?) ?? '',
       );
 }

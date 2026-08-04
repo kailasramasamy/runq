@@ -10,16 +10,27 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'
  * give back a clean 50 L, and the operator is the only one who knows how much
  * actually made it into the tank.
  */
+/**
+ * Only `fgItemId` and `fgQty` are required. The mobile teardown screen sends
+ * just those plus a destination — the technician counts packets and picks what
+ * they are for; the server reads the FG's BOM backwards to work out which raw
+ * material comes out and how much, and generates the batch and expiry.
+ *
+ * The detailed web form still sends everything explicitly, and anything it
+ * supplies wins over the derived value.
+ */
 export const reclaimLineInputSchema = z.object({
   fgItemId: z.string().uuid(),
   fgBatchNo: z.string().max(60).nullish(),
   fgQty: z.number().positive(),
-  recoveredItemId: z.string().uuid(),
+  recoveredItemId: z.string().uuid().optional(),
   recoveredBatchNo: z.string().max(60).nullish(),
-  recoveredQty: z.number().positive(),
+  recoveredQty: z.number().positive().optional(),
   expiryDate: dateString.nullish(),
+  /** What the recovered material is earmarked for. Intent only. */
+  destinationItemId: z.string().uuid().nullish(),
   notes: z.string().max(500).nullish(),
-}).refine((l) => l.fgItemId !== l.recoveredItemId, {
+}).refine((l) => l.recoveredItemId !== l.fgItemId, {
   message: 'Recovered item must differ from the finished good being opened',
   path: ['recoveredItemId'],
 });

@@ -410,6 +410,17 @@ class ManufacturingRepo {
         .toList();
   }
 
+  /// What can be torn down at this warehouse right now. Yield per pack and the
+  /// destination list are computed server-side from the BOMs.
+  Future<List<ReclaimOption>> reclaimOptions(String warehouseId) async {
+    final res = await apiClient
+        .get('/manufacturing/reclaims/options?warehouseId=$warehouseId');
+    return (res['data'] as List? ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(ReclaimOption.fromJson)
+        .toList();
+  }
+
   Future<Reclaim> getReclaim(String id) async {
     final res = await apiClient.get('/manufacturing/reclaims/$id');
     return Reclaim.fromJson((res['data'] as Map).cast<String, dynamic>());

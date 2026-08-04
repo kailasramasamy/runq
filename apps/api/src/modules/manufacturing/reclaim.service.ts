@@ -122,22 +122,96 @@ export class ReclaimService {
         })
         .returning();
 
+      const resolved = await this.resolveLines(tx, input, reclaimNo);
       await tx.insert(mfgReclaimLines).values(
-        input.lines.map((l) => ({
-          tenantId: this.tenantId,
-          reclaimId: r!.id,
-          fgItemId: l.fgItemId,
-          fgBatchNo: l.fgBatchNo ?? null,
-          fgQty: String(l.fgQty),
-          recoveredItemId: l.recoveredItemId,
-          recoveredBatchNo: l.recoveredBatchNo ?? null,
-          recoveredQty: String(l.recoveredQty),
-          expiryDate: l.expiryDate ?? null,
-          notes: l.notes ?? null,
-        })),
+        resolved.map((l) => ({ ...l, tenantId: this.tenantId, reclaimId: r!.id })),
       );
       return r!;
     });
+  }
+
+  /**
+   * Fill in everything the technician shouldn't have to type.
+   *
+   * The mobile teardown screen sends a packet count and a destination. The FG's
+   * own BOM, read backwards, says which raw material comes out and how much per
+   * packet; the batch number and expiry are generated. Anything the caller did
+   * supply wins, so the detailed web form is unaffected.
+   */
+  private async resolveLines(tx: Tx, input: CreateReclaimInput, reclaimNo: string) {
+    const needsBom = input.lines.filter((l) => !l.recoveredItemId || l.recoveredQty == null);
+    const bomByFgItem = needsBom.length > 0
+      ? await this.reverseBomMap(tx, needsBom.map((l) => l.fgItemId))
+      : new Map<string, { inputItemId: string; perUnit: number }>();
+
+    return input.lines.map((l, idx) => {
+      const bom = bomByFgItem.get(l.fgItemId);
+      const recoveredItemId = l.recoveredItemId ?? bom?.inputItemId;
+      if (!recoveredItemId) {
+        throw new UnprocessableError(
+          'No active BOM found for this product — pick the recovered material explicitly',
+        );
+      }
+      const recoveredQty = l.recoveredQty ?? round3(l.fgQty * (bom?.perUnit ?? 0));
+      if (recoveredQty <= 0) {
+        throw new UnprocessableError(
+          'Recovered quantity works out to zero — check the BOM or enter it by hand',
+        );
+      }
+      return {
+        fgItemId: l.fgItemId,
+        fgBatchNo: l.fgBatchNo ?? null,
+        fgQty: String(l.fgQty),
+        recoveredItemId,
+        // Line index keeps batches unique when one teardown opens two products
+        // into the same raw pool.
+        recoveredBatchNo:
+          l.recoveredBatchNo ?? `${reclaimNo}-${String(idx + 1).padStart(2, '0')}`,
+        recoveredQty: String(recoveredQty),
+        // Reclaimed material has already spent time in a pack — default it to
+        // same-day so FEFO draws it before anything fresh.
+        expiryDate: l.expiryDate ?? input.reclaimDate,
+        destinationItemId: l.destinationItemId ?? null,
+        notes: l.notes ?? null,
+      };
+    });
+  }
+
+  /**
+   * FG item -> the single raw material its BOM consumes, and how much per unit
+   * of output. Recipes drawing on more than one raw material are left out:
+   * splitting a torn-down pack across two inputs is a judgement call.
+   */
+  private async reverseBomMap(
+    tx: Tx,
+    fgItemIds: string[],
+  ): Promise<Map<string, { inputItemId: string; perUnit: number }>> {
+    const rows = await tx
+      .select({
+        fgItemId: boms.outputItemId,
+        inputItemId: bomLines.inputItemId,
+        perUnit: sql<string>`${bomLines.qtyPerOutput} / NULLIF(${boms.outputQty}, 0)`,
+      })
+      .from(boms)
+      .innerJoin(bomLines, eq(bomLines.bomId, boms.id))
+      .innerJoin(items, eq(items.id, bomLines.inputItemId))
+      .where(
+        and(
+          eq(boms.tenantId, this.tenantId),
+          eq(boms.isActive, true),
+          eq(items.itemClass, 'raw_material'),
+          sql`${boms.outputItemId} IN (${sql.join(fgItemIds.map((id) => sql`${id}`), sql`, `)})`,
+        ),
+      );
+
+    const seen = new Map<string, { inputItemId: string; perUnit: number }>();
+    const ambiguous = new Set<string>();
+    for (const r of rows as Array<{ fgItemId: string; inputItemId: string; perUnit: string }>) {
+      if (seen.has(r.fgItemId)) ambiguous.add(r.fgItemId);
+      seen.set(r.fgItemId, { inputItemId: r.inputItemId, perUnit: Number(r.perUnit) });
+    }
+    for (const id of ambiguous) seen.delete(id);
+    return seen;
   }
 
   /**
@@ -251,10 +325,15 @@ export class ReclaimService {
     // Cap: the recovered material cannot be worth more than the finished goods
     // given up for it. Without this a cheap FG batch meeting an expensive raw
     // pool would post a gain for cutting packets open.
+    //
+    // A zero pooled cost means "we don't know what this material is worth", not
+    // "it is free" — milk-procurement consignments post zero-valued batches, so
+    // the raw pool reads 0 on a dairy that has never priced its intake. Writing
+    // the whole FG cost off against that would be a fiction; carrying it across
+    // conserves cost and leaves the value where it actually still is.
     const pooledCost = await this.pooledUnitCost(tx, line.recoveredItemId, reclaim.warehouseId);
-    const recoveredUnitCost = recoveredQty > 0
-      ? Math.min(pooledCost, fgValue / recoveredQty)
-      : 0;
+    const capPerUnit = recoveredQty > 0 ? fgValue / recoveredQty : 0;
+    const recoveredUnitCost = pooledCost > 0 ? Math.min(pooledCost, capPerUnit) : capPerUnit;
 
     await ledger.recordMovement(tx, {
       itemId: line.recoveredItemId,
@@ -285,6 +364,10 @@ export class ReclaimService {
    * on-hand row for the specific batch, and a reclaim always writes a brand-new
    * batch with no history — it would fall through to items.cost_price and
    * quietly value reclaimed milk at the master rate instead of the real pool.
+   *
+   * Returns 0 for "unknown", which covers both an empty pool and a pool that
+   * exists but carries no value (zero-valued milk-procurement batches). The
+   * caller decides what to do with that rather than treating it as free.
    */
   private async pooledUnitCost(tx: Tx, itemId: string, warehouseId: string): Promise<number> {
     const result = await tx.execute(sql`
@@ -297,10 +380,11 @@ export class ReclaimService {
     `);
     const row = (result as { rows: Array<{ value: string; qty: string }> }).rows[0];
     const qty = Number(row?.qty ?? 0);
-    if (qty > 0) return Number(row?.value ?? 0) / qty;
+    const pooled = qty > 0 ? Number(row?.value ?? 0) / qty : 0;
+    if (pooled > 0) return pooled;
 
-    // Empty pool — fall back to the item master so the first teardown of a
-    // material we hold none of still lands at a sane cost.
+    // No pool, or an unvalued one — fall back to the item master so a tenant
+    // that prices its materials still gets a real number.
     const [item] = await tx
       .select({ costPrice: items.costPrice })
       .from(items)
@@ -416,4 +500,8 @@ export class ReclaimService {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }

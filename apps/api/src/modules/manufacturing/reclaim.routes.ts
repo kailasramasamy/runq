@@ -5,6 +5,7 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReclaimService } from './reclaim.service';
+import { ReclaimOptionsService } from './reclaim-options.service';
 
 /**
  * Reclaim — teardown of finished goods back to raw material.
@@ -21,6 +22,19 @@ export const reclaimRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const filter = reclaimFilterSchema.parse(req.query);
     return new ReclaimService(req.server.db, req.tenantId).list(filter);
+  });
+
+  /**
+   * What can be torn down in this warehouse right now, with the per-packet
+   * yield and destinations already worked out. Registered before `/:id` so
+   * "options" isn't parsed as a reclaim id.
+   */
+  app.get('/options', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { warehouseId } = z
+      .object({ warehouseId: z.string().uuid() })
+      .parse(req.query);
+    const svc = new ReclaimOptionsService(req.server.db, req.tenantId);
+    return { data: await svc.list(warehouseId) };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {

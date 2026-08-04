@@ -5,6 +5,7 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
 const _bomTabs = <({bool? isActive, String label})>[
@@ -85,15 +86,22 @@ class _BomListScreenState extends ConsumerState<BomListScreen> {
                       description: 'Create your first Bill of Materials.',
                     );
                   }
+                  // One card, hairline-separated rows — same treatment as the
+                  // work-order list. A floating card per BOM turned a plain
+                  // list into a stack of objects to parse one at a time.
                   return RefreshIndicator(
                     onRefresh: () async => ref.invalidate(bomListProvider(params)),
-                    child: ListView.separated(
+                    child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
-                      itemCount: res.data.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (_, i) => _BomTile(bom: res.data[i]),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                      children: [
+                        MfgDividedCard(
+                          children: [
+                            for (final bom in res.data) _BomTile(bom: bom),
+                          ],
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -113,6 +121,7 @@ class _BomTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MfgDocListTile(
+      flat: true,
       icon: Icons.add_chart_outlined,
       title: bom.bomCode,
       subtitle: bom.outputItemName,

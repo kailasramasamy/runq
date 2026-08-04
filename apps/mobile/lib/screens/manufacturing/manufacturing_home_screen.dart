@@ -25,6 +25,12 @@ part '_mfg_home_hero.dart';
 /// §Step 3 "Home" archetype): top bar with switcher + bell, greeting with
 /// date + first name, gradient hero KPI strip, 2×3 quick-action grid,
 /// recent work orders card.
+
+/// The home card is a glance, not a list — anything past this many rows is
+/// reached through "See all" rather than scrolled past on the way to the rest
+/// of the page.
+const int _recentWoLimit = 10;
+
 class ManufacturingHomeScreen extends ConsumerWidget {
   const ManufacturingHomeScreen({super.key});
 
@@ -100,8 +106,22 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               MfgSectionHeader(label: 'Quick actions'),
               const _QuickActionsGrid(),
               const SizedBox(height: 16),
+              // "See all" lives on the header, matching Perishables and Raw
+              // materials above. The card used to carry it as a footer, which
+              // put the escape hatch ten rows down the page.
               MfgSectionHeader(
-                label: showingFallback ? 'Latest work orders' : "Today's work orders",
+                label: showingFallback ? 'Recent work orders' : "Today's work orders",
+                trailing: (woAsync.valueOrNull?.data.isNotEmpty ?? false)
+                    ? TextButton(
+                        onPressed: () => context.push('/manufacturing/wos'),
+                        child: Text(
+                          woAsync.valueOrNull!.total > _recentWoLimit
+                              ? 'See all (${woAsync.valueOrNull!.total}) →'
+                              : 'See all →',
+                          style: RunqText.caption.copyWith(color: MfgColors.brand(context)),
+                        ),
+                      )
+                    : null,
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -126,14 +146,8 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                         ),
                       );
                     }
-                    final top = res.data.take(10).toList();
+                    final top = res.data.take(_recentWoLimit).toList();
                     return MfgDividedCard(
-                      footer: MfgSeeAllFooter(
-                        label: res.total > top.length
-                            ? 'See all ${res.total} work orders'
-                            : 'See all work orders',
-                        onTap: () => context.push('/manufacturing/wos'),
-                      ),
                       children: [
                         for (final wo in top)
                           MfgDocListTile(
@@ -316,7 +330,6 @@ class _QuickActionsGrid extends ConsumerWidget {
     final dash = ref.watch(mfgDashboardProvider).asData?.value;
     final bomCount = dash?.activeBomCount ?? 0;
     final inProgress = dash?.inProgressCount ?? 0;
-    final scheduledToday = dash?.scheduledTodayCount ?? 0;
 
     final tiles = <MfgQuickActionTile>[
       MfgQuickActionTile(
@@ -343,15 +356,6 @@ class _QuickActionsGrid extends ConsumerWidget {
         subtitle: inProgress > 0 ? '$inProgress running' : 'Browse history',
         badge: draftCount > 0 ? '$draftCount' : null,
         onTap: () => context.push('/manufacturing/wos'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.today_outlined,
-        title: "Today's runs",
-        subtitle: '$scheduledToday scheduled',
-        onTap: () {
-          final today = DateTime.now().toIso8601String().substring(0, 10);
-          context.push('/manufacturing/wos?scheduledFrom=$today&scheduledTo=$today');
-        },
       ),
     ];
     // Every tile gets the same box. Row-wise IntrinsicHeight only matched the
