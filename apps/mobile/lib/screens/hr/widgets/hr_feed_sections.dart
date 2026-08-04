@@ -107,6 +107,8 @@ class _AnnouncementImage extends StatelessWidget {
         width: double.infinity,
         fit: BoxFit.cover,
         headers: headers,
+        // Decode to the band's height, not the upload's full resolution.
+        cacheHeight: (height * MediaQuery.of(context).devicePixelRatio).round(),
         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         loadingBuilder: (c, child, p) =>
             p == null ? child : Container(height: height, color: surfaceColor),
@@ -716,7 +718,15 @@ class _PostAnnouncementSheetState extends ConsumerState<_PostAnnouncementSheet> 
           Stack(children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.file(_pickedImage!, height: 140, width: double.infinity, fit: BoxFit.cover),
+              child: Image.file(
+                _pickedImage!,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                // A gallery pick is full camera resolution; this preview is
+                // 140dp tall.
+                cacheHeight: (140 * MediaQuery.of(context).devicePixelRatio).round(),
+              ),
             ),
             Positioned(
               right: 6, top: 6,

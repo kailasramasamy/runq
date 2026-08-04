@@ -91,7 +91,7 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 backgroundColor: HrColors.tealDeep,
-                systemOverlayStyle: SystemUiOverlayStyle.light,
+                systemOverlayStyle: RunqSystemBars.lightIcons,
                 // Drop the default leading/actions so the hero owns the full
                 // top row — keeps the layout clean and predictable instead
                 // of fighting the FlexibleSpaceBar.

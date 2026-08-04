@@ -50,8 +50,14 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            // R8 runs for release (via the Flutter Gradle plugin); add our
-            // keep/dontwarn rules so it doesn't fail on ML Kit's unbundled
+            // R8 shrinks, optimises and obfuscates only when minify is on.
+            // Without it AGP still runs R8 to dex, but the proguardFiles below
+            // are inert — which is what Play reports as "Improve your app's
+            // memory and performance with R8 optimization". Resource shrinking
+            // requires code shrinking, so the two travel together.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Keep/dontwarn rules so R8 doesn't fail on ML Kit's unbundled
             // optional-language text recognizers.
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

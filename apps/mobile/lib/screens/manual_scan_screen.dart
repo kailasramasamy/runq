@@ -194,7 +194,17 @@ class _PageGrid extends StatelessWidget {
                       border: Border.all(color: t.hairline, width: 0.5),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Image.file(pages[i], fit: BoxFit.cover),
+                    // Grid thumbnail of a camera-resolution page. Decoding a
+                    // 12MP capture at full size costs ~48MB of ARGB for a tile
+                    // a few hundred pixels wide, so cap the decode instead.
+                    child: Image.file(
+                      pages[i],
+                      fit: BoxFit.cover,
+                      cacheWidth: (MediaQuery.of(ctx).size.width *
+                              MediaQuery.of(ctx).devicePixelRatio /
+                              2)
+                          .round(),
+                    ),
                   ),
                 ),
               ),

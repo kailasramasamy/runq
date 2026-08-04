@@ -57,7 +57,7 @@ class HrDirectoryProfileScreen extends ConsumerWidget {
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 backgroundColor: HrColors.tealDeep,
-                systemOverlayStyle: SystemUiOverlayStyle.light,
+                systemOverlayStyle: RunqSystemBars.lightIcons,
                 leading: IconButton(
                   onPressed: () => Navigator.of(context).maybePop(),
                   icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),

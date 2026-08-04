@@ -1,6 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'runq_tokens.dart';
+
+/// System-bar styles that carry icon brightness and nothing else.
+///
+/// Every colour field on [SystemUiOverlayStyle] — `statusBarColor`,
+/// `systemNavigationBarColor`, `systemNavigationBarDividerColor`,
+/// `systemNavigationBarContrastEnforced` — routes to a `Window` setter that
+/// Android deprecated in API 35 and ignores under edge-to-edge, which is what
+/// Play Console reports as "uses deprecated APIs or parameters for edge-to-edge".
+/// Brightness maps to `WindowInsetsController.setSystemBarsAppearance`, which
+/// is current. Flutter's own `SystemUiOverlayStyle.light`/`.dark` constants set
+/// a black nav bar, so prefer these instead of those.
+class RunqSystemBars {
+  /// Light icons — for a dark background behind the bars.
+  static const lightIcons = SystemUiOverlayStyle(
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarIconBrightness: Brightness.light,
+  );
+
+  /// Dark icons — for a light background behind the bars.
+  static const darkIcons = SystemUiOverlayStyle(
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  );
+
+  static SystemUiOverlayStyle forBrightness(Brightness b) =>
+      b == Brightness.dark ? lightIcons : darkIcons;
+}
 
 class RunqText {
   // Color is intentionally omitted so each style inherits the theme's

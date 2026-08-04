@@ -303,9 +303,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: p.statusBarIconBrightness,
+      value: RunqSystemBars.forBrightness(
+        p.statusBarIconBrightness == Brightness.light ? Brightness.dark : Brightness.light,
       ),
       child: Scaffold(
         backgroundColor: p.bg,

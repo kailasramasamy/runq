@@ -70,6 +70,17 @@
                 <data android:mimeType="text/plain"/>
             </intent-filter>
         </activity>
+        <!-- cunning_document_scanner's fallback scanner declares
+             android:screenOrientation="portrait". The merger pulls that into
+             our manifest, and Play then reports the app as orientation-locked
+             on large screens ("Remove resizability and orientation
+             restrictions"). MainActivity has never been locked, so the app
+             already rotates and resizes; this strips the attribute off the one
+             activity that carried it. Same tools:-override pattern as the
+             camera uses-feature above. -->
+        <activity
+            android:name="biz.cunning.cunning_document_scanner.fallback.DocumentScannerActivity"
+            tools:remove="android:screenOrientation"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

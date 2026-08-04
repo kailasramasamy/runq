@@ -65,15 +65,12 @@ class _SystemChromeSync extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
-    final overlay = SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-      systemNavigationBarColor: scaffoldBg,
-      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    // Icon brightness only — see [RunqSystemBars] for why no colours. Under
+    // edge-to-edge the bars are transparent by construction, so there is
+    // nothing left to colour.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: RunqSystemBars.forBrightness(Theme.of(context).brightness),
+      child: child,
     );
-    return AnnotatedRegion<SystemUiOverlayStyle>(value: overlay, child: child);
   }
 }
