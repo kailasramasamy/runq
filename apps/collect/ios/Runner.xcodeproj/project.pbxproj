@@ -202,6 +202,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				C56A6DCB09225A9F04635B1B /* [CP] Embed Pods Frameworks */,
 				FA3B5221985E5EA59D1E1BFE /* [CP] Copy Pods Resources */,
+				4A1D5E0F2B7C48D19E3A0011 /* Generate Native Asset dSYMs */,
 			);
 			buildRules = (
 			);
@@ -317,6 +318,21 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
+		};
+		4A1D5E0F2B7C48D19E3A0011 /* Generate Native Asset dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Native Asset dSYMs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Dart native assets (e.g. objective_c.framework) are copied in by the Flutter\n# build, so Xcode never emits a dSYM for them and App Store Connect warns about\n# the missing DWARF file. Generate the missing dSYMs here.\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then exit 0; fi\nif [ -z \"$DWARF_DSYM_FOLDER_PATH\" ]; then exit 0; fi\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nif [ ! -d \"$FRAMEWORKS_DIR\" ]; then exit 0; fi\nmkdir -p \"$DWARF_DSYM_FOLDER_PATH\"\nfor FRAMEWORK in \"$FRAMEWORKS_DIR\"/*.framework; do\n  NAME=$(basename \"$FRAMEWORK\" .framework)\n  BINARY=\"$FRAMEWORK/$NAME\"\n  DSYM=\"$DWARF_DSYM_FOLDER_PATH/$NAME.framework.dSYM\"\n  if [ -f \"$BINARY\" ] && [ ! -d \"$DSYM\" ]; then\n    dsymutil \"$BINARY\" -o \"$DSYM\" || echo \"warning: could not generate dSYM for $NAME.framework\"\n  fi\ndone\n";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
