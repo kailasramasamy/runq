@@ -19,6 +19,7 @@ const STATUS_OPTIONS = [
 const REASON_LABELS: Record<string, string> = {
   damage: 'Damage', expiry: 'Expiry', theft: 'Theft', found: 'Found',
   revaluation: 'Revaluation', correction: 'Correction', opening_balance: 'Opening',
+  free_issue: 'Free issue',
 };
 
 type Params = { q?: string; status?: string; warehouse?: string };

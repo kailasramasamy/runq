@@ -190,7 +190,7 @@ export const INVENTORY_CAPABILITIES: ReadonlyArray<InventoryCapability> = [
   // ─── Phase 2: Adjustments ──────────────────────────────────────────
   {
     key: 'adjustments',
-    title: 'Stock adjustments (damage / found / expiry / revaluation)',
+    title: 'Stock adjustments (damage / free issue / found / expiry / revaluation)',
     api: [
       { method: 'GET', path: '/adjustments' },
       { method: 'POST', path: '/adjustments' },

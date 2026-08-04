@@ -395,6 +395,54 @@ class ManufacturingRepo {
     return WoRunQueue.instance.recordProduction(body: body);
   }
 
+  // ── Reclaims (FG torn back down to raw material) ─────────────────────────
+
+  Future<List<Reclaim>> listReclaims({String? status, int limit = 50}) async {
+    final qp = <String, String>{'limit': '$limit'};
+    if (status != null && status.isNotEmpty) qp['status'] = status;
+    final qs = qp.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final res = await apiClient.get('/manufacturing/reclaims?$qs');
+    return (res['data'] as List? ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(Reclaim.fromJson)
+        .toList();
+  }
+
+  Future<Reclaim> getReclaim(String id) async {
+    final res = await apiClient.get('/manufacturing/reclaims/$id');
+    return Reclaim.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  Future<Reclaim> createReclaim({
+    required String warehouseId,
+    required String reclaimDate,
+    required List<Map<String, dynamic>> lines,
+    String? notes,
+    String? idempotencyKey,
+  }) async {
+    final body = <String, dynamic>{
+      'warehouseId': warehouseId,
+      'reclaimDate': reclaimDate,
+      'lines': lines,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (idempotencyKey != null) 'idempotencyKey': idempotencyKey,
+    };
+    final res = await apiClient.post('/manufacturing/reclaims', body);
+    return Reclaim.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  /// Posts the teardown. Returns the reclaim plus any yield warnings the
+  /// server raised (recovered more than the BOM says the packets held).
+  Future<({Reclaim data, List<String> warnings})> postReclaim(String id) async {
+    final res = await apiClient.post('/manufacturing/reclaims/$id/post', const {});
+    return (
+      data: Reclaim.fromJson((res['data'] as Map).cast<String, dynamic>()),
+      warnings: (res['warnings'] as List? ?? const []).map((w) => w.toString()).toList(),
+    );
+  }
+
   // ── Items search (for BOM pickers) ───────────────────────────────────────
 
   /// Item search for BOM pickers + ad-hoc consumption. Hits the masters

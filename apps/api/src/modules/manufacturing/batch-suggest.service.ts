@@ -2,8 +2,10 @@
  * Manufacturing Phase 2 — Batch suggestion service (FEFO).
  *
  * Surfaces available batches for a given item + warehouse, sorted by
- * earliest expiry (FEFO). Expiry dates are sourced from both GRN lines
- * (RM / packing) and WO output rows (FG used as input in downstream WOs).
+ * earliest expiry (FEFO). Expiry dates are sourced from GRN lines (RM /
+ * packing), WO output rows (FG used as input in downstream WOs) and reclaim
+ * lines (material recovered from torn-down FG — short-dated by definition, so
+ * it has to sort ahead of fresh stock or it spoils in the tank).
  *
  * Plan: docs/manufacturing-plan.md §5.3 + delivery.service.ts FEFO pattern.
  */
@@ -64,6 +66,13 @@ export class BatchSuggestService {
         FROM wo_output
         WHERE tenant_id = ${this.tenantId}
           AND output_item_id = ${inputItemId}
+          AND expiry_date IS NOT NULL
+        UNION ALL
+        SELECT recovered_batch_no AS batch_no, expiry_date
+        FROM mfg_reclaim_lines
+        WHERE tenant_id = ${this.tenantId}
+          AND recovered_item_id = ${inputItemId}
+          AND recovered_batch_no IS NOT NULL
           AND expiry_date IS NOT NULL
       ),
       min_expiry AS (

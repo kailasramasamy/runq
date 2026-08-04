@@ -168,6 +168,10 @@ const STANDARD_COA: CoaEntry[] = [
   // Manufacturing yield variance — single leaf for both gain (Cr) and loss (Dr).
   // Posted by Work Order close when actual output ≠ planned output.
   { code: '5105', name: 'Production Yield Variance', type: 'expense', parent: '5100', system: true },
+  // Stock given away without an invoice — extra cases to the logistics team to
+  // cover their breakages, trade samples. Kept out of 5104 so write-off stays
+  // a measure of goods actually lost.
+  { code: '5106', name: 'Free Issues & Trade Allowance', type: 'expense', parent: '5100', system: true },
   { code: '5006', name: 'Purchase Returns', type: 'expense', parent: '5100' },
   // Milk procurement (Dhenu) — farmer milk cost, expensed at payout cycle lock.
   { code: '5050', name: 'Milk Purchases', type: 'expense', parent: '5100' },

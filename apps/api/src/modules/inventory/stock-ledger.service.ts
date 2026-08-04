@@ -27,7 +27,8 @@ export type StockMovementType =
   | 'adjustment_in' | 'adjustment_out' | 'opening' | 'reversal'
   | 'stock_take_in' | 'stock_take_out'
   | 'production_out' | 'production_in'
-  | 'sales_return_in';
+  | 'sales_return_in'
+  | 'reclaim_out' | 'reclaim_in';
 
 export interface MovementInput {
   itemId: string;

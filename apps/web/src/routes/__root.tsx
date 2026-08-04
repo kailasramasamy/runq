@@ -246,6 +246,9 @@ import { EditWorkOrderPage } from './manufacturing/wos/edit';
 import { WorkOrderDetailPage } from './manufacturing/wos/detail';
 import { WorkOrderRunPage } from './manufacturing/wos/run';
 import { RecordProductionPage } from './manufacturing/production/new';
+import { ReclaimListPage } from './manufacturing/reclaims/index';
+import { NewReclaimPage } from './manufacturing/reclaims/new';
+import { ReclaimDetailPage } from './manufacturing/reclaims/detail';
 import { WoSummaryReportPage } from './manufacturing/reports/wo-summary';
 import { YieldTrendReportPage } from './manufacturing/reports/yield-trend';
 import { BomUsageReportPage } from './manufacturing/reports/bom-usage';
@@ -2432,6 +2435,26 @@ const mfgProductionNewRoute = createRoute({
   component: RecordProductionPage,
 });
 
+// ─── Reclaims (FG torn back down to raw material) ────────────────────────────
+
+const mfgReclaimListRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reclaims',
+  component: ReclaimListPage,
+});
+
+const mfgReclaimNewRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reclaims/new',
+  component: NewReclaimPage,
+});
+
+const mfgReclaimDetailRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/reclaims/$id',
+  component: ReclaimDetailPage,
+});
+
 // ─── Manufacturing Report Routes ─────────────────────────────────────────────
 
 const mfgReportWoSummaryRoute = createRoute({
@@ -2951,6 +2974,9 @@ export const routeTree = rootRoute.addChildren([
       mfgWoEditRoute,
       mfgWoRunRoute,
       mfgProductionNewRoute,
+      mfgReclaimListRoute,
+      mfgReclaimNewRoute,
+      mfgReclaimDetailRoute,
       mfgReportWoSummaryRoute,
       mfgReportYieldTrendRoute,
       mfgReportBomUsageRoute,

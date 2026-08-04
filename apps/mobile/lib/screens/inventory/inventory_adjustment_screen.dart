@@ -23,10 +23,13 @@ import 'widgets/warehouse_picker.dart';
 const Map<String, String> _reasonLabels = {
   'damage': 'Damage', 'expiry': 'Expiry', 'theft': 'Theft', 'found': 'Found',
   'revaluation': 'Revaluation', 'correction': 'Correction',
-  'opening_balance': 'Opening Balance',
+  'opening_balance': 'Opening Balance', 'free_issue': 'Free Issue',
 };
 
-const Set<String> _outboundReasons = {'damage', 'expiry', 'theft'};
+// 'free_issue' — stock handed over without an invoice (extra cases to the
+// logistics team to cover their breakages). Outbound like damage, but the
+// goods are intact, so the backend books it to distribution cost not write-off.
+const Set<String> _outboundReasons = {'damage', 'expiry', 'theft', 'free_issue'};
 
 class InventoryAdjustmentScreen extends ConsumerWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -110,7 +113,7 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
     );
     if (created == true) {
       ref.invalidate(invAdjustmentListProvider(null));
-      ref.invalidate(invKpisProvider);
+      invalidateStockViews(ref);
     }
   }
 }
@@ -276,65 +279,159 @@ class _AdjTile extends StatelessWidget {
 
     return InvCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          _DateBlock(iso: adj.adjustmentDate),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(adj.adjNo,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
-                    const SizedBox(height: 2),
+                    Expanded(
+                      child: Text(
+                        adj.adjNo,
+                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InvStatusPill(status: adj.status),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  adj.warehouseName,
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+                if (_itemsPreview != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _itemsPreview!,
+                    style: RunqText.caption.copyWith(color: t.ink2),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: reasonBg,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        reasonLabel,
+                        style: RunqText.micro.copyWith(color: reasonColor, letterSpacing: 0.3),
+                      ),
+                    ),
+                    if (adj.lineCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '${adj.lineCount} item${adj.lineCount == 1 ? '' : 's'}',
+                        style: RunqText.micro.copyWith(color: t.muted),
+                      ),
+                    ],
+                    const Spacer(),
                     Text(
-                      '${adj.adjustmentDate} · ${adj.warehouseName}',
-                      style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      deltaText,
+                      style: RunqText.bodyStrong.copyWith(color: deltaColor, fontSize: 14),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              InvStatusPill(status: adj.status),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Container(height: 1, color: t.hairlineSoft),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: reasonBg,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  reasonLabel,
-                  style: RunqText.micro.copyWith(color: reasonColor, letterSpacing: 0.3),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                deltaText,
-                style: RunqText.bodyStrong.copyWith(color: deltaColor, fontSize: 14),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  /// "Buffalo Curd, Farm Fresh Curd +2 more" — the API caps the names at three,
+  /// so anything beyond what it sent is counted from `lineCount` rather than
+  /// assumed to be the whole set.
+  String? get _itemsPreview {
+    if (adj.itemNames.isEmpty) return null;
+    final shown = adj.itemNames.take(2).toList();
+    final remaining = adj.lineCount - shown.length;
+    final joined = shown.join(', ');
+    return remaining > 0 ? '$joined  +$remaining more' : joined;
+  }
+
   static String _humanize(String s) => s.isEmpty
       ? s
       : s.split('_').map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}').join(' ');
+}
+
+/// Leading date block — same shape and rules as `MfgDateBlock` on the work-order
+/// list (tinted 42pt box, bold day, brand month, year only when it isn't the
+/// current one), rendered in the inventory amber rather than the mfg rose so
+/// each module keeps its own palette.
+class _DateBlock extends StatelessWidget {
+  const _DateBlock({required this.iso});
+  final String iso;
+
+  static const _months = [
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = InvColors.brand(context);
+    final dt = DateTime.tryParse(iso);
+    return Container(
+      width: 42,
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      decoration: BoxDecoration(
+        color: InvColors.amberSubtle,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: InvColors.amberHairline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: dt == null
+            ? [
+                Text(
+                  iso,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: RunqText.caption.copyWith(color: brand),
+                ),
+              ]
+            : [
+                Text(
+                  '${dt.day}',
+                  style: RunqText.bodyStrong.copyWith(
+                    color: t.ink,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
+                  _months[dt.month - 1],
+                  style: RunqText.micro.copyWith(
+                    color: brand,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+                if (dt.year != DateTime.now().year)
+                  Text(
+                    "'${dt.year % 100}",
+                    style: RunqText.micro.copyWith(color: t.muted2, height: 1.2),
+                  ),
+              ],
+      ),
+    );
+  }
 }
 
 // ── New adjustment screen — list on-hand, tap to enter delta ─────────────
@@ -380,9 +477,44 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   bool submitting = false;
   // Toggles between "all on-hand items" and "only ones I've adjusted".
   bool _adjustedOnly = false;
+  // Search + class filter. A plant carrying a few hundred SKUs makes an
+  // unfiltered alphabetical list unusable — you scroll past the thing you
+  // came to write off.
+  final _searchCtl = TextEditingController();
+  String _query = '';
+  // Defaults to finished goods — damage and free issues are overwhelmingly
+  // packed product, not raw material. Held as a *preference* until the user
+  // touches the strip: `resolveDefaultClassGroup` downgrades it to whatever
+  // the tenant actually stocks, so a plant with no finished goods still opens
+  // on a populated list instead of an empty one.
+  String _classGroup = classGroupFinished;
+  bool _classGroupTouched = false;
   // Keyed by `${itemId}|${batchNo ?? ''}` so two batches of the same item
   // are independent drafts.
   final Map<String, _AdjDraft> _drafts = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _applyDefaultWarehouse();
+  }
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
+  /// Most plants run one warehouse, so picking it every time is a tap that can
+  /// only be got wrong — and until it's set the on-hand list has nothing to
+  /// show. Falls back to the sole warehouse when none is flagged default.
+  /// Mirrors record_production_screen / wo_create_screen.
+  Future<void> _applyDefaultWarehouse() async {
+    final whs = await ref.read(invWarehousesProvider.future);
+    if (!mounted || warehouseId != null || whs.isEmpty) return;
+    final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
+    setState(() => warehouseId = pick.id);
+  }
 
   Future<void> _openLineSheet({
     required String itemId,
@@ -539,24 +671,35 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       ),
       body: Column(
         children: [
-          // Fixed top section — just the warehouse. Direction + reason are
-          // per-line and live in the bottom sheet that opens on tap.
+          // Fixed controls — warehouse, search, class strip. Direction and
+          // reason stay per-line in the sheet that opens on tap, so nothing
+          // up here is a mode you can forget you left switched on.
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             color: t.bgWarm,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Lbl('Warehouse'),
                 WarehousePicker(
                   value: warehouseId,
                   onChanged: _onWarehouseChanged,
                   allowAll: false,
                   dense: true,
                 ),
+                const SizedBox(height: 8),
+                InvSearchBar(
+                  controller: _searchCtl,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  hint: 'Item, SKU or batch…',
+                ),
               ],
             ),
           ),
+          if (warehouseId != null)
+            onHand!.maybeWhen(
+              data: (rows) => _classStrip(rows),
+              orElse: () => const SizedBox.shrink(),
+            ),
           Divider(height: 1, color: t.hairlineSoft),
           Expanded(
             child: warehouseId == null
@@ -568,6 +711,34 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// The bucket actually in force. Resolved at render time rather than stored,
+  /// so no setState-during-build is needed to downgrade an empty default.
+  String _effectiveClassGroup(List<InvOnHandRow> rows) {
+    if (_classGroupTouched) return _classGroup;
+    return resolveDefaultClassGroup(
+      _classGroup,
+      bucketCountsFor(rows.map((r) => r.itemClass)),
+    );
+  }
+
+  /// Class strip sits outside the padded block so the pills can bleed to the
+  /// screen edge when they overflow, same as the on-hand screen.
+  Widget _classStrip(List<InvOnHandRow> rows) {
+    final counts = bucketCountsFor(rows.map((r) => r.itemClass));
+    if (counts.length < 2) return const SizedBox(height: 4);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InvClassTabs(
+        selected: _effectiveClassGroup(rows),
+        counts: counts,
+        onChanged: (g) => setState(() {
+          _classGroup = g;
+          _classGroupTouched = true;
+        }),
       ),
     );
   }
@@ -584,24 +755,120 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     );
   }
 
+  /// Search + class + adjusted-only, applied in that order. Drafted rows are
+  /// never hidden by search: half-entered work disappearing as you type reads
+  /// as data loss even though it isn't.
+  List<InvOnHandRow> _visibleRows(List<InvOnHandRow> rows) {
+    final q = _query.toLowerCase();
+    final group = _effectiveClassGroup(rows);
+    final out = rows.where((r) {
+      final batch = r.batchNo.isEmpty ? null : r.batchNo;
+      final drafted = _drafts.containsKey(_draftKey(r.itemId, batch));
+      if (_adjustedOnly) return drafted;
+      if (group != classGroupAll &&
+          classGroupForItemClass(r.itemClass) != group) {
+        return drafted;
+      }
+      if (q.isEmpty) return true;
+      final hay = '${r.itemName} ${r.itemSku ?? ''} ${r.batchNo}'.toLowerCase();
+      return hay.contains(q) || drafted;
+    }).toList();
+    out.sort((a, b) => a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase()));
+    return out;
+  }
+
+  /// Flatten the visible rows into a render list of section headers and item
+  /// rows, grouped category → sub-category. Uncategorised items collect under
+  /// "Other" at the bottom rather than being dropped or scattered.
+  List<_ListEntry> _sectioned(List<InvOnHandRow> visible) {
+    const uncategorised = 'Other';
+    // group -> sub -> rows, insertion-ordered after an explicit sort.
+    final tree = <String, Map<String, List<InvOnHandRow>>>{};
+    for (final r in visible) {
+      final leaf = (r.categoryName ?? '').trim();
+      final parent = (r.categoryGroup ?? '').trim();
+      final group = parent.isNotEmpty
+          ? parent
+          : (leaf.isNotEmpty ? leaf : uncategorised);
+      // A leaf equal to its parent (or absent) means the item sits directly on
+      // the top-level category — no sub-heading worth drawing.
+      final sub = (leaf.isEmpty || leaf == group) ? '' : leaf;
+      tree.putIfAbsent(group, () => <String, List<InvOnHandRow>>{})
+          .putIfAbsent(sub, () => <InvOnHandRow>[])
+          .add(r);
+    }
+
+    final groups = tree.keys.toList()
+      ..sort((a, b) {
+        if (a == uncategorised) return 1;
+        if (b == uncategorised) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+
+    final out = <_ListEntry>[];
+    for (final g in groups) {
+      final subs = tree[g]!.keys.toList()
+        ..sort((a, b) {
+          if (a.isEmpty) return -1; // direct-on-category rows lead the section
+          if (b.isEmpty) return 1;
+          return a.toLowerCase().compareTo(b.toLowerCase());
+        });
+      final total = tree[g]!.values.fold<int>(0, (s, l) => s + l.length);
+      out.add(_ListEntry.group(g, total));
+      for (final s in subs) {
+        if (s.isNotEmpty) out.add(_ListEntry.sub(s));
+        for (final r in tree[g]![s]!) {
+          out.add(_ListEntry.row(r));
+        }
+      }
+    }
+    return out;
+  }
+
   Widget _buildList(BuildContext context, List<InvOnHandRow> rows) {
-    final t = RT(context);
-    final sorted = [...rows]..sort(
-        (a, b) => a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase()));
-    final visible = _adjustedOnly
-        ? sorted.where((r) {
-            final batch = r.batchNo.isEmpty ? null : r.batchNo;
-            return _drafts.containsKey(_draftKey(r.itemId, batch));
-          }).toList()
-        : sorted;
+    final visible = _visibleRows(rows);
+    if (visible.isEmpty) {
+      return InvEmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No items match',
+        subtitle: _query.isNotEmpty
+            ? 'Nothing here matches “$_query”'
+            : 'Try another category, or add a product that is not on hand',
+        actionLabel: '+ Add product not on hand',
+        onAction: _openExtraPicker,
+      );
+    }
+    final entries = _sectioned(visible);
     return ListView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 32),
-      itemCount: visible.length + 2,
-      itemBuilder: (_, idx) {
-        if (idx == 0) return _listHeader(context, sorted.length);
-        if (idx == visible.length + 1) return _addOtherFooter(context);
-        final r = visible[idx - 1];
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
+      itemCount: entries.length + 2,
+      itemBuilder: (ctx, idx) {
+        if (idx == 0) return _listHeader(context, rows.length, visible.length);
+        if (idx == entries.length + 1) return _addOtherFooter(context);
+        return _entryTile(ctx, entries[idx - 1]);
+      },
+    );
+  }
+
+  Widget _entryTile(BuildContext context, _ListEntry e) {
+    final t = RT(context);
+    switch (e.kind) {
+      case _EntryKind.group:
+        return _CategoryHeader(label: e.label!, count: e.count);
+      case _EntryKind.sub:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Text(
+            e.label!,
+            style: RunqText.caption.copyWith(
+              color: t.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      case _EntryKind.row:
+        final r = e.row!;
         final batchNo = r.batchNo.isEmpty ? null : r.batchNo;
         final draft = _drafts[_draftKey(r.itemId, batchNo)];
         return Column(
@@ -621,22 +888,24 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
             Divider(height: 1, color: t.hairlineSoft, indent: 16, endIndent: 16),
           ],
         );
-      },
-    );
+    }
   }
 
-  Widget _listHeader(BuildContext context, int total) {
+  Widget _listHeader(BuildContext context, int total, int shown) {
     final t = RT(context);
     final draftCount = _drafts.length;
+    final filtering = shown != total;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
       child: Row(
         children: [
           Expanded(
             child: Text(
               draftCount == 0
-                  ? '$total item${total == 1 ? '' : 's'} on hand'
-                  : '$draftCount adjusted · $total on hand',
+                  ? (filtering
+                      ? '$shown of $total items'
+                      : '$total item${total == 1 ? '' : 's'} on hand')
+                  : '$draftCount adjusted · $shown shown',
               style: RunqText.label.copyWith(color: t.muted, letterSpacing: 0.5),
             ),
           ),
@@ -686,6 +955,58 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Section entries ───────────────────────────────────────────────────────
+
+enum _EntryKind { group, sub, row }
+
+/// One rendered line in the sectioned list: a category heading, a
+/// sub-category sub-heading, or an item row.
+class _ListEntry {
+  const _ListEntry._(this.kind, {this.label, this.count = 0, this.row});
+  factory _ListEntry.group(String label, int count) =>
+      _ListEntry._(_EntryKind.group, label: label, count: count);
+  factory _ListEntry.sub(String label) => _ListEntry._(_EntryKind.sub, label: label);
+  factory _ListEntry.row(InvOnHandRow row) => _ListEntry._(_EntryKind.row, row: row);
+
+  final _EntryKind kind;
+  final String? label;
+  final int count;
+  final InvOnHandRow? row;
+}
+
+/// Top-level category band. Tinted so the eye can find section boundaries
+/// while thumbing a long list, without a sticky header stealing height.
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader({required this.label, required this.count});
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      width: double.infinity,
+      color: t.bgWarmer,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              style: RunqText.label.copyWith(
+                color: t.ink2,
+                letterSpacing: 0.6,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
+        ],
       ),
     );
   }
@@ -832,7 +1153,7 @@ class _AdjLineSheetResult {
 // Reasons split by direction. "correction" / "revaluation" appear on both
 // sides because either intent is valid (system over-counted or under-counted).
 const List<String> _outboundReasonOrder = [
-  'damage', 'expiry', 'theft', 'correction', 'revaluation',
+  'damage', 'free_issue', 'expiry', 'theft', 'correction', 'revaluation',
 ];
 const List<String> _inboundReasonOrder = [
   'found', 'opening_balance', 'correction', 'revaluation',

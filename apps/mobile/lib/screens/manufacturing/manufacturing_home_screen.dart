@@ -326,6 +326,12 @@ class _QuickActionsGrid extends ConsumerWidget {
         onTap: () => context.push('/manufacturing/production/new'),
       ),
       MfgQuickActionTile(
+        icon: Icons.recycling_rounded,
+        title: 'Reclaim stock',
+        subtitle: 'Unsold goods back to raw material',
+        onTap: () => context.push('/manufacturing/reclaims/new'),
+      ),
+      MfgQuickActionTile(
         icon: Icons.view_list_outlined,
         title: 'BOMs',
         subtitle: '$bomCount active',

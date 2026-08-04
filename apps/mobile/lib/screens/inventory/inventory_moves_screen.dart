@@ -254,7 +254,7 @@ class _ActionGrid extends StatelessWidget {
       InvActionTile(
         icon: Icons.tune_rounded,
         title: 'Adjustments',
-        subtitle: 'Damage / found',
+        subtitle: 'Damage / free issue / found',
         badge: k.pendingAdjustments > 0 ? '${k.pendingAdjustments}' : null,
         onTap: () => context.push('/inventory/adjustments'),
       ),

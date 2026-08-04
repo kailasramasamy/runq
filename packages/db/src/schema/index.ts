@@ -19,6 +19,7 @@ export * from './manufacturing/bom-lines';
 export * from './manufacturing/work-orders';
 export * from './manufacturing/wo-consumption';
 export * from './manufacturing/wo-output';
+export * from './manufacturing/reclaims';
 export * from './ar/customers';
 export * from './ar/invoices';
 export * from './ar/receipts';

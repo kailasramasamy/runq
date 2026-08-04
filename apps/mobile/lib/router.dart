@@ -131,6 +131,7 @@ import 'screens/manufacturing/bom_create_screen.dart';
 import 'screens/manufacturing/wo_list_screen.dart';
 import 'screens/manufacturing/wo_detail_screen.dart';
 import 'screens/manufacturing/wo_create_screen.dart';
+import 'screens/manufacturing/reclaim_screen.dart';
 import 'screens/manufacturing/record_production_screen.dart';
 import 'screens/manufacturing/wo_run_screen.dart';
 import 'screens/manufacturing/wo_run_simple_screen.dart';
@@ -847,6 +848,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(const RecordProductionScreen(), key: state.pageKey),
+        ),
+        // Teardown of unsold FG back into raw material.
+        GoRoute(
+          path: '/manufacturing/reclaims/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const ReclaimScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/manufacturing/wos/:id',

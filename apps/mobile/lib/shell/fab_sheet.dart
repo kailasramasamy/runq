@@ -173,7 +173,7 @@ List<FabAction> inventoryFabActions() => [
       FabAction(
         icon: Icons.tune_rounded,
         title: 'Adjustment',
-        sub: 'Damage / found / write-off',
+        sub: 'Damage / free issue / found',
         tint: RunqColors.amberInk,
         onTap: (ctx) => ctx.push('/inventory/adjustments'),
       ),

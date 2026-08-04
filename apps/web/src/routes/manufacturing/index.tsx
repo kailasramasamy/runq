@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import {
   FlaskConical, Factory, ClipboardList, Plus,
   PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3, CalendarClock, Milk, Wrench,
+  Recycle,
 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Skeleton, EmptyState, Badge,
@@ -168,7 +169,7 @@ export function ManufacturingHomePage() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
           Quick actions
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
           <ActionCard icon={Plus} title="New BOM" body="Define a new recipe" to="/manufacturing/boms/new" />
           <ActionCard icon={Plus} title="New WO" body="Schedule a production run" to="/manufacturing/wos/new" />
           <ActionCard
@@ -177,6 +178,12 @@ export function ManufacturingHomePage() {
             body="Log a run made without a WO"
             to="/manufacturing/production/new"
             accent
+          />
+          <ActionCard
+            icon={Recycle}
+            title="Reclaim stock"
+            body="Put unsold goods back into raw material"
+            to="/manufacturing/reclaims"
           />
           <ActionCard icon={FlaskConical} title="Browse BOMs" body="View all recipes" to="/manufacturing/boms" />
           <ActionCard icon={BarChart3} title="WO summary" body="View production reports" to="/manufacturing/reports/wo-summary" />

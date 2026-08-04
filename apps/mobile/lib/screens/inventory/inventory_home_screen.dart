@@ -513,13 +513,17 @@ class _QuickActions extends StatelessWidget {
         subtitle: 'In ${_money(k.monthInValue)} · Out ${_money(k.monthOutValue)}',
         onTap: () => context.push('/inventory/moves'),
       ),
+      // Replaced the Warehouses tile, which only re-opened On Hand — the same
+      // screen the first tile already goes to. Adjustments are also on the FAB
+      // sheet and the Moves tab; surfacing them on Home too because damage and
+      // free-issue write-offs are daily floor work, not a create-time action.
       InvActionTile(
-        icon: Icons.warehouse_outlined,
-        title: 'Warehouses',
-        subtitle: '${k.warehouseCount} active',
-        // No warehouse-list screen on mobile yet; On Hand is where per-warehouse
-        // stock is actually browsable.
-        onTap: () => context.push('/inventory/on-hand'),
+        icon: Icons.tune_rounded,
+        title: 'Adjustments',
+        subtitle: k.pendingAdjustments > 0
+            ? '${k.pendingAdjustments} awaiting approval'
+            : 'Damage, free issue, found',
+        onTap: () => context.push('/inventory/adjustments'),
       ),
     ];
     final rows = <Widget>[];

@@ -19,7 +19,12 @@ const REASON_OPTIONS: { value: AdjustmentReason; label: string }[] = [
   { value: 'revaluation', label: 'Revaluation' },
   { value: 'correction', label: 'Correction' },
   { value: 'opening_balance', label: 'Opening balance' },
+  { value: 'free_issue', label: 'Free issue (no invoice)' },
 ];
+
+// Reasons where the goods left without a taxable supply, so the input tax
+// claimed on them has to go back — GST §17(5)(h).
+const ITC_REVERSAL_REASONS: AdjustmentReason[] = ['free_issue', 'damage', 'expiry', 'theft'];
 
 export function NewAdjustmentPage() {
   const navigate = useNavigate();
@@ -33,7 +38,9 @@ export function NewAdjustmentPage() {
   const [adjustmentDate, setAdjustmentDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const [itcReversalValue, setItcReversalValue] = useState<number | ''>('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const showItcReversal = ITC_REVERSAL_REASONS.includes(reason);
 
   const items = itemsRes.data?.data ?? [];
   const itemOpts = items
@@ -60,6 +67,9 @@ export function NewAdjustmentPage() {
         adjustmentDate,
         notes: notes || null,
         requiresApproval,
+        itcReversalValue: showItcReversal && itcReversalValue !== ''
+          ? Number(itcReversalValue)
+          : undefined,
         lines: valid.map((l) => ({
           itemId: l.itemId,
           batchNo: l.batchNo || null,
@@ -87,9 +97,9 @@ export function NewAdjustmentPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Reason *</label>
-                <Select
+                <Combobox
                   value={reason}
-                  onChange={(e) => setReason(e.target.value as AdjustmentReason)}
+                  onChange={(v) => setReason(v as AdjustmentReason)}
                   options={REASON_OPTIONS}
                 />
               </div>
@@ -97,10 +107,23 @@ export function NewAdjustmentPage() {
                 <label className="mb-1 block text-sm font-medium">Date *</label>
                 <Input type="date" value={adjustmentDate} onChange={(e) => setAdjustmentDate(e.target.value)} required />
               </div>
-              <div className="md:col-span-3">
+              <div className={showItcReversal ? 'md:col-span-2' : 'md:col-span-3'}>
                 <label className="mb-1 block text-sm font-medium">Notes</label>
                 <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
+              {showItcReversal && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">ITC to reverse</label>
+                  <Input
+                    type="number" step="0.01" min="0" className="text-right" placeholder="0.00"
+                    value={itcReversalValue}
+                    onChange={(e) => setItcReversalValue(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Input tax claimed on these goods. Recorded for your GSTR-3B Table 4(B); no journal entry is posted.
+                  </p>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm md:col-span-3">
                 <input
                   type="checkbox"

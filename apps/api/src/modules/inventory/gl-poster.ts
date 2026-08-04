@@ -11,6 +11,7 @@
  *   2115  GR/IR Clearing                (liability — system)
  *   5100  Cost of Goods Sold            (expense)
  *   5104  Inventory Write-off           (expense — system)
+ *   5106  Free Issues & Trade Allowance (expense — system)
  *   4207  Inventory Gain                (revenue — system)
  *
  * Tenants who customised their CoA can override these via tenant settings
@@ -24,8 +25,20 @@ export const INV_ACCOUNTS = {
   GR_IR_CLEARING: '2115',
   COGS: '5100',
   WRITE_OFF: '5104',
+  FREE_ISSUE: '5106',
   GAIN: '4207',
 } as const;
+
+/**
+ * Which expense account an outbound adjustment lands in.
+ *
+ * `free_issue` is stock given away intact — that's a distribution cost, not a
+ * loss. Everything else genuinely leaves the business short, so it stays in
+ * write-off and keeps 5104 meaningful as "goods we lost".
+ */
+function outboundAccountFor(reason: string): string {
+  return reason === 'free_issue' ? INV_ACCOUNTS.FREE_ISSUE : INV_ACCOUNTS.WRITE_OFF;
+}
 
 export class InventoryGlPoster {
   private readonly gl: GLService;
@@ -159,10 +172,15 @@ export class InventoryGlPoster {
   /**
    * Adjustment posting. `valueDelta` is signed against Inventory Asset:
    *   positive → Inventory Asset Dr / Inventory Gain Cr (found, revaluation up)
-   *   negative → Inventory Write-off Dr / Inventory Asset Cr (damage, expiry,
-   *     theft, correction down, revaluation down)
+   *   negative → expense Dr / Inventory Asset Cr, where the expense account is
+   *     picked from the reason: `free_issue` → 5106, everything else → 5104.
    *
    * Caller computes the signed delta per the adjustment lines.
+   *
+   * The ITC to reverse on free issues / destroyed goods is recorded on the
+   * adjustment row, not here — the reversal is claimed through GSTR-3B Table
+   * 4(B) against the input-tax pool, and posting a journal line for it before
+   * that return is filed would double-count it.
    */
   async postAdjustment(args: {
     date: string;
@@ -185,7 +203,7 @@ export class InventoryGlPoster {
             { accountCode: INV_ACCOUNTS.GAIN, debit: 0, credit: abs },
           ]
         : [
-            { accountCode: INV_ACCOUNTS.WRITE_OFF, debit: abs, credit: 0 },
+            { accountCode: outboundAccountFor(args.reason), debit: abs, credit: 0 },
             { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, debit: 0, credit: abs },
           ],
       createdBy: this.userId,

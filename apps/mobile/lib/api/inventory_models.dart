@@ -114,6 +114,12 @@ class InvOnHandRow {
   /// semi_finished / trading_good / consumable / spare_part). Null for
   /// service items, which never appear here. Drives the bucket-tabs UI.
   final String? itemClass;
+  /// Axis-2 category tree. `categoryName` is the leaf the item is filed under,
+  /// `categoryGroup` its parent — so a list can head sections with the group
+  /// and sub-head with the leaf. Both null for uncategorised items, and equal
+  /// when the item sits directly on a top-level category.
+  final String? categoryName;
+  final String? categoryGroup;
   final String warehouseId;
   final String warehouseName;
   final String batchNo;
@@ -135,7 +141,7 @@ class InvOnHandRow {
   final String? receivedAt;
   const InvOnHandRow({
     required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
-    this.itemClass,
+    this.itemClass, this.categoryName, this.categoryGroup,
     required this.warehouseId, required this.warehouseName, required this.batchNo,
     required this.qty, required this.avgCost, required this.value, this.reorderLevel,
     this.lastMovementAt, this.expiryDate, this.receivedAt,
@@ -147,6 +153,8 @@ class InvOnHandRow {
         itemSku: j['itemSku'] as String?,
         itemUnit: j['itemUnit'] as String?,
         itemClass: j['itemClass'] as String?,
+        categoryName: j['categoryName'] as String?,
+        categoryGroup: j['categoryGroup'] as String?,
         warehouseId: j['warehouseId'] as String,
         warehouseName: j['warehouseName'] as String,
         batchNo: (j['batchNo'] as String?) ?? '',
@@ -355,10 +363,17 @@ class InvAdjustment {
   final String adjustmentDate;
   final String status;
   final double totalValueDelta;
+  /// How many lines the adjustment carries, and the first few item names —
+  /// summarised server-side so the list can preview what was adjusted without
+  /// a fetch per row. `itemNames` is capped at three by the API.
+  final int lineCount;
+  final List<String> itemNames;
   const InvAdjustment({
     required this.id, required this.adjNo, required this.warehouseName,
     required this.reason, required this.adjustmentDate, required this.status,
     required this.totalValueDelta,
+    this.lineCount = 0,
+    this.itemNames = const [],
   });
   factory InvAdjustment.fromJson(Map<String, dynamic> j) => InvAdjustment(
         id: j['id'] as String,
@@ -368,6 +383,8 @@ class InvAdjustment {
         adjustmentDate: j['adjustmentDate'] as String,
         status: (j['status'] as String?) ?? 'draft',
         totalValueDelta: double.tryParse(j['totalValueDelta']?.toString() ?? '0') ?? 0,
+        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+        itemNames: (j['itemNames'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       );
 }
 

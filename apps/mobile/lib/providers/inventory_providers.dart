@@ -123,3 +123,23 @@ final invItemStockProvider = FutureProvider.autoDispose
     .family<List<InvItemStockRow>, String>((ref, id) async {
   return inventoryRepo.itemStock(id);
 });
+
+/// Invalidate every view derived from stock levels.
+///
+/// Call after anything that moves stock — adjustment, GRN, dispatch, transfer,
+/// stock take, reclaim. Callers used to hand-pick one or two providers, so the
+/// Home KPIs would update while the value breakdown, recent activity and
+/// expiry tiles kept showing pre-movement numbers until a manual pull.
+///
+/// Passing a family provider invalidates all of its instances, which is what
+/// we want: on-hand is keyed by (warehouse, filters) and any of those views
+/// can be stale after a movement.
+void invalidateStockViews(WidgetRef ref) {
+  ref.invalidate(invKpisProvider);
+  ref.invalidate(invRecentActivityProvider);
+  ref.invalidate(invWarehouseValuesProvider);
+  ref.invalidate(invStockHighlightsProvider);
+  ref.invalidate(invOnHandProvider);
+  ref.invalidate(invExpiringProvider);
+  ref.invalidate(invReorderAlertsProvider);
+}

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte, count, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, count, inArray, sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
   inventoryAdjustments, inventoryAdjustmentLines, items, warehouses,
@@ -41,13 +41,51 @@ export class AdjustmentService {
       this.ctx.db.select({ total: count() }).from(inventoryAdjustments).where(where),
     ]);
 
+    const summaries = await this.lineSummaries(rows.map((r) => r.a.id));
+
     return {
-      data: rows.map((r) => ({ ...r.a, warehouseName: r.warehouseName })),
+      data: rows.map((r) => ({
+        ...r.a,
+        warehouseName: r.warehouseName,
+        ...(summaries.get(r.a.id) ?? { lineCount: 0, itemNames: [] }),
+      })),
       page: filter.page,
       limit: filter.limit,
       total,
       totalPages: Math.ceil(total / filter.limit),
     };
+  }
+
+  /**
+   * Line count + the first few item names per adjustment, so the list can show
+   * what was actually adjusted without a fetch per row. Names are capped at
+   * three — the UI shows a couple and a "+N more", and shipping the full set
+   * for a 200-line stock correction would dwarf the rest of the payload.
+   */
+  private async lineSummaries(
+    adjustmentIds: string[],
+  ): Promise<Map<string, { lineCount: number; itemNames: string[] }>> {
+    const out = new Map<string, { lineCount: number; itemNames: string[] }>();
+    if (adjustmentIds.length === 0) return out;
+
+    const rows = await this.ctx.db
+      .select({
+        adjustmentId: inventoryAdjustmentLines.adjustmentId,
+        lineCount: count(),
+        itemNames: sql<string[]>`(ARRAY_AGG(${items.name} ORDER BY ${items.name}))[1:3]`,
+      })
+      .from(inventoryAdjustmentLines)
+      .innerJoin(items, eq(items.id, inventoryAdjustmentLines.itemId))
+      .where(inArray(inventoryAdjustmentLines.adjustmentId, adjustmentIds))
+      .groupBy(inventoryAdjustmentLines.adjustmentId);
+
+    for (const r of rows) {
+      out.set(r.adjustmentId, {
+        lineCount: Number(r.lineCount),
+        itemNames: r.itemNames ?? [],
+      });
+    }
+    return out;
   }
 
   async get(id: string) {
@@ -90,6 +128,7 @@ export class AdjustmentService {
           adjustmentDate: input.adjustmentDate,
           notes: input.notes ?? null,
           requiresApproval: input.requiresApproval ?? false,
+          itcReversalValue: String(input.itcReversalValue ?? 0),
           status: initialStatus,
           createdBy: this.ctx.userId ?? null,
         })
@@ -128,6 +167,9 @@ export class AdjustmentService {
           reason: input.reason ?? existing.reason,
           adjustmentDate: input.adjustmentDate ?? existing.adjustmentDate,
           notes: input.notes === undefined ? existing.notes : (input.notes ?? null),
+          itcReversalValue: input.itcReversalValue === undefined
+            ? existing.itcReversalValue
+            : String(input.itcReversalValue),
           updatedAt: new Date(),
         })
         .where(eq(inventoryAdjustments.id, id))

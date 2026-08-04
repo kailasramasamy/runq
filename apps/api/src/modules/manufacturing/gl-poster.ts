@@ -97,6 +97,52 @@ export class ManufacturingGlPoster {
   }
 
   /**
+   * Reclaim post — finished goods torn down back into raw material.
+   *
+   * Recovered material enters at raw-material WAC, which is below the FG cost
+   * it came out of (the packaging and processing spent on it are not coming
+   * back). Both stock legs sit on 1112, so they net out and the journal entry
+   * carries only the shortfall — same zero-net-impact convention as `postClose`.
+   *
+   *   Dr 5104 Inventory Write-off   loss
+   *     Cr 1112 Inventory Asset     loss
+   *
+   * The loss can never be negative: the service caps recovered value at the FG
+   * value consumed, so a teardown never manufactures a gain out of a cheap FG
+   * batch meeting an expensive raw-material pool. Zero loss (fully recovered)
+   * posts nothing.
+   */
+  async postReclaim(args: {
+    date: string;
+    reclaimId: string;
+    reclaimNo: string;
+    lossValue: number;
+  }): Promise<string | null> {
+    if (args.lossValue <= 0) return null;
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Reclaim ${args.reclaimNo} — teardown loss`,
+      sourceType: 'mfg_reclaim',
+      sourceId: args.reclaimId,
+      lines: [
+        {
+          accountCode: INV_ACCOUNTS.WRITE_OFF,
+          debit: args.lossValue,
+          credit: 0,
+          description: 'Packaging + process cost not recovered',
+        },
+        {
+          accountCode: INV_ACCOUNTS.INVENTORY_ASSET,
+          debit: 0,
+          credit: args.lossValue,
+        },
+      ],
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
+  /**
    * Reversal of a closed WO — flips the original posting. Used when a
    * close needs to be undone after the fact (Phase 2.5+; not exposed in
    * v1 — workaround is a manual correction JE). Kept here so the surface

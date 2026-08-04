@@ -5,8 +5,16 @@ import { tenants } from '../tenant';
 import { items } from '../masters/items';
 import { warehouses } from './warehouses';
 
+/**
+ * `free_issue` — stock handed over without an invoice (extra cases given to
+ * the logistics team to cover their own breakages, trade samples). Kept
+ * distinct from `damage` because the goods are intact: the value belongs in
+ * distribution cost, not write-off, and under GST §17(5)(h) a free supply
+ * requires the input tax on it to be reversed.
+ */
 export const adjustmentReasonEnum = pgEnum('inv_adjustment_reason', [
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
+  'free_issue',
 ]);
 
 export const adjustmentStatusEnum = pgEnum('inv_adjustment_status', [
@@ -28,6 +36,12 @@ export const inventoryAdjustments = pgTable(
     approvedBy: uuid('approved_by'),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     totalValueDelta: decimal('total_value_delta', { precision: 18, scale: 2 }).notNull().default('0'),
+    /**
+     * Input tax to reverse on this adjustment (free issues, destroyed goods).
+     * Captured here so the GSTR-3B Table 4(B) wiring has a source when it
+     * lands; no journal line is posted against it today.
+     */
+    itcReversalValue: decimal('itc_reversal_value', { precision: 18, scale: 2 }).notNull().default('0'),
     journalEntryId: uuid('journal_entry_id'),
     postedAt: timestamp('posted_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

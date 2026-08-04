@@ -8,6 +8,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/mfg_colors.dart';
+import 'widgets/mfg_item_picker.dart';
 import 'widgets/mfg_primitives.dart';
 
 class BomCreateScreen extends ConsumerStatefulWidget {
@@ -54,7 +55,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
           l.inputUom.isNotEmpty);
 
   Future<void> _pickOutputItem() async {
-    final picked = await _showItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
+    final picked = await showMfgItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
     if (picked != null && mounted) {
       setState(() {
         _outputItemId = picked.id;
@@ -68,7 +69,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
   }
 
   Future<void> _addLine() async {
-    final picked = await _showItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
+    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(
@@ -368,7 +369,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
           l.inputUom.isNotEmpty);
 
   Future<void> _addLine() async {
-    final picked = await _showItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
+    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(
@@ -489,7 +490,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                               value: _outputItemName,
                               icon: Icons.factory_outlined,
                               onTap: () async {
-                                final picked = await _showItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
+                                final picked = await showMfgItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
                                 if (picked != null && mounted) {
                                   setState(() {
                                     _outputItemId = picked.id;
@@ -942,200 +943,6 @@ class _DatePickerTile extends StatelessWidget {
                 Icon(Icons.unfold_more_rounded, size: 18, color: t.muted2),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Item picker bottom sheet ───────────────────────────────────────────────
-
-/// Optional `itemClassGroup` pre-filters the picker. Use `'finished'` for
-/// BOM output, `'inputs'` for BOM input lines — keeps the list short and
-/// on-task. Omit for an unfiltered search (e.g. ad-hoc WO consumption).
-Future<MfgItemRow?> _showItemPicker(
-  BuildContext context, {
-  required String title,
-  String? itemClassGroup,
-}) {
-  return showModalBottomSheet<MfgItemRow>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _ItemPickerSheet(title: title, itemClassGroup: itemClassGroup),
-  );
-}
-
-class _ItemPickerSheet extends StatefulWidget {
-  final String title;
-  final String? itemClassGroup;
-  const _ItemPickerSheet({required this.title, this.itemClassGroup});
-
-  @override
-  State<_ItemPickerSheet> createState() => _ItemPickerSheetState();
-}
-
-class _ItemPickerSheetState extends State<_ItemPickerSheet> {
-  final _ctrl = TextEditingController();
-  List<MfgItemRow> _results = const [];
-  bool _loading = false;
-  String _lastQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _runSearch('');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _runSearch(String q) async {
-    _lastQuery = q;
-    setState(() => _loading = true);
-    try {
-      final hits = await manufacturingRepo.searchItems(
-        q,
-        itemClassGroup: widget.itemClassGroup,
-      );
-      if (!mounted || q != _lastQuery) return;
-      setState(() => _results = hits);
-    } finally {
-      if (mounted && q == _lastQuery) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (_, scrollCtrl) => Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 36, height: 4,
-              decoration: BoxDecoration(
-                color: t.hairline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Row(
-                children: [
-                  Text(widget.title, style: RunqText.h3.copyWith(color: t.ink)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: TextField(
-                controller: _ctrl,
-                autofocus: false,
-                textCapitalization: TextCapitalization.none,
-                onChanged: _runSearch,
-                decoration: InputDecoration(
-                  hintText: 'Search by name or SKU',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  filled: true,
-                  fillColor: t.bgWarmer,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: t.hairline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: t.hairline),
-                  ),
-                  suffixIcon: _ctrl.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            _ctrl.clear();
-                            _runSearch('');
-                          },
-                        ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _results.isEmpty
-                      ? Center(
-                          child: Text('No items found.',
-                              style: RunqText.body.copyWith(color: t.muted)))
-                      : ListView.builder(
-                          controller: scrollCtrl,
-                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
-                          itemCount: _results.length,
-                          itemBuilder: (_, i) {
-                            final item = _results[i];
-                            return Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => Navigator.of(context).pop(item),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36, height: 36,
-                                        decoration: BoxDecoration(
-                                          color: MfgColors.roseSubtle,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(Icons.inventory_2_outlined,
-                                            size: 18, color: MfgColors.brand(context)),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(item.name,
-                                                style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              '${item.sku.isEmpty ? '' : '${item.sku} · '}${item.uom} · ${item.itemClass}',
-                                              style: RunqText.caption.copyWith(color: t.muted),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
         ),
       ),
     );

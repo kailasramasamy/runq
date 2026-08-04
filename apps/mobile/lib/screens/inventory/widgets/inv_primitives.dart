@@ -1268,48 +1268,57 @@ class InvEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 60),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: t.bgWarmer,
-              borderRadius: BorderRadius.circular(16),
+    // width: infinity is load-bearing. Several callers hand this straight to a
+    // RefreshIndicator, which wraps its child in a Stack — and a Stack passes
+    // loose constraints to non-positioned children, so the Column would
+    // shrink-wrap to its widest line and sit against the leading edge. The
+    // per-Text centring then centres inside that narrow box, which reads as
+    // the whole block being nudged left.
+    return SizedBox(
+      width: double.infinity,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 60),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: t.bgWarmer,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 26, color: t.muted2),
             ),
-            child: Icon(icon, size: 26, color: t.muted2),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: RunqText.bodyStrong.copyWith(color: t.ink),
-            textAlign: TextAlign.center,
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             Text(
-              subtitle!,
-              style: RunqText.caption.copyWith(color: t.muted),
+              title,
+              style: RunqText.bodyStrong.copyWith(color: t.ink),
               textAlign: TextAlign.center,
             ),
-          ],
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: onAction,
-              child: Text(
-                actionLabel!,
-                style: RunqText.bodyStrong.copyWith(
-                  color: InvColors.brand(context),
-                  fontSize: 13,
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle!,
+                style: RunqText.caption.copyWith(color: t.muted),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: onAction,
+                child: Text(
+                  actionLabel!,
+                  style: RunqText.bodyStrong.copyWith(
+                    color: InvColors.brand(context),
+                    fontSize: 13,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

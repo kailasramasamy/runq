@@ -929,3 +929,103 @@ class MfgItemRow {
         itemClass: (j['itemClass'] as String?) ?? '',
       );
 }
+
+// ── Reclaim models ────────────────────────────────────────────────────────
+//
+// Reclaim = unsold finished goods cut open so the material inside goes back
+// into the raw-material pool. The recovered material enters at raw-material
+// cost; the packaging and processing already spent on it is written off, and
+// that shortfall is `lossValue`.
+
+class ReclaimLine {
+  final String id;
+  final String fgItemId;
+  final String fgItemName;
+  final String? fgBatchNo;
+  final double fgQty;
+  final double fgValue;
+  final String recoveredItemId;
+  final String recoveredItemName;
+  final String recoveredUom;
+  final String? recoveredBatchNo;
+  final double recoveredQty;
+  final double recoveredValue;
+  final String? expiryDate;
+
+  ReclaimLine({
+    required this.id,
+    required this.fgItemId,
+    required this.fgItemName,
+    required this.fgBatchNo,
+    required this.fgQty,
+    required this.fgValue,
+    required this.recoveredItemId,
+    required this.recoveredItemName,
+    required this.recoveredUom,
+    required this.recoveredBatchNo,
+    required this.recoveredQty,
+    required this.recoveredValue,
+    required this.expiryDate,
+  });
+
+  factory ReclaimLine.fromJson(Map<String, dynamic> j) => ReclaimLine(
+        id: (j['id'] as String?) ?? '',
+        fgItemId: (j['fgItemId'] as String?) ?? '',
+        fgItemName: (j['fgItemName'] as String?) ?? '',
+        fgBatchNo: j['fgBatchNo'] as String?,
+        fgQty: _num(j['fgQty']),
+        fgValue: _num(j['fgValue']),
+        recoveredItemId: (j['recoveredItemId'] as String?) ?? '',
+        recoveredItemName: (j['recoveredItemName'] as String?) ?? '',
+        recoveredUom: (j['recoveredUom'] as String?) ?? '',
+        recoveredBatchNo: j['recoveredBatchNo'] as String?,
+        recoveredQty: _num(j['recoveredQty']),
+        recoveredValue: _num(j['recoveredValue']),
+        expiryDate: j['expiryDate'] as String?,
+      );
+}
+
+class Reclaim {
+  final String id;
+  final String reclaimNo;
+  final String warehouseId;
+  final String warehouseName;
+  final String reclaimDate;
+  final String status;
+  final String? notes;
+  final double fgValue;
+  final double recoveredValue;
+  final double lossValue;
+  final List<ReclaimLine> lines;
+
+  Reclaim({
+    required this.id,
+    required this.reclaimNo,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.reclaimDate,
+    required this.status,
+    required this.notes,
+    required this.fgValue,
+    required this.recoveredValue,
+    required this.lossValue,
+    required this.lines,
+  });
+
+  factory Reclaim.fromJson(Map<String, dynamic> j) => Reclaim(
+        id: (j['id'] as String?) ?? '',
+        reclaimNo: (j['reclaimNo'] as String?) ?? '',
+        warehouseId: (j['warehouseId'] as String?) ?? '',
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        reclaimDate: (j['reclaimDate'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'draft',
+        notes: j['notes'] as String?,
+        fgValue: _num(j['fgValue']),
+        recoveredValue: _num(j['recoveredValue']),
+        lossValue: _num(j['lossValue']),
+        lines: (j['lines'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ReclaimLine.fromJson)
+            .toList(),
+      );
+}

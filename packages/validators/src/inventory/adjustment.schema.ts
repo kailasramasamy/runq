@@ -2,8 +2,13 @@ import { z } from 'zod';
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
+// `free_issue` — stock handed over without an invoice (extra cases to the
+// logistics team to cover their breakages, trade samples). Separate from
+// `damage` because the goods are intact: the cost is distribution, not
+// write-off, and GST §17(5)(h) requires the input tax on it to be reversed.
 export const adjustmentReasonSchema = z.enum([
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
+  'free_issue',
 ]);
 
 export const adjustmentLineInputSchema = z.object({
@@ -23,6 +28,9 @@ export const createAdjustmentSchema = z.object({
   adjustmentDate: dateString,
   notes: z.string().max(500).nullish(),
   requiresApproval: z.boolean().optional(),
+  // Input tax to reverse under GST §17(5)(h). Recorded for the GSTR-3B Table
+  // 4(B) wiring; no journal line is posted against it.
+  itcReversalValue: z.number().nonnegative().optional(),
   lines: z.array(adjustmentLineInputSchema).min(1),
 });
 
@@ -31,6 +39,7 @@ export const updateAdjustmentSchema = z.object({
   reason: adjustmentReasonSchema.optional(),
   adjustmentDate: dateString.optional(),
   notes: z.string().max(500).nullish(),
+  itcReversalValue: z.number().nonnegative().optional(),
   lines: z.array(adjustmentLineInputSchema).min(1).optional(),
 });
 

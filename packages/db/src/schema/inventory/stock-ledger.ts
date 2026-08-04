@@ -17,6 +17,11 @@ export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
   // Goods coming back from a customer against a dispatch, at the original
   // dispatch cost. Distinct from 'reversal' (which unwinds a cancelled doc).
   'sales_return_in',
+  // Teardown of unsold finished goods back into raw material — cutting open
+  // milk packets to re-use the milk for paneer or curd.
+  //   reclaim_out — the FG batch being opened
+  //   reclaim_in  — the recovered raw material, at raw-material WAC
+  'reclaim_out', 'reclaim_in',
 ]);
 
 /**

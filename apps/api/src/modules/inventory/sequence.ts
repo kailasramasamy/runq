@@ -11,7 +11,7 @@ import { sql } from 'drizzle-orm';
 export async function nextDocNo(
   tx: any,
   tenantId: string,
-  prefix: 'GRN' | 'DN' | 'TRF' | 'ADJ' | 'ST',
+  prefix: 'GRN' | 'DN' | 'TRF' | 'ADJ' | 'ST' | 'RCL',
 ): Promise<string> {
   const key = `${prefix.toLowerCase()}`;
   // Bootstrap the row on first call.

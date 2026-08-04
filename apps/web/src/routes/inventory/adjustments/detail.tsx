@@ -11,6 +11,7 @@ import {
 const REASON_LABELS: Record<string, string> = {
   damage: 'Damage', expiry: 'Expiry', theft: 'Theft', found: 'Found',
   revaluation: 'Revaluation', correction: 'Correction', opening_balance: 'Opening',
+  free_issue: 'Free issue',
 };
 
 export function AdjustmentDetailPage() {
@@ -79,10 +80,20 @@ export function AdjustmentDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Lines</h3>
-            <div className="text-sm">
-              Net value Δ:&nbsp;
-              <span className="font-mono font-semibold" style={{ color: delta < 0 ? '#b91c1c' : delta > 0 ? '#15803d' : undefined }}>
-                {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}₹${Math.abs(delta).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+            <div className="flex items-center gap-4 text-sm">
+              {Number(a.itcReversalValue) > 0 && (
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  ITC to reverse:&nbsp;
+                  <span className="font-mono font-semibold">
+                    ₹{Number(a.itcReversalValue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </span>
+                </span>
+              )}
+              <span>
+                Net value Δ:&nbsp;
+                <span className="font-mono font-semibold" style={{ color: delta < 0 ? '#b91c1c' : delta > 0 ? '#15803d' : undefined }}>
+                  {delta === 0 ? '—' : `${delta > 0 ? '+' : ''}₹${Math.abs(delta).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                </span>
               </span>
             </div>
           </div>

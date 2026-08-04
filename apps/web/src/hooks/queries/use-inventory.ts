@@ -598,7 +598,10 @@ export function useCancelTransfer() {
 // ─── Adjustments ───────────────────────────────────────────────────────
 
 export type AdjustmentReason =
-  | 'damage' | 'expiry' | 'theft' | 'found' | 'revaluation' | 'correction' | 'opening_balance';
+  | 'damage' | 'expiry' | 'theft' | 'found' | 'revaluation' | 'correction' | 'opening_balance'
+  // Stock given away without an invoice — extra cases to the logistics team to
+  // cover their breakages, trade samples. Books to 5106, not write-off.
+  | 'free_issue';
 
 export interface Adjustment {
   id: string;
@@ -610,6 +613,7 @@ export interface Adjustment {
   status: 'draft' | 'pending_approval' | 'posted' | 'cancelled';
   requiresApproval: boolean;
   totalValueDelta: string;
+  itcReversalValue: string;
   notes: string | null;
   journalEntryId: string | null;
   postedAt: string | null;
@@ -637,6 +641,7 @@ export interface CreateAdjustmentBody {
   adjustmentDate: string;
   notes?: string | null;
   requiresApproval?: boolean;
+  itcReversalValue?: number;
   lines: {
     itemId: string;
     batchNo?: string | null;

@@ -1,11 +1,17 @@
 import { and, asc, desc, eq, gte, lte, inArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '@runq/db';
 import {
   stockOnHand, stockLedger, items, warehouses, inventoryGrnLines,
+  woOutput, mfgReclaimLines, categories,
 } from '@runq/db';
 import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+
+// Leaf category and its parent. Aliased because both come from `categories`.
+const category = alias(categories, 'item_category');
+const parentCategory = alias(categories, 'item_category_parent');
 
 export class StockQueryService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -40,10 +46,19 @@ export class StockQueryService {
         itemClass: items.itemClass,
         reorderLevel: items.reorderLevel,
         warehouseName: warehouses.name,
+        // Axis-2 category tree. `items.category_id` points at the leaf, so the
+        // self-join walks one level up for its parent. A leaf with no parent is
+        // itself a top-level category — callers grouping by category then
+        // sub-category should treat `categoryGroup` as the heading and fall
+        // back to the leaf when the two are equal.
+        categoryName: category.name,
+        categoryGroup: parentCategory.name,
       })
       .from(stockOnHand)
       .innerJoin(items, eq(items.id, stockOnHand.itemId))
       .innerJoin(warehouses, eq(warehouses.id, stockOnHand.warehouseId))
+      .leftJoin(category, eq(category.id, items.categoryId))
+      .leftJoin(parentCategory, eq(parentCategory.id, category.parentId))
       .where(and(...conds))
       .orderBy(asc(items.name), asc(warehouses.name));
 
@@ -115,9 +130,20 @@ export class StockQueryService {
     return out;
   }
 
-  /** Earliest expiry per (item, batch) across all GRN receipts that brought
-   *  the batch in. Used by on-hand to surface a shelf-life column without a
-   *  second round-trip per row. */
+  /**
+   * Earliest expiry per (item, batch) across every route a batch can enter
+   * stock by. Used by on-hand to surface a shelf-life column without a second
+   * round-trip per row.
+   *
+   * Three sources, because a batch is not always bought:
+   *   inventory_grn_lines — received from a vendor
+   *   wo_output           — manufactured
+   *   mfg_reclaim_lines   — recovered from torn-down finished goods
+   *
+   * The last two matter most for shelf life: reclaimed milk has already spent
+   * time in a packet, so it carries a short expiry and FEFO has to see it, or
+   * it sits behind fresher stock until it spoils.
+   */
   private async batchExpiryMap(
     keys: Array<{ itemId: string; batchNo: string }>,
   ): Promise<Map<string, string>> {
@@ -125,26 +151,62 @@ export class StockQueryService {
     if (keys.length === 0) return out;
     const itemIds = Array.from(new Set(keys.map((k) => k.itemId)));
     const batchNos = Array.from(new Set(keys.map((k) => k.batchNo)));
-    const rows = await this.db
-      .select({
-        itemId: inventoryGrnLines.itemId,
-        batchNo: inventoryGrnLines.batchNo,
-        expiryDate: sql<string>`MIN(${inventoryGrnLines.expiryDate})::text`,
-      })
-      .from(inventoryGrnLines)
-      .where(
-        and(
+
+    // One query per source rather than a UNION: the filter needs `inArray`,
+    // and drizzle expands a JS array in a raw `sql` template into a comma-list
+    // of bind params — which turns `= ANY($1)` into `= ANY($1, $2)` and blows
+    // up with "op ANY/ALL (array) requires array on right side".
+    const [grnRows, woRows, reclaimRows] = await Promise.all([
+      this.db
+        .select({
+          itemId: inventoryGrnLines.itemId,
+          batchNo: inventoryGrnLines.batchNo,
+          expiryDate: sql<string>`MIN(${inventoryGrnLines.expiryDate})::text`,
+        })
+        .from(inventoryGrnLines)
+        .where(and(
           eq(inventoryGrnLines.tenantId, this.tenantId),
           inArray(inventoryGrnLines.itemId, itemIds),
           inArray(inventoryGrnLines.batchNo, batchNos),
           sql`${inventoryGrnLines.expiryDate} IS NOT NULL`,
-        ),
-      )
-      .groupBy(inventoryGrnLines.itemId, inventoryGrnLines.batchNo);
-    for (const r of rows) {
-      if (r.itemId && r.batchNo && r.expiryDate) {
-        out.set(`${r.itemId}|${r.batchNo}`, r.expiryDate);
-      }
+        ))
+        .groupBy(inventoryGrnLines.itemId, inventoryGrnLines.batchNo),
+      this.db
+        .select({
+          itemId: woOutput.outputItemId,
+          batchNo: woOutput.batchNo,
+          expiryDate: sql<string>`MIN(${woOutput.expiryDate})::text`,
+        })
+        .from(woOutput)
+        .where(and(
+          eq(woOutput.tenantId, this.tenantId),
+          inArray(woOutput.outputItemId, itemIds),
+          inArray(woOutput.batchNo, batchNos),
+          sql`${woOutput.expiryDate} IS NOT NULL`,
+        ))
+        .groupBy(woOutput.outputItemId, woOutput.batchNo),
+      this.db
+        .select({
+          itemId: mfgReclaimLines.recoveredItemId,
+          batchNo: mfgReclaimLines.recoveredBatchNo,
+          expiryDate: sql<string>`MIN(${mfgReclaimLines.expiryDate})::text`,
+        })
+        .from(mfgReclaimLines)
+        .where(and(
+          eq(mfgReclaimLines.tenantId, this.tenantId),
+          inArray(mfgReclaimLines.recoveredItemId, itemIds),
+          inArray(mfgReclaimLines.recoveredBatchNo, batchNos),
+          sql`${mfgReclaimLines.expiryDate} IS NOT NULL`,
+        ))
+        .groupBy(mfgReclaimLines.recoveredItemId, mfgReclaimLines.recoveredBatchNo),
+    ]);
+
+    // Earliest expiry wins when a batch number shows up in more than one source.
+    for (const r of [...grnRows, ...woRows, ...reclaimRows]) {
+      if (!r.itemId || !r.batchNo || !r.expiryDate) continue;
+      const key = `${r.itemId}|${r.batchNo}`;
+      const existing = out.get(key);
+      if (!existing || r.expiryDate < existing) out.set(key, r.expiryDate);
     }
     return out;
   }
