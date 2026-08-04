@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import { Pencil } from 'lucide-react';
 import {
   Card, CardContent, Combobox, Input, Pagination, Button,
@@ -91,10 +91,15 @@ const YEARS = Array.from({ length: 4 }, (_, i) => {
   const v = String(new Date().getFullYear() - i);
   return { value: v, label: v };
 });
-const MONTHS = Array.from({ length: 12 }, (_, i) => ({
-  value: String(i + 1),
-  label: new Date(2000, i, 1).toLocaleString('en', { month: 'long' }),
-}));
+// Newest first: current month, then backwards (Aug, Jul, Jun …), wrapping past
+// January — recent months are what operators pick in almost every session.
+const MONTHS = (() => {
+  const now = new Date().getMonth(); // 0-based
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = (now - i + 12) % 12;
+    return { value: String(m + 1), label: new Date(2000, m, 1).toLocaleString('en', { month: 'long' }) };
+  });
+})();
 const CYCLES: { value: Cycle; label: string }[] = [
   { value: '1', label: '1–15' },
   { value: '2', label: '16–EOM' },
@@ -181,6 +186,20 @@ export function ChartTooltip({ active, payload, label, unit = '' }: {
   );
 }
 
+/**
+ * Props for the value printed above each plotted point. Must be spread onto a
+ * `<LabelList>` written directly inside `<Line>` — recharts finds label lists by
+ * element type, so a wrapper component would be ignored. Gaps (no reading that
+ * day) render nothing.
+ */
+const pointLabel = (color: string, digits: number) => ({
+  position: 'top' as const,
+  offset: 8,
+  fill: color,
+  fontSize: 9,
+  formatter: (v: unknown) => (typeof v === 'number' ? v.toFixed(digits) : ''),
+});
+
 /** Daily AM / PM / Total volume across the window, plotted oldest day first. */
 export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
   const data = [...rows]
@@ -198,9 +217,15 @@ export function DailyQtyChart({ rows }: { rows: MpDailyRow[] }) {
             <YAxis tick={{ fontSize: 10, fill: '#a1a1aa' }} tickLine={false} axisLine={false} width={44} />
             <Tooltip content={<ChartTooltip unit=" L" />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="Total" stroke="#0F7A5A" strokeWidth={2.5} dot={false} />
-            <Line type="monotone" dataKey="AM" stroke="#f59e0b" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="PM" stroke="#3b82f6" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="Total" stroke="#0F7A5A" strokeWidth={2.5} dot={false}>
+              <LabelList {...pointLabel('#0F7A5A', 0)} />
+            </Line>
+            <Line type="monotone" dataKey="AM" stroke={AM_COLOR} strokeWidth={2} dot={false}>
+              <LabelList {...pointLabel(AM_COLOR, 0)} />
+            </Line>
+            <Line type="monotone" dataKey="PM" stroke={PM_COLOR} strokeWidth={2} dot={false}>
+              <LabelList {...pointLabel(PM_COLOR, 0)} />
+            </Line>
           </LineChart>
         </ResponsiveContainer>
       </CardContent>
@@ -275,7 +300,9 @@ function MilkTypeChart({ rows, metric, title, unit = '', min, height = 240 }: {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {series.map((mt) => (
                 <Line key={mt} type="monotone" dataKey={mt} name={milkTypeLabel(mt)}
-                  stroke={MILK_COLOR[mt]} strokeWidth={2} dot={false} connectNulls />
+                  stroke={MILK_COLOR[mt]} strokeWidth={2} dot={false} connectNulls>
+                  <LabelList {...pointLabel(MILK_COLOR[mt], metric === 'qty' ? 0 : 1)} />
+                </Line>
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -330,7 +357,9 @@ function QcChart({ rows, title, min, series }: {
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {series.map((s) => (
-                <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={false} connectNulls />
+                <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={false} connectNulls>
+                  <LabelList {...pointLabel(s.color, 1)} />
+                </Line>
               ))}
             </LineChart>
           </ResponsiveContainer>

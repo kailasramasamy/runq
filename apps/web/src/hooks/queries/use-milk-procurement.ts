@@ -430,6 +430,18 @@ export function useCorrectPour() {
   });
 }
 
+/** Remove a wrongly recorded pour — soft-reverses it, keeping the audit trail. */
+export function useReversePour() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<MpPour>>(`${BASE}/pours/${id}/reverse`, {}),
+    onSuccess: () => {
+      c.invalidateQueries({ queryKey: ['mp', 'pours'] });
+      c.invalidateQueries({ queryKey: ['mp', 'reports'] });
+    },
+  });
+}
+
 // ── shift close (per-slot collection close + dispatch gate) ──────────────────
 export interface MpShiftStatus { am: boolean; pm: boolean }
 function invalidateAfterClose(c: ReturnType<typeof useQueryClient>) {

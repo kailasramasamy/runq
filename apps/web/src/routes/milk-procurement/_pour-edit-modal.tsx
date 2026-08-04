@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
   Modal, Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, Button, Input,
-  EmptyState, Skeleton, useToast,
+  EmptyState, Skeleton, useToast, ConfirmationDialog,
 } from '@/components/ui';
-import { Receipt } from 'lucide-react';
+import { Receipt, Trash2 } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import {
-  usePours, useCorrectPour, useFarmers, useConsignments, useEditReceipt,
+  usePours, useCorrectPour, useReversePour, useFarmers, useConsignments, useEditReceipt,
   type MpPour, type MpConsignment,
 } from '@/hooks/queries/use-milk-procurement';
 
@@ -71,7 +71,8 @@ export function DayPoursEditModal({ filter, title, onClose }: {
         <>
           <p className="mb-2 text-xs text-zinc-500">
             Fix a mistaken reading and Save — the pour is re-priced from the rate chart, and the
-            original is kept for audit. A closed shift must be reopened first.
+            original is kept for audit. Delete removes an entry that should never have been
+            recorded. A closed shift must be reopened first.
           </p>
           <div className="max-h-[60vh] overflow-auto">
             <Table>
@@ -134,6 +135,38 @@ function ReceiptEditRow({ c }: { c: MpConsignment }) {
   );
 }
 
+/**
+ * Remove a pour that should never have been recorded (wrong farmer, duplicate
+ * entry). The server soft-reverses it, so it drops out of collection and
+ * billing while staying visible as an audit trail. Closed shifts are rejected.
+ */
+function DeletePourButton({ pour, label }: { pour: MpPour; label: string }) {
+  const remove = useReversePour();
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  const del = () => {
+    remove.mutate(pour.id, {
+      onSuccess: () => { setOpen(false); toast('Entry removed', 'success'); },
+      onError: (e) => toast(e instanceof Error ? e.message : 'Could not remove the entry', 'error'),
+    });
+  };
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}
+        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+        aria-label="Delete entry">
+        <Trash2 size={14} />
+      </Button>
+      <ConfirmationDialog
+        open={open} onClose={() => setOpen(false)} onConfirm={del}
+        title="Remove this milk entry?"
+        description={`${label} — ${pour.qtyLitres} L will be removed from collection and billing. The entry stays in the audit trail.`}
+        confirmLabel="Remove" loading={remove.isPending}
+      />
+    </>
+  );
+}
+
 function PourEditRow({ pour, farmer }: { pour: MpPour; farmer?: string }) {
   const correct = useCorrectPour();
   const { toast } = useToast();
@@ -184,7 +217,11 @@ function PourEditRow({ pour, farmer }: { pour: MpPour; farmer?: string }) {
       <TableCell align="right" numeric>{pour.ratePerLitre}</TableCell>
       <TableCell align="right" numeric>{formatINR(Number(pour.lineAmount))}</TableCell>
       <TableCell align="right">
-        <Button size="sm" onClick={save} loading={correct.isPending} disabled={!dirty || !valid}>Save</Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button size="sm" onClick={save} loading={correct.isPending} disabled={!dirty || !valid}>Save</Button>
+          <DeletePourButton pour={pour}
+            label={`${farmer ? `${farmer} · ` : ''}${pour.shift.toUpperCase()} ${pour.milkType}`} />
+        </div>
       </TableCell>
     </TableRow>
   );
