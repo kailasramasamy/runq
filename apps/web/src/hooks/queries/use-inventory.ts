@@ -1039,3 +1039,165 @@ function qs(filter: Record<string, unknown>) {
   for (const [k, v] of entries) sp.set(k, String(v));
   return `?${sp.toString()}`;
 }
+
+// ─── Analytics ─────────────────────────────────────────────────────────
+// The decision layer over the reports above. Every hook takes the same
+// trailing `window` so the whole page moves together when it changes.
+
+export interface InventoryHealth {
+  windowDays: number;
+  /** Days of the window the ledger actually covers. Below windowDays the
+   *  turnover figure is annualised off a short run and must be caveated. */
+  dataSpanDays: number;
+  totalValue: number;
+  totalQty: number;
+  skuInStock: number;
+  consumedValue: number;
+  turnover: number | null;
+  daysOnHand: number | null;
+  expiringValue: number;
+  belowReorder: number;
+  outOfStock: number;
+  deadValue: number;
+  deadSkuCount: number;
+  deadValuePct: number;
+}
+
+export type VelocityBand = 'fast' | 'medium' | 'slow' | 'dead';
+export type AbcClass = 'A' | 'B' | 'C';
+
+export interface SkuPerformance {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  category: string | null;
+  onHandQty: number;
+  onHandValue: number;
+  consumedQty: number;
+  consumedValue: number;
+  runRate: number;
+  daysOfCover: number | null;
+  turnover: number | null;
+  velocity: VelocityBand;
+  abcClass: AbcClass;
+  hasEnoughHistory: boolean;
+  lastMovementAt: string | null;
+}
+
+export interface StockRiskRow {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  onHand: number;
+  onHandValue: number;
+  reorderLevel: number | null;
+  reorderQty: number | null;
+  leadTimeDays: number | null;
+  runRate: number;
+  estimatedLostQty: number;
+  daysOut: number;
+  timesOutInWindow: number;
+  level: 'out' | 'critical' | 'warning' | 'ok';
+  shortBy: number;
+}
+
+export interface StockRisk {
+  windowDays: number;
+  outOfStock: StockRiskRow[];
+  critical: StockRiskRow[];
+  warning: StockRiskRow[];
+  repeatOffenders: StockRiskRow[];
+}
+
+export interface ForecastRow {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  onHand: number;
+  onHandValue: number;
+  runRate: number;
+  daysOfCover: number | null;
+  leadTimeDays: number | null;
+  stockoutDate: string | null;
+  reorderByDate: string | null;
+  suggestedQty: number;
+  hasEnoughHistory: boolean;
+  isLate: boolean;
+  isUrgent: boolean;
+}
+
+export interface InventoryForecast {
+  stockout: {
+    windowDays: number;
+    horizonDays: number;
+    items: ForecastRow[];
+    lateCount: number;
+    urgentCount: number;
+    unpredictableCount: number;
+  };
+  expiry: {
+    buckets: Array<{
+      month: string; value: number; qty: number;
+      skuCount: number; alreadyExpired: boolean;
+    }>;
+    totalAtRisk: number;
+    alreadyExpiredValue: number;
+  };
+}
+
+export interface InventoryTrend {
+  bucket: 'week' | 'month';
+  points: Array<{
+    bucket: string; inValue: number; outValue: number;
+    inQty: number; outQty: number; closingValue: number;
+  }>;
+}
+
+export function useInventoryHealth(filter: { window?: number; warehouseId?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'health', filter] as const,
+    queryFn: () =>
+      api.get<{ data: InventoryHealth }>(`/inventory/analytics/health${qs(filter)}`).then(get),
+  });
+}
+
+export function useInventoryPerformance(
+  filter: { window?: number; warehouseId?: string; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'performance', filter] as const,
+    queryFn: () =>
+      api.get<{ data: SkuPerformance[] }>(`/inventory/analytics/performance${qs(filter)}`).then(get),
+  });
+}
+
+export function useStockRisk(filter: { window?: number; warehouseId?: string } = {}) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'risk', filter] as const,
+    queryFn: () =>
+      api.get<{ data: StockRisk }>(`/inventory/analytics/stock-risk${qs(filter)}`).then(get),
+  });
+}
+
+export function useInventoryForecast(
+  filter: { window?: number; warehouseId?: string; horizonDays?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'forecast', filter] as const,
+    queryFn: () =>
+      api.get<{ data: InventoryForecast }>(`/inventory/analytics/forecast${qs(filter)}`).then(get),
+  });
+}
+
+export function useInventoryTrend(
+  filter: { months?: number; warehouseId?: string; bucket?: 'week' | 'month' } = {},
+) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'trend', filter] as const,
+    queryFn: () =>
+      api.get<{ data: InventoryTrend }>(`/inventory/analytics/trend${qs(filter)}`).then(get),
+  });
+}

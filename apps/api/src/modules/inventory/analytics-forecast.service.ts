@@ -114,8 +114,13 @@ export class InventoryForecastService {
     // Only what lands inside the horizon, soonest first. SKUs without
     // enough history ride along so the UI can show its own caveat rather
     // than silently dropping them.
+    //
+    // Already-empty SKUs are excluded: "runs out today" is not a forecast
+    // for something that ran out last week, and stockRisk() reports them
+    // properly with their days-out. Leaving them here put them at the top
+    // of the list with a stockout date of today, which read as noise.
     const inHorizon = rows.filter(
-      (r) => r.daysOfCover !== null && r.daysOfCover <= horizonDays,
+      (r) => r.onHand > 0 && r.daysOfCover !== null && r.daysOfCover <= horizonDays,
     );
     inHorizon.sort((a, b) => (a.daysOfCover ?? 0) - (b.daysOfCover ?? 0));
 

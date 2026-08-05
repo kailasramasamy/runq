@@ -104,6 +104,20 @@ export class InventoryAnalyticsService {
       -- are not a stockout, they are just absent from your catalogue.
       traded AS (
         SELECT DISTINCT item_id FROM stock_ledger WHERE tenant_id = ${this.tenantId}
+      ),
+      -- How much of the window the ledger actually covers. A tenant three
+      -- weeks into using the module has 21 days of history, not 90, and
+      -- annualising its consumption over the full window would understate
+      -- turnover several-fold. Same principle as per-SKU active_days.
+      data_span AS (
+        SELECT GREATEST(1, LEAST(
+          ${window},
+          EXTRACT(EPOCH FROM (NOW() - MIN(sl.moved_at))) / 86400
+        ))::numeric AS days
+        FROM stock_ledger sl
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND sl.moved_at >= NOW() - (${window} || ' days')::interval
+          ${warehouseFilter('sl', warehouseId)}
       )
       SELECT
         (SELECT COALESCE(SUM(value), 0) FROM on_hand)::text          AS total_value,
@@ -123,12 +137,13 @@ export class InventoryAnalyticsService {
            WHERE c.item_id IS NULL AND o.qty > 0)::text              AS dead_value,
         (SELECT COUNT(*) FROM on_hand o
            LEFT JOIN consumption c ON c.item_id = o.item_id
-           WHERE c.item_id IS NULL AND o.qty > 0)::int               AS dead_sku
+           WHERE c.item_id IS NULL AND o.qty > 0)::int               AS dead_sku,
+        (SELECT days FROM data_span)::text                           AS span_days
     `) as unknown as QueryResult<{
       total_value: string; total_qty: string; sku_in_stock: number;
       consumed_value: string; expiring_value: string;
       below_reorder: number; out_of_stock: number;
-      dead_value: string; dead_sku: number;
+      dead_value: string; dead_sku: number; span_days: string;
     }>;
 
     const r = result.rows[0]!;
@@ -136,15 +151,24 @@ export class InventoryAnalyticsService {
     const consumedValue = num(r.consumed_value);
     const deadValue = num(r.dead_value);
 
-    // Turnover: annualise the window's cost-of-goods-issued, then divide by
-    // the value actually held. Closing value stands in for average held —
-    // with no historical snapshots it is the honest approximation, and it
-    // is the same basis a CA would use off a closing balance sheet.
-    const annualised = window > 0 ? consumedValue * (365 / window) : 0;
+    // Turnover: annualise the cost-of-goods-issued, then divide by the
+    // value actually held. Closing value stands in for average held — with
+    // no historical snapshots it is the honest approximation, and it is the
+    // same basis a CA would use off a closing balance sheet.
+    //
+    // Annualised over the span the ledger COVERS, not the requested window.
+    // Verified against real dev data: a tenant with 7 days of history was
+    // reporting 0.58x/yr because the other 83 days of the window were empty;
+    // over the real span the same figures give 7.5x/yr.
+    const spanDays = Math.max(1, num(r.span_days));
+    const annualised = consumedValue * (365 / spanDays);
     const turnover = totalValue > 0 ? annualised / totalValue : null;
 
     return {
       windowDays: window,
+      /** Days of the window the ledger actually covers — under the full
+       *  window the UI should caveat the turnover figure. */
+      dataSpanDays: Math.round(spanDays),
       totalValue,
       totalQty: num(r.total_qty),
       skuInStock: r.sku_in_stock,

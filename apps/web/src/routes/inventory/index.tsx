@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import {
   Boxes, PackagePlus, PackageMinus, AlertTriangle, Warehouse, CalendarClock,
   PackageX, ArrowDownToLine, ArrowUpFromLine, History, AlarmClock, BarChart3,
-  Truck, MoveRight, PackageCheck,
+  Truck, MoveRight, PackageCheck, TrendingUp,
 } from 'lucide-react';
 import { StockHighlightsCard } from '@/components/inventory/stock-highlights-card';
 import {
@@ -116,6 +116,7 @@ export function InventoryDashboardPage() {
             <ActionCard icon={PackageMinus} title="Dispatch stock" body="Generate a delivery note" to="/inventory/delivery/new" />
             <ActionCard icon={MoveRight} title="Transfer" body="Move stock between warehouses" to="/inventory/transfers/new" />
             <ActionCard icon={Truck} title="On-hand stock" body="Live qty + value" to="/inventory/stock/on-hand" />
+            <ActionCard icon={TrendingUp} title="Analytics" body="Turnover, risk, what runs out next" to="/inventory/analytics" />
             <ActionCard icon={BarChart3} title="Reports" body="Valuation, ageing, movement" to="/inventory/reports/valuation" />
           </div>
         </div>

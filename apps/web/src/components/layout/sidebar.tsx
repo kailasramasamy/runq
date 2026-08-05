@@ -242,6 +242,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
   {
     label: 'Reports',
     items: [
+      { key: 'inv-analytics', label: 'Analytics', icon: TrendingUp, path: '/inventory/analytics' },
       { key: 'inv-summary', label: 'Stock summary', icon: Layers, path: '/inventory/reports/summary' },
       { key: 'inv-valuation', label: 'Valuation', icon: Wallet, path: '/inventory/reports/valuation' },
       { key: 'inv-ageing', label: 'Ageing', icon: History, path: '/inventory/reports/ageing' },
