@@ -51,8 +51,17 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
       ref.invalidate(purchaseOrderDetailProvider(widget.poId));
       ref.invalidate(purchaseOrderListProvider);
       if (!mounted) return;
-      showRunqSnack(context, 'PO sent — opening share sheet', kind: SnackKind.success);
-      await _sharePdf(po);
+      // The server has marked it sent, but the vendor only has it once the
+      // share sheet actually goes through — so confirm after, not before.
+      final shared = await _sharePdf(po);
+      if (!mounted) return;
+      showRunqSnack(
+        context,
+        shared
+            ? 'PO ${po.poNumber} sent to ${po.vendorName}'
+            : 'PO ${po.poNumber} marked as sent — not shared yet',
+        kind: shared ? SnackKind.success : SnackKind.info,
+      );
     } catch (e) {
       if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);
     } finally {
@@ -60,27 +69,33 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
     }
   }
 
-  Future<void> _sharePdf(PurchaseOrderWithLines po) async {
+  /// Returns true only when the share sheet actually handed the PO off —
+  /// dismissing it leaves the vendor without the document, and the caller
+  /// words its confirmation accordingly.
+  Future<bool> _sharePdf(PurchaseOrderWithLines po) async {
     final box = context.findRenderObject() as RenderBox?;
     final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
     try {
       final result = await purchaseRepo.pdfBytes(widget.poId);
-      if (!mounted) return;
+      if (!mounted) return false;
       final fileName = result.fileName ?? '${po.poNumber}.pdf';
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fileName');
       await file.writeAsBytes(result.bytes, flush: true);
-      if (!mounted) return;
-      await Share.shareXFiles(
+      if (!mounted) return false;
+      final shared = await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf', name: fileName)],
         subject: 'Purchase Order ${po.poNumber}',
         text: _buildShareText(po),
         sharePositionOrigin: origin,
       );
+      return shared.status == ShareResultStatus.success;
     } on ApiException catch (e) {
       if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+      return false;
     } catch (_) {
       if (mounted) showRunqSnack(context, 'Could not generate PO PDF', kind: SnackKind.error);
+      return false;
     }
   }
 

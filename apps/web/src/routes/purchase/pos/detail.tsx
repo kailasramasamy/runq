@@ -140,7 +140,9 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
   function handleSend() {
     sendM.mutate(poId, {
       onSuccess: () => {
-        toast('PO sent — downloading PDF to share', 'success');
+        // "Sent" is the PO's status, not proof the vendor has it — the
+        // download is still the user's to forward.
+        toast(`${po!.poNumber} marked as sent — PDF downloaded to share`, 'success');
         // One-tap-after-send: trigger the download so the user can attach it
         // to WhatsApp/email without a second click.
         void downloadPdf();

@@ -60,6 +60,7 @@ function buildLineRows(
   showHsn: boolean,
   showTax: boolean,
   showMoney: boolean,
+  showUnit: boolean,
 ): string {
   return lines.map((l, i) => {
     const taxRateCell = showTax
@@ -70,12 +71,10 @@ function buildLineRows(
     return `
       <tr>
         <td class="cell center">${i + 1}</td>
-        <td class="cell">
-          <div>${escapeHtml(l.description)}</div>
-          ${l.uom ? `<div class="cell-sub">UOM: ${escapeHtml(l.uom)}</div>` : ''}
-        </td>
+        <td class="cell">${escapeHtml(l.description)}</td>
         ${hsnCell}
         <td class="cell right">${fmtINR(Number(l.qtyOrdered))}</td>
+        ${showUnit ? `<td class="cell">${escapeHtml(l.uom ?? '')}</td>` : ''}
         ${showMoney ? `<td class="cell right">${fmtINR(Number(l.unitRate))}</td>
         <td class="cell right">${fmtINR(Number(l.amount))}</td>` : ''}
         ${taxRateCell}
@@ -137,8 +136,10 @@ export function renderPoHTML(
   const showHsn = lines.some((l) => !!l.hsnSacCode);
   const showMoney = po.total > 0;
   const showTax = po.taxTotal > 0;
-  const colCount = 3 + (showMoney ? 2 : 0) + (showHsn ? 1 : 0) + (showTax ? 2 : 0);
-  const itemRows = buildLineRows(lines, showHsn, showTax, showMoney);
+  const showUnit = lines.some((l) => !!l.uom);
+  const colCount = 3 + (showMoney ? 2 : 0) + (showHsn ? 1 : 0)
+    + (showTax ? 2 : 0) + (showUnit ? 1 : 0);
+  const itemRows = buildLineRows(lines, showHsn, showTax, showMoney, showUnit);
   const totalsRows = showMoney ? buildTotals(po, colCount) : '';
   const vendorExtras = [
     vendor.pan ? `PAN: ${escapeHtml(vendor.pan)}` : '',
@@ -190,6 +191,7 @@ ${buildStyleBlock()}
         <th style="text-align:left">Description</th>
         ${showHsn ? '<th style="text-align:left;width:80px">HSN/SAC</th>' : ''}
         <th style="text-align:right;width:70px">Qty</th>
+        ${showUnit ? '<th style="text-align:left;width:60px">Unit</th>' : ''}
         ${showMoney ? `<th style="text-align:right;width:80px">Rate (₹)</th>
         <th style="text-align:right;width:100px">Amount (₹)</th>` : ''}
         ${showTax ? '<th style="text-align:center;width:55px">Tax %</th><th style="text-align:right;width:90px">Tax (₹)</th>' : ''}
@@ -244,7 +246,6 @@ function buildStyleBlock(): string {
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; }
   th { background: #f4f6f8; font-size: 11px; text-transform: uppercase; color: #555; padding: 6px 8px; border: 1px solid #ddd; letter-spacing: 0.3px; }
   .cell { padding: 6px 8px; border: 1px solid #ddd; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-  .cell-sub { color: #888; font-size: 10px; margin-top: 2px; }
   .center { text-align: center; }
   .right { text-align: right; }
   .totals-row td { border: 1px solid #ddd; padding: 6px 8px; }
