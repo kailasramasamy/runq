@@ -32,6 +32,7 @@ class InventoryAnalyticsScreen extends ConsumerWidget {
     final perf = ref.watch(invPerformanceProvider);
     final risk = ref.watch(invStockRiskProvider);
     final forecast = ref.watch(invForecastProvider);
+    final replenishment = ref.watch(invReplenishmentProvider);
     final trend = ref.watch(invTrendProvider);
 
     return Scaffold(
@@ -49,6 +50,7 @@ class InventoryAnalyticsScreen extends ConsumerWidget {
                   ref.invalidate(invPerformanceProvider);
                   ref.invalidate(invStockRiskProvider);
                   ref.invalidate(invForecastProvider);
+                  ref.invalidate(invReplenishmentProvider);
                   ref.invalidate(invTrendProvider);
                 },
                 child: ListView(
@@ -86,6 +88,13 @@ class InventoryAnalyticsScreen extends ConsumerWidget {
                       loading: () => const _ChartSkeleton(label: 'Stock at risk'),
                       error: (_, __) => const SizedBox.shrink(),
                       data: (r) => _RiskCard(risk: r),
+                    ),
+                    const SizedBox(height: 14),
+                    replenishment.when(
+                      loading: () =>
+                          const _ChartSkeleton(label: 'Suggested reorder levels'),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (d) => _ReplenishmentCard(data: d),
                     ),
                     const SizedBox(height: 14),
                     forecast.when(

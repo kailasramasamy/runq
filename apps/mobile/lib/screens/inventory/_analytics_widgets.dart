@@ -82,7 +82,9 @@ class _Scorecard extends StatelessWidget {
                 icon: Icons.ac_unit_rounded,
                 label: 'DEAD STOCK',
                 value: _inr(h.deadValue),
-                sub: '${h.deadValuePct.round()}% · ${h.deadSkuCount} SKUs',
+                sub: h.excessValue > 0
+                    ? '+ ${_inr(h.excessValue)} excess'
+                    : '${h.deadValuePct.round()}% · ${h.deadSkuCount} SKUs',
                 tone: deadTone,
               ),
             ),

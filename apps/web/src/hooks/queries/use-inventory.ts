@@ -1061,10 +1061,18 @@ export interface InventoryHealth {
   deadValue: number;
   deadSkuCount: number;
   deadValuePct: number;
+  /** The turnover divisor — average value held, not the closing balance. */
+  averageInventory: number;
+  /** Moves, but holds more cover than the threshold. Cash, not scrap. */
+  excessValue: number;
+  excessSkuCount: number;
+  excessCoverDays: number;
 }
 
 export type VelocityBand = 'fast' | 'medium' | 'slow' | 'dead';
 export type AbcClass = 'A' | 'B' | 'C';
+/** How predictable demand is: X steady, Y variable, Z erratic. */
+export type XyzClass = 'X' | 'Y' | 'Z';
 
 export interface SkuPerformance {
   itemId: string;
@@ -1081,8 +1089,40 @@ export interface SkuPerformance {
   turnover: number | null;
   velocity: VelocityBand;
   abcClass: AbcClass;
+  demandCv: number | null;
+  xyzClass: XyzClass | null;
+  isExcess: boolean;
+  excessValue: number;
   hasEnoughHistory: boolean;
   lastMovementAt: string | null;
+}
+
+export interface ReplenishmentRow {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  onHand: number;
+  avgDailyDemand: number;
+  demandSd: number;
+  leadTimeDays: number;
+  leadTimeAssumed: boolean;
+  safetyStock: number;
+  suggestedReorderLevel: number;
+  currentReorderLevel: number | null;
+  gap: number | null;
+  suggestedOrderQty: number;
+  breachesSuggested: boolean;
+  hasReliableSigma: boolean;
+}
+
+export interface Replenishment {
+  serviceLevel: number;
+  z: number;
+  defaultLeadTimeDays: number;
+  rows: ReplenishmentRow[];
+  actionableCount: number;
+  unconfiguredCount: number;
 }
 
 export interface StockRiskRow {
@@ -1189,6 +1229,16 @@ export function useInventoryForecast(
     queryKey: ['inv', 'analytics', 'forecast', filter] as const,
     queryFn: () =>
       api.get<{ data: InventoryForecast }>(`/inventory/analytics/forecast${qs(filter)}`).then(get),
+  });
+}
+
+export function useReplenishment(
+  filter: { window?: number; warehouseId?: string; serviceLevel?: number } = {},
+) {
+  return useQuery({
+    queryKey: ['inv', 'analytics', 'replenishment', filter] as const,
+    queryFn: () =>
+      api.get<{ data: Replenishment }>(`/inventory/analytics/replenishment${qs(filter)}`).then(get),
   });
 }
 

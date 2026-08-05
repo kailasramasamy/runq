@@ -496,6 +496,19 @@ class InventoryRepo {
         .toList();
   }
 
+  Future<InvReplenishment> analyticsReplenishment({
+    int window = 90,
+    int serviceLevel = 95,
+    String? warehouseId,
+  }) async {
+    final res = await apiClient.get('/inventory/analytics/replenishment${_qs({
+      'window': '$window',
+      'serviceLevel': '$serviceLevel',
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return InvReplenishment.fromJson(_data(res));
+  }
+
   String _qs(Map<String, String> qp) =>
       qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 

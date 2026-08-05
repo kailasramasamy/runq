@@ -18,6 +18,7 @@ import {
   movementSummaryFilterSchema, deadStockFilterSchema, serialLookupFilterSchema,
   inventoryAnalyticsFilterSchema, inventoryPerformanceFilterSchema,
   inventoryTrendFilterSchema, inventoryForecastFilterSchema,
+  inventoryReplenishmentFilterSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -36,6 +37,7 @@ import { GrnExtractService } from './grn-extract.service';
 import { ReportsService } from './reports.service';
 import { InventoryAnalyticsService } from './analytics.service';
 import { InventoryForecastService } from './analytics-forecast.service';
+import { ReplenishmentService } from './replenishment.service';
 import { SerialService } from './serial.service';
 import { NotFoundError } from '../../utils/errors';
 
@@ -531,6 +533,15 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const filter = inventoryTrendFilterSchema.parse(req.query);
     const svc = new InventoryForecastService(req.server.db, req.tenantId);
     return { data: await svc.trend(filter) };
+  });
+
+  // What the reorder level SHOULD be, from demand + variability + lead
+  // time. The operational alert list only reads a hand-typed reorder_level;
+  // this is what tells you the number to type.
+  app.get('/analytics/replenishment', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryReplenishmentFilterSchema.parse(req.query);
+    const svc = new ReplenishmentService(req.server.db, req.tenantId);
+    return { data: await svc.suggestions(filter) };
   });
 
   // Drill-down behind a forecast row: the raw monthly demand its run-rate

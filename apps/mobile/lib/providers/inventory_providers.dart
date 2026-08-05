@@ -176,3 +176,10 @@ final invTrendProvider =
     FutureProvider.autoDispose<List<InvTrendPoint>>((ref) async {
   return inventoryRepo.analyticsTrend(months: 6);
 });
+
+final invReplenishmentProvider =
+    FutureProvider.autoDispose<InvReplenishment>((ref) async {
+  return inventoryRepo.analyticsReplenishment(
+    window: ref.watch(invAnalyticsWindowProvider),
+  );
+});

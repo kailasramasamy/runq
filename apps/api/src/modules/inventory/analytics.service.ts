@@ -2,12 +2,20 @@ import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import type {
   InventoryAnalyticsFilter, InventoryPerformanceFilter,
-  AbcClass, VelocityBand, StockRiskLevel,
+  AbcClass, VelocityBand, StockRiskLevel, XyzClass,
 } from '@runq/validators';
+import { XYZ_STABLE_MAX_CV, XYZ_VARIABLE_MAX_CV } from '@runq/validators';
 import {
   batchExpiryCte, consumptionCte, onHandCte, warehouseFilter,
+  averageInventoryCte, demandStatsCte,
   type QueryResult, num,
 } from './analytics-sql';
+import {
+  FAST_MAX_COVER_DAYS, MEDIUM_MAX_COVER_DAYS, A_CLASS_SHARE, B_CLASS_SHARE,
+  EXCESS_COVER_DAYS, MIN_HISTORY_DAYS, type SkuPerformance,
+} from './analytics-types';
+
+export { MIN_HISTORY_DAYS, type SkuPerformance } from './analytics-types';
 
 /**
  * Inventory analytics — the decision layer above the operational reports.
@@ -19,44 +27,6 @@ import {
  *
  * Forecasting lives next door in analytics-forecast.service.ts.
  */
-
-/**
- * Days-of-cover cut-offs for the velocity bands. Chosen against how an SME
- * actually restocks: under a month of cover is fast-moving and needs
- * watching, over a quarter is capital sitting still.
- */
-const FAST_MAX_COVER_DAYS = 30;
-const MEDIUM_MAX_COVER_DAYS = 90;
-
-/** Pareto cut-offs on cumulative consumption value. */
-const A_CLASS_SHARE = 0.8;
-const B_CLASS_SHARE = 0.95;
-
-export interface SkuPerformance {
-  itemId: string;
-  itemName: string;
-  itemSku: string | null;
-  itemUnit: string | null;
-  category: string | null;
-  onHandQty: number;
-  onHandValue: number;
-  consumedQty: number;
-  consumedValue: number;
-  /** Units per day, over the SKU's active span inside the window. */
-  runRate: number;
-  /** On-hand ÷ run rate. Null when the SKU has no demand to divide by. */
-  daysOfCover: number | null;
-  /** Annualised consumption value ÷ average inventory value held. */
-  turnover: number | null;
-  velocity: VelocityBand;
-  abcClass: AbcClass;
-  /** False when the SKU has too little history to judge — UI must say so. */
-  hasEnoughHistory: boolean;
-  lastMovementAt: string | null;
-}
-
-/** Below this many days of movement history, predictions are not offered. */
-export const MIN_HISTORY_DAYS = 14;
 
 export class InventoryAnalyticsService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -118,6 +88,20 @@ export class InventoryAnalyticsService {
         WHERE sl.tenant_id = ${this.tenantId}
           AND sl.moved_at >= NOW() - (${window} || ' days')::interval
           ${warehouseFilter('sl', warehouseId)}
+      ),
+      avg_inv AS (${averageInventoryCte(this.tenantId, window, warehouseId)}),
+      excess AS (
+        SELECT
+          COALESCE(SUM(
+            GREATEST(0, o.qty - (c.qty_out / NULLIF(c.active_days, 0)) * ${EXCESS_COVER_DAYS})
+            * (o.value / NULLIF(o.qty, 0))
+          ), 0) AS value,
+          COUNT(*) FILTER (
+            WHERE o.qty > (c.qty_out / NULLIF(c.active_days, 0)) * ${EXCESS_COVER_DAYS}
+          ) AS sku_count
+        FROM on_hand o
+        INNER JOIN consumption c ON c.item_id = o.item_id
+        WHERE o.qty > 0 AND c.qty_out > 0
       )
       SELECT
         (SELECT COALESCE(SUM(value), 0) FROM on_hand)::text          AS total_value,
@@ -138,12 +122,16 @@ export class InventoryAnalyticsService {
         (SELECT COUNT(*) FROM on_hand o
            LEFT JOIN consumption c ON c.item_id = o.item_id
            WHERE c.item_id IS NULL AND o.qty > 0)::int               AS dead_sku,
-        (SELECT days FROM data_span)::text                           AS span_days
+        (SELECT days FROM data_span)::text                           AS span_days,
+        (SELECT avg_value FROM avg_inv)::text                        AS avg_inventory,
+        (SELECT value FROM excess)::text                             AS excess_value,
+        (SELECT sku_count FROM excess)::int                          AS excess_sku
     `) as unknown as QueryResult<{
       total_value: string; total_qty: string; sku_in_stock: number;
       consumed_value: string; expiring_value: string;
       below_reorder: number; out_of_stock: number;
       dead_value: string; dead_sku: number; span_days: string;
+      avg_inventory: string; excess_value: string; excess_sku: number;
     }>;
 
     const r = result.rows[0]!;
@@ -151,18 +139,23 @@ export class InventoryAnalyticsService {
     const consumedValue = num(r.consumed_value);
     const deadValue = num(r.dead_value);
 
-    // Turnover: annualise the cost-of-goods-issued, then divide by the
-    // value actually held. Closing value stands in for average held — with
-    // no historical snapshots it is the honest approximation, and it is the
-    // same basis a CA would use off a closing balance sheet.
+    // Turnover = annualised cost-of-goods-issued / AVERAGE inventory held.
+    //
+    // Average, not closing. The textbook ratio divides by average inventory;
+    // dividing by the closing balance punishes a business that restocked
+    // just before period end and flatters one that ran itself dry — exactly
+    // the cases you most need to read correctly. Sampled at weekly closes.
     //
     // Annualised over the span the ledger COVERS, not the requested window.
     // Verified against real dev data: a tenant with 7 days of history was
-    // reporting 0.58x/yr because the other 83 days of the window were empty;
-    // over the real span the same figures give 7.5x/yr.
+    // reporting 0.58x/yr because the other 83 days of the window were empty.
     const spanDays = Math.max(1, num(r.span_days));
+    const avgInventory = num(r.avg_inventory);
     const annualised = consumedValue * (365 / spanDays);
-    const turnover = totalValue > 0 ? annualised / totalValue : null;
+    // Closing is the fallback only when no weekly sample held any stock —
+    // a ledger too short to average. Better than reporting nothing.
+    const inventoryBase = avgInventory > 0 ? avgInventory : totalValue;
+    const turnover = inventoryBase > 0 ? annualised / inventoryBase : null;
 
     return {
       windowDays: window,
@@ -183,6 +176,12 @@ export class InventoryAnalyticsService {
       deadValue,
       deadSkuCount: r.dead_sku,
       deadValuePct: totalValue > 0 ? (deadValue / totalValue) * 100 : 0,
+      /** The turnover divisor — average value held, not the closing balance. */
+      averageInventory: avgInventory,
+      /** Moves, but holds more than EXCESS_COVER_DAYS of demand. Cash, not scrap. */
+      excessValue: num(r.excess_value),
+      excessSkuCount: r.excess_sku,
+      excessCoverDays: EXCESS_COVER_DAYS,
     };
   }
 
@@ -193,9 +192,13 @@ export class InventoryAnalyticsService {
    */
   async performance(filter: InventoryPerformanceFilter): Promise<SkuPerformance[]> {
     const { warehouseId, window, limit } = filter;
+    // Defensive: callers that bypass the zod default still get a threshold
+    // rather than NaN silently disabling every excess flag.
+    const excessCoverDays = filter.excessCoverDays ?? EXCESS_COVER_DAYS;
     const result = await this.db.execute(sql`
       WITH on_hand AS (${onHandCte(this.tenantId, warehouseId)}),
-      consumption AS (${consumptionCte(this.tenantId, window, warehouseId)})
+      consumption AS (${consumptionCte(this.tenantId, window, warehouseId)}),
+      stats AS (${demandStatsCte(this.tenantId, window, warehouseId)})
       SELECT
         i.id AS item_id, i.name AS item_name, i.sku AS item_sku, i.unit AS item_unit,
         COALESCE(p.name, c.name) AS category,
@@ -204,10 +207,14 @@ export class InventoryAnalyticsService {
         COALESCE(cs.qty_out, 0)::text       AS consumed_qty,
         COALESCE(cs.value_out, 0)::text     AS consumed_value,
         COALESCE(cs.active_days, 0)::text   AS active_days,
+        st.mean_weekly::text                AS mean_weekly,
+        st.sd_weekly::text                  AS sd_weekly,
+        st.weeks                            AS weeks,
         o.last_movement_at::text            AS last_movement_at
       FROM items i
       LEFT JOIN on_hand o     ON o.item_id = i.id
       LEFT JOIN consumption cs ON cs.item_id = i.id
+      LEFT JOIN stats st      ON st.item_id = i.id
       LEFT JOIN categories c  ON c.id = i.category_id
       LEFT JOIN categories p  ON p.id = c.parent_id
       WHERE i.tenant_id = ${this.tenantId}
@@ -222,10 +229,11 @@ export class InventoryAnalyticsService {
       item_unit: string | null; category: string | null;
       on_hand_qty: string; on_hand_value: string;
       consumed_qty: string; consumed_value: string; active_days: string;
+      mean_weekly: string | null; sd_weekly: string | null; weeks: number | null;
       last_movement_at: string | null;
     }>;
 
-    const rows = result.rows.map((r) => this.toPerformance(r, window));
+    const rows = result.rows.map((r) => this.toPerformance(r, window, excessCoverDays));
     return this.assignAbc(rows);
   }
 
@@ -236,9 +244,11 @@ export class InventoryAnalyticsService {
       item_unit: string | null; category: string | null;
       on_hand_qty: string; on_hand_value: string;
       consumed_qty: string; consumed_value: string; active_days: string;
+      mean_weekly: string | null; sd_weekly: string | null; weeks: number | null;
       last_movement_at: string | null;
     },
     window: number,
+    excessCoverDays: number,
   ): SkuPerformance {
     const onHandQty = num(r.on_hand_qty);
     const onHandValue = num(r.on_hand_value);
@@ -258,6 +268,28 @@ export class InventoryAnalyticsService {
     else if (daysOfCover <= MEDIUM_MAX_COVER_DAYS) velocity = 'medium';
     else velocity = 'slow';
 
+    // XYZ off the WEEKLY coefficient of variation. Needs at least three
+    // weekly observations before a spread means anything — below that the
+    // SKU is returned unclassified rather than labelled on noise.
+    const meanWeekly = num(r.mean_weekly);
+    const weeks = r.weeks ?? 0;
+    const demandCv =
+      weeks >= 3 && meanWeekly > 0 ? num(r.sd_weekly) / meanWeekly : null;
+    const xyzClass: XyzClass | null =
+      demandCv === null
+        ? null
+        : demandCv <= XYZ_STABLE_MAX_CV
+          ? 'X'
+          : demandCv <= XYZ_VARIABLE_MAX_CV
+            ? 'Y'
+            : 'Z';
+
+    // Excess is measured in stock held beyond the cover threshold, valued
+    // at the SKU's own average cost.
+    const targetQty = runRate * excessCoverDays;
+    const excessQty = runRate > 0 ? Math.max(0, onHandQty - targetQty) : 0;
+    const unitCost = onHandQty > 0 ? onHandValue / onHandQty : 0;
+
     return {
       itemId: r.item_id,
       itemName: r.item_name,
@@ -273,6 +305,10 @@ export class InventoryAnalyticsService {
       turnover,
       velocity,
       abcClass: 'C',
+      demandCv,
+      xyzClass,
+      isExcess: excessQty > 0,
+      excessValue: excessQty * unitCost,
       hasEnoughHistory: activeDays >= MIN_HISTORY_DAYS,
       lastMovementAt: r.last_movement_at,
     };

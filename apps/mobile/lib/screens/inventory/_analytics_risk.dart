@@ -222,3 +222,121 @@ class _ForecastCard extends StatelessWidget {
   }
 }
 
+
+
+// ── Suggested reorder levels ─────────────────────────────────────────────
+
+/// What the reorder level SHOULD be. The operational alert list only reads
+/// a hand-typed level, so a SKU nobody configured never raises an alert no
+/// matter how thin it gets — this is the card that says so.
+class _ReplenishmentCard extends StatelessWidget {
+  final InvReplenishment data;
+  const _ReplenishmentCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final rows = data.rows.take(6).toList();
+    if (rows.isEmpty) {
+      return const _EmptyCard(
+        title: 'Suggested reorder levels',
+        message: 'No item has enough demand history to compute a reorder point yet.',
+      );
+    }
+    return InvCard(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Suggested reorder levels',
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          const SizedBox(height: 2),
+          Text(
+            '(demand/day x lead time) + safety stock, at ${data.serviceLevel}% service',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+          if (data.unconfiguredCount > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: InvColors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${data.unconfiguredCount} item${data.unconfiguredCount == 1 ? '' : 's'} '
+                'have no reorder level set — alerts stay silent for them.',
+                style: RunqText.micro.copyWith(
+                    color: InvColors.amberDeep, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final r in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(r.itemName,
+                                  style: RunqText.caption.copyWith(
+                                      color: t.ink, fontWeight: FontWeight.w600),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                            if (r.breachesSuggested) ...[
+                              const SizedBox(width: 6),
+                              _LevelBadge(level: 'out'),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_qty(r.avgDailyDemand)}/day '
+                          '\u00b1${_qty(r.demandSd)} \u00b7 lead ${r.leadTimeDays}d'
+                          '${r.leadTimeAssumed ? '*' : ''}',
+                          style: RunqText.micro.copyWith(color: t.muted2),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_qty(r.suggestedReorderLevel),
+                          style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                      Text(
+                        r.currentReorderLevel == null
+                            ? 'not set'
+                            : 'now ${_qty(r.currentReorderLevel!)}',
+                        style: RunqText.micro.copyWith(
+                          color: (r.gap ?? 0) > 0 ? InvColors.error : t.muted2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (data.rows.any((r) => r.leadTimeAssumed))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '* lead time assumed at ${data.defaultLeadTimeDays} days.',
+                style: RunqText.micro.copyWith(color: t.muted2),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

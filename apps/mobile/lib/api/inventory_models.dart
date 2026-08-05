@@ -1163,6 +1163,10 @@ class InvHealth {
   final double deadValue;
   final int deadSkuCount;
   final double deadValuePct;
+  final double averageInventory;
+  final double excessValue;
+  final int excessSkuCount;
+  final int excessCoverDays;
 
   const InvHealth({
     required this.windowDays,
@@ -1178,6 +1182,10 @@ class InvHealth {
     required this.deadValue,
     required this.deadSkuCount,
     required this.deadValuePct,
+    required this.averageInventory,
+    required this.excessValue,
+    required this.excessSkuCount,
+    required this.excessCoverDays,
   });
 
   factory InvHealth.fromJson(Map<String, dynamic> j) => InvHealth(
@@ -1194,6 +1202,10 @@ class InvHealth {
         deadValue: _d(j['deadValue']),
         deadSkuCount: _i(j['deadSkuCount']),
         deadValuePct: _d(j['deadValuePct']),
+        averageInventory: _d(j['averageInventory']),
+        excessValue: _d(j['excessValue']),
+        excessSkuCount: _i(j['excessSkuCount']),
+        excessCoverDays: _i(j['excessCoverDays']),
       );
 }
 
@@ -1209,6 +1221,9 @@ class InvSkuPerformance {
   final double? daysOfCover;
   final String velocity; // fast | medium | slow | dead
   final String abcClass; // A | B | C
+  final String? xyzClass; // X | Y | Z, null until 3 full weeks exist
+  final double? demandCv;
+  final bool isExcess;
   final bool hasEnoughHistory;
 
   const InvSkuPerformance({
@@ -1223,6 +1238,9 @@ class InvSkuPerformance {
     required this.daysOfCover,
     required this.velocity,
     required this.abcClass,
+    required this.xyzClass,
+    required this.demandCv,
+    required this.isExcess,
     required this.hasEnoughHistory,
   });
 
@@ -1238,6 +1256,9 @@ class InvSkuPerformance {
         daysOfCover: j['daysOfCover'] == null ? null : _d(j['daysOfCover']),
         velocity: '${j['velocity']}',
         abcClass: '${j['abcClass']}',
+        xyzClass: j['xyzClass'] as String?,
+        demandCv: j['demandCv'] == null ? null : _d(j['demandCv']),
+        isExcess: j['isExcess'] == true,
         hasEnoughHistory: j['hasEnoughHistory'] == true,
       );
 }
@@ -1399,5 +1420,88 @@ class InvTrendPoint {
         closingValue: _d(j['closingValue']),
         inValue: _d(j['inValue']),
         outValue: _d(j['outValue']),
+      );
+}
+
+/// One row of the computed reorder-level table. Mirrors
+/// apps/api/src/modules/inventory/replenishment.service.ts.
+class InvReplenishmentRow {
+  final String itemId;
+  final String itemName;
+  final String? itemUnit;
+  final double onHand;
+  final double avgDailyDemand;
+  final double demandSd;
+  final int leadTimeDays;
+  final bool leadTimeAssumed;
+  final double safetyStock;
+  final double suggestedReorderLevel;
+  final double? currentReorderLevel;
+  final double? gap;
+  final double suggestedOrderQty;
+  final bool breachesSuggested;
+  final bool hasReliableSigma;
+
+  const InvReplenishmentRow({
+    required this.itemId,
+    required this.itemName,
+    required this.itemUnit,
+    required this.onHand,
+    required this.avgDailyDemand,
+    required this.demandSd,
+    required this.leadTimeDays,
+    required this.leadTimeAssumed,
+    required this.safetyStock,
+    required this.suggestedReorderLevel,
+    required this.currentReorderLevel,
+    required this.gap,
+    required this.suggestedOrderQty,
+    required this.breachesSuggested,
+    required this.hasReliableSigma,
+  });
+
+  factory InvReplenishmentRow.fromJson(Map<String, dynamic> j) => InvReplenishmentRow(
+        itemId: '${j['itemId']}',
+        itemName: '${j['itemName']}',
+        itemUnit: j['itemUnit'] as String?,
+        onHand: _d(j['onHand']),
+        avgDailyDemand: _d(j['avgDailyDemand']),
+        demandSd: _d(j['demandSd']),
+        leadTimeDays: _i(j['leadTimeDays']),
+        leadTimeAssumed: j['leadTimeAssumed'] == true,
+        safetyStock: _d(j['safetyStock']),
+        suggestedReorderLevel: _d(j['suggestedReorderLevel']),
+        currentReorderLevel:
+            j['currentReorderLevel'] == null ? null : _d(j['currentReorderLevel']),
+        gap: j['gap'] == null ? null : _d(j['gap']),
+        suggestedOrderQty: _d(j['suggestedOrderQty']),
+        breachesSuggested: j['breachesSuggested'] == true,
+        hasReliableSigma: j['hasReliableSigma'] == true,
+      );
+}
+
+class InvReplenishment {
+  final int serviceLevel;
+  final int defaultLeadTimeDays;
+  final List<InvReplenishmentRow> rows;
+  final int actionableCount;
+  final int unconfiguredCount;
+
+  const InvReplenishment({
+    required this.serviceLevel,
+    required this.defaultLeadTimeDays,
+    required this.rows,
+    required this.actionableCount,
+    required this.unconfiguredCount,
+  });
+
+  factory InvReplenishment.fromJson(Map<String, dynamic> j) => InvReplenishment(
+        serviceLevel: _i(j['serviceLevel']),
+        defaultLeadTimeDays: _i(j['defaultLeadTimeDays']),
+        rows: ((j['rows'] as List?) ?? [])
+            .map((e) => InvReplenishmentRow.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+        actionableCount: _i(j['actionableCount']),
+        unconfiguredCount: _i(j['unconfiguredCount']),
       );
 }
