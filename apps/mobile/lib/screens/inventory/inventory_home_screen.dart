@@ -243,6 +243,49 @@ class _BellButton extends StatelessWidget {
   }
 }
 
+/// Entry point to the analytics screen, sitting in the hero footer beside
+/// the warehouse pill. Styled to match it — same translucent-on-gradient
+/// treatment — so the two read as one row of controls rather than a
+/// decoration and a button.
+class _AnalyticsPill extends StatelessWidget {
+  const _AnalyticsPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        // push, not go: analytics is not a bottom-nav tab, so it needs a
+        // back affordance. Matches the Low Stock tile in the same card.
+        onTap: () => context.push('/inventory/analytics'),
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 5, 10, 5),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.trending_up_rounded, size: 13, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                'Analytics',
+                style: RunqText.caption.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Hero card (Stock value + Active SKUs + warehouse pill) ───────────────
 
 class _HeroCard extends StatelessWidget {
@@ -326,13 +369,10 @@ class _HeroCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(child: _WarehousePill()),
-                Text(
-                  _todayLabel(),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xCCFFFFFF),
-                  ),
-                ),
+                // The date used to sit here, but the greeting directly above
+                // already carries it. Analytics earns the slot instead —
+                // otherwise it is buried three taps deep under More.
+                const _AnalyticsPill(),
               ],
             ),
           ],
@@ -345,15 +385,6 @@ class _HeroCard extends StatelessWidget {
         RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
         (m) => '${m[1]},',
       );
-
-  static String _todayLabel() {
-    final d = DateTime.now();
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
-  }
 }
 
 class _WarehousePill extends ConsumerWidget {
