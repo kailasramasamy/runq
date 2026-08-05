@@ -1140,3 +1140,264 @@ class InvActivity {
         warehouseName: (j['warehouseName'] as String?) ?? '',
       );
 }
+
+// ── Analytics ────────────────────────────────────────────────────────────
+// Mirrors apps/api/src/modules/inventory/analytics*.service.ts. The mobile
+// screen shows a condensed slice of what the web page does — scorecard,
+// value trend, velocity mix, risk and what runs out next.
+
+double _d(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+int _i(dynamic v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
+
+class InvHealth {
+  final int windowDays;
+  final int dataSpanDays;
+  final double totalValue;
+  final int skuInStock;
+  final double consumedValue;
+  final double? turnover;
+  final double? daysOnHand;
+  final double expiringValue;
+  final int belowReorder;
+  final int outOfStock;
+  final double deadValue;
+  final int deadSkuCount;
+  final double deadValuePct;
+
+  const InvHealth({
+    required this.windowDays,
+    required this.dataSpanDays,
+    required this.totalValue,
+    required this.skuInStock,
+    required this.consumedValue,
+    required this.turnover,
+    required this.daysOnHand,
+    required this.expiringValue,
+    required this.belowReorder,
+    required this.outOfStock,
+    required this.deadValue,
+    required this.deadSkuCount,
+    required this.deadValuePct,
+  });
+
+  factory InvHealth.fromJson(Map<String, dynamic> j) => InvHealth(
+        windowDays: _i(j['windowDays']),
+        dataSpanDays: _i(j['dataSpanDays']),
+        totalValue: _d(j['totalValue']),
+        skuInStock: _i(j['skuInStock']),
+        consumedValue: _d(j['consumedValue']),
+        turnover: j['turnover'] == null ? null : _d(j['turnover']),
+        daysOnHand: j['daysOnHand'] == null ? null : _d(j['daysOnHand']),
+        expiringValue: _d(j['expiringValue']),
+        belowReorder: _i(j['belowReorder']),
+        outOfStock: _i(j['outOfStock']),
+        deadValue: _d(j['deadValue']),
+        deadSkuCount: _i(j['deadSkuCount']),
+        deadValuePct: _d(j['deadValuePct']),
+      );
+}
+
+class InvSkuPerformance {
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final double onHandQty;
+  final double onHandValue;
+  final double consumedValue;
+  final double runRate;
+  final double? daysOfCover;
+  final String velocity; // fast | medium | slow | dead
+  final String abcClass; // A | B | C
+  final bool hasEnoughHistory;
+
+  const InvSkuPerformance({
+    required this.itemId,
+    required this.itemName,
+    required this.itemSku,
+    required this.itemUnit,
+    required this.onHandQty,
+    required this.onHandValue,
+    required this.consumedValue,
+    required this.runRate,
+    required this.daysOfCover,
+    required this.velocity,
+    required this.abcClass,
+    required this.hasEnoughHistory,
+  });
+
+  factory InvSkuPerformance.fromJson(Map<String, dynamic> j) => InvSkuPerformance(
+        itemId: '${j['itemId']}',
+        itemName: '${j['itemName']}',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        onHandQty: _d(j['onHandQty']),
+        onHandValue: _d(j['onHandValue']),
+        consumedValue: _d(j['consumedValue']),
+        runRate: _d(j['runRate']),
+        daysOfCover: j['daysOfCover'] == null ? null : _d(j['daysOfCover']),
+        velocity: '${j['velocity']}',
+        abcClass: '${j['abcClass']}',
+        hasEnoughHistory: j['hasEnoughHistory'] == true,
+      );
+}
+
+class InvRiskRow {
+  final String itemId;
+  final String itemName;
+  final String? itemUnit;
+  final double onHand;
+  final double? reorderLevel;
+  final double shortBy;
+  final int daysOut;
+  final int timesOutInWindow;
+  final String level; // out | critical | warning | ok
+
+  const InvRiskRow({
+    required this.itemId,
+    required this.itemName,
+    required this.itemUnit,
+    required this.onHand,
+    required this.reorderLevel,
+    required this.shortBy,
+    required this.daysOut,
+    required this.timesOutInWindow,
+    required this.level,
+  });
+
+  factory InvRiskRow.fromJson(Map<String, dynamic> j) => InvRiskRow(
+        itemId: '${j['itemId']}',
+        itemName: '${j['itemName']}',
+        itemUnit: j['itemUnit'] as String?,
+        onHand: _d(j['onHand']),
+        reorderLevel: j['reorderLevel'] == null ? null : _d(j['reorderLevel']),
+        shortBy: _d(j['shortBy']),
+        daysOut: _i(j['daysOut']),
+        timesOutInWindow: _i(j['timesOutInWindow']),
+        level: '${j['level']}',
+      );
+}
+
+class InvStockRisk {
+  final int windowDays;
+  final List<InvRiskRow> outOfStock;
+  final List<InvRiskRow> critical;
+  final List<InvRiskRow> warning;
+  final List<InvRiskRow> repeatOffenders;
+
+  const InvStockRisk({
+    required this.windowDays,
+    required this.outOfStock,
+    required this.critical,
+    required this.warning,
+    required this.repeatOffenders,
+  });
+
+  static List<InvRiskRow> _rows(dynamic v) => (v as List? ?? [])
+      .map((e) => InvRiskRow.fromJson((e as Map).cast<String, dynamic>()))
+      .toList();
+
+  factory InvStockRisk.fromJson(Map<String, dynamic> j) => InvStockRisk(
+        windowDays: _i(j['windowDays']),
+        outOfStock: _rows(j['outOfStock']),
+        critical: _rows(j['critical']),
+        warning: _rows(j['warning']),
+        repeatOffenders: _rows(j['repeatOffenders']),
+      );
+}
+
+class InvForecastRow {
+  final String itemId;
+  final String itemName;
+  final String? itemUnit;
+  final double onHand;
+  final double runRate;
+  final double? daysOfCover;
+  final String? stockoutDate;
+  final String? reorderByDate;
+  final double suggestedQty;
+  final bool hasEnoughHistory;
+  final bool isLate;
+  final bool isUrgent;
+
+  const InvForecastRow({
+    required this.itemId,
+    required this.itemName,
+    required this.itemUnit,
+    required this.onHand,
+    required this.runRate,
+    required this.daysOfCover,
+    required this.stockoutDate,
+    required this.reorderByDate,
+    required this.suggestedQty,
+    required this.hasEnoughHistory,
+    required this.isLate,
+    required this.isUrgent,
+  });
+
+  factory InvForecastRow.fromJson(Map<String, dynamic> j) => InvForecastRow(
+        itemId: '${j['itemId']}',
+        itemName: '${j['itemName']}',
+        itemUnit: j['itemUnit'] as String?,
+        onHand: _d(j['onHand']),
+        runRate: _d(j['runRate']),
+        daysOfCover: j['daysOfCover'] == null ? null : _d(j['daysOfCover']),
+        stockoutDate: j['stockoutDate'] as String?,
+        reorderByDate: j['reorderByDate'] as String?,
+        suggestedQty: _d(j['suggestedQty']),
+        hasEnoughHistory: j['hasEnoughHistory'] == true,
+        isLate: j['isLate'] == true,
+        isUrgent: j['isUrgent'] == true,
+      );
+}
+
+class InvForecast {
+  final List<InvForecastRow> items;
+  final int lateCount;
+  final int urgentCount;
+  final double expiryAtRisk;
+  final double expiredValue;
+
+  const InvForecast({
+    required this.items,
+    required this.lateCount,
+    required this.urgentCount,
+    required this.expiryAtRisk,
+    required this.expiredValue,
+  });
+
+  factory InvForecast.fromJson(Map<String, dynamic> j) {
+    final so = (j['stockout'] as Map?)?.cast<String, dynamic>() ?? {};
+    final ex = (j['expiry'] as Map?)?.cast<String, dynamic>() ?? {};
+    return InvForecast(
+      items: ((so['items'] as List?) ?? [])
+          .map((e) => InvForecastRow.fromJson((e as Map).cast<String, dynamic>()))
+          .toList(),
+      lateCount: _i(so['lateCount']),
+      urgentCount: _i(so['urgentCount']),
+      expiryAtRisk: _d(ex['totalAtRisk']),
+      expiredValue: _d(ex['alreadyExpiredValue']),
+    );
+  }
+}
+
+class InvTrendPoint {
+  final String bucket;
+  final double closingValue;
+  final double inValue;
+  final double outValue;
+
+  const InvTrendPoint({
+    required this.bucket,
+    required this.closingValue,
+    required this.inValue,
+    required this.outValue,
+  });
+
+  factory InvTrendPoint.fromJson(Map<String, dynamic> j) => InvTrendPoint(
+        bucket: '${j['bucket']}',
+        closingValue: _d(j['closingValue']),
+        inValue: _d(j['inValue']),
+        outValue: _d(j['outValue']),
+      );
+}

@@ -47,6 +47,8 @@ class InventoryMoreScreen extends ConsumerWidget {
               // On-hand / Moves / Alerts / Expiry are shell (bottom-nav)
               // routes — use go() to switch tabs. Pushing a shell route from
               // this rootKey page duplicates the ShellRoute page key.
+              SettingsRow(Icons.trending_up_rounded, 'Analytics',
+                  onTap: () => context.go('/inventory/analytics')),
               SettingsRow(Icons.inventory_2_outlined, 'Items',
                   onTap: () => context.push('/inventory/items')),
               SettingsRow(Icons.visibility_outlined, 'On-hand stock',

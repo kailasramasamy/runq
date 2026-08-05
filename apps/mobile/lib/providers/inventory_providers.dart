@@ -143,3 +143,36 @@ void invalidateStockViews(WidgetRef ref) {
   ref.invalidate(invExpiringProvider);
   ref.invalidate(invReorderAlertsProvider);
 }
+
+// ── Analytics ────────────────────────────────────────────────────────────
+// Every provider is keyed on the same window so the whole screen moves
+// together when the period chip changes.
+
+final invAnalyticsWindowProvider = StateProvider<int>((ref) => 90);
+
+final invHealthProvider = FutureProvider.autoDispose<InvHealth>((ref) async {
+  return inventoryRepo.analyticsHealth(window: ref.watch(invAnalyticsWindowProvider));
+});
+
+final invPerformanceProvider =
+    FutureProvider.autoDispose<List<InvSkuPerformance>>((ref) async {
+  return inventoryRepo.analyticsPerformance(
+    window: ref.watch(invAnalyticsWindowProvider),
+    limit: 200,
+  );
+});
+
+final invStockRiskProvider = FutureProvider.autoDispose<InvStockRisk>((ref) async {
+  return inventoryRepo.analyticsRisk(window: ref.watch(invAnalyticsWindowProvider));
+});
+
+final invForecastProvider = FutureProvider.autoDispose<InvForecast>((ref) async {
+  return inventoryRepo.analyticsForecast(
+    window: ref.watch(invAnalyticsWindowProvider),
+  );
+});
+
+final invTrendProvider =
+    FutureProvider.autoDispose<List<InvTrendPoint>>((ref) async {
+  return inventoryRepo.analyticsTrend(months: 6);
+});

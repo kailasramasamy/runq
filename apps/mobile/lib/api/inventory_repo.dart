@@ -436,6 +436,66 @@ class InventoryRepo {
     return _dataList(res).map(InvExpiringBatch.fromJson).toList();
   }
 
+  // ── Analytics ──────────────────────────────────────────────────────────
+
+  Future<InvHealth> analyticsHealth({int window = 90, String? warehouseId}) async {
+    final res = await apiClient.get('/inventory/analytics/health${_qs({
+      'window': '$window',
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return InvHealth.fromJson(_data(res));
+  }
+
+  Future<List<InvSkuPerformance>> analyticsPerformance({
+    int window = 90,
+    String? warehouseId,
+    int limit = 100,
+  }) async {
+    final res = await apiClient.get('/inventory/analytics/performance${_qs({
+      'window': '$window',
+      'limit': '$limit',
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return _dataList(res).map(InvSkuPerformance.fromJson).toList();
+  }
+
+  Future<InvStockRisk> analyticsRisk({int window = 90, String? warehouseId}) async {
+    final res = await apiClient.get('/inventory/analytics/stock-risk${_qs({
+      'window': '$window',
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return InvStockRisk.fromJson(_data(res));
+  }
+
+  Future<InvForecast> analyticsForecast({
+    int window = 90,
+    String? warehouseId,
+    int horizonDays = 60,
+  }) async {
+    final res = await apiClient.get('/inventory/analytics/forecast${_qs({
+      'window': '$window',
+      'horizonDays': '$horizonDays',
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return InvForecast.fromJson(_data(res));
+  }
+
+  Future<List<InvTrendPoint>> analyticsTrend({
+    int months = 6,
+    String bucket = 'week',
+    String? warehouseId,
+  }) async {
+    final res = await apiClient.get('/inventory/analytics/trend${_qs({
+      'months': '$months',
+      'bucket': bucket,
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    final d = _data(res);
+    return ((d['points'] as List?) ?? [])
+        .map((e) => InvTrendPoint.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   String _qs(Map<String, String> qp) =>
       qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 
