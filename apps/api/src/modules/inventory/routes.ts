@@ -16,6 +16,8 @@ import {
   upsertReorderRuleSchema, expiryFilterSchema,
   stockSummaryFilterSchema, valuationFilterSchema, ageingFilterSchema,
   movementSummaryFilterSchema, deadStockFilterSchema, serialLookupFilterSchema,
+  inventoryAnalyticsFilterSchema, inventoryPerformanceFilterSchema,
+  inventoryTrendFilterSchema, inventoryForecastFilterSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -32,6 +34,8 @@ import { StockTakeService } from './stock-take.service';
 import { ReorderService } from './reorder.service';
 import { GrnExtractService } from './grn-extract.service';
 import { ReportsService } from './reports.service';
+import { InventoryAnalyticsService } from './analytics.service';
+import { InventoryForecastService } from './analytics-forecast.service';
 import { SerialService } from './serial.service';
 import { NotFoundError } from '../../utils/errors';
 
@@ -490,4 +494,58 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
     return { data: await svc.warehouseBreakdown() };
   });
+
+  // ─── Analytics ───────────────────────────────────────────────────────
+  // Decision layer over the operational reports: how stock is performing,
+  // what is about to run out, and what is about to expire. All read-only
+  // and derived live from the ledger.
+  app.get('/analytics/health', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryAnalyticsFilterSchema.parse(req.query);
+    const svc = new InventoryAnalyticsService(req.server.db, req.tenantId);
+    return { data: await svc.health(filter) };
+  });
+
+  app.get('/analytics/performance', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryPerformanceFilterSchema.parse(req.query);
+    const svc = new InventoryAnalyticsService(req.server.db, req.tenantId);
+    return { data: await svc.performance(filter) };
+  });
+
+  app.get('/analytics/stock-risk', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryAnalyticsFilterSchema.parse(req.query);
+    const svc = new InventoryAnalyticsService(req.server.db, req.tenantId);
+    return { data: await svc.stockRisk(filter) };
+  });
+
+  app.get('/analytics/forecast', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryForecastFilterSchema.parse(req.query);
+    const svc = new InventoryForecastService(req.server.db, req.tenantId);
+    const [stockout, expiry] = await Promise.all([
+      svc.stockoutForecast(filter),
+      svc.expiryForecast(filter),
+    ]);
+    return { data: { stockout, expiry } };
+  });
+
+  app.get('/analytics/trend', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = inventoryTrendFilterSchema.parse(req.query);
+    const svc = new InventoryForecastService(req.server.db, req.tenantId);
+    return { data: await svc.trend(filter) };
+  });
+
+  // Drill-down behind a forecast row: the raw monthly demand its run-rate
+  // was built from, so the number can be checked rather than trusted.
+  app.get<{ Params: { itemId: string } }>(
+    '/analytics/items/:itemId/demand',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (req) => {
+      const { itemId } = z.object({ itemId: z.string().uuid() }).parse(req.params);
+      const { months, warehouseId } = z.object({
+        months: z.coerce.number().int().min(1).max(24).default(12),
+        warehouseId: z.string().uuid().optional(),
+      }).parse(req.query);
+      const svc = new InventoryForecastService(req.server.db, req.tenantId);
+      return { data: await svc.itemDemand(itemId, months, warehouseId) };
+    },
+  );
 };

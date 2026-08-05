@@ -74,6 +74,7 @@ export * from './inventory/adjustment.schema';
 export * from './inventory/stock-take.schema';
 export * from './inventory/reorder.schema';
 export * from './inventory/reports.schema';
+export * from './inventory/analytics.schema';
 export * from './purchase/po.schema';
 export * from './purchase/receive.schema';
 export * from './purchase/scan-receive.schema';
