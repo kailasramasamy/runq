@@ -7,12 +7,18 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
  * it — the library is heavy and the analytics page is not the landing route.
  *
  * ── Palette ──────────────────────────────────────────────────────────────
- * Every colour below was run through the dataviz validator against THIS
- * app's real surfaces (light #ffffff, dark #13151a), not the defaults:
+ * Orange, to match the inventory module accent. Every colour was run
+ * through the dataviz validator against THIS app's real surfaces (light
+ * #ffffff, dark #13151a), not the defaults:
  *
- *   categorical 2-series  light #2a78d6/#eb6834 · dark #3987e5/#d95926
- *     → all checks pass; worst adjacent CVD ΔE 24.7 light / 26.8 dark
- *   velocity ordinal ramp  one hue, monotone lightness, validated --ordinal
+ *   categorical 2-series  light #e06d00/#2a78d6 · dark #d56a10/#3987e5
+ *     → all checks pass; worst adjacent CVD ΔE 26.7 light / 27.4 dark.
+ *       Orange leads; the second series stays blue because two oranges
+ *       cannot be told apart, and a 2-series chart needs two hues.
+ *   velocity ordinal ramp  single hue at OKLCH H52, monotone lightness,
+ *     validated --ordinal in both modes (hue spread 2°). Tailwind's amber
+ *     scale was tried first and fails: it swings 45° of hue from yellow to
+ *     brown, and its light end is 1.44:1 on white against a 2:1 floor.
  *     → oriented per mode so "fast" is the most prominent step against
  *       whichever surface it lands on
  *
@@ -30,17 +36,17 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 
 const PALETTE = {
   light: {
-    series: ['#2a78d6', '#eb6834'],
+    series: ['#e06d00', '#2a78d6'],
     // [dead, slow, medium, fast] — fast is the darkest step on white.
-    velocity: ['#86b6ef', '#5598e7', '#2a78d6', '#184f95'],
+    velocity: ['#f99e65', '#e37725', '#bd5b00', '#873d00'],
     grid: '#e1e0d9',
     axis: '#898781',
     surface: '#ffffff',
   },
   dark: {
-    series: ['#3987e5', '#d95926'],
+    series: ['#d56a10', '#3987e5'],
     // Same ramp, flipped: fast is the lightest step on the dark surface.
-    velocity: ['#1c5cab', '#3987e5', '#6da7ec', '#9ec5f4'],
+    velocity: ['#873d00', '#bd5b00', '#e37725', '#ffa56c'],
     grid: '#2c2c2a',
     axis: '#898781',
     surface: '#13151a',

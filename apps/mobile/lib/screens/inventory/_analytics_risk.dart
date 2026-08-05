@@ -115,7 +115,7 @@ class _ForecastCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Running out next',
-              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              style: RunqText.h3.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text('Projected from recent demand',
               style: RunqText.caption.copyWith(color: t.muted)),
@@ -143,62 +143,64 @@ class _ForecastCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          for (final r in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(r.itemName,
-                                  style: RunqText.caption.copyWith(
-                                      color: t.ink, fontWeight: FontWeight.w600),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ),
-                            if (!r.hasEnoughHistory) ...[
-                              const SizedBox(width: 6),
-                              _LevelBadge(level: 'warning'),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          r.reorderByDate == null
-                              ? '${_qty(r.runRate)}/day · no lead time set'
-                              : 'order by ${r.reorderByDate}',
-                          style: RunqText.micro.copyWith(
-                            color: r.isLate ? InvColors.error : t.muted2,
-                            fontWeight: r.isLate ? FontWeight.w700 : FontWeight.w400,
-                          ),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const _RowDivider(),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        r.daysOfCover == null ? '—' : '${r.daysOfCover!.round()}d',
-                        style: RunqText.bodyStrong.copyWith(
-                          color: r.isUrgent ? InvColors.error : t.ink,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(rows[i].itemName,
+                                style: RunqText.bodyStrong.copyWith(color: t.ink),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          if (!rows[i].hasEnoughHistory) ...[
+                            const SizedBox(width: 6),
+                            _LevelBadge(level: 'warning'),
+                          ],
+                        ],
                       ),
-                      Text('order ${_qty(r.suggestedQty)}',
-                          style: RunqText.micro.copyWith(color: t.muted2)),
+                      const SizedBox(height: 3),
+                      Text(
+                        rows[i].reorderByDate == null
+                            ? '${_qty(rows[i].runRate)}/day · no lead time set'
+                            : 'order by ${rows[i].reorderByDate}',
+                        style: RunqText.caption.copyWith(
+                          color: rows[i].isLate ? InvColors.error : t.muted2,
+                          fontWeight: rows[i].isLate ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      rows[i].daysOfCover == null
+                          ? '—'
+                          : '${rows[i].daysOfCover!.round()}d',
+                      style: RunqText.h3.copyWith(
+                        color: rows[i].isUrgent ? InvColors.error : t.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text('order ${_qty(rows[i].suggestedQty)}',
+                        style: RunqText.caption.copyWith(color: t.muted2)),
+                  ],
+                ),
+              ],
             ),
+          ],
+          const SizedBox(height: 4),
           if (forecast.expiryAtRisk > 0)
             Padding(
               padding: const EdgeInsets.only(top: 2, bottom: 8),
@@ -249,7 +251,7 @@ class _ReplenishmentCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Suggested reorder levels',
-              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+              style: RunqText.h3.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(
             '(demand/day x lead time) + safety stock, at ${data.serviceLevel}% service',
@@ -272,61 +274,61 @@ class _ReplenishmentCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          for (final r in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(r.itemName,
-                                  style: RunqText.caption.copyWith(
-                                      color: t.ink, fontWeight: FontWeight.w600),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                            ),
-                            if (r.breachesSuggested) ...[
-                              const SizedBox(width: 6),
-                              _LevelBadge(level: 'out'),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${_qty(r.avgDailyDemand)}/day '
-                          '\u00b1${_qty(r.demandSd)} \u00b7 lead ${r.leadTimeDays}d'
-                          '${r.leadTimeAssumed ? '*' : ''}',
-                          style: RunqText.micro.copyWith(color: t.muted2),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const _RowDivider(),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_qty(r.suggestedReorderLevel),
-                          style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(rows[i].itemName,
+                                style: RunqText.bodyStrong.copyWith(color: t.ink),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          if (rows[i].breachesSuggested) ...[
+                            const SizedBox(width: 6),
+                            _LevelBadge(level: 'out'),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
                       Text(
-                        r.currentReorderLevel == null
-                            ? 'not set'
-                            : 'now ${_qty(r.currentReorderLevel!)}',
-                        style: RunqText.micro.copyWith(
-                          color: (r.gap ?? 0) > 0 ? InvColors.error : t.muted2,
-                        ),
+                        '${_qty(rows[i].avgDailyDemand)}/day '
+                        '\u00b1${_qty(rows[i].demandSd)} \u00b7 lead ${rows[i].leadTimeDays}d'
+                        '${rows[i].leadTimeAssumed ? '*' : ''}',
+                        style: RunqText.caption.copyWith(color: t.muted2),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_qty(rows[i].suggestedReorderLevel),
+                        style: RunqText.h3.copyWith(
+                            color: t.ink, fontWeight: FontWeight.w700)),
+                    Text(
+                      rows[i].currentReorderLevel == null
+                          ? 'not set'
+                          : 'now ${_qty(rows[i].currentReorderLevel!)}',
+                      style: RunqText.caption.copyWith(
+                        color: (rows[i].gap ?? 0) > 0 ? InvColors.error : t.muted2,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
+          ],
+          const SizedBox(height: 4),
           if (data.rows.any((r) => r.leadTimeAssumed))
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -337,6 +339,23 @@ class _ReplenishmentCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+
+/// Hairline between list rows. The two action cards read as tables now, so
+/// each entry needs a boundary — without one the item name and the line
+/// beneath it blur into the next row at these larger sizes.
+class _RowDivider extends StatelessWidget {
+  const _RowDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Container(height: 1, color: t.hairlineSoft),
     );
   }
 }

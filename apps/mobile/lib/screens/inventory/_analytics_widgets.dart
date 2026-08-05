@@ -18,15 +18,35 @@ String _qty(double v) {
   return v.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
 }
 
-/// Velocity ramp — one hue, light→dark, same ordinal encoding the web page
-/// uses. Ordered [dead, slow, medium, fast]: it is a ranked scale, not four
-/// independent identities, so it never borrows the status colours.
+/// Velocity ramp — one hue, light→dark, matching the web page exactly.
+/// Orange, to sit with the inventory module accent. Ordered
+/// [dead, slow, medium, fast]: a ranked scale, not four independent
+/// identities, so it never borrows the status colours.
+///
+/// Single hue at OKLCH H52, validated as an ordinal ramp in both modes
+/// (hue spread 2°). The Tailwind amber scale fails that check — it swings
+/// 45° from yellow to brown and its light end is 1.44:1 on white.
 const _velocityRamp = <Color>[
-  Color(0xFF86B6EF),
-  Color(0xFF5598E7),
-  Color(0xFF2A78D6),
-  Color(0xFF184F95),
+  Color(0xFFF99E65),
+  Color(0xFFE37725),
+  Color(0xFFBD5B00),
+  Color(0xFF873D00),
 ];
+
+/// Dark-mode steps: the same ramp flipped so "fast" stays the most
+/// prominent against the dark surface.
+const _velocityRampDark = <Color>[
+  Color(0xFF873D00),
+  Color(0xFFBD5B00),
+  Color(0xFFE37725),
+  Color(0xFFFFA56C),
+];
+
+/// The ramp for the active theme.
+List<Color> _ramp(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? _velocityRampDark
+        : _velocityRamp;
 const _velocityOrder = ['dead', 'slow', 'medium', 'fast'];
 const _velocityLabel = {
   'dead': 'Dead', 'slow': 'Slow', 'medium': 'Medium', 'fast': 'Fast',
@@ -233,7 +253,7 @@ class _ValueTrendCard extends StatelessWidget {
                     spots: spots,
                     isCurved: true,
                     curveSmoothness: 0.22,
-                    color: _velocityRamp[2],
+                    color: _ramp(context)[2],
                     barWidth: 2,
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
@@ -242,8 +262,8 @@ class _ValueTrendCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          _velocityRamp[2].withValues(alpha: 0.28),
-                          _velocityRamp[2].withValues(alpha: 0.02),
+                          _ramp(context)[2].withValues(alpha: 0.28),
+                          _ramp(context)[2].withValues(alpha: 0.02),
                         ],
                       ),
                     ),
@@ -306,7 +326,7 @@ class _VelocityCard extends StatelessWidget {
                         flex: ((byBand[_velocityOrder[i]]! / (total == 0 ? 1 : total)) * 1000)
                             .round()
                             .clamp(1, 1000),
-                        child: Container(color: _velocityRamp[i]),
+                        child: Container(color: _ramp(context)[i]),
                       ),
                 ],
               ),
@@ -321,7 +341,7 @@ class _VelocityCard extends StatelessWidget {
                   Container(
                     width: 9, height: 9,
                     decoration: BoxDecoration(
-                      color: _velocityRamp[i],
+                      color: _ramp(context)[i],
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),

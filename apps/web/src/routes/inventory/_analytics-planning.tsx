@@ -113,7 +113,7 @@ function Row({
               borderColor: 'var(--border)',
               // Tint capped at 0.30 so cell text keeps its contrast.
               background: c.count > 0
-                ? `color-mix(in srgb, #2a78d6 ${Math.round(Math.min(0.3, c.share) * 100)}%, transparent)`
+                ? `color-mix(in srgb, #e06d00 ${Math.round(Math.min(0.3, c.share) * 100)}%, transparent)`
                 : 'var(--surface-2)',
             }}
             title={POLICY[key]}
