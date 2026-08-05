@@ -320,9 +320,15 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                         ),
                       ],
                       const SizedBox(height: 16),
-                      _ItemsCard(lines: po.lines, priced: priced),
+                      _ItemsHeader(count: po.lines.length),
+                      const SizedBox(height: 8),
+                      for (final l in po.lines)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _LineCard(line: l, priced: priced),
+                        ),
                       if (priced) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 6),
                         _TotalsCard(subtotal: po.subtotal, tax: po.taxTotal, total: po.total),
                       ],
                       if ((po.notes ?? '').isNotEmpty) ...[
@@ -526,58 +532,43 @@ class _InfoStrip extends StatelessWidget {
   }
 }
 
-// ── Items card (header + divider-separated line rows) ─────────────────────
+// ── Items header (label + count badge) ─────────────────────────────────────
 
-/// All lines live in ONE card. A card per line fragmented the page and made
-/// a two-item PO scroll like a long list; the shared surface reads as a
-/// single document section, which is what the lines are.
-class _ItemsCard extends StatelessWidget {
-  final List<PurchaseOrderLine> lines;
-  final bool priced;
-  const _ItemsCard({required this.lines, required this.priced});
+class _ItemsHeader extends StatelessWidget {
+  final int count;
+  const _ItemsHeader({required this.count});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return PurCard(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Text('ITEMS', style: RunqText.label.copyWith(color: t.muted)),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                decoration: BoxDecoration(
-                  color: PurColors.violetSubtle,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('${lines.length}',
-                    style: RunqText.micro.copyWith(
-                        color: PurColors.brand(context), fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          for (final l in lines) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(height: 1, color: t.hairlineSoft),
+          Text('ITEMS', style: RunqText.label.copyWith(color: t.muted)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+            decoration: BoxDecoration(
+              color: PurColors.violetSubtle,
+              borderRadius: BorderRadius.circular(999),
             ),
-            _LineRow(line: l, priced: priced),
-          ],
-          const SizedBox(height: 8),
+            child: Text('$count',
+                style: RunqText.micro.copyWith(
+                    color: PurColors.brand(context), fontWeight: FontWeight.w700)),
+          ),
         ],
       ),
     );
   }
 }
 
-class _LineRow extends StatelessWidget {
+// ── Line card with receive-progress bar ────────────────────────────────────
+
+class _LineCard extends StatelessWidget {
   final PurchaseOrderLine line;
   final bool priced;
-  const _LineRow({required this.line, required this.priced});
+  const _LineCard({required this.line, required this.priced});
 
   @override
   Widget build(BuildContext context) {
@@ -594,9 +585,20 @@ class _LineRow extends StatelessWidget {
 
     final lineTotal = priced ? line.amount + (line.taxAmount ?? 0) : 0.0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: t.hairline),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6, offset: const Offset(0, 1)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           // Header: line# + description + total
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,7 +685,8 @@ class _LineRow extends StatelessWidget {
               ],
             ),
           ],
-      ],
+        ],
+      ),
     );
   }
 
