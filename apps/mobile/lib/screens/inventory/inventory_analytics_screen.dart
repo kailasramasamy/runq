@@ -58,7 +58,11 @@ class InventoryAnalyticsScreen extends ConsumerWidget {
                     parent: BouncingScrollPhysics(),
                   ),
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                  // 120 clears the floating bottom-nav pill — the same
+                  // figure every other shell-route list in this module uses
+                  // (on-hand, GRN, delivery, items). 28 left the last card
+                  // tucked behind it.
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
                   children: [
                     _WindowChips(
                       selected: window,
