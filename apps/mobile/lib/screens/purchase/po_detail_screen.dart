@@ -253,6 +253,19 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
             // Legacy POs raised before that change still have values, so the
             // money UI stays but only renders when there's something to show.
             final priced = po.total > 0;
+            final primary = canSend
+                ? _PrimaryAction(
+                    label: 'Send PO',
+                    icon: Icons.send_rounded,
+                    onTap: _send,
+                  )
+                : canReceive
+                    ? _PrimaryAction(
+                        label: 'Receive',
+                        icon: Icons.local_shipping_outlined,
+                        onTap: () => context.push('/purchase/pos/${widget.poId}/receive'),
+                      )
+                    : null;
             return Column(
               children: [
                 PurPlainAppBar(
@@ -307,15 +320,9 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                         ),
                       ],
                       const SizedBox(height: 16),
-                      _ItemsHeader(count: po.lines.length),
-                      const SizedBox(height: 8),
-                      for (final l in po.lines)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _LineCard(line: l, priced: priced),
-                        ),
+                      _ItemsCard(lines: po.lines, priced: priced),
                       if (priced) ...[
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 12),
                         _TotalsCard(subtotal: po.subtotal, tax: po.taxTotal, total: po.total),
                       ],
                       if ((po.notes ?? '').isNotEmpty) ...[
@@ -331,24 +338,15 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                     ],
                   ),
                 ),
-                _StickyBar(
-                  total: priced ? po.total : null,
-                  vendorName: po.vendorName,
-                  busy: _busy,
-                  primary: canSend
-                      ? _PrimaryAction(
-                          label: 'Send PO',
-                          icon: Icons.send_rounded,
-                          onTap: _send,
-                        )
-                      : canReceive
-                          ? _PrimaryAction(
-                              label: 'Receive',
-                              icon: Icons.local_shipping_outlined,
-                              onTap: () => context.push('/purchase/pos/${widget.poId}/receive'),
-                            )
-                          : null,
-                ),
+                // With the vendor gone from the bar, an unpriced PO past its
+                // actionable states has nothing left to put in it — drop the
+                // bar rather than leave an empty strip pinned to the bottom.
+                if (priced || primary != null)
+                  _StickyBar(
+                    total: priced ? po.total : null,
+                    busy: _busy,
+                    primary: primary,
+                  ),
               ],
             );
           },
@@ -528,43 +526,58 @@ class _InfoStrip extends StatelessWidget {
   }
 }
 
-// ── Items header (label + count badge) ─────────────────────────────────────
+// ── Items card (header + divider-separated line rows) ─────────────────────
 
-class _ItemsHeader extends StatelessWidget {
-  final int count;
-  const _ItemsHeader({required this.count});
+/// All lines live in ONE card. A card per line fragmented the page and made
+/// a two-item PO scroll like a long list; the shared surface reads as a
+/// single document section, which is what the lines are.
+class _ItemsCard extends StatelessWidget {
+  final List<PurchaseOrderLine> lines;
+  final bool priced;
+  const _ItemsCard({required this.lines, required this.priced});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
-      child: Row(
+    return PurCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ITEMS', style: RunqText.label.copyWith(color: t.muted)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-            decoration: BoxDecoration(
-              color: PurColors.violetSubtle,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text('$count',
-                style: RunqText.micro.copyWith(
-                    color: PurColors.brand(context), fontWeight: FontWeight.w700)),
+          Row(
+            children: [
+              Text('ITEMS', style: RunqText.label.copyWith(color: t.muted)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(
+                  color: PurColors.violetSubtle,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('${lines.length}',
+                    style: RunqText.micro.copyWith(
+                        color: PurColors.brand(context), fontWeight: FontWeight.w700)),
+              ),
+            ],
           ),
+          for (final l in lines) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Container(height: 1, color: t.hairlineSoft),
+            ),
+            _LineRow(line: l, priced: priced),
+          ],
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 }
 
-// ── Line card with receive-progress bar ────────────────────────────────────
-
-class _LineCard extends StatelessWidget {
+class _LineRow extends StatelessWidget {
   final PurchaseOrderLine line;
   final bool priced;
-  const _LineCard({required this.line, required this.priced});
+  const _LineRow({required this.line, required this.priced});
 
   @override
   Widget build(BuildContext context) {
@@ -581,20 +594,9 @@ class _LineCard extends StatelessWidget {
 
     final lineTotal = priced ? line.amount + (line.taxAmount ?? 0) : 0.0;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: t.hairline),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6, offset: const Offset(0, 1)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           // Header: line# + description + total
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,8 +683,7 @@ class _LineCard extends StatelessWidget {
               ],
             ),
           ],
-        ],
-      ),
+      ],
     );
   }
 
@@ -875,14 +876,13 @@ class _PrimaryAction {
 
 class _StickyBar extends StatelessWidget {
   /// Null for unpriced POs — the value only exists once the vendor bill
-  /// prices the order, so the bar shows the vendor alone until then.
+  /// prices the order. The vendor is NOT repeated here; the hero card at
+  /// the top of the page already names it.
   final double? total;
-  final String vendorName;
   final bool busy;
   final _PrimaryAction? primary;
   const _StickyBar({
     required this.total,
-    required this.vendorName,
     required this.busy,
     required this.primary,
   });
@@ -906,56 +906,28 @@ class _StickyBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('VENDOR',
-                        style: RunqText.micro.copyWith(
-                            color: t.muted, letterSpacing: 0.6)),
-                    const SizedBox(height: 2),
-                    Text(
-                      vendorName,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          if (total != null)
+            Row(
+              children: [
+                Text('TOTAL',
+                    style: RunqText.micro.copyWith(
+                        color: t.muted, letterSpacing: 0.6)),
+                const Spacer(),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      indianINR(total!, decimals: 2),
+                      style: RunqText.h3.copyWith(
+                          color: t.ink, fontWeight: FontWeight.w800),
                     ),
-                  ],
-                ),
-              ),
-              if (total != null) ...[
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('TOTAL',
-                        style: RunqText.micro.copyWith(
-                            color: t.muted, letterSpacing: 0.6)),
-                    const SizedBox(height: 2),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 200),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          indianINR(total!, decimals: 2),
-                          style: RunqText.h3.copyWith(
-                              color: t.ink, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
-            ],
-          ),
+            ),
           if (primary != null) ...[
-            const SizedBox(height: 10),
+            if (total != null) const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: PurPrimaryButton(
