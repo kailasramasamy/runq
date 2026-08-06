@@ -58,8 +58,17 @@ class AppBottomNav extends StatelessWidget {
   }
 }
 
-/// Count pill on a nav icon. Amber, not red: this is work waiting, not a fault.
-/// Ringed in the bar's own colour so it stays legible over the active chip.
+/// Count pill on a nav icon, matching the notification bell's badge fill and
+/// padding so the app has one badge language.
+///
+/// Uncapped, unlike the bell's 9+: this counts slots of stuck milk, and the
+/// difference between 11 and 35 is the difference between a bad week and a
+/// broken month. The pill grows with the digits.
+///
+/// Red rather than the amber the home alert uses: white on amber is about 1.9:1
+/// and turns to mush at this size, while the bell's red/white is already proven
+/// legible over both themes. The colour is carrying legibility here, not
+/// severity — the alert card is where the tone is set.
 class _Badge extends StatelessWidget {
   const _Badge({required this.count, required this.t});
   final int count;
@@ -67,20 +76,18 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count > 9 ? '9+' : '$count';
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       constraints: const BoxConstraints(minWidth: 16),
-      height: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: t.am,
+        color: t.gradeC,
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
-        border: Border.all(color: t.card, width: 1.5),
       ),
-      child: Text(label,
-          style: DhenuText.caption.copyWith(
-              color: Colors.white, fontWeight: FontWeight.w700, height: 1.0)),
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: DhenuText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
@@ -143,7 +150,7 @@ class _NavItem extends StatelessWidget {
         ? iconChip
         : Stack(clipBehavior: Clip.none, children: [
             iconChip,
-            Positioned(right: 2, top: -2, child: _Badge(count: item.badge, t: t)),
+            Positioned(right: 0, top: -4, child: _Badge(count: item.badge, t: t)),
           ]);
 
     return GestureDetector(
