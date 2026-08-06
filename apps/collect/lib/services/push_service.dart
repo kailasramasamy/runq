@@ -4,7 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import '../api/api_client.dart';
 import '../firebase_options.dart';
-import '../router.dart' show openNotificationTarget;
+import '../router.dart' show openNotificationTarget, refreshNotificationFeed;
 
 /// Background isolate handler. The OS renders the tray notification from the
 /// message's `notification` block itself — nothing to do here, but FCM
@@ -69,6 +69,9 @@ class PushService {
       if (!_tapWired) {
         _tapWired = true;
         FirebaseMessaging.onMessageOpenedApp.listen(_handleTap);
+        // A push that lands while the app is open must move the bell's badge —
+        // the inbox row is already written server-side, so just re-read it.
+        FirebaseMessaging.onMessage.listen((_) => refreshNotificationFeed());
         final initial = await _fm.getInitialMessage();
         if (initial != null) _handleTap(initial);
       }

@@ -1821,8 +1821,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ccDispatchClosedFor(Object slot) {
-    return 'Receiving closed for $slot · ready for dispatch';
+    return 'Receiving closed for $slot';
   }
+
+  @override
+  String get ccDispatchReadyForDispatch => 'Ready for dispatch';
 
   @override
   String get ccDispatchSlotToday => 'today';
@@ -2819,5 +2822,83 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String homeCloseShiftNudge(Object shift) {
     return '$shift collection is still open — close it when you\'re done.';
+  }
+
+  @override
+  String get notificationsTitle => 'Notifications';
+
+  @override
+  String get notificationsMarkAllRead => 'Mark all read';
+
+  @override
+  String get notificationsEmptyTitle => 'Nothing yet';
+
+  @override
+  String get notificationsEmptySubtitle =>
+      'Dispatches and receipts for your centre show up here.';
+
+  @override
+  String get notificationsLoadError => 'Couldn\'t load notifications';
+
+  @override
+  String get notificationsJustNow => 'just now';
+
+  @override
+  String notificationsMinutesAgo(int n) {
+    return '$n min ago';
+  }
+
+  @override
+  String notificationsHoursAgo(int n) {
+    return '$n h ago';
+  }
+
+  @override
+  String notificationsDaysAgo(int n) {
+    return '$n d ago';
+  }
+
+  @override
+  String ppHistoryCcCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count CCs',
+      one: '$count CC',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ppHistoryNoReceiptsSubtitle =>
+      'Tankers received from CCs over the last 30 days show here';
+
+  @override
+  String get ppQcScopeByCc => 'By CC';
+
+  @override
+  String get ppQcHeroFooterAll => 'Qty-weighted quality across all CC tankers';
+
+  @override
+  String ppQcHeroLabelCc(Object name, int days) {
+    return '$name · LAST $days DAYS';
+  }
+
+  @override
+  String get ppQcHeroFooterCc => 'Qty-weighted quality received from this CC';
+
+  @override
+  String get ppQcEmptySubtitleCc =>
+      'No milk received from this CC in this window';
+
+  @override
+  String get ppQcSelectCcTitle => 'Select CC';
+
+  @override
+  String get ppQcSelectCcPlaceholder => 'Select a CC';
+
+  @override
+  String ppQcRankingSummary(int active, int total, int days) {
+    return '$active of $total CCs delivered · last $days days';
   }
 }

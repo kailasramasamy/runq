@@ -1823,8 +1823,11 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String ccDispatchClosedFor(Object slot) {
-    return '$slotಗೆ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಲಾಗಿದೆ · ರವಾನೆಗೆ ಸಿದ್ಧ';
+    return '$slotಗೆ ಸ್ವೀಕೃತಿ ಮುಚ್ಚಲಾಗಿದೆ';
   }
+
+  @override
+  String get ccDispatchReadyForDispatch => 'ರವಾನೆಗೆ ಸಿದ್ಧ';
 
   @override
   String get ccDispatchSlotToday => 'ಇಂದು';
@@ -2793,5 +2796,76 @@ class AppLocalizationsKn extends AppLocalizations {
   @override
   String homeCloseShiftNudge(Object shift) {
     return '$shift ಸಂಗ್ರಹ ಇನ್ನೂ ತೆರೆದಿದೆ — ಮುಗಿದ ಮೇಲೆ ಮುಚ್ಚಿ.';
+  }
+
+  @override
+  String get notificationsTitle => 'ಅಧಿಸೂಚನೆಗಳು';
+
+  @override
+  String get notificationsMarkAllRead => 'ಎಲ್ಲವನ್ನೂ ಓದಿದೆ ಎಂದು ಗುರುತಿಸಿ';
+
+  @override
+  String get notificationsEmptyTitle => 'ಇನ್ನೂ ಏನೂ ಇಲ್ಲ';
+
+  @override
+  String get notificationsEmptySubtitle =>
+      'ನಿಮ್ಮ ಕೇಂದ್ರದ ರವಾನೆ ಮತ್ತು ಸ್ವೀಕೃತಿಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ.';
+
+  @override
+  String get notificationsLoadError => 'ಅಧಿಸೂಚನೆಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get notificationsJustNow => 'ಈಗಷ್ಟೇ';
+
+  @override
+  String notificationsMinutesAgo(int n) {
+    return '$n ನಿಮಿಷಗಳ ಹಿಂದೆ';
+  }
+
+  @override
+  String notificationsHoursAgo(int n) {
+    return '$n ಗಂಟೆಗಳ ಹಿಂದೆ';
+  }
+
+  @override
+  String notificationsDaysAgo(int n) {
+    return '$n ದಿನಗಳ ಹಿಂದೆ';
+  }
+
+  @override
+  String ppHistoryCcCount(int count) {
+    return '$count CC';
+  }
+
+  @override
+  String get ppHistoryNoReceiptsSubtitle =>
+      'ಕಳೆದ 30 ದಿನಗಳಲ್ಲಿ CCಗಳಿಂದ ಸ್ವೀಕರಿಸಿದ ಟ್ಯಾಂಕರ್‌ಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get ppQcScopeByCc => 'CC ಪ್ರಕಾರ';
+
+  @override
+  String get ppQcHeroFooterAll => 'ಎಲ್ಲಾ CC ಟ್ಯಾಂಕರ್‌ಗಳ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String ppQcHeroLabelCc(Object name, int days) {
+    return '$name · ಕೊನೆಯ $days ದಿನಗಳು';
+  }
+
+  @override
+  String get ppQcHeroFooterCc => 'ಈ CCಯಿಂದ ಸ್ವೀಕರಿಸಿದ ಪ್ರಮಾಣ-ತೂಕದ ಗುಣಮಟ್ಟ';
+
+  @override
+  String get ppQcEmptySubtitleCc => 'ಈ ಅವಧಿಯಲ್ಲಿ ಈ CCಯಿಂದ ಹಾಲು ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String get ppQcSelectCcTitle => 'CC ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get ppQcSelectCcPlaceholder => 'ಒಂದು CC ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String ppQcRankingSummary(int active, int total, int days) {
+    return '$total ರಲ್ಲಿ $active CC ವಿತರಿಸಿದೆ · ಕೊನೆಯ $days ದಿನಗಳು';
   }
 }

@@ -9,6 +9,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
@@ -127,6 +128,8 @@ class VmccHome extends ConsumerWidget {
               ),
             ]),
           ),
+          const NotificationBell(),
+          const SizedBox(width: DhenuSpacing.xs),
           SyncStatus(
             state: sync.state,
             pendingCount: sync.pendingCount,

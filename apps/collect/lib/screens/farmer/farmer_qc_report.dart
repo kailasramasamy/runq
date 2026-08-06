@@ -8,7 +8,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_states.dart';
-import '../cc/qc_report_view.dart';
+import '../shared/qc_report_view.dart';
 
 /// The farmer's own QC trend — qty-weighted FAT/SNF/Water over 7/14/90 days.
 /// Reuses the [QcReportView] the VMCC and CC reports are built on, fed by the

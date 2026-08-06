@@ -30,6 +30,8 @@ class PpShell extends StatelessWidget {
     return RoleShell(
       items: _items(l),
       header: header,
+      // A PP is the end of the line — it receives, it never dispatches onward.
+      deepLinkTabs: const {'receive': 1},
       pages: [
         PpHome(node: node),
         PpReceiveTab(node: node),

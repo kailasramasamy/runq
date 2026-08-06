@@ -11,6 +11,16 @@ final nodeInboundConsignmentsProvider =
   return mpRepo.consignments(toNodeId: nodeId, collectionDate: todayIso(), limit: 200);
 });
 
+/// Everything still in transit to a node, whatever its collection date. This is
+/// a work queue, not a day view: an upstream operator who writes readings in a
+/// notebook and feeds them in days later dispatches against the ORIGINAL
+/// collection date, so scoping the queue to today would hide that load from the
+/// receiving operator entirely. Key: nodeId.
+final nodePendingInboundProvider =
+    FutureProvider.family<List<MpConsignment>, String>((ref, nodeId) async {
+  return mpRepo.consignments(toNodeId: nodeId, status: 'in_transit', limit: 200);
+});
+
 /// Inbound consignments to a node for a specific date (all statuses). Used by
 /// manual receive, where the operator may backfill a past date and the
 /// already-received markers must follow the chosen date.
@@ -21,40 +31,45 @@ final nodeInboundByDateProvider =
   return mpRepo.consignments(toNodeId: args.nodeId, collectionDate: args.date, limit: 200);
 });
 
-/// Received inbound consignments (vmcc→cc) at a node over the last [days],
-/// newest first. Powers the CC receive-history page and the aggregated QC
-/// report. Keyed by (nodeId, days) so 7/14/30-day windows cache separately.
-typedef ReceivedRangeArgs = ({String nodeId, int days});
+/// Received inbound consignments at a node over the last [days], newest first.
+/// Powers the receive-history page and the aggregated QC report for both legs:
+/// [kind] is `vmcc_to_cc` at a chilling centre, `cc_to_pp` at a plant. Keyed by
+/// (nodeId, kind, days) so 7/14/30-day windows cache separately.
+typedef ReceivedRangeArgs = ({String nodeId, String kind, int days});
 
 final nodeReceivedRangeProvider =
     FutureProvider.family<List<MpConsignment>, ReceivedRangeArgs>((ref, args) async {
   return mpRepo.consignments(
-    toNodeId: args.nodeId, kind: 'vmcc_to_cc', status: 'received',
+    toNodeId: args.nodeId, kind: args.kind, status: 'received',
     from: isoDaysAgo(args.days - 1), to: todayIso(), limit: 500,
   );
 });
 
-/// Per-day received rollup at a CC over the last [days] (newest first). Light
+/// Per-day received rollup at a node over the last [days] (newest first). Light
 /// list payload — one row per day; per-day detail is fetched lazily on expand
-/// via [nodeReceivedDayDetailProvider]. Keyed by (nodeId, days).
+/// via [nodeReceivedDayDetailProvider]. Keyed by (nodeId, kind, days).
 final nodeReceivedDailyProvider =
     FutureProvider.family<List<MpReceivedDay>, ReceivedRangeArgs>((ref, args) async {
   return mpRepo.receivedDaily(
-    nodeId: args.nodeId, from: isoDaysAgo(args.days - 1), to: todayIso(),
+    nodeId: args.nodeId, kind: args.kind,
+    from: isoDaysAgo(args.days - 1), to: todayIso(),
   );
 });
 
-/// Received consignment detail rows (vmcc→cc) at a node on one collection date.
-/// Fetched only when its day is expanded in the receive history.
-typedef ReceivedDayArgs = ({String nodeId, String date});
+/// Received consignment detail rows at a node on one collection date, for one
+/// leg. Fetched only when its day is expanded in the receive history.
+typedef ReceivedDayDetailArgs = ({String nodeId, String kind, String date});
 
 final nodeReceivedDayDetailProvider =
-    FutureProvider.family<List<MpConsignment>, ReceivedDayArgs>((ref, args) async {
+    FutureProvider.family<List<MpConsignment>, ReceivedDayDetailArgs>((ref, args) async {
   return mpRepo.consignments(
-    toNodeId: args.nodeId, kind: 'vmcc_to_cc', status: 'received',
+    toNodeId: args.nodeId, kind: args.kind, status: 'received',
     collectionDate: args.date, limit: 200,
   );
 });
+
+/// (nodeId, date) key for the per-date providers that are leg-agnostic.
+typedef ReceivedDayArgs = ({String nodeId, String date});
 
 /// Single-VMCC collection summary for one date — supplies the effective per-shift
 /// ₹/L (amRate/pmRate) shown in the receive-history breakup. Fetched lazily when

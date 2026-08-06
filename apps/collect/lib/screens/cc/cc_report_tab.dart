@@ -14,7 +14,7 @@ import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/stat_card.dart';
 import '../../utils/friendly_error.dart';
-import 'qc_report_view.dart';
+import '../shared/qc_report_view.dart';
 
 /// CC daily report — milk received at the CC on a chosen date (defaults to
 /// today), selectable via the date stepper. Mirrors the VMCC report but over
@@ -31,7 +31,8 @@ class CcReportTab extends ConsumerStatefulWidget {
 class _CcReportTabState extends ConsumerState<CcReportTab> {
   String _date = todayIso();
 
-  ReceivedDayArgs get _key => (nodeId: widget.node.id, date: _date);
+  ReceivedDayDetailArgs get _key =>
+      (nodeId: widget.node.id, kind: 'vmcc_to_cc', date: _date);
 
   @override
   Widget build(BuildContext context) {

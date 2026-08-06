@@ -32,6 +32,8 @@ class CcShell extends StatelessWidget {
     return RoleShell(
       items: _items(l),
       header: header,
+      // A CC both receives from VMCCs and dispatches onward.
+      deepLinkTabs: const {'receive': 1, 'dispatch': 2},
       pages: [
         CcHome(node: node),
         CcReceiveTab(node: node),

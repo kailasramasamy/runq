@@ -7,7 +7,7 @@ import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_states.dart';
-import '../cc/qc_report_view.dart';
+import '../shared/qc_report_view.dart';
 
 /// Farmer QC tab — the same windowed FAT/SNF/Water quality report as the VMCC
 /// QC screen, locked to this one farmer. Reuses [QcReportView] over the

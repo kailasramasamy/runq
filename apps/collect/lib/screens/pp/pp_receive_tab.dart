@@ -26,6 +26,7 @@ class PpReceiveTab extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodePendingInboundProvider(node.id));
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
   }
 
@@ -34,6 +35,9 @@ class PpReceiveTab extends ConsumerWidget {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
+    // In transit is a work queue, not a day view — a CC that dispatches a
+    // back-dated load must still land in this list.
+    final pending = ref.watch(nodePendingInboundProvider(node.id));
     final allCcs = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final names = {for (final n in allCcs) n.id: n.name};
     return Scaffold(
@@ -54,8 +58,10 @@ class PpReceiveTab extends ConsumerWidget {
                 subtitle: friendlyError(context, e),
               ),
               data: (all) {
-                final inTransit =
-                    all.where((c) => c.kind == 'cc_to_pp' && c.inTransit).toList();
+                final inTransit = (pending.asData?.value ?? const <MpConsignment>[])
+                    .where((c) => c.kind == 'cc_to_pp' && c.inTransit)
+                    .toList()
+                  ..sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
                 final received = all
                     .where((c) => c.kind == 'cc_to_pp' && c.received)
                     .toList()

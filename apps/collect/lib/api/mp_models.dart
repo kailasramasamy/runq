@@ -597,18 +597,20 @@ class MpMilkTypeSummary {
       );
 }
 
-/// Per-day qty-weighted rollup of one CC's received milk — drives the receive
-/// history day list (detail rows fetched lazily when a day is expanded).
+/// Per-day qty-weighted rollup of one node's received milk — drives the receive
+/// history day list (detail rows fetched lazily when a day is expanded). The
+/// source nodes counted are VMCCs at a CC, CCs at a plant; the wire field is
+/// still `vmccCount` for both.
 class MpReceivedDay {
   final String date;
   final double totalQty;
-  final int vmccCount;
+  final int sourceCount;
   final double? fat, snf, water;
 
   MpReceivedDay({
     required this.date,
     required this.totalQty,
-    required this.vmccCount,
+    required this.sourceCount,
     this.fat,
     this.snf,
     this.water,
@@ -617,7 +619,7 @@ class MpReceivedDay {
   factory MpReceivedDay.fromJson(Map<String, dynamic> j) => MpReceivedDay(
     date: _s(j['date']),
     totalQty: _d(j['totalQty']),
-    vmccCount: _i(j['vmccCount']),
+    sourceCount: _i(j['vmccCount']),
     fat: _dn(j['fat']),
     snf: _dn(j['snf']),
     water: _dn(j['water']),

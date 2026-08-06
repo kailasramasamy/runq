@@ -33,6 +33,8 @@ class VmccShell extends StatelessWidget {
     return RoleShell(
       items: items,
       header: header,
+      // A VMCC only dispatches; milk reaches it as farmer pours, not consignments.
+      deepLinkTabs: const {'dispatch': 2},
       tabActions: {
         1: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),

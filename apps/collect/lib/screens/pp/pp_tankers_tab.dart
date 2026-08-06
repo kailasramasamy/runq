@@ -19,6 +19,7 @@ class PpTankersTab extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodePendingInboundProvider(node.id));
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
   }
 
@@ -27,6 +28,8 @@ class PpTankersTab extends ConsumerWidget {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
+    final pendingRows =
+        ref.watch(nodePendingInboundProvider(node.id)).asData?.value ?? const <MpConsignment>[];
     final allCcs = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final names = {for (final n in allCcs) n.id: n.name};
     return Scaffold(
@@ -45,7 +48,15 @@ class PpTankersTab extends ConsumerWidget {
             subtitle: friendlyError(context, e),
           ),
           data: (all) {
-            final tankers = all.where((c) => c.kind == 'cc_to_pp').toList();
+            // Today's tankers, plus anything still in transit from an earlier
+            // collection date — a late-fed CC dispatches against the original
+            // date, and that tanker is still on the road.
+            final byId = {
+              for (final c in [...pendingRows, ...all])
+                if (c.kind == 'cc_to_pp') c.id: c,
+            };
+            final tankers = byId.values.toList()
+              ..sort((a, b) => b.collectionDate.compareTo(a.collectionDate));
             if (tankers.isEmpty) {
               return ListView(
                 keyboardDismissBehavior:

@@ -14,7 +14,8 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/sheet_grabber.dart';
 import '../../utils/friendly_error.dart';
-import 'cc_receive_history.dart';
+import '../shared/receive_history.dart';
+import '../shared/receive_leg.dart';
 import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
 import 'cc_dispatch_tab.dart';
@@ -35,6 +36,8 @@ class CcReceiveTab extends ConsumerWidget {
   /// key at once, since this tab can't know which one dispatch is showing.
   void _invalidateAfterReceipt(WidgetRef ref) {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodePendingInboundProvider(node.id));
+    ref.invalidate(nodeInboundByDateProvider);
     ref.invalidate(nodeAvailabilityProvider);
     ref.invalidate(nodeAvailabilityForDateProvider);
   }
@@ -52,10 +55,13 @@ class CcReceiveTab extends ConsumerWidget {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
+    // In transit is date-agnostic — a VMCC feeding a notebook in three days late
+    // dispatches against the original collection date, and that load still has to
+    // reach this queue.
+    final pending = ref.watch(nodePendingInboundProvider(node.id));
     final allVmccs = ref.watch(nodesByTypeProvider('vmcc')).value ?? const <MpNode>[];
     final names = {for (final n in allVmccs) n.id: n.name};
     final children = allVmccs.where((n) => n.parentNodeId == node.id).toList();
-    final shiftStatus = ref.watch(shiftStatusProvider(node.id)).asData?.value;
     // Overnight CC pools across yesterday + today, so the lists span both days.
     final yest = node.isOvernightPool
         ? (ref.watch(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1)))).asData?.value ??
@@ -76,18 +82,22 @@ class CcReceiveTab extends ConsumerWidget {
                 subtitle: friendlyError(context, e),
               ),
               data: (today) {
-                final all = [...yest, ...today];
-                final inTransit = all.where((c) => c.kind == 'vmcc_to_cc' && c.inTransit).toList();
+                final inTransit = (pending.asData?.value ?? const <MpConsignment>[])
+                    .where((c) => c.kind == 'vmcc_to_cc' && c.inTransit)
+                    .toList()
+                  ..sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
                 // Newest first by consignment no. (monotonic) so a just-added
                 // receipt — AM or PM — always surfaces at the top.
-                final received = all.where((c) => c.kind == 'vmcc_to_cc' && c.received).toList()
+                final received = [...yest, ...today]
+                    .where((c) => c.kind == 'vmcc_to_cc' && c.received)
+                    .toList()
                   ..sort((a, b) => b.consignmentNo.compareTo(a.consignmentNo));
-                return _list(context, ref, t, l, inTransit, received, names, shiftStatus);
+                return _list(context, ref, t, l, inTransit, received, names);
               },
             ),
           ),
         ),
-        _manualReceiveBar(context, ref, t, l, children, _nothingInTransit(consAsync, yest)),
+        _manualReceiveBar(context, ref, t, l, children, _nothingInTransit(pending)),
       ]),
     );
   }
@@ -127,11 +137,10 @@ class CcReceiveTab extends ConsumerWidget {
 
   /// True once every inbound consignment has been taken in — the trigger for
   /// offering onward dispatch. Unresolved/error states count as "not yet".
-  bool _nothingInTransit(
-      AsyncValue<List<MpConsignment>> consAsync, List<MpConsignment> yest) {
-    final today = consAsync.asData?.value;
-    if (today == null) return false;
-    return [...yest, ...today].every((c) => c.kind != 'vmcc_to_cc' || !c.inTransit);
+  bool _nothingInTransit(AsyncValue<List<MpConsignment>> pending) {
+    final rows = pending.asData?.value;
+    if (rows == null) return false;
+    return rows.every((c) => c.kind != 'vmcc_to_cc' || !c.inTransit);
   }
 
   /// A BMC or overnight CC pools the whole day, so it has no per-shift figure —
@@ -156,7 +165,7 @@ class CcReceiveTab extends ConsumerWidget {
 
   Widget _list(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
       List<MpConsignment> inTransit, List<MpConsignment> received,
-      Map<String, String> names, MpShiftStatus? shiftStatus) {
+      Map<String, String> names) {
     // Per-type consignments mean a VMCC can send cow and buffalo the same shift,
     // so name the type whenever this list holds more than one — otherwise two
     // cards from the same centre read identically.
@@ -191,7 +200,7 @@ class CcReceiveTab extends ConsumerWidget {
         else ...[
           for (var i = 0; i < received.length && i < 15; i++) ...[
             _receivedCard(context, ref, t, l, received[i],
-                names[received[i].fromNodeId] ?? 'VMCC', shiftStatus, mixed),
+                names[received[i].fromNodeId] ?? 'VMCC', mixed),
             const SizedBox(height: DhenuSpacing.sm),
           ],
           _seeHistoryLink(context, t, l),
@@ -205,7 +214,7 @@ class CcReceiveTab extends ConsumerWidget {
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => Scaffold(
               appBar: AppBar(title: Text(l.ccReceiveHistoryTitle, style: DhenuText.h2.copyWith(color: t.ink))),
-              body: CcReceiveHistory(node: node),
+              body: ReceiveHistory(node: node, leg: ReceiveLeg.vmccToCc(l)),
             ),
           )),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -250,10 +259,16 @@ class CcReceiveTab extends ConsumerWidget {
   }
 
   Widget _receivedCard(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
-      MpConsignment c, String name, MpShiftStatus? shiftStatus, bool mixed) {
+      MpConsignment c, String name, bool mixed) {
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
-    final canDelete = c.directReceive && !_lockedForDispatch(shiftStatus, c);
+    // The lock follows the receipt's OWN collection date. A back-dated receipt
+    // checked against today's closure was the wrong row entirely — it offered
+    // Delete on a locked slot and hid it on an open one.
+    final st = ref
+        .watch(shiftStatusForDateProvider((nodeId: node.id, date: c.collectionDate)))
+        .asData?.value;
+    final canDelete = c.directReceive && !_lockedForDispatch(st, c);
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
@@ -468,7 +483,7 @@ class CcReceiveTab extends ConsumerWidget {
       return;
     }
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ManualReceiveScreen(vmccs: vmccs, ccNodeId: node.id),
+      builder: (_) => ManualReceiveScreen(vmccs: vmccs, node: node),
     ));
     _invalidateAfterReceipt(ref);
   }

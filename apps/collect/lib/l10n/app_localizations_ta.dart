@@ -1840,8 +1840,11 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String ccDispatchClosedFor(Object slot) {
-    return '$slotக்கு வரவேற்பு மூடப்பட்டது · அனுப்ப தயார்';
+    return '$slotக்கு வரவேற்பு மூடப்பட்டது';
   }
+
+  @override
+  String get ccDispatchReadyForDispatch => 'அனுப்ப தயார்';
 
   @override
   String get ccDispatchSlotToday => 'இன்று';
@@ -2814,5 +2817,77 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String homeCloseShiftNudge(Object shift) {
     return '$shift சேகரிப்பு இன்னும் திறந்துள்ளது — முடிந்ததும் மூடவும்.';
+  }
+
+  @override
+  String get notificationsTitle => 'அறிவிப்புகள்';
+
+  @override
+  String get notificationsMarkAllRead => 'அனைத்தையும் படித்ததாகக் குறி';
+
+  @override
+  String get notificationsEmptyTitle => 'இதுவரை எதுவும் இல்லை';
+
+  @override
+  String get notificationsEmptySubtitle =>
+      'உங்கள் மையத்தின் அனுப்புதல்கள் மற்றும் பெறுதல்கள் இங்கே தோன்றும்.';
+
+  @override
+  String get notificationsLoadError => 'அறிவிப்புகளை ஏற்ற முடியவில்லை';
+
+  @override
+  String get notificationsJustNow => 'இப்போதுதான்';
+
+  @override
+  String notificationsMinutesAgo(int n) {
+    return '$n நிமிடங்களுக்கு முன்';
+  }
+
+  @override
+  String notificationsHoursAgo(int n) {
+    return '$n மணி நேரத்திற்கு முன்';
+  }
+
+  @override
+  String notificationsDaysAgo(int n) {
+    return '$n நாட்களுக்கு முன்';
+  }
+
+  @override
+  String ppHistoryCcCount(int count) {
+    return '$count CC';
+  }
+
+  @override
+  String get ppHistoryNoReceiptsSubtitle =>
+      'கடந்த 30 நாட்களில் CC-களிடமிருந்து பெற்ற டாங்கர்கள் இங்கே தெரியும்';
+
+  @override
+  String get ppQcScopeByCc => 'CC வாரியாக';
+
+  @override
+  String get ppQcHeroFooterAll => 'அனைத்து CC டாங்கர்களின் அளவு-என்னிக்கை தரம்';
+
+  @override
+  String ppQcHeroLabelCc(Object name, int days) {
+    return '$name · கடந்த $days நாட்கள்';
+  }
+
+  @override
+  String get ppQcHeroFooterCc => 'இந்த CC-இலிருந்து பெற்ற பாலின் தரம்';
+
+  @override
+  String get ppQcEmptySubtitleCc =>
+      'இந்த காலகட்டத்தில் இந்த CC-இலிருந்து பால் பெறப்படவில்லை';
+
+  @override
+  String get ppQcSelectCcTitle => 'CC தேர்ந்தெடுக்க';
+
+  @override
+  String get ppQcSelectCcPlaceholder => 'ஒரு CC தேர்ந்தெடுக்க';
+
+  @override
+  String ppQcRankingSummary(int active, int total, int days) {
+    return '$total-இல் $active CC விநியோகித்தது · கடந்த $days நாட்கள்';
   }
 }

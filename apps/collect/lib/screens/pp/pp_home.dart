@@ -4,20 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/mp_context_provider.dart';
-import '../../providers/sync_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/section_header.dart';
-import '../../widgets/sync_queue_sheet.dart';
-import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
+import '../shared/node_qc_report.dart';
+import '../shared/receive_history.dart';
+import '../shared/receive_leg.dart';
 
 /// Per-CC inbound-to-this-PP tally derived from today's tankers.
 typedef _Flow = ({double transit, double received, int tankers});
@@ -38,7 +39,6 @@ class PpHome extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final sync = ref.watch(syncProvider);
     final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
     final allCcs = ref.watch(nodesByTypeProvider('cc')).value ?? const <MpNode>[];
     final names = {for (final n in allCcs) n.id: n.name};
@@ -57,7 +57,7 @@ class PpHome extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          _header(context, ref, t, sync),
+          _header(),
           const SizedBox(height: DhenuSpacing.lg),
           _hero(context, l, t, consAsync, bands, milkType),
           const SizedBox(height: DhenuSpacing.md),
@@ -67,6 +67,8 @@ class PpHome extends ConsumerWidget {
             const SizedBox(height: DhenuSpacing.md),
           ],
           _statsRow(l, t, inTransit, received),
+          const SizedBox(height: DhenuSpacing.md),
+          _quickLinks(context, t, l),
           const SizedBox(height: DhenuSpacing.md),
           _inventoryNote(l, t),
           const SizedBox(height: DhenuSpacing.lg),
@@ -94,17 +96,10 @@ class PpHome extends ConsumerWidget {
     return m;
   }
 
-  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, SyncSnapshot sync) {
-    return DhenuSectionHeader(
-      node.name,
-      trailing: SyncStatus(
-        state: sync.state,
-        pendingCount: sync.pendingCount,
-        failedCount: sync.failedCount,
-        onTap: () => showSyncQueueSheet(context, ref, node.id),
-      ),
-    );
-  }
+  // No sync chip here: the offline queue only ever holds VMCC farmer pours, so
+  // at a plant it could only read "Synced" — and "saved on device" when offline,
+  // which is untrue. The bell is the only header affordance that means anything.
+  Widget _header() => DhenuSectionHeader(node.name, trailing: const NotificationBell());
 
   Widget _hero(BuildContext context, AppLocalizations l, DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
     return consAsync.when(
@@ -197,6 +192,41 @@ class PpHome extends ConsumerWidget {
           ]),
           const SizedBox(height: DhenuSpacing.sm),
           Text(value, style: DhenuText.number(size: 20, color: t.ink)),
+        ]),
+      );
+
+  /// Everything on this page is today; these two are the way back through it.
+  /// A plant has no rate chart and no collection report of its own, so the pair
+  /// sits on one row rather than the CC's 2×2 grid.
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final leg = ReceiveLeg.ccToPp(l);
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(
+            child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
+                ReceiveHistory(node: node, leg: leg))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(
+            child: _linkCard(context, t, DhenuIcons.barChart, l.ccHomeQcReportLink,
+                NodeQcReport(node: node, leg: leg))),
+      ]),
+    );
+  }
+
+  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
+      DhenuCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: page,
+          ),
+        )),
+        child: Column(children: [
+          Icon(icon, color: t.brand),
+          const SizedBox(height: DhenuSpacing.sm),
+          Text(label, textAlign: TextAlign.center, style: DhenuText.label.copyWith(color: t.ink)),
         ]),
       );
 

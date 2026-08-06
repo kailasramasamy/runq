@@ -9,34 +9,37 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
 import 'qc_report_view.dart';
+import 'receive_leg.dart';
 
 enum _SortKey { litres, fat, snf, water }
 
-typedef _Row = ({MpNode vmcc, QcAcc acc});
+typedef _Row = ({MpNode source, QcAcc acc});
 
-/// Per-VMCC QC leaderboard — every child VMCC ranked side by side on
-/// qty-weighted FAT/SNF/Water and total received over the window. Tap a column
+/// Per-source QC leaderboard — every node feeding this one ranked side by side
+/// on qty-weighted FAT/SNF/Water and total received over the window. Tap a column
 /// header to re-rank by that metric (Water defaults low→high, the rest high→low).
-class QcVmccRanking extends StatefulWidget {
-  const QcVmccRanking({
+class QcSourceRanking extends StatefulWidget {
+  const QcSourceRanking({
     super.key,
     required this.rows,
-    required this.vmccs,
+    required this.sources,
+    required this.leg,
     required this.days,
     this.bands,
     this.milkType,
   });
   final List<MpConsignment> rows;
-  final List<MpNode> vmccs;
+  final List<MpNode> sources;
+  final ReceiveLeg leg;
   final int days;
   final QualityBands? bands;
   final MilkType? milkType;
 
   @override
-  State<QcVmccRanking> createState() => _QcVmccRankingState();
+  State<QcSourceRanking> createState() => _QcSourceRankingState();
 }
 
-class _QcVmccRankingState extends State<QcVmccRanking> {
+class _QcSourceRankingState extends State<QcSourceRanking> {
   _SortKey _key = _SortKey.litres;
   bool _desc = true;
 
@@ -57,11 +60,11 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
       });
 
   int _compare(_Row a, _Row b) {
-    // VMCCs with no receipts always sink to the bottom.
+    // Sources with no receipts always sink to the bottom.
     final aEmpty = a.acc.qty <= 0, bEmpty = b.acc.qty <= 0;
     if (aEmpty != bEmpty) return aEmpty ? 1 : -1;
     final av = _metric(a), bv = _metric(b);
-    if (av == null && bv == null) return a.vmcc.name.compareTo(b.vmcc.name);
+    if (av == null && bv == null) return a.source.name.compareTo(b.source.name);
     if (av == null) return 1;
     if (bv == null) return -1;
     final cmp = av.compareTo(bv);
@@ -72,11 +75,11 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final accById = {for (final v in widget.vmccs) v.id: QcAcc()};
+    final accById = {for (final v in widget.sources) v.id: QcAcc()};
     for (final c in widget.rows) {
       accById[c.fromNodeId]?.add(c.receiptQty ?? 0, c.receiptFat, c.receiptSnf, c.receiptWater);
     }
-    final rows = [for (final v in widget.vmccs) (vmcc: v, acc: accById[v.id]!)]..sort(_compare);
+    final rows = [for (final v in widget.sources) (source: v, acc: accById[v.id]!)]..sort(_compare);
     final totalQty = rows.fold<double>(0, (a, r) => a + r.acc.qty);
     final active = rows.where((r) => r.acc.qty > 0).length;
     final withData = rows.where((r) => r.acc.qty > 0).toList();
@@ -86,13 +89,13 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
-        _summary(t, l, active, widget.vmccs.length, totalQty),
+        _summary(t, l, active, widget.sources.length, totalQty),
         const SizedBox(height: DhenuSpacing.md),
-        if (widget.vmccs.isEmpty)
+        if (widget.sources.isEmpty)
           DhenuEmptyState(
-            icon: DhenuIcons.store,
-            title: l.ccNoVmccsLinkedTitle,
-            subtitle: l.ccNoVmccsLinkedSubtitle,
+            icon: widget.leg.sourceIcon,
+            title: widget.leg.noSourcesTitle,
+            subtitle: widget.leg.noSourcesSubtitle,
           )
         else ...[
           DhenuCard(
@@ -116,7 +119,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
     );
   }
 
-  /// VMCCs that carry [metric], ranked best-first (desc for FAT/SNF, asc Water).
+  /// Sources that carry [metric], ranked best-first (desc FAT/SNF, asc Water).
   List<_Row> _sorted(List<_Row> src, double? Function(QcAcc) metric, {required bool desc}) {
     final list = src.where((r) => metric(r.acc) != null).toList()
       ..sort((a, b) {
@@ -163,7 +166,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
             child: Text('$rank',
                 style: DhenuText.number(size: 13, color: rank == 1 ? accent : t.inkSoft))),
         Expanded(
-            child: Text(r.vmcc.name,
+            child: Text(r.source.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600))),
@@ -184,7 +187,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
           Icon(DhenuIcons.trophy, size: 18, color: t.brand),
           const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-              child: Text(l.ccQcRankingSummary(active, total, widget.days),
+              child: Text(widget.leg.rankingSummary(active, total, widget.days),
                   style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600))),
           Text(litres(qty, unit: true), style: DhenuText.number(size: 16, color: t.brand)),
         ]),
@@ -195,7 +198,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
             DhenuSpacing.lg, DhenuSpacing.sm, DhenuSpacing.lg, DhenuSpacing.sm),
         child: Row(children: [
           const SizedBox(width: 22),
-          Expanded(flex: 5, child: Text('VMCC', style: _hStyle(t))),
+          Expanded(flex: 5, child: Text(widget.leg.rankingHeader, style: _hStyle(t))),
           _hCell(t, 'L', _SortKey.litres, 3),
           _hCell(t, 'FAT', _SortKey.fat, 2),
           _hCell(t, 'SNF', _SortKey.snf, 2),
@@ -235,7 +238,7 @@ class _QcVmccRankingState extends State<QcVmccRanking> {
             child: Text(empty ? '·' : '$rank', style: DhenuText.number(size: 13, color: rankColor))),
         Expanded(
             flex: 5,
-            child: Text(r.vmcc.name,
+            child: Text(r.source.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DhenuText.body

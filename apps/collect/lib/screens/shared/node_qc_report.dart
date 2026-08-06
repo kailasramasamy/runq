@@ -12,36 +12,52 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/node_picker.dart';
 import '../../utils/friendly_error.dart';
 import 'qc_report_view.dart';
-import 'qc_vmcc_ranking.dart';
+import 'qc_source_ranking.dart';
+import 'receive_leg.dart';
 
-enum _Scope { all, vmcc, ranking }
+enum _Scope { all, source, ranking }
 
-/// CC QC report — three scopes over the same windowed receipts: all VMCCs
-/// pooled, one selected VMCC, or every VMCC ranked side by side. The 7/14/30-day
-/// range applies to all three.
-class CcQcReport extends ConsumerStatefulWidget {
-  const CcQcReport({super.key, required this.node});
+/// Inbound QC report — three scopes over the same windowed receipts: all source
+/// nodes pooled, one selected source, or every source ranked side by side. The
+/// 7/14/30-day range applies to all three. Serves both legs via [ReceiveLeg]:
+/// VMCCs feeding a chilling centre, CCs feeding a plant.
+class NodeQcReport extends ConsumerStatefulWidget {
+  const NodeQcReport({super.key, required this.node, required this.leg});
   final MpNode node;
+  final ReceiveLeg leg;
 
   @override
-  ConsumerState<CcQcReport> createState() => _CcQcReportState();
+  ConsumerState<NodeQcReport> createState() => _NodeQcReportState();
 }
 
-class _CcQcReportState extends ConsumerState<CcQcReport> {
+class _NodeQcReportState extends ConsumerState<NodeQcReport> {
   int _days = 7;
   _Scope _scope = _Scope.all;
-  String? _vmccId;
+  String? _sourceId;
 
-  List<MpNode> _children(List<MpNode> all) =>
-      all.where((n) => n.parentNodeId == widget.node.id && n.isActive).toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  ReceiveLeg get leg => widget.leg;
+
+  /// The sources to offer: nodes parented to this one, plus any node that
+  /// actually dispatched here in the window. The parent link is how a CC's
+  /// VMCCs are modelled, but it isn't guaranteed upstream of a plant — a CC that
+  /// shipped a tanker here belongs in the report whether or not it is parented
+  /// to this plant. Sources with no receipts still appear (ranked last).
+  List<MpNode> _sources(List<MpNode> all, List<MpConsignment> rows) {
+    final senders = rows.map((c) => c.fromNodeId).toSet();
+    return all
+        .where((n) => senders.contains(n.id) || (n.parentNodeId == widget.node.id && n.isActive))
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final rowsAsync = ref.watch(nodeReceivedRangeProvider((nodeId: widget.node.id, days: _days)));
-    final vmccs = _children(ref.watch(nodesByTypeProvider('vmcc')).asData?.value ?? const []);
+    final rowsAsync = ref.watch(
+        nodeReceivedRangeProvider((nodeId: widget.node.id, kind: leg.kind, days: _days)));
+    final allSources = ref.watch(nodesByTypeProvider(leg.sourceType)).asData?.value ?? const [];
+    final sources = _sources(allSources, rowsAsync.asData?.value ?? const []);
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -50,17 +66,18 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
           _scopeBar(t, l),
           const SizedBox(height: DhenuSpacing.sm),
           _rangeSelector(t, l),
-          if (_scope == _Scope.vmcc) ...[
+          if (_scope == _Scope.source) ...[
             const SizedBox(height: DhenuSpacing.sm),
-            _vmccField(t, l, vmccs),
+            _sourceField(t, sources),
           ],
         ]),
       ),
       Expanded(
         child: RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(nodeReceivedRangeProvider((nodeId: widget.node.id, days: _days)));
-            ref.invalidate(nodesByTypeProvider('vmcc'));
+            ref.invalidate(nodeReceivedRangeProvider(
+                (nodeId: widget.node.id, kind: leg.kind, days: _days)));
+            ref.invalidate(nodesByTypeProvider(leg.sourceType));
           },
           child: rowsAsync.when(
             // Scrollable branches so the RefreshIndicator works and a short box
@@ -73,7 +90,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
             ]),
             data: (rows) {
               final bands = ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull ?? QualityBands.empty;
-              return _content(l, rows, vmccs, bands, widget.node.effectiveMilkType);
+              return _content(l, rows, sources, bands, widget.node.effectiveMilkType);
             },
           ),
         ),
@@ -81,36 +98,37 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     ]);
   }
 
-  Widget _content(AppLocalizations l, List<MpConsignment> rows, List<MpNode> vmccs, QualityBands bands,
-      MilkType milkType) {
+  Widget _content(AppLocalizations l, List<MpConsignment> rows, List<MpNode> sources,
+      QualityBands bands, MilkType milkType) {
     switch (_scope) {
       case _Scope.all:
         return QcReportView(
           samples: _samples(rows),
           days: _days,
           heroLabel: l.ccQcHeroLabelAll(_days),
-          heroFooter: l.ccQcHeroFooterAll,
+          heroFooter: leg.heroFooterAll,
           bands: bands,
           milkType: milkType,
         );
       case _Scope.ranking:
-        return QcVmccRanking(rows: rows, vmccs: vmccs, days: _days, bands: bands, milkType: milkType);
-      case _Scope.vmcc:
-        final id = _vmccId ?? (vmccs.isNotEmpty ? vmccs.first.id : null);
+        return QcSourceRanking(
+            rows: rows, sources: sources, leg: leg, days: _days, bands: bands, milkType: milkType);
+      case _Scope.source:
+        final id = _sourceId ?? (sources.isNotEmpty ? sources.first.id : null);
         if (id == null) {
           return DhenuEmptyState(
-              icon: DhenuIcons.store,
-              title: l.ccNoVmccsLinkedTitle,
-              subtitle: l.ccNoVmccsLinkedSubtitle);
+              icon: leg.sourceIcon,
+              title: leg.noSourcesTitle,
+              subtitle: leg.noSourcesSubtitle);
         }
-        final v = vmccs.firstWhere((n) => n.id == id, orElse: () => vmccs.first);
+        final v = sources.firstWhere((n) => n.id == id, orElse: () => sources.first);
         final filtered = rows.where((c) => c.fromNodeId == id).toList();
         return QcReportView(
           samples: _samples(filtered),
           days: _days,
-          heroLabel: l.ccQcHeroLabelVmcc(v.name.toUpperCase(), _days),
-          heroFooter: l.ccQcHeroFooterVmcc,
-          emptySubtitle: l.ccQcEmptySubtitleVmcc,
+          heroLabel: leg.heroLabelSource(v.name.toUpperCase(), _days),
+          heroFooter: leg.heroFooterSource,
+          emptySubtitle: leg.emptySubtitleSource,
           bands: bands,
           milkType: milkType,
         );
@@ -130,7 +148,7 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
         padding: const EdgeInsets.all(3),
         child: Row(children: [
           _scopeSeg(t, _Scope.all, l.ccQcScopeAll),
-          _scopeSeg(t, _Scope.vmcc, l.ccQcScopeByVmcc),
+          _scopeSeg(t, _Scope.source, leg.scopeBySource),
           _scopeSeg(t, _Scope.ranking, l.ccQcScopeRanking),
         ]),
       );
@@ -157,26 +175,26 @@ class _CcQcReportState extends ConsumerState<CcQcReport> {
     );
   }
 
-  Widget _vmccField(DhenuTokens t, AppLocalizations l, List<MpNode> vmccs) {
-    final id = _vmccId ?? (vmccs.isNotEmpty ? vmccs.first.id : null);
+  Widget _sourceField(DhenuTokens t, List<MpNode> sources) {
+    final id = _sourceId ?? (sources.isNotEmpty ? sources.first.id : null);
     MpNode? sel;
-    for (final n in vmccs) {
+    for (final n in sources) {
       if (n.id == id) { sel = n; break; }
     }
     return DhenuCard(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      onTap: vmccs.isEmpty
+      onTap: sources.isEmpty
           ? null
           : () async {
               final picked = await showNodePicker(context,
-                  nodes: vmccs, selectedId: id, title: l.ccQcSelectVmccTitle);
-              if (picked != null) setState(() => _vmccId = picked.id);
+                  nodes: sources, selectedId: id, title: leg.selectTitle);
+              if (picked != null) setState(() => _sourceId = picked.id);
             },
       child: Row(children: [
-        Icon(DhenuIcons.store, size: 18, color: t.brand),
+        Icon(leg.sourceIcon, size: 18, color: t.brand),
         const SizedBox(width: DhenuSpacing.sm),
         Expanded(
-            child: Text(sel?.name ?? l.ccQcSelectVmccPlaceholder,
+            child: Text(sel?.name ?? leg.selectPlaceholder,
                 style: DhenuText.body.copyWith(
                     color: sel == null ? t.inkSoft : t.ink, fontWeight: FontWeight.w600))),
         Icon(DhenuIcons.chevronDown, size: 18, color: t.inkSoft),

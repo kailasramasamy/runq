@@ -103,7 +103,9 @@
   "collectClosedAction": "Collection closed",
   "collectReopen": "Reopen",
   "collectDispatchNow": "Dispatch now",
-  "@collectDispatchNow": { "description": "CTA on Record Collection once the slot is closed — jumps straight to Dispatch for that slot." },
+  "@collectDispatchNow": {
+    "description": "CTA on Record Collection once the slot is closed — jumps straight to Dispatch for that slot."
+  },
   "collectCloseBlockedPending": "Some pours haven't synced yet — wait for sync, then close.",
   "dispatchCloseFirst": "Close collection for this shift before dispatching.",
   "dispatchCloseFirstDay": "Close today's collection before dispatching.",
@@ -315,10 +317,16 @@
   "dispatchTankerButtonMulti": "Dispatch {count} loads",
   "@dispatchTankerButtonMulti": {
     "description": "Dispatch button when more than one milk type is on hand; count is the number ticked.",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "dispatchTypeHeldBack": "Held back for a later dispatch",
-  "@dispatchTypeHeldBack": { "description": "Shown on an unticked milk type in the dispatch form." },
+  "@dispatchTypeHeldBack": {
+    "description": "Shown on an unticked milk type in the dispatch form."
+  },
   "dispatchContainerHint": "Container No. (optional)",
   "dispatchTankerButton": "Dispatch Tanker",
   "dispatchTodaysOutbound": "Today's Outbound",
@@ -1254,12 +1262,16 @@
       "slot": {}
     }
   },
-  "ccDispatchClosedFor": "Receiving closed for {slot} · ready for dispatch",
+  "ccDispatchClosedFor": "Receiving closed for {slot}",
   "@ccDispatchClosedFor": {
     "description": "Banner shown once receiving is closed",
     "placeholders": {
       "slot": {}
     }
+  },
+  "ccDispatchReadyForDispatch": "Ready for dispatch",
+  "@ccDispatchReadyForDispatch": {
+    "description": "Caption under the receiving-closed banner"
   },
   "ccDispatchSlotToday": "today",
   "ccDispatchSlotPool": "this pool",
@@ -1556,15 +1568,21 @@
   "@manualReceiveSaveCount": {
     "description": "Primary action on PP manual receive; one receipt is saved per milk type filled in",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "manualReceivePartialError": "{saved, plural, =1{1 receipt saved} other{{saved} receipts saved}}, then: {error}",
   "@manualReceivePartialError": {
     "description": "Shown when saving several per-type receipts fails partway, so the operator knows what already went through",
     "placeholders": {
-      "saved": { "type": "int" },
-      "error": { "type": "String" }
+      "saved": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
     }
   },
   "ppReceiveManualTag": "MANUAL",
@@ -1572,9 +1590,15 @@
   "@ppReceiveDeleteManualConfirm": {
     "description": "Confirm withdrawing a PP manual receipt, usually because the CC's own dispatch has now arrived",
     "placeholders": {
-      "qty": { "type": "String" },
-      "cc": { "type": "String" },
-      "date": { "type": "String" }
+      "qty": {
+        "type": "String"
+      },
+      "cc": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
     }
   },
   "ppReceiveManualDuplicateWarning": "A manual receipt for this CC, date and milk type is already in. Receiving this tanker too would count the milk twice — delete one.",
@@ -1886,6 +1910,80 @@
   "@homeCloseShiftNudge": {
     "placeholders": {
       "shift": {}
+    }
+  },
+  "notificationsTitle": "Notifications",
+  "notificationsMarkAllRead": "Mark all read",
+  "notificationsEmptyTitle": "Nothing yet",
+  "notificationsEmptySubtitle": "Dispatches and receipts for your centre show up here.",
+  "notificationsLoadError": "Couldn't load notifications",
+  "notificationsJustNow": "just now",
+  "notificationsMinutesAgo": "{n} min ago",
+  "@notificationsMinutesAgo": {
+    "description": "Relative time in the inbox",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsHoursAgo": "{n} h ago",
+  "@notificationsHoursAgo": {
+    "description": "Relative time in the inbox",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsDaysAgo": "{n} d ago",
+  "@notificationsDaysAgo": {
+    "description": "Relative time in the inbox",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "ppHistoryCcCount": "{count, plural, one{{count} CC} other{{count} CCs}}",
+  "@ppHistoryCcCount": {
+    "description": "Source CC count on a collapsed PP history day row",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ppHistoryNoReceiptsSubtitle": "Tankers received from CCs over the last 30 days show here",
+  "ppQcScopeByCc": "By CC",
+  "ppQcHeroFooterAll": "Qty-weighted quality across all CC tankers",
+  "ppQcHeroLabelCc": "{name} \u00b7 LAST {days} DAYS",
+  "@ppQcHeroLabelCc": {
+    "description": "PP QC report hero label, single CC",
+    "placeholders": {
+      "name": {},
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "ppQcHeroFooterCc": "Qty-weighted quality received from this CC",
+  "ppQcEmptySubtitleCc": "No milk received from this CC in this window",
+  "ppQcSelectCcTitle": "Select CC",
+  "ppQcSelectCcPlaceholder": "Select a CC",
+  "ppQcRankingSummary": "{active} of {total} CCs delivered \u00b7 last {days} days",
+  "@ppQcRankingSummary": {
+    "description": "PP QC ranking summary card",
+    "placeholders": {
+      "active": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      }
     }
   }
 }

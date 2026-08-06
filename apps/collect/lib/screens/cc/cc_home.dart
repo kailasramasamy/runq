@@ -3,22 +3,21 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
-import '../../providers/sync_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/section_header.dart';
-import '../../widgets/sync_queue_sheet.dart';
-import '../../widgets/sync_status.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
-import 'cc_qc_report.dart';
+import '../shared/node_qc_report.dart';
+import '../shared/receive_history.dart';
+import '../shared/receive_leg.dart';
 import 'cc_rate_charts.dart';
-import 'cc_receive_history.dart';
 import 'cc_report_tab.dart';
 
 /// Per-VMCC inbound-to-this-CC tally derived from today's consignments.
@@ -65,7 +64,6 @@ class CcHome extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final sync = ref.watch(syncProvider);
     final vmccsAsync = ref.watch(ccVmccCollectionsProvider(node.id));
     final overnight = node.isOvernightPool;
     final todayCons = ref.watch(nodeInboundConsignmentsProvider(node.id)).asData?.value ??
@@ -102,11 +100,9 @@ class CcHome extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          DhenuSectionHeader(node.name, trailing: SyncStatus(
-            state: sync.state, pendingCount: sync.pendingCount,
-            failedCount: sync.failedCount,
-            onTap: () => showSyncQueueSheet(context, ref, node.id),
-          )),
+          // No sync chip: the offline queue only holds VMCC farmer pours, so a
+          // CC has nothing to sync and the chip was permanently inert.
+          DhenuSectionHeader(node.name, trailing: const NotificationBell()),
           const SizedBox(height: DhenuSpacing.lg),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
@@ -255,10 +251,11 @@ class CcHome extends ConsumerWidget {
   /// the two-word labels onto a second line and left the cards visibly uneven.
   /// IntrinsicHeight keeps a pair level even if a translation still wraps.
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) {
+    final leg = ReceiveLeg.vmccToCc(l);
     final links = <(IconData, String, Widget)>[
-      (DhenuIcons.history, l.homeHistory, CcReceiveHistory(node: node)),
+      (DhenuIcons.history, l.homeHistory, ReceiveHistory(node: node, leg: leg)),
       (DhenuIcons.trendingUp, l.ccHomeReportLink, CcReportTab(node: node)),
-      (DhenuIcons.barChart, l.ccHomeQcReportLink, CcQcReport(node: node)),
+      (DhenuIcons.barChart, l.ccHomeQcReportLink, NodeQcReport(node: node, leg: leg)),
       (DhenuIcons.grid, l.ccHomeRateChartLink, const CcRateCharts()),
     ];
     Widget pair(int a, int b) => IntrinsicHeight(

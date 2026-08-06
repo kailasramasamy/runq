@@ -24,8 +24,14 @@ import '../../widgets/status_glyph.dart';
 
 /// CC Dispatch tab — availability summary + dispatch form + today's outbound.
 class CcDispatchTab extends ConsumerStatefulWidget {
-  const CcDispatchTab({super.key, required this.node});
+  const CcDispatchTab({super.key, required this.node, this.initialDate, this.initialShift});
   final MpNode node;
+
+  /// Opened from the manual-receive hub, dispatch has to land on the same slot
+  /// the operator was just entering — not today's — or a backfilled day looks
+  /// empty. Null keeps the tab's own default (today / current shift).
+  final String? initialDate;
+  final Shift? initialShift;
 
   @override
   ConsumerState<CcDispatchTab> createState() => _CcDispatchTabState();
@@ -41,10 +47,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   bool _closingBusy = false;
   String? _error;
   // No-BMC nodes dispatch each shift separately; BMC nodes pool the whole day.
-  Shift _shift = shiftFrom(currentShift());
+  late Shift _shift = widget.initialShift ?? shiftFrom(currentShift());
   // Dispatch date — defaults to today; back-date to backfill a missed day so PP
   // downstream can receive it.
-  String _date = todayIso();
+  late String _date = widget.initialDate ?? todayIso();
 
   // The node's dispatch mode decides: a pooled node (day / overnight) sends one
   // shift-null tanker per window, so there is nothing for the operator to pick.
@@ -384,7 +390,8 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
 
   /// Receiving-close control gating onward dispatch. Open → an action button
   /// that closes the slot and unlocks dispatch; closed → a confirmation with a
-  /// Reopen affordance (the server rejects reopen once anything's dispatched).
+  /// Reopen affordance, which stays available after a dispatch so a missed entry
+  /// can still be corrected and the balance sent on.
   Widget _closeControl(
       DhenuTokens t, AppLocalizations l, AsyncValue<MpAvailability?> availAsync, bool closeRequired) {
     if (!closeRequired) return _closedBanner(t, l);
@@ -432,8 +439,13 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         child: Row(children: [
           Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
           const SizedBox(width: DhenuSpacing.md),
-          Expanded(child: Text(l.ccDispatchClosedFor(_slotLabel(l)),
-              style: DhenuText.label.copyWith(color: t.ink))),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(l.ccDispatchClosedFor(_slotLabel(l)),
+                style: DhenuText.label.copyWith(color: t.ink)),
+            const SizedBox(height: 2),
+            Text(l.ccDispatchReadyForDispatch,
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ])),
           TextButton(
             onPressed: _closingBusy ? null : _reopenReceiving,
             child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),

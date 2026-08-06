@@ -13,35 +13,39 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
 import '../../utils/friendly_error.dart';
+import 'receive_leg.dart';
 
-/// Qty-weighted roll-up of one VMCC's receipts on a day (its AM + PM legs).
+/// Qty-weighted roll-up of one source node's receipts on a day (its AM+PM legs).
 typedef _Agg = ({double qty, double? fat, double? snf, double? water});
 
-/// CC receive history — receipts at this chilling centre over the last 30 days,
-/// shown as per-day sections (newest first). The day list is a light server
-/// rollup (one weighted-quality row per day); only the expanded day's per-VMCC
-/// detail is fetched, so neither the API nor the app loads 30 days of rows at
-/// once. The most recent day opens expanded; earlier days collapse to a qty +
-/// avg-quality summary and load their detail on tap.
-class CcReceiveHistory extends ConsumerStatefulWidget {
-  const CcReceiveHistory({super.key, required this.node});
+/// Receive history — inbound receipts at this node over the last 30 days, shown
+/// as per-day sections (newest first). Serves both legs via [ReceiveLeg]: VMCC
+/// cans at a chilling centre, CC tankers at a plant. The day list is a light
+/// server rollup (one weighted-quality row per day); only the expanded day's
+/// per-source detail is fetched, so neither the API nor the app loads 30 days of
+/// rows at once. The most recent day opens expanded; earlier days collapse to a
+/// qty + avg-quality summary and load their detail on tap.
+class ReceiveHistory extends ConsumerStatefulWidget {
+  const ReceiveHistory({super.key, required this.node, required this.leg});
   final MpNode node;
+  final ReceiveLeg leg;
 
   static const _days = 30;
 
   @override
-  ConsumerState<CcReceiveHistory> createState() => _CcReceiveHistoryState();
+  ConsumerState<ReceiveHistory> createState() => _ReceiveHistoryState();
 }
 
-class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
+class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
   final _open = <String>{};
-  final _openVmcc = <String>{}; // expanded per-VMCC entries, keyed "date|vmccId"
+  final _openSource = <String>{}; // expanded per-source entries, "date|sourceId"
   bool _seeded = false;
   QualityBands _bands = QualityBands.empty;
   MilkType _milkType = MilkType.cowA1;
-  Map<String, MilkType> _vmccMilkType = const {};
+  Map<String, MilkType> _sourceMilkType = const {};
 
   MpNode get node => widget.node;
+  ReceiveLeg get leg => widget.leg;
 
   @override
   Widget build(BuildContext context) {
@@ -49,17 +53,18 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     final l = AppLocalizations.of(context);
     _bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
     _milkType = node.effectiveMilkType;
-    final async =
-        ref.watch(nodeReceivedDailyProvider((nodeId: node.id, days: CcReceiveHistory._days)));
-    final vmccNodes = ref.watch(nodesByTypeProvider('vmcc')).value ?? const <MpNode>[];
-    final names = {for (final n in vmccNodes) n.id: n.name};
-    _vmccMilkType = {for (final n in vmccNodes) n.id: n.effectiveMilkType};
+    final async = ref.watch(nodeReceivedDailyProvider(
+        (nodeId: node.id, kind: leg.kind, days: ReceiveHistory._days)));
+    final sourceNodes = ref.watch(nodesByTypeProvider(leg.sourceType)).value ?? const <MpNode>[];
+    final names = {for (final n in sourceNodes) n.id: n.name};
+    _sourceMilkType = {for (final n in sourceNodes) n.id: n.effectiveMilkType};
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(
-            nodeReceivedDailyProvider((nodeId: node.id, days: CcReceiveHistory._days)));
+        ref.invalidate(nodeReceivedDailyProvider(
+            (nodeId: node.id, kind: leg.kind, days: ReceiveHistory._days)));
         for (final d in _open) {
-          ref.invalidate(nodeReceivedDayDetailProvider((nodeId: node.id, date: d)));
+          ref.invalidate(
+              nodeReceivedDayDetailProvider((nodeId: node.id, kind: leg.kind, date: d)));
         }
       },
       child: async.when(
@@ -71,7 +76,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
             return DhenuEmptyState(
               icon: DhenuIcons.package,
               title: l.ccReceiveNoReceiptsYet,
-              subtitle: l.ccHistoryNoReceiptsSubtitle,
+              subtitle: leg.historyEmptySubtitle,
             );
           }
           if (!_seeded) {
@@ -126,9 +131,9 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     );
   }
 
-  /// Collapsed secondary row: VMCC count + qty-weighted avg quality, kept muted
-  /// so it reads below the date/total. Colour-graded QC lives in the expanded
-  /// per-leg detail.
+  /// Collapsed secondary row: source-node count + qty-weighted avg quality, kept
+  /// muted so it reads below the date/total. Colour-graded QC lives in the
+  /// expanded per-leg detail.
   Widget _collapsedSummary(DhenuTokens t, AppLocalizations l, MpReceivedDay day) {
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -136,7 +141,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: Row(children: [
         Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
         const SizedBox(width: DhenuSpacing.sm),
-        Text(l.ccHistoryVmccCount(day.vmccCount),
+        Text(leg.sourceCount(day.sourceCount),
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
         if (day.fat != null) ...[
           const Spacer(),
@@ -147,9 +152,10 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
     );
   }
 
-  /// Expanded: fetch this day's consignment rows on demand, then group by VMCC.
+  /// Expanded: fetch this day's consignment rows on demand, then group by source.
   Widget _dayDetail(DhenuTokens t, AppLocalizations l, String date, Map<String, String> names) {
-    final async = ref.watch(nodeReceivedDayDetailProvider((nodeId: node.id, date: date)));
+    final async = ref.watch(
+        nodeReceivedDayDetailProvider((nodeId: node.id, kind: leg.kind, date: date)));
     return async.when(
       loading: () => const Padding(
         padding: EdgeInsets.all(DhenuSpacing.lg),
@@ -162,20 +168,20 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
         child: Text(l.ccHistoryDayLoadError, style: DhenuText.body.copyWith(color: t.inkSoft)),
       ),
       data: (cs) {
-        final vmccs = _groupByVmcc(cs);
+        final sources = _groupBySource(cs);
         return Column(children: [
-          for (var i = 0; i < vmccs.length; i++) ...[
+          for (var i = 0; i < sources.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
-            _entry(context, t, l, date, vmccs[i], names),
+            _entry(context, t, l, date, sources[i], names),
           ],
         ]);
       },
     );
   }
 
-  /// Within a day, group a day's receipts by source VMCC (AM+PM legs together),
+  /// Within a day, group a day's receipts by source node (AM+PM legs together),
   /// ordered by descending cumulative qty.
-  List<MapEntry<String, List<MpConsignment>>> _groupByVmcc(List<MpConsignment> day) {
+  List<MapEntry<String, List<MpConsignment>>> _groupBySource(List<MpConsignment> day) {
     final m = <String, List<MpConsignment>>{};
     for (final c in day) {
       (m[c.fromNodeId] ??= []).add(c);
@@ -198,22 +204,22 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
         water: wq > 0 ? ww / wq : null);
   }
 
-  /// A VMCC's day receipts as a collapsed row that expands inline (no bottom
-  /// sheet) into its per-shift legs.
+  /// A source node's day receipts as a collapsed row that expands inline (no
+  /// bottom sheet) into its per-shift legs.
   Widget _entry(BuildContext context, DhenuTokens t, AppLocalizations l, String date,
       MapEntry<String, List<MpConsignment>> e, Map<String, String> names) {
     final key = '$date|${e.key}';
-    final expanded = _openVmcc.contains(key);
-    final name = names[e.key] ?? 'VMCC';
+    final expanded = _openSource.contains(key);
+    final name = names[e.key] ?? leg.rankingHeader;
     final a = _agg(e.value);
     final shifts = e.value.map((c) => c.shift).toSet();
-    // Cow and buffalo grade against different bands, so a VMCC whose day mixes
+    // Cow and buffalo grade against different bands, so a source whose day mixes
     // them has no single standard to colour the qty-weighted average against.
     final types = milkTypesIn(e.value.map((c) => c.milkType));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       InkWell(
         onTap: () => setState(
-            () => expanded ? _openVmcc.remove(key) : _openVmcc.add(key)),
+            () => expanded ? _openSource.remove(key) : _openSource.add(key)),
         child: Padding(
           padding: const EdgeInsets.symmetric(
               horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
@@ -253,10 +259,13 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
   }
 
   /// Inline per-shift breakup (replaces the old bottom sheet): each AM/PM/Day leg
-  /// with received qty, quality, variance and the effective ₹/L for that shift.
-  Widget _entryDetail(DhenuTokens t, AppLocalizations l, String date, String vmccId, List<MpConsignment> cs) {
+  /// with received qty, quality, variance and — on the vmcc→cc leg only — the
+  /// effective ₹/L for that shift.
+  Widget _entryDetail(DhenuTokens t, AppLocalizations l, String date, String sourceId, List<MpConsignment> cs) {
     final legs = [...cs]..sort((a, b) => _shiftOrder(a.shift).compareTo(_shiftOrder(b.shift)));
-    final summary = ref.watch(nodeDaySummaryProvider((nodeId: vmccId, date: date))).valueOrNull;
+    final summary = leg.showRates
+        ? ref.watch(nodeDaySummaryProvider((nodeId: sourceId, date: date))).valueOrNull
+        : null;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(
@@ -269,7 +278,7 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
       child: Column(children: [
         for (var i = 0; i < legs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _legTile(t, l, legs[i], _rateFor(summary, legs[i], vmccId, date),
+          _legTile(t, l, legs[i], _rateFor(summary, legs[i], sourceId, date),
               showMilkType: hasMixedMilkTypes(cs.map((c) => c.milkType))),
         ],
       ]),
@@ -278,14 +287,16 @@ class _CcReceiveHistoryState extends ConsumerState<CcReceiveHistory> {
 
   /// Effective ₹/L for a leg: the pour-priced shift rate when present, else the
   /// leg's receipt QC resolved against the node's rate chart — manual receipts
-  /// carry no per-litre rate, so the summary reports 0.
-  double? _rateFor(MpCollectionSummary? s, MpConsignment leg, String vmccId, String date) {
-    final r = _legRate(s, leg.shift);
+  /// carry no per-litre rate, so the summary reports 0. Null on legs that have
+  /// no farmer pricing behind them (cc→pp tankers).
+  double? _rateFor(MpCollectionSummary? s, MpConsignment c, String sourceId, String date) {
+    if (!leg.showRates) return null;
+    final r = _legRate(s, c.shift);
     if (r != null) return r;
-    if (leg.receiptFat == null || leg.receiptSnf == null) return null;
+    if (c.receiptFat == null || c.receiptSnf == null) return null;
     return ref.watch(receiptRateProvider((
-      milkType: _vmccMilkType[vmccId] ?? _milkType, fat: leg.receiptFat!, snf: leg.receiptSnf!,
-      nodeId: vmccId, onDate: date,
+      milkType: _sourceMilkType[sourceId] ?? _milkType, fat: c.receiptFat!, snf: c.receiptSnf!,
+      nodeId: sourceId, onDate: date,
     ))).valueOrNull;
   }
 

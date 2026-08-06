@@ -3289,8 +3289,14 @@ abstract class AppLocalizations {
   /// Banner shown once receiving is closed
   ///
   /// In en, this message translates to:
-  /// **'Receiving closed for {slot} · ready for dispatch'**
+  /// **'Receiving closed for {slot}'**
   String ccDispatchClosedFor(Object slot);
+
+  /// Caption under the receiving-closed banner
+  ///
+  /// In en, this message translates to:
+  /// **'Ready for dispatch'**
+  String get ccDispatchReadyForDispatch;
 
   /// No description provided for @ccDispatchSlotToday.
   ///
@@ -4923,6 +4929,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{shift} collection is still open — close it when you\'re done.'**
   String homeCloseShiftNudge(Object shift);
+
+  /// No description provided for @notificationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationsTitle;
+
+  /// No description provided for @notificationsMarkAllRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark all read'**
+  String get notificationsMarkAllRead;
+
+  /// No description provided for @notificationsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing yet'**
+  String get notificationsEmptyTitle;
+
+  /// No description provided for @notificationsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatches and receipts for your centre show up here.'**
+  String get notificationsEmptySubtitle;
+
+  /// No description provided for @notificationsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load notifications'**
+  String get notificationsLoadError;
+
+  /// No description provided for @notificationsJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'just now'**
+  String get notificationsJustNow;
+
+  /// Relative time in the inbox
+  ///
+  /// In en, this message translates to:
+  /// **'{n} min ago'**
+  String notificationsMinutesAgo(int n);
+
+  /// Relative time in the inbox
+  ///
+  /// In en, this message translates to:
+  /// **'{n} h ago'**
+  String notificationsHoursAgo(int n);
+
+  /// Relative time in the inbox
+  ///
+  /// In en, this message translates to:
+  /// **'{n} d ago'**
+  String notificationsDaysAgo(int n);
+
+  /// Source CC count on a collapsed PP history day row
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} CC} other{{count} CCs}}'**
+  String ppHistoryCcCount(int count);
+
+  /// No description provided for @ppHistoryNoReceiptsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tankers received from CCs over the last 30 days show here'**
+  String get ppHistoryNoReceiptsSubtitle;
+
+  /// No description provided for @ppQcScopeByCc.
+  ///
+  /// In en, this message translates to:
+  /// **'By CC'**
+  String get ppQcScopeByCc;
+
+  /// No description provided for @ppQcHeroFooterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality across all CC tankers'**
+  String get ppQcHeroFooterAll;
+
+  /// PP QC report hero label, single CC
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · LAST {days} DAYS'**
+  String ppQcHeroLabelCc(Object name, int days);
+
+  /// No description provided for @ppQcHeroFooterCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty-weighted quality received from this CC'**
+  String get ppQcHeroFooterCc;
+
+  /// No description provided for @ppQcEmptySubtitleCc.
+  ///
+  /// In en, this message translates to:
+  /// **'No milk received from this CC in this window'**
+  String get ppQcEmptySubtitleCc;
+
+  /// No description provided for @ppQcSelectCcTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select CC'**
+  String get ppQcSelectCcTitle;
+
+  /// No description provided for @ppQcSelectCcPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a CC'**
+  String get ppQcSelectCcPlaceholder;
+
+  /// PP QC ranking summary card
+  ///
+  /// In en, this message translates to:
+  /// **'{active} of {total} CCs delivered · last {days} days'**
+  String ppQcRankingSummary(int active, int total, int days);
 }
 
 class _AppLocalizationsDelegate

@@ -531,7 +531,8 @@
   "ccDispatchCloseReceivingShift": "{slot} வரவேற்பை மூடு",
   "ccDispatchCloseReceivingToday": "இன்றைய வரவேற்பை மூடு",
   "ccDispatchUnlocksFor": "{slot}க்கு பிளாண்டுக்கு அனுப்புவதைத் திறக்கும்.",
-  "ccDispatchClosedFor": "{slot}க்கு வரவேற்பு மூடப்பட்டது · அனுப்ப தயார்",
+  "ccDispatchClosedFor": "{slot}க்கு வரவேற்பு மூடப்பட்டது",
+  "ccDispatchReadyForDispatch": "அனுப்ப தயார்",
   "ccDispatchSlotToday": "இன்று",
   "ccDispatchSlotPool": "இந்த பூல்",
   "ccDispatchHistoryTitle": "அனுப்பிய வரலாறு",
@@ -668,23 +669,35 @@
   "manualReceiveSaveCount": "{count, plural, =1{1 ரசீதைச் சேமி} other{{count} ரசீதுகளைச் சேமி}}",
   "@manualReceiveSaveCount": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "manualReceivePartialError": "{saved, plural, =1{1 ரசீது சேமிக்கப்பட்டது} other{{saved} ரசீதுகள் சேமிக்கப்பட்டன}}, பிறகு: {error}",
   "@manualReceivePartialError": {
     "placeholders": {
-      "saved": { "type": "int" },
-      "error": { "type": "String" }
+      "saved": {
+        "type": "int"
+      },
+      "error": {
+        "type": "String"
+      }
     }
   },
   "ppReceiveManualTag": "கைமுறை",
   "ppReceiveDeleteManualConfirm": "{date} அன்று {cc} இலிருந்து வந்த {qty} கைமுறை ரசீதை நீக்கவா? அது பதிவு செய்த மூலப்பால் இருப்பு திரும்பப் பெறப்படும்.",
   "@ppReceiveDeleteManualConfirm": {
     "placeholders": {
-      "qty": { "type": "String" },
-      "cc": { "type": "String" },
-      "date": { "type": "String" }
+      "qty": {
+        "type": "String"
+      },
+      "cc": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
     }
   },
   "ppReceiveManualDuplicateWarning": "இந்த CC, தேதி மற்றும் பால் வகைக்கு ஏற்கனவே ஒரு கைமுறை ரசீது உள்ளது. இந்த டேங்கரையும் பெற்றால் பால் இரண்டு முறை கணக்கிடப்படும் — ஒன்றை நீக்கவும்.",
@@ -819,5 +832,24 @@
   "collectShareSummary": "சுருக்கத்தை பகிர்",
   "collectSummaryMessage": "{node} · {date} · {shift}\nசேகரித்த பால்: {qty}\nவிவசாயிகள்: {count}\nசராசரி FAT {fat} · SNF {snf}",
   "farmerRateNewNotice": "{date} முதல் புதிய விலை அமலில் உள்ளது",
-  "homeCloseShiftNudge": "{shift} சேகரிப்பு இன்னும் திறந்துள்ளது — முடிந்ததும் மூடவும்."
+  "homeCloseShiftNudge": "{shift} சேகரிப்பு இன்னும் திறந்துள்ளது — முடிந்ததும் மூடவும்.",
+  "notificationsTitle": "அறிவிப்புகள்",
+  "notificationsMarkAllRead": "அனைத்தையும் படித்ததாகக் குறி",
+  "notificationsEmptyTitle": "இதுவரை எதுவும் இல்லை",
+  "notificationsEmptySubtitle": "உங்கள் மையத்தின் அனுப்புதல்கள் மற்றும் பெறுதல்கள் இங்கே தோன்றும்.",
+  "notificationsLoadError": "அறிவிப்புகளை ஏற்ற முடியவில்லை",
+  "notificationsJustNow": "இப்போதுதான்",
+  "notificationsMinutesAgo": "{n} நிமிடங்களுக்கு முன்",
+  "notificationsHoursAgo": "{n} மணி நேரத்திற்கு முன்",
+  "notificationsDaysAgo": "{n} நாட்களுக்கு முன்",
+  "ppHistoryCcCount": "{count} CC",
+  "ppHistoryNoReceiptsSubtitle": "\u0b95\u0b9f\u0ba8\u0bcd\u0ba4 30 \u0ba8\u0bbe\u0b9f\u0bcd\u0b95\u0bb3\u0bbf\u0bb2\u0bcd CC-\u0b95\u0bb3\u0bbf\u0b9f\u0bae\u0bbf\u0bb0\u0bc1\u0ba8\u0bcd\u0ba4\u0bc1 \u0baa\u0bc6\u0bb1\u0bcd\u0bb1 \u0b9f\u0bbe\u0b99\u0bcd\u0b95\u0bb0\u0bcd\u0b95\u0bb3\u0bcd \u0b87\u0b99\u0bcd\u0b95\u0bc7 \u0ba4\u0bc6\u0bb0\u0bbf\u0baf\u0bc1\u0bae\u0bcd",
+  "ppQcScopeByCc": "CC \u0bb5\u0bbe\u0bb0\u0bbf\u0baf\u0bbe\u0b95",
+  "ppQcHeroFooterAll": "\u0b85\u0ba9\u0bc8\u0ba4\u0bcd\u0ba4\u0bc1 CC \u0b9f\u0bbe\u0b99\u0bcd\u0b95\u0bb0\u0bcd\u0b95\u0bb3\u0bbf\u0ba9\u0bcd \u0b85\u0bb3\u0bb5\u0bc1-\u0b8e\u0ba9\u0bcd\u0ba9\u0bbf\u0b95\u0bcd\u0b95\u0bc8 \u0ba4\u0bb0\u0bae\u0bcd",
+  "ppQcHeroLabelCc": "{name} \u00b7 \u0b95\u0b9f\u0ba8\u0bcd\u0ba4 {days} \u0ba8\u0bbe\u0b9f\u0bcd\u0b95\u0bb3\u0bcd",
+  "ppQcHeroFooterCc": "\u0b87\u0ba8\u0bcd\u0ba4 CC-\u0b87\u0bb2\u0bbf\u0bb0\u0bc1\u0ba8\u0bcd\u0ba4\u0bc1 \u0baa\u0bc6\u0bb1\u0bcd\u0bb1 \u0baa\u0bbe\u0bb2\u0bbf\u0ba9\u0bcd \u0ba4\u0bb0\u0bae\u0bcd",
+  "ppQcEmptySubtitleCc": "\u0b87\u0ba8\u0bcd\u0ba4 \u0b95\u0bbe\u0bb2\u0b95\u0b9f\u0bcd\u0b9f\u0ba4\u0bcd\u0ba4\u0bbf\u0bb2\u0bcd \u0b87\u0ba8\u0bcd\u0ba4 CC-\u0b87\u0bb2\u0bbf\u0bb0\u0bc1\u0ba8\u0bcd\u0ba4\u0bc1 \u0baa\u0bbe\u0bb2\u0bcd \u0baa\u0bc6\u0bb1\u0baa\u0bcd\u0baa\u0b9f\u0bb5\u0bbf\u0bb2\u0bcd\u0bb2\u0bc8",
+  "ppQcSelectCcTitle": "CC \u0ba4\u0bc7\u0bb0\u0bcd\u0ba8\u0bcd\u0ba4\u0bc6\u0b9f\u0bc1\u0b95\u0bcd\u0b95",
+  "ppQcSelectCcPlaceholder": "\u0b92\u0bb0\u0bc1 CC \u0ba4\u0bc7\u0bb0\u0bcd\u0ba8\u0bcd\u0ba4\u0bc6\u0b9f\u0bc1\u0b95\u0bcd\u0b95",
+  "ppQcRankingSummary": "{total}-\u0b87\u0bb2\u0bcd {active} CC \u0bb5\u0bbf\u0ba8\u0bbf\u0baf\u0bcb\u0b95\u0bbf\u0ba4\u0bcd\u0ba4\u0ba4\u0bc1 \u00b7 \u0b95\u0b9f\u0ba8\u0bcd\u0ba4 {days} \u0ba8\u0bbe\u0b9f\u0bcd\u0b95\u0bb3\u0bcd"
 }

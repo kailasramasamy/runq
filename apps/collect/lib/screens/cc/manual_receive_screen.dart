@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../widgets/dhenu_toast.dart';
+import '../../widgets/primary_action.dart';
 import '../../widgets/shift_toggle.dart';
+import 'cc_dispatch_tab.dart';
 import 'manual_receive_entry_screen.dart';
 
 /// Manual receive hub — for milk that arrived WITHOUT a dispatch entry (the VMCC
@@ -16,10 +21,14 @@ import 'manual_receive_entry_screen.dart';
 /// picks the date + shift first, then taps a VMCC straight from the list. Each
 /// VMCC is flagged "Received" when milk from it is already in for that exact
 /// date + shift, so nothing gets entered twice.
+///
+/// The whole slot finishes here: once every VMCC is in, the close control at the
+/// foot of the list closes receiving and hands straight to dispatch, so the
+/// operator never has to go back and hunt for the Dispatch tab.
 class ManualReceiveScreen extends ConsumerStatefulWidget {
-  const ManualReceiveScreen({super.key, required this.vmccs, required this.ccNodeId});
+  const ManualReceiveScreen({super.key, required this.vmccs, required this.node});
   final List<MpNode> vmccs;
-  final String ccNodeId;
+  final MpNode node;
 
   @override
   ConsumerState<ManualReceiveScreen> createState() => _ManualReceiveScreenState();
@@ -28,6 +37,23 @@ class ManualReceiveScreen extends ConsumerStatefulWidget {
 class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   DateTime _date = DateTime.now();
   Shift _shift = DateTime.now().hour < 12 ? Shift.am : Shift.pm;
+  bool _closingBusy = false;
+
+  String get _ccNodeId => widget.node.id;
+  String get _iso => isoDate(_date);
+
+  // A pooled node (BMC / overnight) closes and dispatches the whole window, so
+  // it has no per-shift slot to name — same rule the Dispatch tab applies.
+  bool get _perShift => !widget.node.isPooledDispatch;
+  NodeDateArgs get _dateArgs => (nodeId: _ccNodeId, date: _iso);
+  AvailabilityDateArgs get _availArgs =>
+      (nodeId: _ccNodeId, date: _iso, shift: _perShift ? _shift.name : null);
+  String? get _closeArg => _perShift ? _shift.name : null;
+
+  bool _slotClosed(MpShiftStatus? st) {
+    if (st == null) return false;
+    return _perShift ? st.closedFor(_shift.name) : st.dayClosed;
+  }
 
   /// VMCC id → litres already received at this CC for the selected date + shift.
   /// A whole-day (BMC) consignment carries a null shift and counts for either.
@@ -47,11 +73,44 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   Future<void> _openEntry(MpNode vmcc, {List<MpConsignment> existing = const []}) async {
     final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
       builder: (_) => ManualReceiveEntryScreen(
-        vmcc: vmcc, ccNodeId: widget.ccNodeId, date: _date, shift: _shift, existing: existing),
+        vmcc: vmcc, ccNodeId: _ccNodeId, date: _date, shift: _shift, existing: existing),
     ));
-    if (saved == true) {
-      ref.invalidate(nodeInboundByDateProvider((nodeId: widget.ccNodeId, date: isoDate(_date))));
+    if (saved == true) _invalidateSlot();
+  }
+
+  void _invalidateSlot() {
+    ref.invalidate(nodeInboundByDateProvider(_dateArgs));
+    ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
+    ref.invalidate(shiftStatusForDateProvider(_dateArgs));
+    ref.invalidate(shiftStatusProvider(_ccNodeId));
+    ref.invalidate(nodeAvailabilityProvider);
+  }
+
+  Future<void> _runClose(Future<MpShiftStatus> Function() action) async {
+    setState(() => _closingBusy = true);
+    try {
+      await action();
+      if (mounted) _invalidateSlot();
+    } catch (e) {
+      if (mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
+    } finally {
+      if (mounted) setState(() => _closingBusy = false);
     }
+  }
+
+  /// Dispatch opens on the slot just entered rather than today's, so a
+  /// backfilled day doesn't land the operator on an empty form.
+  Future<void> _openDispatch() async {
+    final l = AppLocalizations.of(context);
+    final t = DT(context);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
+        body: CcDispatchTab(
+            node: widget.node, initialDate: _iso, initialShift: _perShift ? _shift : null),
+      ),
+    ));
+    if (mounted) _invalidateSlot();
   }
 
   // Backfill only: today is the latest selectable date, no future entries.
@@ -69,9 +128,9 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final inboundAsync =
-        ref.watch(nodeInboundByDateProvider((nodeId: widget.ccNodeId, date: isoDate(_date))));
+    final inboundAsync = ref.watch(nodeInboundByDateProvider(_dateArgs));
     final received = _receivedFor(inboundAsync.asData?.value ?? const []);
+    final closed = _slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
     // Only VMCCs that collect in the selected shift can have milk to receive.
     final shiftVmccs = widget.vmccs.where((v) => v.collectsShift(_shift.name)).toList();
     return Scaffold(
@@ -128,25 +187,108 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
                 ..._byName(shiftVmccs.where((v) => !received.containsKey(v.id))),
                 ..._byName(shiftVmccs.where((v) => received.containsKey(v.id))),
               ]) ...[
-                _vmccTile(t, l, v, received[v.id] ?? const []),
+                _vmccTile(t, l, v, received[v.id] ?? const [], closed),
                 const SizedBox(height: DhenuSpacing.sm),
               ],
+            const SizedBox(height: DhenuSpacing.xl),
+            _closeSection(t, l, closed),
           ],
         ),
       ),
     );
   }
 
+  /// Foot of the list: close receiving for the slot, then dispatch it onward.
+  /// Once closed the operator can still Reopen — that's how a VMCC missed on the
+  /// first pass gets added and the balance dispatched as a second load.
+  Widget _closeSection(DhenuTokens t, AppLocalizations l, bool closed) {
+    if (closed) return _closedSection(t, l);
+    final collected =
+        ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.collected ?? 0;
+    // Nothing in for this slot yet — nothing to close.
+    if (collected <= 0) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      OutlinedButton.icon(
+        onPressed: _closingBusy ? null : () => _runClose(
+            () => mpRepo.closeShift(_ccNodeId, _iso, shift: _closeArg)),
+        icon: _closingBusy
+            ? SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: t.brand))
+            : Icon(DhenuIcons.lock, size: 18, color: t.brand),
+        label: Text(_closeLabel(l),
+            style: DhenuText.label.copyWith(color: t.brand, fontWeight: FontWeight.w600)),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          side: BorderSide(color: t.brand.withValues(alpha: 0.5)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.input)),
+        ),
+      ),
+      const SizedBox(height: DhenuSpacing.xs),
+      Text(l.ccDispatchUnlocksFor(_slotLabel(l)),
+          textAlign: TextAlign.center, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+    ]);
+  }
+
+  Widget _closedSection(DhenuTokens t, AppLocalizations l) => Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+          decoration: BoxDecoration(
+            color: t.gradeA.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(DhenuRadii.input),
+            border: Border.all(color: t.gradeA.withValues(alpha: 0.4)),
+          ),
+          child: Row(children: [
+            Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(l.ccDispatchClosedFor(_slotLabel(l)),
+                  style: DhenuText.label.copyWith(color: t.ink)),
+              const SizedBox(height: 2),
+              Text(l.ccDispatchReadyForDispatch,
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ])),
+            TextButton(
+              onPressed: _closingBusy ? null : () => _runClose(
+                  () => mpRepo.reopenShift(_ccNodeId, _iso, shift: _closeArg)),
+              child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),
+            ),
+          ]),
+        ),
+        const SizedBox(height: DhenuSpacing.md),
+        PrimaryAction(
+          label: l.ccDispatchToPlant,
+          icon: DhenuIcons.truck,
+          onPressed: _closingBusy ? null : _openDispatch,
+        ),
+      ]);
+
+  String _closeLabel(AppLocalizations l) => widget.node.isOvernightPool
+      ? l.ccDispatchCloseReceivingPool
+      : (_perShift
+          ? l.ccDispatchCloseReceivingShift(_slotLabel(l))
+          : l.ccDispatchCloseReceivingToday);
+
+  String _slotLabel(AppLocalizations l) => widget.node.isOvernightPool
+      ? l.ccDispatchSlotPool
+      : (_perShift ? (_shift == Shift.am ? l.shiftAm : l.shiftPm) : l.ccDispatchSlotToday);
+
   List<MpNode> _byName(Iterable<MpNode> vmccs) =>
       vmccs.toList()..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-  Widget _vmccTile(DhenuTokens t, AppLocalizations l, MpNode v, List<MpConsignment> receipts) {
+  Widget _vmccTile(
+      DhenuTokens t, AppLocalizations l, MpNode v, List<MpConsignment> receipts, bool closed) {
     final done = receipts.isNotEmpty;
     final qty = receipts.fold<double>(0, (a, c) => a + (c.receiptQty ?? 0));
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      onTap: () => _openEntry(v, existing: receipts),
+      // A closed slot locks its receipts server-side — say so here rather than
+      // letting the operator fill the form and hit a rejection on Save.
+      onTap: closed
+          ? () => showDhenuToast(context, l.ccReceiveLockedForDispatch)
+          : () => _openEntry(v, existing: receipts),
       child: Row(children: [
         Container(
           width: 40, height: 40,

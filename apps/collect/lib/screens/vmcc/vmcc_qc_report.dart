@@ -8,7 +8,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
-import '../cc/qc_report_view.dart';
+import '../shared/qc_report_view.dart';
 import 'farmer_picker.dart';
 
 enum _Scope { all, farmer }

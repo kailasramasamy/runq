@@ -346,9 +346,10 @@ class MpRepo {
     required String nodeId,
     required String from,
     required String to,
+    String kind = 'vmcc_to_cc',
   }) async {
     final res = await _api.get(
-      '$_base/reports/received-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to})}',
+      '$_base/reports/received-daily${_qs({'nodeId': nodeId, 'kind': kind, 'from': from, 'to': to})}',
     );
     return _list(res).map(MpReceivedDay.fromJson).toList();
   }
