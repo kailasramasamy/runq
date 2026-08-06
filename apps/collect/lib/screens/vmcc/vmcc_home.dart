@@ -22,6 +22,7 @@ import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/pending_dispatch_alert.dart';
+import '../shared/pending_work.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
@@ -69,14 +70,7 @@ class VmccHome extends ConsumerWidget {
           _header(context, ref, t, l, sync),
           ..._unclosedShiftNudge(context, ref, t, l, summary.asData?.value),
           const SizedBox(height: DhenuSpacing.lg),
-          // Dispatch is tab 2 in VmccShell. A close, though, happens on Record
-          // Collection — pushed at the named slot so the operator lands on the
-          // day the alert is about rather than on today.
-          PendingDispatchAlert(
-            nodeId: node.id,
-            dispatchTabIndex: 2,
-            onClosePending: (slot) => _openCloseFor(context, ref, slot),
-          ),
+          PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
           _hero(context, t, l, summary, bands),
           const SizedBox(height: DhenuSpacing.md),
           _statsRow(ref, t, l, summary),
@@ -99,17 +93,27 @@ class VmccHome extends ConsumerWidget {
     );
   }
 
-  /// Open Record Collection on a past slot whose collection was never closed.
-  /// Refreshes on return so the alert and badge clear once it's done.
-  Future<void> _openCloseFor(BuildContext context, WidgetRef ref, MpPendingDispatch slot) async {
+  /// Open the screen that clears one stuck slot, on that slot's own date. A
+  /// VMCC closes on Record Collection but dispatches on the dispatch screen, so
+  /// the two kinds land in different places.
+  Future<void> _openSlot(BuildContext context, MpPendingDispatch slot, PendingWorkKind kind) async {
+    final l = AppLocalizations.of(context);
+    final shift = slot.shift == null ? null : shiftFrom(slot.shift!);
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => RecordCollectionScreen(
-        node: node,
-        initialDate: slot.collectionDate,
-        initialShift: slot.shift == null ? null : shiftFrom(slot.shift!),
-      ),
+      builder: (ctx) => kind == PendingWorkKind.toClose
+          ? RecordCollectionScreen(node: node, initialDate: slot.collectionDate, initialShift: shift)
+          : Scaffold(
+              appBar: AppBar(
+                  title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: DT(ctx).ink))),
+              body: VmccDispatchTab(
+                node: node,
+                initialDate: slot.collectionDate,
+                // A pooled VMCC sends its whole window as one tanker; a shift
+                // would name a slot it can't draw against.
+                initialShift: node.isPooledDispatch ? null : shift,
+              ),
+            ),
     ));
-    ref.invalidate(pendingDispatchProvider(node.id));
   }
 
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [

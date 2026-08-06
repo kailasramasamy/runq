@@ -7,9 +7,11 @@ import '../theme/dhenu_theme.dart';
 class DhenuNavItem {
   final IconData icon;
   final String label;
-  /// Count shown on the icon when > 0 — outstanding work waiting on this tab.
-  final int badge;
-  const DhenuNavItem({required this.icon, required this.label, this.badge = 0});
+  /// Marks the tab as having outstanding work. A dot, not a count: the number
+  /// belongs on the screen that can act on it, where there's room to say what it
+  /// counts. Down here it would be a bare digit with no referent.
+  final bool alert;
+  const DhenuNavItem({required this.icon, required this.label, this.alert = false});
 }
 
 /// 5-item Dhenu bottom navigation bar.
@@ -58,35 +60,24 @@ class AppBottomNav extends StatelessWidget {
   }
 }
 
-/// Count pill on a nav icon, matching the notification bell's badge fill and
-/// padding so the app has one badge language.
-///
-/// Uncapped, unlike the bell's 9+: this counts slots of stuck milk, and the
-/// difference between 11 and 35 is the difference between a bad week and a
-/// broken month. The pill grows with the digits.
-///
-/// Red rather than the amber the home alert uses: white on amber is about 1.9:1
-/// and turns to mush at this size, while the bell's red/white is already proven
-/// legible over both themes. The colour is carrying legibility here, not
-/// severity — the alert card is where the tone is set.
-class _Badge extends StatelessWidget {
-  const _Badge({required this.count, required this.t});
-  final int count;
+/// Unread-style dot marking a tab with outstanding work. Uses the notification
+/// bell's red so the app has one "needs attention" colour, and no number — the
+/// dispatch screen shows the count with the context to make sense of it.
+class _AlertDot extends StatelessWidget {
+  const _AlertDot({required this.t});
   final DhenuTokens t;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      constraints: const BoxConstraints(minWidth: 16),
+      width: 9,
+      height: 9,
       decoration: BoxDecoration(
         color: t.gradeC,
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      ),
-      child: Text(
-        '$count',
-        textAlign: TextAlign.center,
-        style: DhenuText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+        shape: BoxShape.circle,
+        // Ringed in the bar's own colour so the dot reads as separate from the
+        // icon it sits on rather than merging into a stroke of it.
+        border: Border.all(color: t.card, width: 1.5),
       ),
     );
   }
@@ -146,11 +137,11 @@ class _NavItem extends StatelessWidget {
 
     // Sits on the icon, outside the chip's clip so it isn't cut off when the tab
     // is active. `clipBehavior: none` is what lets it hang over the edge.
-    final Widget badged = item.badge <= 0
+    final Widget badged = !item.alert
         ? iconChip
         : Stack(clipBehavior: Clip.none, children: [
             iconChip,
-            Positioned(right: 0, top: -4, child: _Badge(count: item.badge, t: t)),
+            Positioned(right: 4, top: 0, child: _AlertDot(t: t)),
           ]);
 
     return GestureDetector(

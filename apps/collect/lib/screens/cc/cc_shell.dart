@@ -21,10 +21,10 @@ class CcShell extends ConsumerWidget {
   /// Optional bar pinned above the tabs — the admin centre-switcher.
   final Widget? header;
 
-  List<DhenuNavItem> _items(AppLocalizations l, int owed) => [
+  List<DhenuNavItem> _items(AppLocalizations l, bool owed) => [
         DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
         DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive),
-        DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, badge: owed),
+        DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, alert: owed),
         DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
       ];
 
@@ -35,7 +35,7 @@ class CcShell extends ConsumerWidget {
     // operator across every tab, which is the point: they live on Receive.
     // Closes and dispatches share one badge here because a CC does both on the
     // dispatch screen; only a VMCC has to split them across two tabs.
-    final owed = ref.watch(pendingDispatchProvider(node.id)).valueOrNull?.length ?? 0;
+    final owed = ref.watch(pendingDispatchProvider(node.id)).valueOrNull?.isNotEmpty ?? false;
     return RoleShell(
       items: _items(l, owed),
       header: header,

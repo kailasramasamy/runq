@@ -173,6 +173,29 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get pendingWorkCloseScreenTitle => 'Collections to close';
+
+  @override
+  String get pendingWorkDispatchScreenTitle => 'Dispatches pending';
+
+  @override
+  String get pendingWorkEmpty => 'Nothing pending';
+
+  @override
+  String get pendingWorkEmptySubtitle => 'All collected milk has moved on';
+
+  @override
+  String pendingWorkDaysAgo(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days ago',
+      one: '$days day ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -370,6 +370,36 @@ abstract class AppLocalizations {
   /// **'Oldest: {slot} · {qty}'**
   String dispatchPendingOldest(String slot, String qty);
 
+  /// Title of the list screen showing every past slot whose collection was never closed
+  ///
+  /// In en, this message translates to:
+  /// **'Collections to close'**
+  String get pendingWorkCloseScreenTitle;
+
+  /// Title of the list screen showing every closed slot whose milk was never sent onward
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatches pending'**
+  String get pendingWorkDispatchScreenTitle;
+
+  /// Empty state on the pending-work list once every slot is cleared
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing pending'**
+  String get pendingWorkEmpty;
+
+  /// Empty-state subtitle on the pending-work list
+  ///
+  /// In en, this message translates to:
+  /// **'All collected milk has moved on'**
+  String get pendingWorkEmptySubtitle;
+
+  /// How stale a pending slot is, shown on each row
+  ///
+  /// In en, this message translates to:
+  /// **'{days, plural, one{{days} day ago} other{{days} days ago}}'**
+  String pendingWorkDaysAgo(int days);
+
   /// Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated
   ///
   /// In en, this message translates to:

@@ -172,6 +172,29 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
+  String get pendingWorkCloseScreenTitle => 'ಮುಚ್ಚಬೇಕಾದ ಸಂಗ್ರಹಗಳು';
+
+  @override
+  String get pendingWorkDispatchScreenTitle => 'ಬಾಕಿ ಇರುವ ರವಾನೆಗಳು';
+
+  @override
+  String get pendingWorkEmpty => 'ಏನೂ ಬಾಕಿ ಇಲ್ಲ';
+
+  @override
+  String get pendingWorkEmptySubtitle => 'ಸಂಗ್ರಹಿಸಿದ ಎಲ್ಲಾ ಹಾಲು ಮುಂದೆ ಸಾಗಿದೆ';
+
+  @override
+  String pendingWorkDaysAgo(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days ದಿನಗಳ ಹಿಂದೆ',
+      one: '$days ದಿನದ ಹಿಂದೆ',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

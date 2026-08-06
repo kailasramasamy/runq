@@ -118,6 +118,27 @@
     "description": "Subtitle naming the oldest undispatched slot, e.g. 'Oldest: PM · 4 Aug · 320.0 L'",
     "placeholders": { "slot": { "type": "String" }, "qty": { "type": "String" } }
   },
+  "pendingWorkCloseScreenTitle": "Collections to close",
+  "@pendingWorkCloseScreenTitle": {
+    "description": "Title of the list screen showing every past slot whose collection was never closed"
+  },
+  "pendingWorkDispatchScreenTitle": "Dispatches pending",
+  "@pendingWorkDispatchScreenTitle": {
+    "description": "Title of the list screen showing every closed slot whose milk was never sent onward"
+  },
+  "pendingWorkEmpty": "Nothing pending",
+  "@pendingWorkEmpty": {
+    "description": "Empty state on the pending-work list once every slot is cleared"
+  },
+  "pendingWorkEmptySubtitle": "All collected milk has moved on",
+  "@pendingWorkEmptySubtitle": {
+    "description": "Empty-state subtitle on the pending-work list"
+  },
+  "pendingWorkDaysAgo": "{days, plural, one{{days} day ago} other{{days} days ago}}",
+  "@pendingWorkDaysAgo": {
+    "description": "How stale a pending slot is, shown on each row",
+    "placeholders": { "days": { "type": "int" } }
+  },
   "dispatchPendingCloseTitle": "{count, plural, one{{count} collection to close} other{{count} collections to close}}",
   "@dispatchPendingCloseTitle": {
     "description": "Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated",

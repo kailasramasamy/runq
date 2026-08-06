@@ -175,6 +175,30 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
+  String get pendingWorkCloseScreenTitle => 'மூட வேண்டிய சேகரிப்புகள்';
+
+  @override
+  String get pendingWorkDispatchScreenTitle => 'நிலுவையில் உள்ள அனுப்புதல்கள்';
+
+  @override
+  String get pendingWorkEmpty => 'நிலுவையில் எதுவும் இல்லை';
+
+  @override
+  String get pendingWorkEmptySubtitle =>
+      'சேகரிக்கப்பட்ட அனைத்து பாலும் அனுப்பப்பட்டுவிட்டது';
+
+  @override
+  String pendingWorkDaysAgo(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days நாட்களுக்கு முன்',
+      one: '$days நாளுக்கு முன்',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

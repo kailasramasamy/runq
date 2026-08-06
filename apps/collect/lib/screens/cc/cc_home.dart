@@ -13,6 +13,8 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/pending_dispatch_alert.dart';
+import '../shared/pending_work.dart';
+import 'cc_dispatch_tab.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import '../shared/node_qc_report.dart';
@@ -106,8 +108,7 @@ class CcHome extends ConsumerWidget {
           // CC has nothing to sync and the chip was permanently inert.
           DhenuSectionHeader(node.name, trailing: const NotificationBell()),
           const SizedBox(height: DhenuSpacing.lg),
-          // Dispatch is tab 2 in CcShell.
-          PendingDispatchAlert(nodeId: node.id, dispatchTabIndex: 2),
+          PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
@@ -292,6 +293,27 @@ class CcHome extends ConsumerWidget {
           Text(label, textAlign: TextAlign.center, style: DhenuText.label.copyWith(color: t.ink)),
         ]),
       );
+
+  /// Open one stuck slot on the dispatch screen, at its own date. A CC both
+  /// closes and dispatches there, so both kinds share the destination — the
+  /// close control appears on the slot that still needs it.
+  Future<void> _openSlot(BuildContext context, MpPendingDispatch slot, PendingWorkKind kind) async {
+    final l = AppLocalizations.of(context);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (ctx) => Scaffold(
+        appBar:
+            AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: DT(ctx).ink))),
+        body: CcDispatchTab(
+          node: node,
+          initialDate: slot.collectionDate,
+          // A pooled CC sends its whole window as one tanker; naming a shift
+          // would point at a figure it can't draw against.
+          initialShift: slot.shift == null ? null : shiftFrom(slot.shift!),
+        ),
+      ),
+    ));
+  }
+
 
   Widget _statsRow(DhenuTokens t, AppLocalizations l, double inTransit, double ready) => Row(children: [
         Expanded(child: _miniStat(t, l.ccInTransitLabel, litres(inTransit, unit: true),

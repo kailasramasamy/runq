@@ -9,6 +9,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../shared/pending_work.dart';
 import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -83,33 +84,15 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     }
   }
 
-  // Snap once to the oldest slot still owed, so arriving from the badge lands on
-  // the work it is counting rather than on an empty today. One-shot: after this
-  // the date picker is the operator's, and a second snap would fight them.
-  bool _snapped = false;
-
-  /// Only slots this screen can actually clear. A VMCC closes on Record
-  /// Collection, so snapping to an unclosed slot would land the operator on a
-  /// gate banner they can do nothing about — the Collect badge owns those.
-  List<MpPendingDispatch> _snapCandidates(List<MpPendingDispatch> owed) =>
-      owed.where((s) => s.closed).toList();
-
-  void _snapToOldestPending(AsyncValue<List<MpPendingDispatch>> async) {
-    // Wait for real data: the tab is built with the shell, long before the
-    // provider resolves, and marking it snapped on that empty first build would
-    // mean it never fires at all.
-    if (_snapped || widget.initialDate != null || async.isLoading) return;
-    _snapped = true;
-    final owed = _snapCandidates(async.valueOrNull ?? const []);
-    if (owed.isEmpty || owed.first.collectionDate.compareTo(todayIso()) >= 0) return;
-    final oldest = owed.first;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _clearInputs();
-      setState(() {
-        _date = oldest.collectionDate;
-        if (oldest.shift != null) _shift = shiftFrom(oldest.shift!);
-      });
+  /// Jump this tab to a slot picked from the pending list. Pops the list rather
+  /// than stacking a second dispatch screen on top of the one already open.
+  Future<void> _goToSlot(BuildContext listContext, MpPendingDispatch slot) async {
+    Navigator.of(listContext).pop();
+    if (!mounted) return;
+    _clearInputs();
+    setState(() {
+      _date = slot.collectionDate;
+      if (slot.shift != null) _shift = shiftFrom(slot.shift!);
     });
   }
 
@@ -233,7 +216,6 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     final l = AppLocalizations.of(context);
     final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
     final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
-    _snapToOldestPending(ref.watch(pendingDispatchProvider(widget.node.id)));
     availAsync.whenData(_syncEntries);
     final legs = _entries.values.toList();
     final canDispatch = legs.isNotEmpty;
@@ -250,6 +232,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
+        PendingWorkBanner(
+          nodeId: widget.node.id,
+          kind: PendingWorkKind.toDispatch,
+          onOpenSlot: _goToSlot,
+        ),
         DateStepper(date: _date, todayLabel: l.commonToday, onChanged: _onDateChanged),
         const SizedBox(height: DhenuSpacing.lg),
         Row(children: [

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/transfer_providers.dart';
-import '../screens/role_shell.dart';
+import '../screens/shared/pending_work.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
@@ -20,23 +20,15 @@ import '../utils/format.dart';
 /// of a home page. That silence is the point: the TO DISPATCH / READY stat next
 /// to it counts today's milk and says nothing about a shift left open last week.
 class PendingDispatchAlert extends ConsumerWidget {
-  const PendingDispatchAlert({
-    super.key,
-    required this.nodeId,
-    required this.dispatchTabIndex,
-    this.onClosePending,
-  });
+  const PendingDispatchAlert({super.key, required this.nodeId, required this.onOpenSlot});
 
   final String nodeId;
 
-  /// Which tab of the enclosing shell is Dispatch — personas order tabs
-  /// differently, so the caller names it rather than this guessing.
-  final int dispatchTabIndex;
-
-  /// Where an unclosed slot is resolved, when that isn't the dispatch tab. A CC
-  /// closes on its dispatch screen, so it leaves this null; a VMCC closes on
-  /// Record Collection and passes a push for the named slot.
-  final void Function(MpPendingDispatch slot)? onClosePending;
+  /// Opens one slot for action. The destination differs by persona and kind — a
+  /// VMCC closes on Record Collection, a CC on its dispatch screen — so the
+  /// caller supplies it rather than this widget knowing every shell's layout.
+  final Future<void> Function(BuildContext context, MpPendingDispatch slot, PendingWorkKind kind)
+      onOpenSlot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,9 +49,7 @@ class PendingDispatchAlert extends ConsumerWidget {
               icon: DhenuIcons.warning,
               title: l.dispatchPendingCloseTitle(toClose.length),
               oldest: toClose.first,
-              onTap: () => onClosePending == null
-                  ? RoleShell.goToTab(context, dispatchTabIndex)
-                  : onClosePending!(toClose.first)),
+              onTap: () => _openList(context, PendingWorkKind.toClose)),
         if (toClose.isNotEmpty && toDispatch.isNotEmpty)
           const SizedBox(height: DhenuSpacing.sm),
         if (toDispatch.isNotEmpty)
@@ -67,9 +57,21 @@ class PendingDispatchAlert extends ConsumerWidget {
               icon: DhenuIcons.truck,
               title: l.dispatchPendingTitle(toDispatch.length),
               oldest: toDispatch.first,
-              onTap: () => RoleShell.goToTab(context, dispatchTabIndex)),
+              onTap: () => _openList(context, PendingWorkKind.toDispatch)),
       ]),
     );
+  }
+
+  /// The row names the oldest slot but a node can be a dozen behind, so the tap
+  /// opens the full list rather than guessing which one the operator meant.
+  void _openList(BuildContext context, PendingWorkKind kind) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PendingWorkScreen(
+        nodeId: nodeId,
+        kind: kind,
+        onOpenSlot: (ctx, slot) => onOpenSlot(ctx, slot, kind),
+      ),
+    ));
   }
 
   Widget _row(
