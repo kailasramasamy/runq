@@ -385,9 +385,11 @@ export class ReportService {
     }
   }
 
-  /** One qty-weighted rollup row per collection_date of received vmcc→cc
-   * consignments at a CC node, newest day first. Powers the receive-history
-   * day list without shipping every consignment row to the client. */
+  /** One qty-weighted rollup row per collection_date of received inbound
+   * consignments at a node, newest day first — the vmcc→cc leg at a chilling
+   * centre, the cc→pp tanker leg at a plant. Powers the receive-history day
+   * list without shipping every consignment row to the client. vmccCount is
+   * the distinct source-node count, whichever leg is being rolled up. */
   async receivedDaily(q: ReceivedDailyQuery): Promise<ReceivedDay[]> {
     const wq = (col: AnyPgColumn) =>
       sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${col}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${col} is not null), 0), 2)`;
@@ -401,7 +403,7 @@ export class ReportService {
     }).from(mpConsignments).where(and(
       eq(mpConsignments.tenantId, this.tenantId),
       eq(mpConsignments.toNodeId, q.nodeId),
-      eq(mpConsignments.kind, 'vmcc_to_cc'),
+      eq(mpConsignments.kind, q.kind),
       eq(mpConsignments.status, 'received'),
       gte(mpConsignments.collectionDate, q.from),
       lte(mpConsignments.collectionDate, q.to),

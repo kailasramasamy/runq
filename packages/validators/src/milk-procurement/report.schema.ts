@@ -13,9 +13,11 @@ export const collectionReportSchema = z.object({
 
 export type CollectionReportQuery = z.infer<typeof collectionReportSchema>;
 
-/** Per-day rollup of received vmcc→cc consignments at a single CC node. */
+/** Per-day rollup of received inbound consignments at a single node — the
+ * vmcc→cc leg at a chilling centre, or the cc→pp tanker leg at a plant. */
 export const receivedDailySchema = z.object({
   nodeId: z.string().uuid(),
+  kind: z.enum(['vmcc_to_cc', 'cc_to_pp']).default('vmcc_to_cc'),
   from: z.string().date(),
   to: z.string().date(),
 });
