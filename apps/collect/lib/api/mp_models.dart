@@ -777,6 +777,33 @@ class MpTypeAvailability {
   );
 }
 
+/// A slot at a node still holding milk that was never sent onward. Unbounded in
+/// the past — a shift closed weeks ago and forgotten is exactly what this is for.
+class MpPendingDispatch {
+  final String collectionDate;
+  /// Null at a pooled (BMC / overnight) node — it dispatches its whole window as
+  /// one tanker, so there is no per-shift figure to draw against.
+  final String? shift;
+  final double available;
+  /// Closed means dispatch is unblocked and the operator can act right now. An
+  /// open slot has to be closed for collection first.
+  final bool closed;
+
+  const MpPendingDispatch({
+    required this.collectionDate,
+    required this.shift,
+    required this.available,
+    required this.closed,
+  });
+
+  factory MpPendingDispatch.fromJson(Map<String, dynamic> j) => MpPendingDispatch(
+    collectionDate: _s(j['collectionDate']),
+    shift: j['shift'] as String?,
+    available: _d(j['available']),
+    closed: j['closed'] == true,
+  );
+}
+
 class MpAvailability {
   final String nodeId, collectionDate, nodeType;
   final double collected, dispatched, available;

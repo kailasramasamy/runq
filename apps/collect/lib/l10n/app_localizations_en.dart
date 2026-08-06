@@ -157,6 +157,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'Close collection for this shift before dispatching.';
 
   @override
+  String dispatchPendingTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dispatches pending',
+      one: '$count dispatch pending',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchPendingOldest(String slot, String qty) {
+    return 'Oldest: $slot · $qty';
+  }
+
+  @override
+  String dispatchPendingCloseTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count collections to close',
+      one: '$count collection to close',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get dispatchCloseFirstDay =>
       'Close today\'s collection before dispatching.';
 

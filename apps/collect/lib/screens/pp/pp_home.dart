@@ -30,8 +30,17 @@ class PpHome extends ConsumerWidget {
   const PpHome({super.key, required this.node});
   final MpNode node;
 
+  /// Recent receives spans 3 days, unlike the rest of this page: a load
+  /// collected yesterday but received this morning keeps YESTERDAY's collection
+  /// date, so a today-scoped list drops it the instant it's taken in. The hero,
+  /// gauge and CC list stay strictly today — those are the day's tally.
+  static const _recentDays = 3;
+  ReceivedRangeArgs get _recentArgs =>
+      (nodeId: node.id, kind: 'cc_to_pp', days: _recentDays);
+
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
   }
 
@@ -47,6 +56,8 @@ class PpHome extends ConsumerWidget {
     final flow = _flowByNode(tankers);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
+    final recent = ref.watch(nodeReceivedRangeProvider(_recentArgs)).valueOrNull
+        ?? const <MpConsignment>[];
     final bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
     final milkType = node.effectiveMilkType;
 
@@ -78,7 +89,7 @@ class PpHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.lg),
           Text(l.ccReceiveRecentReceives, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
-          _recentReceives(l, t, tankers, names, bands, milkType),
+          _recentReceives(l, t, recent, names, bands, milkType),
         ],
       ),
     );
@@ -315,8 +326,11 @@ class PpHome extends ConsumerWidget {
     );
   }
 
-  Widget _recentReceives(AppLocalizations l, DhenuTokens t, List<MpConsignment> tankers, Map<String, String> names, QualityBands bands, MilkType milkType) {
-    final received = tankers.where((c) => c.received).toList().reversed.toList();
+  /// The newest few receipts across the 3-day window, grouped under a date
+  /// header per day — spanning days, an undated run of rows gives no sense of
+  /// which day's intake you're looking at. Rows arrive newest-first from the
+  /// API, so insertion order carries the grouping.
+  Widget _recentReceives(AppLocalizations l, DhenuTokens t, List<MpConsignment> received, Map<String, String> names, QualityBands bands, MilkType milkType) {
     if (received.isEmpty) {
       return DhenuEmptyState(
         icon: DhenuIcons.package,
@@ -324,16 +338,39 @@ class PpHome extends ConsumerWidget {
         subtitle: l.ppReceiveNoReceiptsSubtitle,
       );
     }
-    final show = received.take(5).toList();
-    return DhenuCard(
-      padding: EdgeInsets.zero,
-      child: Column(children: [
-        for (var i = 0; i < show.length; i++) ...[
-          if (i > 0) Divider(height: 1, color: t.hairline),
-          _receiveRow(l, t, show[i], names, bands, milkType),
-        ],
-      ]),
-    );
+    final byDay = <String, List<MpConsignment>>{};
+    for (final c in received.take(5)) {
+      byDay.putIfAbsent(c.collectionDate, () => []).add(c);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (final day in byDay.entries) ...[
+        _dayHeader(t, day.key, day.value),
+        const SizedBox(height: DhenuSpacing.sm),
+        DhenuCard(
+          padding: EdgeInsets.zero,
+          child: Column(children: [
+            for (var i = 0; i < day.value.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: t.hairline),
+              _receiveRow(l, t, day.value[i], names, bands, milkType),
+            ],
+          ]),
+        ),
+        const SizedBox(height: DhenuSpacing.md),
+      ],
+    ]);
+  }
+
+  Widget _dayHeader(DhenuTokens t, String date, List<MpConsignment> rows) {
+    final qty = rows.fold<double>(0, (s, c) => s + (c.receiptQty ?? 0));
+    return Row(children: [
+      Text(prettyDate(date),
+          style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+      const SizedBox(width: DhenuSpacing.sm),
+      Expanded(child: Divider(color: t.hairline, height: 1)),
+      const SizedBox(width: DhenuSpacing.sm),
+      Text('${rows.length} · ${litres(qty, unit: true)}',
+          style: DhenuText.caption.copyWith(color: t.inkSoft)),
+    ]);
   }
 
   Widget _receiveRow(AppLocalizations l, DhenuTokens t, MpConsignment c, Map<String, String> names, QualityBands bands, MilkType milkType) {

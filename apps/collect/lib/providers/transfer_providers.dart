@@ -127,6 +127,15 @@ final nodeAvailabilityForDateProvider =
   return mpRepo.availability(args.nodeId, args.date, shift: args.shift);
 });
 
+/// Slots at a node still holding undispatched milk, oldest first, over the whole
+/// history — a shift closed last week and never dispatched is the miss this
+/// exists to catch, and a today-scoped check can never see it. Drives the
+/// dispatch nav badge and the home alert. Key: nodeId.
+final pendingDispatchProvider =
+    FutureProvider.family<List<MpPendingDispatch>, String>((ref, nodeId) async {
+  return mpRepo.pendingDispatch(nodeId);
+});
+
 /// Which shifts are closed for collection at a node today. Drives the close
 /// banner on Record Collection and the hard dispatch gate. Key: nodeId.
 final shiftStatusProvider =

@@ -24,17 +24,25 @@ class PpReceiveTab extends ConsumerWidget {
   const PpReceiveTab({super.key, required this.node});
   final MpNode node;
 
+  /// Receipts are shown over a 3-day window, not just today: a load collected
+  /// yesterday but received this morning carries YESTERDAY's collection date,
+  /// so a today-scoped list drops it the instant it's taken in.
+  static const _recentDays = 3;
+  ReceivedRangeArgs get _recentArgs =>
+      (nodeId: node.id, kind: 'cc_to_pp', days: _recentDays);
+
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
     ref.invalidate(nodePendingInboundProvider(node.id));
-    await ref.read(nodeInboundConsignmentsProvider(node.id).future);
+    ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
+    await ref.read(nodeReceivedRangeProvider(_recentArgs).future);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final consAsync = ref.watch(nodeInboundConsignmentsProvider(node.id));
+    final consAsync = ref.watch(nodeReceivedRangeProvider(_recentArgs));
     // In transit is a work queue, not a day view — a CC that dispatches a
     // back-dated load must still land in this list.
     final pending = ref.watch(nodePendingInboundProvider(node.id));
@@ -57,16 +65,13 @@ class PpReceiveTab extends ConsumerWidget {
                 title: l.ppReceiveLoadError,
                 subtitle: friendlyError(context, e),
               ),
-              data: (all) {
+              // Already scoped to cc_to_pp receipts and ordered newest-first by
+              // the API — no client-side filter or reversal needed.
+              data: (received) {
                 final inTransit = (pending.asData?.value ?? const <MpConsignment>[])
                     .where((c) => c.kind == 'cc_to_pp' && c.inTransit)
                     .toList()
                   ..sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
-                final received = all
-                    .where((c) => c.kind == 'cc_to_pp' && c.received)
-                    .toList()
-                    .reversed
-                    .toList();
                 return _list(context, ref, l, t, inTransit, received, names);
               },
             ),
@@ -376,5 +381,6 @@ class PpReceiveTab extends ConsumerWidget {
       ),
     ));
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
+    ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
   }
 }

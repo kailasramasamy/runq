@@ -358,6 +358,24 @@ abstract class AppLocalizations {
   /// **'Close collection for this shift before dispatching.'**
   String get dispatchCloseFirst;
 
+  /// Home alert + dispatch badge — slots holding milk that was never sent onward
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} dispatch pending} other{{count} dispatches pending}}'**
+  String dispatchPendingTitle(int count);
+
+  /// Subtitle naming the oldest undispatched slot, e.g. 'Oldest: PM · 4 Aug · 320.0 L'
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest: {slot} · {qty}'**
+  String dispatchPendingOldest(String slot, String qty);
+
+  /// Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} collection to close} other{{count} collections to close}}'**
+  String dispatchPendingCloseTitle(int count);
+
   /// No description provided for @dispatchCloseFirstDay.
   ///
   /// In en, this message translates to:

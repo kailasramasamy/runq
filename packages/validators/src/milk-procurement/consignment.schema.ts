@@ -71,8 +71,15 @@ export const consignmentAvailabilitySchema = z.object({
   milkType: milkTypeEnum.optional(),
 });
 
+/** Slots at a node still holding undispatched milk. Unbounded in the past by
+ * design — a shift closed months ago and never dispatched is still a real gap. */
+export const pendingDispatchSchema = z.object({
+  nodeId: z.string().uuid(),
+});
+
 export type CreateConsignmentInput = z.infer<typeof createConsignmentSchema>;
 export type ReceiveConsignmentInput = z.infer<typeof receiveConsignmentSchema>;
 export type DirectReceiveConsignmentInput = z.infer<typeof directReceiveConsignmentSchema>;
 export type ConsignmentFilter = z.infer<typeof consignmentFilterSchema>;
 export type ConsignmentAvailabilityQuery = z.infer<typeof consignmentAvailabilitySchema>;
+export type PendingDispatchQuery = z.infer<typeof pendingDispatchSchema>;

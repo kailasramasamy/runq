@@ -83,6 +83,36 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     }
   }
 
+  // Snap once to the oldest slot still owed, so arriving from the badge lands on
+  // the work it is counting rather than on an empty today. One-shot: after this
+  // the date picker is the operator's, and a second snap would fight them.
+  bool _snapped = false;
+
+  /// Only slots this screen can actually clear. A VMCC closes on Record
+  /// Collection, so snapping to an unclosed slot would land the operator on a
+  /// gate banner they can do nothing about — the Collect badge owns those.
+  List<MpPendingDispatch> _snapCandidates(List<MpPendingDispatch> owed) =>
+      owed.where((s) => s.closed).toList();
+
+  void _snapToOldestPending(AsyncValue<List<MpPendingDispatch>> async) {
+    // Wait for real data: the tab is built with the shell, long before the
+    // provider resolves, and marking it snapped on that empty first build would
+    // mean it never fires at all.
+    if (_snapped || widget.initialDate != null || async.isLoading) return;
+    _snapped = true;
+    final owed = _snapCandidates(async.valueOrNull ?? const []);
+    if (owed.isEmpty || owed.first.collectionDate.compareTo(todayIso()) >= 0) return;
+    final oldest = owed.first;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _clearInputs();
+      setState(() {
+        _date = oldest.collectionDate;
+        if (oldest.shift != null) _shift = shiftFrom(oldest.shift!);
+      });
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +220,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       ref.invalidate(nodeAvailabilityForDateProvider);
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
+      ref.invalidate(pendingDispatchProvider(widget.node.id));
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });
       ref.invalidate(nodeAvailabilityForDateProvider);
@@ -202,6 +233,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     final l = AppLocalizations.of(context);
     final availAsync = ref.watch(nodeAvailabilityForDateProvider(_availArgs));
     final outboundAsync = ref.watch(nodeOutboundForDateProvider(_dateArgs));
+    _snapToOldestPending(ref.watch(pendingDispatchProvider(widget.node.id)));
     availAsync.whenData(_syncEntries);
     final legs = _entries.values.toList();
     final canDispatch = legs.isNotEmpty;

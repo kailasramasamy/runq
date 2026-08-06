@@ -108,6 +108,21 @@
   },
   "collectCloseBlockedPending": "Some pours haven't synced yet — wait for sync, then close.",
   "dispatchCloseFirst": "Close collection for this shift before dispatching.",
+  "dispatchPendingTitle": "{count, plural, one{{count} dispatch pending} other{{count} dispatches pending}}",
+  "@dispatchPendingTitle": {
+    "description": "Home alert + dispatch badge — slots holding milk that was never sent onward",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "dispatchPendingOldest": "Oldest: {slot} · {qty}",
+  "@dispatchPendingOldest": {
+    "description": "Subtitle naming the oldest undispatched slot, e.g. 'Oldest: PM · 4 Aug · 320.0 L'",
+    "placeholders": { "slot": { "type": "String" }, "qty": { "type": "String" } }
+  },
+  "dispatchPendingCloseTitle": "{count, plural, one{{count} collection to close} other{{count} collections to close}}",
+  "@dispatchPendingCloseTitle": {
+    "description": "Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated",
+    "placeholders": { "count": { "type": "int" } }
+  },
   "dispatchCloseFirstDay": "Close today's collection before dispatching.",
   "historyLoadError": "Could not load history",
   "historyByDay": "By day",

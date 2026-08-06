@@ -7,7 +7,9 @@ import '../theme/dhenu_theme.dart';
 class DhenuNavItem {
   final IconData icon;
   final String label;
-  const DhenuNavItem({required this.icon, required this.label});
+  /// Count shown on the icon when > 0 — outstanding work waiting on this tab.
+  final int badge;
+  const DhenuNavItem({required this.icon, required this.label, this.badge = 0});
 }
 
 /// 5-item Dhenu bottom navigation bar.
@@ -52,6 +54,33 @@ class AppBottomNav extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Count pill on a nav icon. Amber, not red: this is work waiting, not a fault.
+/// Ringed in the bar's own colour so it stays legible over the active chip.
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count, required this.t});
+  final int count;
+  final DhenuTokens t;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 9 ? '9+' : '$count';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16),
+      height: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.am,
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+        border: Border.all(color: t.card, width: 1.5),
+      ),
+      child: Text(label,
+          style: DhenuText.caption.copyWith(
+              color: Colors.white, fontWeight: FontWeight.w700, height: 1.0)),
     );
   }
 }
@@ -108,6 +137,15 @@ class _NavItem extends StatelessWidget {
           )
         : Padding(padding: chipPad, child: icon);
 
+    // Sits on the icon, outside the chip's clip so it isn't cut off when the tab
+    // is active. `clipBehavior: none` is what lets it hang over the edge.
+    final Widget badged = item.badge <= 0
+        ? iconChip
+        : Stack(clipBehavior: Clip.none, children: [
+            iconChip,
+            Positioned(right: 2, top: -2, child: _Badge(count: item.badge, t: t)),
+          ]);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -115,7 +153,7 @@ class _NavItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          iconChip,
+          badged,
           const SizedBox(height: 3),
           Text(
             item.label,

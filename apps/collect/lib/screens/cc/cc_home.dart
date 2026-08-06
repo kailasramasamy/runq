@@ -12,6 +12,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/pending_dispatch_alert.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import '../shared/node_qc_report.dart';
@@ -51,6 +52,7 @@ class CcHome extends ConsumerWidget {
     ref.invalidate(ccVmccCollectionsProvider(node.id));
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
     ref.invalidate(nodeAvailabilityProvider);
+    ref.invalidate(pendingDispatchProvider(node.id));
     if (node.isOvernightPool) {
       ref.invalidate(nodeInboundByDateProvider((nodeId: node.id, date: isoDaysAgo(1))));
     }
@@ -104,6 +106,8 @@ class CcHome extends ConsumerWidget {
           // CC has nothing to sync and the chip was permanently inert.
           DhenuSectionHeader(node.name, trailing: const NotificationBell()),
           const SizedBox(height: DhenuSpacing.lg),
+          // Dispatch is tab 2 in CcShell.
+          PendingDispatchAlert(nodeId: node.id, dispatchTabIndex: 2),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[

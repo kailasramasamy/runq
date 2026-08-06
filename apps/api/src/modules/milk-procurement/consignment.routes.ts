@@ -5,11 +5,13 @@ import {
   directReceiveConsignmentSchema,
   consignmentFilterSchema,
   consignmentAvailabilitySchema,
+  pendingDispatchSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ConsignmentService } from './consignment.service';
+import { PendingDispatchService } from './pending-dispatch.service';
 import { resolveMpPrincipal } from './access-scope';
 
 // field_operator dispatches/receives at their node; reads are node-scoped
@@ -30,6 +32,14 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new ConsignmentService(request.server.db, request.tenantId);
     return { data: await service.availability(q.nodeId, q.collectionDate, principal, q.shift, q.milkType) };
+  });
+
+  // Undispatched milk at a node, however old — drives the dispatch badge.
+  app.get('/pending-dispatch', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = pendingDispatchSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new PendingDispatchService(request.server.db, request.tenantId);
+    return { data: await service.list(q.nodeId, principal) };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

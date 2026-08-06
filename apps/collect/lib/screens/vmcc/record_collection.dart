@@ -33,18 +33,26 @@ import 'pending_duplicate_sheet.dart';
 /// The most-used screen: record one farmer's pour fast. Manual entry (v1),
 /// live rate preview, offline-tolerant via [PourQueue]. Spec §5.2 / §8.1.
 class RecordCollectionScreen extends ConsumerStatefulWidget {
-  const RecordCollectionScreen({super.key, required this.node, this.seedPour, this.seedFarmer});
+  const RecordCollectionScreen({
+    super.key, required this.node, this.seedPour, this.seedFarmer,
+    this.initialDate, this.initialShift,
+  });
   final MpNode node;
   /// When set, the form opens pre-filled for editing this entry (Modify).
   final MpPour? seedPour;
   final MpFarmer? seedFarmer;
+  /// Open on a past slot rather than today — used by the pending-close alert, so
+  /// tapping "2 collections to close" lands on the slot it named instead of on a
+  /// today the operator has no work on.
+  final String? initialDate;
+  final Shift? initialShift;
   @override
   ConsumerState<RecordCollectionScreen> createState() => _RecordCollectionScreenState();
 }
 
 class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen> {
   MpFarmer? _farmer;
-  Shift _shift = shiftFrom(currentShift());
+  late Shift _shift = widget.initialShift ?? shiftFrom(currentShift());
   // Collection date — defaults to today, operator may back-date (never future).
   late String _date;
   late MilkType _milkType;
@@ -92,7 +100,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   @override
   void initState() {
     super.initState();
-    _date = widget.seedPour?.collectionDate ?? todayIso();
+    _date = widget.seedPour?.collectionDate ?? widget.initialDate ?? todayIso();
     final seed = widget.seedPour;
     if (seed != null) {
       _farmer = widget.seedFarmer;

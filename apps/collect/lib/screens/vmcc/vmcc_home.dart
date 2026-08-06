@@ -21,6 +21,7 @@ import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/sync_status.dart';
+import '../../widgets/pending_dispatch_alert.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
@@ -42,6 +43,7 @@ class VmccHome extends ConsumerWidget {
     ref.invalidate(nodePoursForDateProvider(_yesterdayKey));
     ref.invalidate(nodeAvailabilityProvider);
     ref.invalidate(shiftStatusProvider(node.id));
+    ref.invalidate(pendingDispatchProvider(node.id));
     await Future.wait([
       ref.read(nodeTodaySummaryProvider(node.id).future),
       ref.read(nodeTodayPoursProvider(node.id).future),
@@ -67,6 +69,14 @@ class VmccHome extends ConsumerWidget {
           _header(context, ref, t, l, sync),
           ..._unclosedShiftNudge(context, ref, t, l, summary.asData?.value),
           const SizedBox(height: DhenuSpacing.lg),
+          // Dispatch is tab 2 in VmccShell. A close, though, happens on Record
+          // Collection — pushed at the named slot so the operator lands on the
+          // day the alert is about rather than on today.
+          PendingDispatchAlert(
+            nodeId: node.id,
+            dispatchTabIndex: 2,
+            onClosePending: (slot) => _openCloseFor(context, ref, slot),
+          ),
           _hero(context, t, l, summary, bands),
           const SizedBox(height: DhenuSpacing.md),
           _statsRow(ref, t, l, summary),
@@ -87,6 +97,19 @@ class VmccHome extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Open Record Collection on a past slot whose collection was never closed.
+  /// Refreshes on return so the alert and badge clear once it's done.
+  Future<void> _openCloseFor(BuildContext context, WidgetRef ref, MpPendingDispatch slot) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => RecordCollectionScreen(
+        node: node,
+        initialDate: slot.collectionDate,
+        initialShift: slot.shift == null ? null : shiftFrom(slot.shift!),
+      ),
+    ));
+    ref.invalidate(pendingDispatchProvider(node.id));
   }
 
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [
@@ -292,9 +315,13 @@ class VmccHome extends ConsumerWidget {
         .asData?.value?.available ?? 0;
     final allSent = pending <= 0.05;
     return Row(children: [
+      // Neutral while milk is still on hand: mid-collection that is the normal
+      // state, not a warning. Anything genuinely overdue is called out by
+      // [PendingDispatchAlert] above, which only fires once a slot is closed or
+      // its day has passed.
       Expanded(child: _miniCard(t, l.homeToDispatch,
           allSent ? (total > 0 ? l.homeAllDispatched : l.homeNothingYet) : litres(pending, unit: true),
-          color: allSent ? t.gradeA : t.am)),
+          color: allSent ? t.gradeA : t.ink)),
       const SizedBox(width: DhenuSpacing.md),
       Expanded(
         child: node.capacityLitres == null

@@ -233,6 +233,14 @@ class MpRepo {
 
   // ── shift close (per-slot collection close + dispatch gate) ─────────────────
   /// Which shifts are closed for a node on a date. BMC nodes report both shifts.
+  /// Slots at a node still holding undispatched milk, oldest first. Drives the
+  /// dispatch badge — one server-side aggregate rather than an availability call
+  /// per day, because the lookback is the node's whole history.
+  Future<List<MpPendingDispatch>> pendingDispatch(String nodeId) async {
+    final res = await _api.get('$_base/consignments/pending-dispatch${_qs({'nodeId': nodeId})}');
+    return _list(res).map(MpPendingDispatch.fromJson).toList();
+  }
+
   Future<MpShiftStatus> shiftStatus(String nodeId, String date) async {
     final res = await _api.get(
       '$_base/shifts/status${_qs({'nodeId': nodeId, 'date': date})}',

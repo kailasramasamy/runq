@@ -156,6 +156,33 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchCloseFirst => 'ರವಾನಿಸುವ ಮೊದಲು ಈ ಪಾಳಿಯ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.';
 
   @override
+  String dispatchPendingTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ರವಾನೆಗಳು ಬಾಕಿ',
+      one: '$count ರವಾನೆ ಬಾಕಿ',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchPendingOldest(String slot, String qty) {
+    return 'ಅತ್ಯಂತ ಹಳೆಯದು: $slot · $qty';
+  }
+
+  @override
+  String dispatchPendingCloseTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಸಂಗ್ರಹಗಳು ಮುಚ್ಚಬೇಕು',
+      one: '$count ಸಂಗ್ರಹ ಮುಚ್ಚಬೇಕು',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get dispatchCloseFirstDay => 'ರವಾನಿಸುವ ಮೊದಲು ಇಂದಿನ ಸಂಗ್ರಹ ಮುಚ್ಚಿ.';
 
   @override

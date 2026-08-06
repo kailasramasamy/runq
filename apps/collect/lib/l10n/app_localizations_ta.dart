@@ -159,6 +159,33 @@ class AppLocalizationsTa extends AppLocalizations {
       'அனுப்புவதற்கு முன் இந்த ஷிப்ட் சேகரிப்பை மூடவும்.';
 
   @override
+  String dispatchPendingTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count அனுப்புதல்கள் நிலுவையில்',
+      one: '$count அனுப்புதல் நிலுவையில்',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dispatchPendingOldest(String slot, String qty) {
+    return 'பழையது: $slot · $qty';
+  }
+
+  @override
+  String dispatchPendingCloseTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count சேகரிப்புகளை மூட வேண்டும்',
+      one: '$count சேகரிப்பை மூட வேண்டும்',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get dispatchCloseFirstDay =>
       'அனுப்புவதற்கு முன் இன்றைய சேகரிப்பை மூடவும்.';
 
