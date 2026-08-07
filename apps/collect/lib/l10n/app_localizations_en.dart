@@ -196,6 +196,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get dispatchUntypedTitle => 'Milk type not recorded';
+
+  @override
+  String get dispatchUntypedHint => 'Name the type before sending this on';
+
+  @override
+  String get dispatchErrorTypeNotChosen =>
+      'Choose the milk type for the untyped leg.';
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

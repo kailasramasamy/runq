@@ -5,6 +5,7 @@ import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
+import 'milk_type_toggle.dart';
 import '../utils/format.dart';
 import 'dhenu_card.dart';
 
@@ -12,7 +13,8 @@ import 'dhenu_card.dart';
 /// own consignment, so each carries its own quantity, QC and container.
 class DispatchTypeEntry {
   DispatchTypeEntry(this.availability)
-      : type = milkTypeFrom(availability.milkType),
+      : needsType = availability.milkType == null,
+        type = milkTypeFrom(availability.milkType),
         qty = TextEditingController(),
         fat = TextEditingController(),
         snf = TextEditingController(),
@@ -20,7 +22,19 @@ class DispatchTypeEntry {
         container = TextEditingController();
 
   final MpTypeAvailability availability;
-  final MilkType type;
+
+  /// True for legacy milk received before the per-type split, which carries no
+  /// milk type at all. It can't be dispatched blind — [milkTypeFrom] would call
+  /// it cow A1, and a mixed buffalo/cow tanker would go onward mislabelled — so
+  /// the operator names the type before this leg becomes valid.
+  final bool needsType;
+
+  /// Assignable only while [needsType]: a typed availability already knows what
+  /// it is, and letting that be re-pointed would misfile good milk.
+  MilkType type;
+
+  /// Unset until the operator picks, so nothing dispatches on the default.
+  bool typeChosen = false;
   final TextEditingController qty, fat, snf, water, container;
 
   /// Unticked types stay behind for a later run — a centre may send cow now and
@@ -45,7 +59,8 @@ class DispatchTypeEntry {
   /// Qty and QC are mandatory per leg; water stays optional as it is elsewhere.
   bool get isValid =>
       enteredQty > 0 && enteredFat != null && enteredSnf != null &&
-      enteredQty - available <= 0.001;
+      enteredQty - available <= 0.001 &&
+      (!needsType || typeChosen);
 
   void clear() {
     for (final c in [qty, fat, snf, water, container]) {
@@ -97,13 +112,36 @@ class DispatchTypeCard extends StatelessWidget {
             ),
           if (selectable) const SizedBox(width: DhenuSpacing.sm),
           Expanded(
-            child: Text(milkTypeL10n(l, entry.type),
+            child: Text(
+                entry.needsType && !entry.typeChosen
+                    ? l.dispatchUntypedTitle
+                    : milkTypeL10n(l, entry.type),
                 style: DhenuText.title.copyWith(color: on ? t.ink : t.inkSoft)),
           ),
           Text(litres(entry.available, unit: true),
               style: DhenuText.number(size: 18, color: on ? t.brand : t.inkSoft)),
         ]),
         if (on) ...[
+          // Legacy untyped milk: the operator names what the tanker actually
+          // held. Without this the leg is invalid, so nothing goes onward as a
+          // guessed cow A1.
+          if (entry.needsType) ...[
+            const SizedBox(height: DhenuSpacing.md),
+            MilkTypeToggle(
+              types: const [MilkType.cowA1, MilkType.cowA2, MilkType.buffalo],
+              value: entry.type,
+              onChanged: (m) {
+                entry.type = m;
+                entry.typeChosen = true;
+                onChanged();
+              },
+            ),
+            if (!entry.typeChosen) ...[
+              const SizedBox(height: DhenuSpacing.xs),
+              Text(l.dispatchUntypedHint,
+                  style: DhenuText.caption.copyWith(color: t.am)),
+            ],
+          ],
           const SizedBox(height: DhenuSpacing.md),
           TextField(
             controller: entry.qty,

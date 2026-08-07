@@ -43,6 +43,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   // consignments, so each needs its own qty, QC and container — and the operator
   // needs to see which is which rather than two unlabelled numbers.
   final Map<MilkType, DispatchTypeEntry> _entries = {};
+
+  /// The untyped remainder, if any — one leg, held apart from [_entries]
+  /// because it has no milk type to key on until the operator names one.
+  DispatchTypeEntry? _untyped;
   MpNode? _destPp;
   bool _saving = false;
   bool _closingBusy = false;
@@ -112,7 +116,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   }
 
   void _clearInputs() {
-    for (final e in _entries.values) {
+    for (final e in _all) {
       e.clear();
     }
   }
@@ -149,7 +153,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
 
   @override
   void dispose() {
-    for (final e in _entries.values) {
+    for (final e in _all) {
       e.dispose();
     }
     super.dispose();
@@ -159,6 +163,19 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   /// Types that fall to zero (just dispatched) drop out.
   void _syncEntries(MpAvailability? avail) {
     final rows = avail?.dispatchable ?? const <MpTypeAvailability>[];
+    // Legacy milk carries no type. It used to be dropped here, which stranded it
+    // for good: the header counted it as available while no card ever offered
+    // it, so a mixed pre-split tanker could never be sent onward. It gets its
+    // own leg, kept out of the type-keyed map because its type isn't known yet.
+    // The service groups availability by milk type, so there is at most one.
+    final untyped = rows.where((r) => r.milkType == null).firstOrNull;
+    if (untyped == null) {
+      _untyped?.dispose();
+      _untyped = null;
+    } else if (_untyped == null || _untyped!.available != untyped.available) {
+      _untyped?.dispose();
+      _untyped = DispatchTypeEntry(untyped)..prefill();
+    }
     final live = <MilkType>{};
     for (final r in rows) {
       if (r.milkType == null) continue;
@@ -175,8 +192,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     }
   }
 
-  List<DispatchTypeEntry> get _selected =>
-      _entries.values.where((e) => e.include).toList();
+  List<DispatchTypeEntry> get _all =>
+      [..._entries.values, ?_untyped];
+
+  List<DispatchTypeEntry> get _selected => _all.where((e) => e.include).toList();
 
   Future<void> _pickPp(BuildContext context, WidgetRef ref) async {
     final pps = await ref.read(nodesByTypeProvider('pp').future);
@@ -205,6 +224,13 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     final legs = _selected;
     if (legs.isEmpty) {
       setState(() => _error = l.dispatchErrorNoTypeSelected);
+      return;
+    }
+    // Called out separately from the numeric check: "invalid numbers" would
+    // send the operator hunting through the QC fields for a fault that is
+    // actually an unpicked milk type.
+    if (legs.any((e) => e.needsType && !e.typeChosen)) {
+      setState(() => _error = l.dispatchErrorTypeNotChosen);
       return;
     }
     if (legs.any((e) => !e.isValid)) {
@@ -255,7 +281,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     };
 
     availAsync.whenData(_syncEntries);
-    final legs = _entries.values.toList();
+    final legs = _all;
     final canDispatch = legs.isNotEmpty;
     final closeRequired = !_slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
 

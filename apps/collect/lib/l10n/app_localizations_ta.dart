@@ -199,6 +199,16 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
+  String get dispatchUntypedTitle => 'பால் வகை பதிவாகவில்லை';
+
+  @override
+  String get dispatchUntypedHint => 'அனுப்பும் முன் வகையைத் தேர்வுசெய்யவும்';
+
+  @override
+  String get dispatchErrorTypeNotChosen =>
+      'வகை இல்லாத அனுப்புதலுக்கு பால் வகையைத் தேர்வுசெய்யவும்.';
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

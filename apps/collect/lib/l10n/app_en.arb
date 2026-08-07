@@ -139,6 +139,18 @@
     "description": "How stale a pending slot is, shown on each row",
     "placeholders": { "days": { "type": "int" } }
   },
+  "dispatchUntypedTitle": "Milk type not recorded",
+  "@dispatchUntypedTitle": {
+    "description": "Heading on a dispatch leg for legacy milk received before the per-type split"
+  },
+  "dispatchUntypedHint": "Name the type before sending this on",
+  "@dispatchUntypedHint": {
+    "description": "Hint under the untyped dispatch leg's milk-type picker"
+  },
+  "dispatchErrorTypeNotChosen": "Choose the milk type for the untyped leg.",
+  "@dispatchErrorTypeNotChosen": {
+    "description": "Error when dispatch is attempted with an untyped leg whose type was never picked"
+  },
   "dispatchPendingCloseTitle": "{count, plural, one{{count} collection to close} other{{count} collections to close}}",
   "@dispatchPendingCloseTitle": {
     "description": "Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated",

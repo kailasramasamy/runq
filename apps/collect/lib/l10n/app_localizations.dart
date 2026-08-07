@@ -400,6 +400,24 @@ abstract class AppLocalizations {
   /// **'{days, plural, one{{days} day ago} other{{days} days ago}}'**
   String pendingWorkDaysAgo(int days);
 
+  /// Heading on a dispatch leg for legacy milk received before the per-type split
+  ///
+  /// In en, this message translates to:
+  /// **'Milk type not recorded'**
+  String get dispatchUntypedTitle;
+
+  /// Hint under the untyped dispatch leg's milk-type picker
+  ///
+  /// In en, this message translates to:
+  /// **'Name the type before sending this on'**
+  String get dispatchUntypedHint;
+
+  /// Error when dispatch is attempted with an untyped leg whose type was never picked
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the milk type for the untyped leg.'**
+  String get dispatchErrorTypeNotChosen;
+
   /// Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated
   ///
   /// In en, this message translates to:

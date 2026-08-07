@@ -195,6 +195,16 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
+  String get dispatchUntypedTitle => 'ಹಾಲಿನ ಪ್ರಕಾರ ದಾಖಲಾಗಿಲ್ಲ';
+
+  @override
+  String get dispatchUntypedHint => 'ಕಳುಹಿಸುವ ಮೊದಲು ಪ್ರಕಾರ ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get dispatchErrorTypeNotChosen =>
+      'ಪ್ರಕಾರವಿಲ್ಲದ ಸಾಗಣೆಗೆ ಹಾಲಿನ ಪ್ರಕಾರ ಆಯ್ಕೆಮಾಡಿ.';
+
+  @override
   String dispatchPendingCloseTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
