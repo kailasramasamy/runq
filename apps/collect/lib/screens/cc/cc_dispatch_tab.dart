@@ -352,6 +352,24 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
+  /// Status chip for one outbound leg.
+  ///
+  /// A reversed consignment is neither in transit nor received, so it cannot
+  /// be derived from `!inTransit` — doing so painted cancelled dispatches
+  /// with a green "received" tick, and operators re-cancelled milk that was
+  /// already gone. Same treatment the dispatch-history screen uses.
+  Widget _outboundStatus(DhenuTokens t, AppLocalizations l, MpConsignment c) {
+    if (c.isReversed) {
+      return Text(l.dispatchHistoryReversed,
+          style: DhenuText.caption.copyWith(color: t.gradeC));
+    }
+    return StatusGlyph(
+      label: c.inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
+      color: c.inTransit ? t.gradeB : t.gradeA,
+      received: c.received,
+    );
+  }
+
   Widget _seeDispatchHistoryLink(BuildContext context, DhenuTokens t, AppLocalizations l) => Center(
         child: TextButton(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -377,8 +395,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     AsyncValue<List<MpConsignment>> outAsync,
   ) {
     final dispatched = availAsync.asData?.value?.dispatched ?? 0;
+    // The headline figure comes from the availability API, which excludes
+    // reversed consignments — so the legs listed beneath it must too, or the
+    // parts stop adding up to the total.
     var legs = (outAsync.asData?.value ?? const <MpConsignment>[])
-        .where((c) => c.kind == 'cc_to_pp')
+        .where((c) => c.kind == 'cc_to_pp' && !c.isReversed)
         .toList();
     if (_perShift) legs = legs.where((c) => c.shift == _shift).toList();
     return DhenuCard(
@@ -588,11 +609,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                 title: ppNames[outbound[i].toNodeId] ?? 'Plant',
                 subtitle: _outboundSubtitle(l, outbound[i], mixedOut),
                 litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
-                trailingStatus: StatusGlyph(
-                  label: outbound[i].inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
-                  color: outbound[i].inTransit ? t.gradeB : t.gradeA,
-                  received: !outbound[i].inTransit,
-                ),
+                trailingStatus: _outboundStatus(t, l, outbound[i]),
               ),
             ],
           ]),

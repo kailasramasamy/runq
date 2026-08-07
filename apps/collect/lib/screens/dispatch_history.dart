@@ -168,7 +168,7 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     return StatusGlyph(
       label: c.inTransit ? l.dispatchStatusTransit : l.dispatchStatusReceived,
       color: c.inTransit ? t.gradeB : t.gradeA,
-      received: !c.inTransit,
+      received: c.received,
     );
   }
 }

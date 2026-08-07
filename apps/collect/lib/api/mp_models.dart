@@ -726,6 +726,12 @@ class MpConsignment {
   bool get inTransit => status == 'in_transit';
   bool get received => status == 'received';
 
+  /// A cancelled leg. Never `received` — callers that infer receipt from
+  /// `!inTransit` will mislabel these, which is exactly how a reversed
+  /// dispatch once showed up in the CC outbound list wearing a green
+  /// "received" tick.
+  bool get isReversed => status == 'reversed';
+
   factory MpConsignment.fromJson(Map<String, dynamic> j) => MpConsignment(
     id: _s(j['id']),
     consignmentNo: _s(j['consignmentNo']),
