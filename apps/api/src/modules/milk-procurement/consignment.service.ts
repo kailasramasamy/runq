@@ -16,6 +16,7 @@ import {
 } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
+import { MpNotifier } from './mp-notifier';
 import { RateChartService } from './rate-chart.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -121,7 +122,7 @@ export class ConsignmentService {
       throw new ValidationError(
         `Only ${available} L of ${scope}${milkType} milk available to dispatch from this node.`);
     }
-    return this.db.transaction(async (tx) => {
+    const created = await this.db.transaction(async (tx) => {
       const no = await nextDocNo(tx, this.tenantId, 'consignment', input.collectionDate, 'CON');
       const [row] = await tx.insert(mpConsignments).values({
         tenantId: this.tenantId,
@@ -143,6 +144,11 @@ export class ConsignmentService {
       }).returning();
       return row!;
     });
+    // Tell the destination's operators a load is on the way. Fire-and-forget:
+    // a notification must never fail the dispatch that triggered it.
+    void new MpNotifier(this.db, this.tenantId).dispatched(created)
+      .catch((err) => console.error('mp dispatch notification failed:', err));
+    return created;
   }
 
   async receive(id: string, input: ReceiveConsignmentInput, userId: string | undefined, principal: MpPrincipal): Promise<MpConsignmentRow> {
@@ -153,7 +159,7 @@ export class ConsignmentService {
     const dispatched = Number(c.dispatchQty ?? 0);
     const varianceQty = round3(Number(input.receiptQty) - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [row] = await tx.update(mpConsignments).set({
         receiptQty: String(input.receiptQty),
         receiptFat: numOrNull(input.receiptFat),
@@ -170,6 +176,11 @@ export class ConsignmentService {
       const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
       return stockLedgerId ? { ...row!, stockLedgerId } : row!;
     });
+    // Close the loop back to the sender — a short delivery should reach the
+    // dispatching operator's phone, not wait for a month-end report.
+    void new MpNotifier(this.db, this.tenantId).received(result)
+      .catch((err) => console.error('mp receipt notification failed:', err));
+    return result;
   }
 
   /**
@@ -782,9 +793,29 @@ function drawDown(batches: Batch[], dispatched: { milkType: MilkType | null; qty
     else typed.set(r.milkType, (typed.get(r.milkType) ?? 0) + r.qty);
   }
   const types = [...new Set([...batches.map((b) => b.milkType), ...typed.keys()])];
-  const afterTyped = types.flatMap((t) =>
-    remainderBatches(batches.filter((b) => b.milkType === t), typed.get(t) ?? 0));
-  return remainderBatches(afterTyped.sort((a, b) => a.seq - b.seq), untyped);
+
+  // What a type's own batches couldn't cover. Milk received before the per-type
+  // split sits on a NULL-type batch, so a dispatch naming a type could never
+  // consume it: the litres left the node and availability never moved, leaving
+  // the slot dispatchable again — and again. Untyped milk is of UNKNOWN type,
+  // not of no type, so it can legitimately satisfy any type's draw.
+  let shortfall = 0;
+  const afterTyped = types.flatMap((t) => {
+    const own = batches.filter((b) => b.milkType === t);
+    const want = typed.get(t) ?? 0;
+    if (t != null && want > 0) {
+      shortfall += Math.max(0, want - own.reduce((s, b) => s + b.qty, 0));
+    }
+    return remainderBatches(own, want);
+  });
+
+  // Restricted to the NULL batches on purpose. Routing the shortfall through the
+  // whole-pool pass below would let an over-dispatch of one type quietly eat
+  // another's milk, which is a far worse error than the one being fixed.
+  const drawn = remainderBatches(afterTyped.filter((b) => b.milkType === null), shortfall);
+  const pool = [...afterTyped.filter((b) => b.milkType !== null), ...drawn]
+    .sort((a, b) => a.seq - b.seq);
+  return remainderBatches(pool, untyped);
 }
 
 /** Litres on hand, optionally for one milk type. */
