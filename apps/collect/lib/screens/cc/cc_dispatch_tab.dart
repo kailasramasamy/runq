@@ -65,6 +65,31 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       (nodeId: widget.node.id, date: _date, shift: _perShift ? _shift.name : null);
   NodeDateArgs get _dateArgs => (nodeId: widget.node.id, date: _date);
 
+  String get _prevDate =>
+      isoDate(DateTime.parse(_date).subtract(const Duration(days: 1)));
+
+  /// The (date, shift) slots this window is made of — mirrors the server's
+  /// receive window. An overnight pool is last night's PM plus this morning's
+  /// AM; a day pool is both of today's shifts; per-shift is just the one.
+  ///
+  /// Named so the dispatched card can show what actually went into the
+  /// tanker: "627.1 L" alone doesn't tell an operator whether the evening
+  /// milk made it in.
+  List<({String date, Shift shift})> get _windowSlots {
+    if (_perShift) return [(date: _date, shift: _shift)];
+    if (_overnight) {
+      return [(date: _prevDate, shift: Shift.pm), (date: _date, shift: Shift.am)];
+    }
+    return [(date: _date, shift: Shift.am), (date: _date, shift: Shift.pm)];
+  }
+
+  /// Litres received into this CC for one slot.
+  double _slotQty(List<MpConsignment> inbound, String date, Shift shift) => inbound
+      .where((c) =>
+          c.kind == 'vmcc_to_cc' && !c.isReversed &&
+          c.collectionDate == date && c.shift == shift)
+      .fold(0.0, (sum, c) => sum + (c.receiptQty ?? 0));
+
   // Hard gate: collection must be closed before dispatch. BMC pools the whole
   // day (both shifts closed); no-BMC needs just the selected shift.
   bool _slotClosed(MpShiftStatus? st) {
@@ -280,6 +305,15 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       for (final n in ref.watch(nodesByTypeProvider('pp')).value ?? const <MpNode>[]) n.id: n.name,
     };
 
+    // Slot breakdown for the dispatched card. An overnight pool straddles two
+    // dates, so its previous day has to be fetched as well.
+    final inboundHere = ref.watch(nodeInboundByDateProvider(
+        (nodeId: widget.node.id, date: _date))).asData?.value ?? const [];
+    final inboundPrev = _overnight
+        ? ref.watch(nodeInboundByDateProvider(
+            (nodeId: widget.node.id, date: _prevDate))).asData?.value ?? const []
+        : const <MpConsignment>[];
+
     availAsync.whenData(_syncEntries);
     final legs = _all;
     final canDispatch = legs.isNotEmpty;
@@ -303,6 +337,10 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         ),
         DateStepper(date: _date, onChanged: _onDateChanged),
         const SizedBox(height: DhenuSpacing.lg),
+        // Availability only earns its place while there is still something to
+        // send. Once the window is out the door it reads "0 / 627.1" — a
+        // progress bar for work already finished.
+        if (canDispatch) ...[
         Row(children: [
           Expanded(child: Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink))),
           if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
@@ -311,7 +349,6 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
         _availCard(t, l, availAsync, null),
         _closeControl(t, l, availAsync, closeRequired),
         const SizedBox(height: DhenuSpacing.xl),
-        if (canDispatch) ...[
         Text(l.ccDispatchToPlant, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.md),
         _destPicker(context, t, l),
@@ -340,12 +377,16 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           loading: _saving,
         ),
         ] else ...[
-          _dispatchedCard(t, l, availAsync, outboundAsync),
+          // Everything the removed Outbound list carried — destination, status,
+          // consignment no — now lives on this one card, so the screen states
+          // the day's dispatch once instead of twice.
+          _dispatchedCard(t, l, availAsync, outboundAsync, ppNames,
+              inboundHere, inboundPrev),
+          // Reopen sits last: correcting a finished slot is the exception, and
+          // it used to sit above the very thing it undoes.
+          _closeControl(t, l, availAsync, closeRequired),
         ],
         const SizedBox(height: DhenuSpacing.xl),
-        Text(_outboundHeading(l), style: DhenuText.title.copyWith(color: t.ink)),
-        const SizedBox(height: DhenuSpacing.sm),
-        _outboundList(t, l, outboundAsync, ppNames),
         _seeDispatchHistoryLink(context, t, l),
       ],
       ),
@@ -393,6 +434,9 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     AppLocalizations l,
     AsyncValue<MpAvailability?> availAsync,
     AsyncValue<List<MpConsignment>> outAsync,
+    Map<String, String> ppNames,
+    List<MpConsignment> inboundHere,
+    List<MpConsignment> inboundPrev,
   ) {
     final dispatched = availAsync.asData?.value?.dispatched ?? 0;
     // The headline figure comes from the availability API, which excludes
@@ -413,8 +457,37 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           ),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
-        Text(_perShift ? l.dispatchNothingLeftThisShift : l.dispatchNothingLeft,
-            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        // Name the shape of the dispatch — Pooled / AM / PM — so a pooled
+        // tanker is never mistaken for a single shift's load.
+        Text(
+          _perShift
+              ? '${consignmentSlotL10n(l, _shift)} · ${l.dispatchNothingLeftThisShift}'
+              : '${l.consignmentSlotPooled} · ${l.dispatchNothingLeft}',
+          style: DhenuText.caption.copyWith(color: t.inkSoft),
+        ),
+        // What went into it, slot by slot. On a pooled window this is the only
+        // place the evening and morning halves are shown apart.
+        for (final slot in _windowSlots) ...[
+          const SizedBox(height: DhenuSpacing.sm),
+          Row(children: [
+            Icon(slot.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
+                size: 13, color: t.inkSoft),
+            const SizedBox(width: DhenuSpacing.xs),
+            Expanded(
+              child: Text(
+                '${prettyDate(slot.date)} · ${consignmentSlotL10n(l, slot.shift)}',
+                style: DhenuText.caption.copyWith(color: t.inkSoft),
+              ),
+            ),
+            Text(
+              litres(
+                  _slotQty(slot.date == _date ? inboundHere : inboundPrev,
+                      slot.date, slot.shift),
+                  unit: true),
+              style: DhenuText.caption.copyWith(color: t.ink),
+            ),
+          ]),
+        ],
         for (final c in legs) ...[
           const SizedBox(height: DhenuSpacing.md),
           Divider(height: 1, color: t.hairline),
@@ -422,18 +495,27 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c.consignmentNo, style: DhenuText.label.copyWith(color: t.ink)),
+                // Destination first: it is what the removed Outbound list led
+                // with, and the operator reads "where did it go" before "which
+                // consignment was it".
+                Text(ppNames[c.toNodeId] ?? l.dispatchHistoryPlantFallback,
+                    style: DhenuText.label.copyWith(color: t.ink)),
                 const SizedBox(height: DhenuSpacing.xs),
                 Text(
-                  (c.containerNo?.isNotEmpty ?? false)
-                      ? l.dispatchContainerLabel(c.containerNo!)
-                      : l.dispatchNoContainerNo,
+                  '${c.consignmentNo} · '
+                  '${(c.containerNo?.isNotEmpty ?? false) ? l.dispatchContainerLabel(c.containerNo!) : l.dispatchNoContainerNo}',
                   style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
               ]),
             ),
-            Text(litres(c.dispatchQty ?? 0, unit: true),
-                style: DhenuText.number(size: 16, color: t.ink)),
+            const SizedBox(width: DhenuSpacing.sm),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(litres(c.dispatchQty ?? 0, unit: true),
+                  style: DhenuText.number(size: 16, color: t.ink)),
+              const SizedBox(height: 2),
+              _outboundStatus(t, l, c),
+            ]),
           ]),
         ],
       ]),
@@ -443,16 +525,6 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   String _slotLabel(AppLocalizations l) => _overnight
       ? l.ccDispatchSlotPool
       : (_perShift ? (_shift == Shift.am ? l.shiftAm : l.shiftPm) : l.ccDispatchSlotToday);
-
-  /// The outbound list follows the date stepper, so its heading has to move off
-  /// "Today" whenever a past day is selected.
-  String _outboundHeading(AppLocalizations l) => _date == todayIso()
-      ? l.dispatchTodaysOutbound
-      : l.dispatchOutboundOn(prettyDate(_date));
-
-  String _outboundEmptyTitle(AppLocalizations l) => _date == todayIso()
-      ? l.dispatchNoDispatchesToday
-      : l.dispatchNoDispatchesOn(prettyDate(_date));
 
   /// Receiving-close control gating onward dispatch. Open → an action button
   /// that closes the slot and unlocks dispatch; closed → a confirmation with a
@@ -576,49 +648,6 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
     );
   }
 
-  /// Consignment id + shift, shown small under the plant name.
-  /// Shift · consignment no, prefixed with the milk type when the day's
-  /// dispatches mix types — otherwise two loads read identically.
-  String _outboundSubtitle(AppLocalizations l, MpConsignment c, bool mixed) {
-    // Always name the slot — a pooled tanker used to render as a blank here,
-    // which reads the same as a shift nobody recorded.
-    final slot = '${consignmentSlotL10n(l, c.shift)} · ';
-    final type = mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : '';
-    return '$type$slot${c.consignmentNo}';
-  }
-
-  Widget _outboundList(
-      DhenuTokens t, AppLocalizations l, AsyncValue<List<MpConsignment>> outAsync, Map<String, String> ppNames) {
-    return outAsync.when(
-      loading: () => const DhenuLoadingList(rows: 2),
-      error: (_, _) => const SizedBox.shrink(),
-      data: (all) {
-        final outbound = all.where((c) => c.kind == 'cc_to_pp').toList();
-        final mixedOut = hasMixedMilkTypes(outbound.map((c) => c.milkType));
-        if (outbound.isEmpty) {
-          return DhenuEmptyState(
-            icon: DhenuIcons.truck,
-            title: _outboundEmptyTitle(l),
-            subtitle: l.dispatchNoDispatchesSubtitle,
-          );
-        }
-        return DhenuCard(
-          padding: EdgeInsets.zero,
-          child: Column(children: [
-            for (var i = 0; i < outbound.length; i++) ...[
-              if (i > 0) Divider(height: 1, color: t.hairline),
-              SourceRow(
-                title: ppNames[outbound[i].toNodeId] ?? 'Plant',
-                subtitle: _outboundSubtitle(l, outbound[i], mixedOut),
-                litres: litres(outbound[i].dispatchQty ?? 0, unit: true),
-                trailingStatus: _outboundStatus(t, l, outbound[i]),
-              ),
-            ],
-          ]),
-        );
-      },
-    );
-  }
 }
 
 class _PpPicker extends StatefulWidget {
