@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
-  FileText, Receipt, Trash2, ExternalLink, Copy, Check,
+  FileText, Receipt, Trash2,
   ArrowLeft, Pencil, MoreHorizontal, Plus, Bell, User, ShieldCheck,
 } from 'lucide-react';
 import { useCustomer, useDeleteCustomer, useUpdateCustomer } from '@/hooks/queries/use-customers';
@@ -16,10 +16,17 @@ import { CustomerForm } from '@/components/forms/customer-form';
 import {
   PageHeader, Badge, Button, StatusBadge, DetailCard, DetailRow, CreditScorePill,
   Table, TableHeader, Th, TableBody, TableRow, TableCell, EmptyState, formatDate,
+  Pagination, Tabs,
 } from '@/components/ar/primitives';
+import { CustomerAnalyticsTab } from '@/components/ar/customer-analytics';
+import { PortalLinkCard } from '@/components/ar/customer-portal-card';
 import { ConfirmationDialog, Modal, useToast } from '@/components/ui';
 
 interface Props { customerId: string }
+type CustomerTab = 'overview' | 'analytics';
+
+/** Rows per page in the Recent-invoices table. */
+const INVOICE_PAGE_SIZE = 10;
 interface CreditScoreData { score: number; risk: 'high' | 'medium' | 'low'; factors: string[] }
 
 interface PendingClaimRow {
@@ -45,6 +52,8 @@ export function CustomerDetailPage({ customerId }: Props) {
   const deleteMutation = useDeleteCustomer();
   const [showDelete, setShowDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [tab, setTab] = useState<CustomerTab>('overview');
+  const [invoicePage, setInvoicePage] = useState(1);
   const customer = data?.data;
 
   const { data: pendingClaimsData } = usePendingClaimsForCustomer(customerId);
@@ -57,10 +66,17 @@ export function CustomerDetailPage({ customerId }: Props) {
     enabled: !!customer,
     retry: false,
   });
-  // Pull all invoices so we can compute aging buckets accurately. The
-  // Recent-invoices section below still shows just the first 6 via slice().
-  // 500 is comfortably above the per-customer count we see in production.
+  // Two invoice queries on purpose. The aging buckets and the open/overdue
+  // counters have to see *every* invoice, so they keep the wide fetch; the
+  // Recent-invoices table is paginated server-side and only ever holds one
+  // page. Paginating the wide query instead would silently reduce aging to
+  // whatever happened to be on page 1.
   const { data: invoicesData } = useInvoices({ customerId, limit: 500 });
+  const { data: invoicePageData } = useInvoices({
+    customerId,
+    page: invoicePage,
+    limit: INVOICE_PAGE_SIZE,
+  });
   const { data: receiptsData } = useReceipts({ customerId }, 1);
 
   function goBack() {
@@ -92,6 +108,9 @@ export function CustomerDetailPage({ customerId }: Props) {
   }
 
   const invoices = invoicesData?.data ?? [];
+  const invoicePageRows = invoicePageData?.data ?? [];
+  const invoiceTotal = invoicePageData?.meta?.total ?? invoices.length;
+  const invoiceTotalPages = invoicePageData?.meta?.totalPages ?? 1;
   const receipts = (receiptsData?.data ?? []).slice(0, 6);
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
   const openCount = invoices.filter((i) => ['sent', 'partially_paid', 'overdue'].includes(i.status)).length;
@@ -149,6 +168,21 @@ export function CustomerDetailPage({ customerId }: Props) {
         }
       />
 
+      <Tabs<CustomerTab>
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          { id: 'overview', label: 'Overview' },
+          { id: 'analytics', label: 'Analytics' },
+        ]}
+      />
+
+      {tab === 'analytics' && (
+        <CustomerAnalyticsTab customerId={customerId} customerName={customer.name} />
+      )}
+
+      {tab === 'overview' && (
+      <>
       {/* Outstanding hero + portal */}
       <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
@@ -273,19 +307,20 @@ export function CustomerDetailPage({ customerId }: Props) {
           <div className="flex items-center gap-2">
             <FileText size={14} style={{ color: 'var(--text-2)' }} />
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--text-1)' }}>Recent invoices</h3>
-            <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({invoices.length})</span>
+            <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>({invoiceTotal})</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/finance/ar/invoices', search: { customer: customerId } as any })}>
             View all
           </Button>
         </div>
-        {invoices.length === 0 ? (
+        {invoiceTotal === 0 ? (
           <EmptyState
             icon={<FileText size={18} />}
             title="No invoices yet"
             description="Sales invoices for this customer will appear here."
           />
         ) : (
+          <>
           <table className="w-full text-[13px]">
             <TableHeader>
               <tr>
@@ -298,7 +333,7 @@ export function CustomerDetailPage({ customerId }: Props) {
               </tr>
             </TableHeader>
             <TableBody>
-              {invoices.map((inv) => (
+              {invoicePageRows.map((inv) => (
                 <TableRow
                   key={inv.id}
                   onClick={() => navigate({ to: '/finance/ar/invoices/$invoiceId', params: { invoiceId: inv.id } })}
@@ -317,6 +352,18 @@ export function CustomerDetailPage({ customerId }: Props) {
               ))}
             </TableBody>
           </table>
+          {invoiceTotalPages > 1 && (
+            <div className="border-t px-5 py-3" style={{ borderColor: 'var(--border-soft)' }}>
+              <Pagination
+                page={invoicePage}
+                totalPages={invoiceTotalPages}
+                total={invoiceTotal}
+                limit={INVOICE_PAGE_SIZE}
+                onPageChange={setInvoicePage}
+              />
+            </div>
+          )}
+          </>
         )}
       </div>
 
@@ -366,6 +413,8 @@ export function CustomerDetailPage({ customerId }: Props) {
           </Table>
         )}
       </div>
+      </>
+      )}
 
       <EditCustomerDialog customer={customer} open={showEdit} onClose={() => setShowEdit(false)} />
 
@@ -411,194 +460,6 @@ function AgingBucket({
       <div className="text-[10.5px]" style={{ color: 'var(--text-3)' }}>{label}</div>
       <div className="num mt-0.5 text-[13px] font-semibold tabular-nums" style={{ color: amountColor }}>
         {isZero ? '—' : formatINR(amount)}
-      </div>
-    </div>
-  );
-}
-
-function PortalLinkCard({ customerId, nickname }: { customerId: string; nickname: string | null }) {
-  const [portalUrl, setPortalUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  function buildUrl(slug: string) {
-    // Canonical share URL — `/portal/<slug>`. The legacy `/portal/s/<slug>`
-    // shape still routes to the same page so any link sent before the
-    // rename keeps working.
-    return `${window.location.origin}/portal/${slug}`;
-  }
-
-  const generateToken = useMutation({
-    mutationFn: () => api.post<{ data: { slug: string } }>(`/ar/customers/${customerId}/portal-token`),
-    onSuccess: (res) => {
-      setPortalUrl(buildUrl(res.data.slug));
-    },
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ data: { slug: string | null } }>(`/ar/customers/${customerId}/portal-slug`)
-      .then((res) => {
-        if (!cancelled && res.data.slug) setPortalUrl(buildUrl(res.data.slug));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [customerId]);
-
-  function handleCopy() {
-    if (!portalUrl) return;
-    navigator.clipboard.writeText(portalUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div
-      className="rounded-xl border p-5"
-      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
-          Payment portal
-        </div>
-        <ExternalLink size={13} style={{ color: 'var(--text-3)' }} />
-      </div>
-      <p className="mb-3 text-[12px]" style={{ color: 'var(--text-2)' }}>
-        Share this link so {nickname || 'the customer'} can view and pay invoices online.
-      </p>
-      {portalUrl ? (
-        <>
-          <div
-            className="num mb-2 truncate rounded-md border px-2.5 py-2 text-[11px]"
-            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
-          >
-            {portalUrl}
-          </div>
-          <div className="mb-3 flex items-center gap-1.5">
-            <Button size="sm" variant="outline" icon={copied ? <Check size={12} /> : <Copy size={12} />} onClick={handleCopy}>
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => generateToken.mutate()} loading={generateToken.isPending}>
-              Regenerate
-            </Button>
-          </div>
-          <PortalPinControl customerId={customerId} />
-        </>
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          icon={<ExternalLink size={12} />}
-          onClick={() => generateToken.mutate()}
-          loading={generateToken.isPending}
-        >
-          Generate portal link
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function PortalPinControl({ customerId }: { customerId: string }) {
-  const [isSet, setIsSet] = useState<boolean | null>(null);
-  const [pin, setPin] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [pinCopied, setPinCopied] = useState(false);
-
-  function copyPin() {
-    if (!pin) return;
-    navigator.clipboard.writeText(pin);
-    setPinCopied(true);
-    setTimeout(() => setPinCopied(false), 2000);
-  }
-
-  useEffect(() => {
-    api
-      .get<{ data: { isSet: boolean; pin: string | null } }>(`/ar/customers/${customerId}/portal-pin-status`)
-      .then((res) => {
-        setIsSet(res.data.isSet);
-        setPin(res.data.pin);
-      })
-      .catch(() => setIsSet(false));
-  }, [customerId]);
-
-  async function generatePin() {
-    setBusy(true);
-    try {
-      const res = await api.post<{ data: { pin: string } }>(`/ar/customers/${customerId}/portal-pin`);
-      setPin(res.data.pin);
-      setIsSet(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function clearPin() {
-    if (!confirm('Remove portal PIN? Anyone with the link will be able to view invoices.')) return;
-    setBusy(true);
-    try {
-      await api.delete(`/ar/customers/${customerId}/portal-pin`);
-      setIsSet(false);
-      setPin(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="rounded-md border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
-          Portal PIN
-        </span>
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-          style={{
-            background: isSet ? '#dcfce7' : '#fef3c7',
-            color: isSet ? '#15803d' : '#a16207',
-          }}
-        >
-          {isSet === null ? '…' : isSet ? 'Required' : 'Not set'}
-        </span>
-      </div>
-      {pin ? (
-        <>
-          <p className="mb-1 text-[11px]" style={{ color: 'var(--text-2)' }}>
-            Share this PIN with the customer:
-          </p>
-          <div className="mb-3 flex items-center gap-2">
-            <code
-              className="num rounded-md border px-3 py-1.5 font-mono text-base tracking-widest"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-            >
-              {pin}
-            </code>
-            <Button
-              size="sm"
-              variant="outline"
-              icon={pinCopied ? <Check size={12} /> : <Copy size={12} />}
-              onClick={copyPin}
-            >
-              {pinCopied ? 'Copied' : 'Copy PIN'}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <p className="mb-2 text-[11px]" style={{ color: 'var(--text-2)' }}>
-          No PIN required — anyone with the link can view invoices. Generate one to protect this portal.
-        </p>
-      )}
-      <div className="flex items-center gap-1.5">
-        <Button size="sm" onClick={generatePin} loading={busy}>
-          {isSet ? 'Generate new PIN' : 'Generate PIN'}
-        </Button>
-        {isSet && (
-          <Button size="sm" variant="outline" onClick={clearPin} disabled={busy}>
-            Remove PIN
-          </Button>
-        )}
       </div>
     </div>
   );

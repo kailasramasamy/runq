@@ -4,6 +4,7 @@ import {
   createCustomerSchema,
   updateCustomerSchema,
   customerFilterSchema,
+  customerAnalyticsQuerySchema,
   paginationSchema,
   uuidParamSchema,
   syncCustomersSchema,
@@ -15,6 +16,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { CustomerService } from './customer.service';
 import { CreditScoreService } from './credit-score.service';
+import { CustomerAnalyticsService } from './customer-analytics.service';
 import { PortalService } from './portal.service';
 import { validateGSTIN } from '@runq/validators';
 import { lookupGSTIN } from '../../utils/gstin-lookup';
@@ -140,6 +142,18 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const service = new CreditScoreService(request.server.db, request.tenantId);
       const data = await service.getScore(id);
+      return { data };
+    },
+  );
+
+  app.get(
+    '/:id/analytics',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { dateFrom, dateTo, groupBy } = customerAnalyticsQuerySchema.parse(request.query);
+      const service = new CustomerAnalyticsService(request.server.db, request.tenantId);
+      const data = await service.getAnalytics(id, dateFrom, dateTo, groupBy);
       return { data };
     },
   );

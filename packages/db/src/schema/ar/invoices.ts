@@ -59,6 +59,8 @@ export const salesInvoices = pgTable('sales_invoices', {
   index('idx_si_tenant_status').on(t.tenantId, t.status),
   index('idx_si_tenant_customer').on(t.tenantId, t.customerId),
   index('idx_si_tenant_due_date').on(t.tenantId, t.dueDate),
+  // Date-windowed per-customer reads (sales analytics, statements).
+  index('idx_si_tenant_customer_date').on(t.tenantId, t.customerId, t.invoiceDate),
 ]);
 
 export const salesInvoiceItems = pgTable('sales_invoice_items', {
@@ -97,4 +99,6 @@ export const salesInvoiceItems = pgTable('sales_invoice_items', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_sii_invoice_id').on(t.invoiceId),
+  // Per-product sales aggregates (customer sales analytics).
+  index('idx_sii_tenant_item').on(t.tenantId, t.itemId),
 ]);
