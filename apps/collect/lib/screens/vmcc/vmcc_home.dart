@@ -288,24 +288,34 @@ class VmccHome extends ConsumerWidget {
     ]);
   }
 
+  /// Quality readout for the brand-gradient hero.
+  ///
+  /// Band COLOUR cannot be used on this surface: against the gradient every
+  /// band step fails contrast — 1.06:1 at worst, and even a 65% black scrim
+  /// only lifts the red band to 4.08:1. So the values stay white on a
+  /// translucent scrim (~5:1) and a breach is signalled by an icon instead,
+  /// which survives any background.
   Widget _qualityText(MpCollectionSummary s, QualityBands? bands, MilkType milkType) {
-    // Build inline color tokens here — this widget lives on the dark hero.
-    final base = DhenuText.caption.copyWith(color: Colors.white);
-    // Retrieve a single DhenuTokens via a Builder is expensive; instead use the
-    // static bandColor helper which returns null when no band matches and we fall
-    // back to white. We resolve colors at build time using a Builder.
+    final breached = QualityBadge.anyOutOfBand(
+        bands, milkType, {'fat': s.avgFat, 'snf': s.avgSnf});
     return Builder(builder: (ctx) {
-      final tk = DT(ctx);
-      final fatColor = QualityBadge.bandColor(bands, milkType, 'fat', s.avgFat, tk) ?? Colors.white;
-      final snfColor = QualityBadge.bandColor(bands, milkType, 'snf', s.avgSnf, tk) ?? Colors.white;
-      return RichText(
-        text: TextSpan(style: base, children: [
-          const TextSpan(text: 'FAT '),
-          TextSpan(text: s.avgFat.toStringAsFixed(1), style: TextStyle(color: fatColor)),
-          const TextSpan(text: ' · SNF '),
-          TextSpan(text: s.avgSnf.toStringAsFixed(1), style: TextStyle(color: snfColor)),
-          if (s.avgWater > 0)
-            TextSpan(text: ' · W ${s.avgWater.toStringAsFixed(1)}'),
+      return Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.sm, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.28),
+          borderRadius: BorderRadius.circular(DhenuRadii.pill),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (breached) ...[
+            const Icon(DhenuIcons.warning, size: 12, color: Colors.white),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
+            '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
+            style: DhenuText.caption.copyWith(color: Colors.white),
+          ),
         ]),
       );
     });

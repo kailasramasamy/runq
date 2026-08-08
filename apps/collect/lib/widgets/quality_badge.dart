@@ -116,6 +116,26 @@ class QualityBadge extends StatelessWidget {
     QualityLevel.low => t.gradeC,
   };
 
+  /// True when any of the given metrics falls outside its "good" band.
+  ///
+  /// For surfaces where band COLOUR cannot be used. On the brand hero
+  /// gradient every band step fails contrast — worst 1.06:1, and even a 65%
+  /// black scrim leaves the red at 4.08:1 — so the hero signals a breach with
+  /// an icon and keeps its text white, which reads at 5:1 on the same scrim.
+  static bool anyOutOfBand(
+    QualityBands? bands,
+    MilkType? milkType,
+    Map<String, double?> metrics,
+  ) {
+    if (bands == null || milkType == null) return false;
+    for (final e in metrics.entries) {
+      if (e.value == null) continue;
+      final level = bands.levelFor(milkType, e.key, e.value!);
+      if (level != null && level != QualityLevel.good) return true;
+    }
+    return false;
+  }
+
   /// Band colour for one metric value as plain text — null when no band applies
   /// (caller keeps its default colour). Used where FAT/SNF render as raw text.
   static Color? bandColor(

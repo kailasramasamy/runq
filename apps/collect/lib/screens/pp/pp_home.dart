@@ -149,7 +149,6 @@ class PpHome extends ConsumerWidget {
             ? '+${variance.toStringAsFixed(1)}'
             : variance.toStringAsFixed(1));
 
-        const onHero = Colors.white;
         final onHeroSoft = Colors.white.withValues(alpha: 0.82);
         return HeroNumberCard(
           label: l.ppHomeTodayReceivedLabel,
@@ -165,26 +164,54 @@ class PpHome extends ConsumerWidget {
                 style: DhenuText.body.copyWith(color: onHeroSoft)),
             const Spacer(),
             if (avgFat > 0)
-              Text.rich(TextSpan(
-                style: DhenuText.caption.copyWith(color: onHero),
-                children: [
-                  TextSpan(
-                    text: 'FAT ${avgFat.toStringAsFixed(1)}',
-                    style: TextStyle(
-                        color: QualityBadge.bandColor(bands, milkType, 'fat', avgFat, t) ?? onHero),
-                  ),
-                  const TextSpan(text: ' · '),
-                  TextSpan(
-                    text: 'SNF ${avgSnf.toStringAsFixed(1)}',
-                    style: TextStyle(
-                        color: QualityBadge.bandColor(bands, milkType, 'snf', avgSnf, t) ?? onHero),
-                  ),
-                  if (avgWater > 0) TextSpan(text: ' · W ${avgWater.toStringAsFixed(1)}'),
-                ],
-              )),
+              _heroQuality(
+                bands: bands,
+                milkType: milkType,
+                fat: avgFat,
+                snf: avgSnf,
+                water: avgWater,
+              ),
           ]),
         );
       },
+    );
+  }
+
+  /// Quality readout for the brand-gradient hero.
+  ///
+  /// Band COLOUR cannot be used on this surface: against the gradient every
+  /// band step fails contrast — 1.06:1 at worst, and even a 65% black scrim
+  /// only lifts the red band to 4.08:1. So the values stay white on a
+  /// translucent scrim (~5:1) and a breach is signalled by an icon instead,
+  /// which survives any background. The per-tanker rows below still carry the
+  /// band colours, on the dark surface they were built for.
+  Widget _heroQuality({
+    required QualityBands bands,
+    required MilkType milkType,
+    required double fat,
+    required double snf,
+    required double water,
+  }) {
+    final breached = QualityBadge.anyOutOfBand(
+        bands, milkType, {'fat': fat, 'snf': snf});
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.sm, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (breached) ...[
+          const Icon(DhenuIcons.warning, size: 12, color: Colors.white),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          'FAT ${fat.toStringAsFixed(1)} · SNF ${snf.toStringAsFixed(1)}'
+          '${water > 0 ? ' · W ${water.toStringAsFixed(1)}' : ''}',
+          style: DhenuText.caption.copyWith(color: Colors.white),
+        ),
+      ]),
     );
   }
 
