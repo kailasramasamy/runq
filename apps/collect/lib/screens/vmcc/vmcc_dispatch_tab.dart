@@ -10,6 +10,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../shared/pending_work.dart';
+import '../../widgets/quality_badge.dart';
 import '../../widgets/date_stepper.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -443,6 +444,13 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 // with, and answers "where did it go" before "which one was it".
                 Text(ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
                     style: DhenuText.label.copyWith(color: t.ink)),
+                // Each milk type leaves as its own consignment, so the type is
+                // what tells two otherwise identical legs apart — and at the
+                // far end it decides which raw-milk stock the load lands in.
+                if (c.milkType != null) ...[
+                  const SizedBox(height: 3),
+                  MilkTypePill(milkType: c.milkType!),
+                ],
                 const SizedBox(height: DhenuSpacing.xs),
                 Text(
                   '${c.consignmentNo} · '
