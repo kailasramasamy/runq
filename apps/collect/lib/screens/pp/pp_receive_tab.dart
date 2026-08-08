@@ -31,6 +31,14 @@ class PpReceiveTab extends ConsumerWidget {
   ReceivedRangeArgs get _recentArgs =>
       (nodeId: node.id, kind: 'cc_to_pp', days: _recentDays);
 
+  /// The one way this screen reloads. Every path that changes a receipt goes
+  /// through here — pull-to-refresh, receiving a tanker, manual receive,
+  /// delete — so none of them can miss a provider.
+  ///
+  /// `nodePendingInboundProvider` is the load-bearing one: it feeds the
+  /// in-transit list. Receiving used to invalidate only the other two, so a
+  /// tanker stayed in the queue after it had been taken in and the operator
+  /// had to pull down to make it disappear.
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
     ref.invalidate(nodePendingInboundProvider(node.id));
@@ -380,7 +388,6 @@ class PpReceiveTab extends ConsumerWidget {
         sourceIcon: DhenuIcons.snowflake,
       ),
     ));
-    ref.invalidate(nodeInboundConsignmentsProvider(node.id));
-    ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
+    await _refresh(ref);
   }
 }
