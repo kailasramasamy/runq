@@ -1917,6 +1917,10 @@ class AppLocalizationsTa extends AppLocalizations {
   String get ccDispatchSlotPool => 'இந்த பூல்';
 
   @override
+  String get ccReceivePoolWaitsForMorning =>
+      'இன்று மாலைப் பால் நாளை காலைச் சேகரிப்புடன் செல்லும். AM ஷிஃப்ட் வந்த பிறகு பூலை மூடி அனுப்பவும்.';
+
+  @override
   String get ccDispatchHistoryTitle => 'அனுப்பிய வரலாறு';
 
   @override

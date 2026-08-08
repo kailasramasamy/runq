@@ -1897,6 +1897,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ccDispatchSlotPool => 'this pool';
 
   @override
+  String get ccReceivePoolWaitsForMorning =>
+      'This evening\'s milk goes out with tomorrow morning\'s collection. Close and dispatch the pool once the AM shift is in.';
+
+  @override
   String get ccDispatchHistoryTitle => 'Dispatch history';
 
   @override

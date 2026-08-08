@@ -3382,6 +3382,12 @@ abstract class AppLocalizations {
   /// **'this pool'**
   String get ccDispatchSlotPool;
 
+  /// Shown on the PM half of an overnight pool, where closing would also close the next morning
+  ///
+  /// In en, this message translates to:
+  /// **'This evening\'s milk goes out with tomorrow morning\'s collection. Close and dispatch the pool once the AM shift is in.'**
+  String get ccReceivePoolWaitsForMorning;
+
   /// No description provided for @ccDispatchHistoryTitle.
   ///
   /// In en, this message translates to:

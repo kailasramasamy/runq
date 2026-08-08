@@ -1327,6 +1327,10 @@
   },
   "ccDispatchSlotToday": "today",
   "ccDispatchSlotPool": "this pool",
+  "ccReceivePoolWaitsForMorning": "This evening's milk goes out with tomorrow morning's collection. Close and dispatch the pool once the AM shift is in.",
+  "@ccReceivePoolWaitsForMorning": {
+    "description": "Shown on the PM half of an overnight pool, where closing would also close the next morning"
+  },
   "ccDispatchHistoryTitle": "Dispatch history",
   "ccHomeChillingTank": "Chilling tank",
   "ccHomeVmccsPool": "VMCCs · this pool",

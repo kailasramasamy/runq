@@ -67,6 +67,23 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
       (nodeId: _ccNodeId, date: _anchorIso, shift: _perShift ? _shift.name : null);
   String? get _closeArg => _perShift ? _shift.name : null;
 
+  /// True on the evening half of an overnight pool whose morning has not been
+  /// collected yet.
+  ///
+  /// Closing is a WHOLE-WINDOW operation server-side: one call shuts both
+  /// (PM, next AM). Offering it here before the morning is in freezes a slot
+  /// nobody has collected — which is how an empty AM slot ended up closed
+  /// alongside a backfilled PM one. Backfill still works: once the morning
+  /// has receipts, the control comes back.
+  bool get _poolAwaitsMorning {
+    if (!widget.node.isOvernightPool || _shift != Shift.pm) return false;
+    final morning = ref
+        .watch(nodeAvailabilityForDateProvider(
+            (nodeId: _ccNodeId, date: _anchorIso, shift: 'am')))
+        .asData?.value?.collected ?? 0;
+    return morning <= 0;
+  }
+
   /// Is the slot being written closed? Always the slot itself — a pooled
   /// window spans two slots, and closing one must not lock the other.
   /// `_anchorIso` guarantees the status describes the window this slot is in,
@@ -226,6 +243,26 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
         ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.collected ?? 0;
     // Nothing in for this slot yet — nothing to close.
     if (collected <= 0) return const SizedBox.shrink();
+    // The pool is only half collected: closing now would take the morning
+    // with it. Say what happens next instead of offering the action.
+    if (_poolAwaitsMorning) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        decoration: BoxDecoration(
+          color: t.inkSoft.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+        ),
+        child: Row(children: [
+          Icon(DhenuIcons.moon, size: 18, color: t.inkSoft),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(
+            child: Text(l.ccReceivePoolWaitsForMorning,
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ),
+        ]),
+      );
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       OutlinedButton.icon(
         onPressed: _closingBusy ? null : () => _runClose(

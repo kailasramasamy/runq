@@ -1899,6 +1899,10 @@ class AppLocalizationsKn extends AppLocalizations {
   String get ccDispatchSlotPool => 'ಈ ಪೂಲ್';
 
   @override
+  String get ccReceivePoolWaitsForMorning =>
+      'ಈ ಸಂಜೆಯ ಹಾಲು ನಾಳೆ ಬೆಳಗಿನ ಸಂಗ್ರಹದೊಂದಿಗೆ ಹೋಗುತ್ತದೆ. AM ಶಿಫ್ಟ್ ಬಂದ ನಂತರ ಪೂಲ್ ಮುಚ್ಚಿ ರವಾನಿಸಿ.';
+
+  @override
   String get ccDispatchHistoryTitle => 'ರವಾನೆ ಇತಿಹಾಸ';
 
   @override
