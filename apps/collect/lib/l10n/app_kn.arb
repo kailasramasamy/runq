@@ -80,7 +80,7 @@
   "pourDetailAmount": "ಮೊತ್ತ",
   "shiftAm": "AM",
   "shiftPm": "PM",
-  "ccReceivePoolWaitsForMorning": "ಈ ಸಂಜೆಯ ಹಾಲು ನಾಳೆ ಬೆಳಗಿನ ಸಂಗ್ರಹದೊಂದಿಗೆ ಹೋಗುತ್ತದೆ. AM ಶಿಫ್ಟ್ ಬಂದ ನಂತರ ಪೂಲ್ ಮುಚ್ಚಿ ರವಾನಿಸಿ.",
+  "ccReceivePoolWaitsForMorning": "ಸಂಜೆಯ ಹಾಲು ಮರುದಿನ ಬೆಳಗಿನ ಸಂಗ್ರಹದೊಂದಿಗೆ ಹೋಗುತ್ತದೆ. ಈ ಪೂಲ್ ಅನ್ನು {date} ರಂದು ಮುಚ್ಚಿ ರವಾನಿಸಿ.",
   "consignmentSlotPooled": "ಸಂಗ್ರಹಿತ",
   "shiftMorning": "ಬೆಳಿಗ್ಗೆ",
   "shiftEvening": "ಸಂಜೆ",

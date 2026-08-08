@@ -304,6 +304,11 @@ class AppLocalizationsTa extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String ccReceivePoolWaitsForMorning(String date) {
+    return 'மாலைப் பால் அடுத்த நாள் காலைச் சேகரிப்புடன் செல்லும். இந்தப் பூலை $date அன்று மூடி அனுப்பவும்.';
+  }
+
+  @override
   String get consignmentSlotPooled => 'தொகுக்கப்பட்டது';
 
   @override
@@ -1915,10 +1920,6 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get ccDispatchSlotPool => 'இந்த பூல்';
-
-  @override
-  String get ccReceivePoolWaitsForMorning =>
-      'இன்று மாலைப் பால் நாளை காலைச் சேகரிப்புடன் செல்லும். AM ஷிஃப்ட் வந்த பிறகு பூலை மூடி அனுப்பவும்.';
 
   @override
   String get ccDispatchHistoryTitle => 'அனுப்பிய வரலாறு';

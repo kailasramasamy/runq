@@ -580,6 +580,12 @@ abstract class AppLocalizations {
   /// **'PM'**
   String get shiftPm;
 
+  /// Shown on the PM half of an overnight pool — close/dispatch belong to the anchor (AM) day
+  ///
+  /// In en, this message translates to:
+  /// **'Evening milk leaves with the next morning\'s collection. Close and dispatch this pool on {date}.'**
+  String ccReceivePoolWaitsForMorning(String date);
+
   /// Whole-day pooled tanker — a consignment with no single shift
   ///
   /// In en, this message translates to:
@@ -3381,12 +3387,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'this pool'**
   String get ccDispatchSlotPool;
-
-  /// Shown on the PM half of an overnight pool, where closing would also close the next morning
-  ///
-  /// In en, this message translates to:
-  /// **'This evening\'s milk goes out with tomorrow morning\'s collection. Close and dispatch the pool once the AM shift is in.'**
-  String get ccReceivePoolWaitsForMorning;
 
   /// No description provided for @ccDispatchHistoryTitle.
   ///

@@ -205,6 +205,11 @@
   "pourDetailAmount": "Amount",
   "shiftAm": "AM",
   "shiftPm": "PM",
+  "ccReceivePoolWaitsForMorning": "Evening milk leaves with the next morning's collection. Close and dispatch this pool on {date}.",
+  "@ccReceivePoolWaitsForMorning": {
+    "description": "Shown on the PM half of an overnight pool — close/dispatch belong to the anchor (AM) day",
+    "placeholders": { "date": { "type": "String" } }
+  },
   "consignmentSlotPooled": "Pooled",
   "@consignmentSlotPooled": {
     "description": "Whole-day pooled tanker — a consignment with no single shift"
@@ -1327,10 +1332,6 @@
   },
   "ccDispatchSlotToday": "today",
   "ccDispatchSlotPool": "this pool",
-  "ccReceivePoolWaitsForMorning": "This evening's milk goes out with tomorrow morning's collection. Close and dispatch the pool once the AM shift is in.",
-  "@ccReceivePoolWaitsForMorning": {
-    "description": "Shown on the PM half of an overnight pool, where closing would also close the next morning"
-  },
   "ccDispatchHistoryTitle": "Dispatch history",
   "ccHomeChillingTank": "Chilling tank",
   "ccHomeVmccsPool": "VMCCs · this pool",

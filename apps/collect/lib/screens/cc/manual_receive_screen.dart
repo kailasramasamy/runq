@@ -67,22 +67,24 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
       (nodeId: _ccNodeId, date: _anchorIso, shift: _perShift ? _shift.name : null);
   String? get _closeArg => _perShift ? _shift.name : null;
 
-  /// True on the evening half of an overnight pool whose morning has not been
-  /// collected yet.
+  /// True on the evening half of an overnight pool.
   ///
-  /// Closing is a WHOLE-WINDOW operation server-side: one call shuts both
-  /// (PM, next AM). Offering it here before the morning is in freezes a slot
-  /// nobody has collected — which is how an empty AM slot ended up closed
-  /// alongside a backfilled PM one. Backfill still works: once the morning
-  /// has receipts, the control comes back.
-  bool get _poolAwaitsMorning {
-    if (!widget.node.isOvernightPool || _shift != Shift.pm) return false;
-    final morning = ref
-        .watch(nodeAvailabilityForDateProvider(
-            (nodeId: _ccNodeId, date: _anchorIso, shift: 'am')))
-        .asData?.value?.collected ?? 0;
-    return morning <= 0;
-  }
+  /// Under overnight pooling the tanker leaves with the NEXT morning's
+  /// collection, so close and dispatch belong to that morning — the anchor
+  /// day — and never to the evening. Two reasons this is structural rather
+  /// than a data check:
+  ///
+  ///  - closing is a whole-window operation server-side; one call shuts both
+  ///    (PM, next AM), so closing from here freezes a morning nobody has
+  ///    collected. That is how an empty AM slot ended up closed at 14:18 on
+  ///    the day this was found.
+  ///  - even when the morning IS already in, dispatching from the evening
+  ///    screen jumps the operator to a different day mid-task.
+  ///
+  /// The evening half is still fully editable; it simply has no window
+  /// controls. They live one screen along, on the day named in the note.
+  bool get _poolAwaitsMorning =>
+      widget.node.isOvernightPool && _shift == Shift.pm;
 
   /// Is the slot being written closed? Always the slot itself — a pooled
   /// window spans two slots, and closing one must not lock the other.
@@ -243,8 +245,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
         ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value?.collected ?? 0;
     // Nothing in for this slot yet — nothing to close.
     if (collected <= 0) return const SizedBox.shrink();
-    // The pool is only half collected: closing now would take the morning
-    // with it. Say what happens next instead of offering the action.
+    // Evening half of a pool: no window controls here, just where to go.
     if (_poolAwaitsMorning) {
       return Container(
         padding: const EdgeInsets.symmetric(
@@ -257,7 +258,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
           Icon(DhenuIcons.moon, size: 18, color: t.inkSoft),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(
-            child: Text(l.ccReceivePoolWaitsForMorning,
+            child: Text(l.ccReceivePoolWaitsForMorning(prettyDate(_anchorIso)),
                 style: DhenuText.caption.copyWith(color: t.inkSoft)),
           ),
         ]),
@@ -293,7 +294,9 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     final avail = ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value;
     final left = avail?.available ?? 0;
     final gone = avail?.dispatched ?? 0;
-    final stillToSend = left > 0;
+    // Same rule as the open case: the evening half of a pool never offers the
+    // onward hand-off, however the window is closed.
+    final stillToSend = left > 0 && !_poolAwaitsMorning;
     return Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(
