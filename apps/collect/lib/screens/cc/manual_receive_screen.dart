@@ -286,7 +286,15 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     ]);
   }
 
-  Widget _closedSection(DhenuTokens t, AppLocalizations l) => Column(children: [
+  Widget _closedSection(DhenuTokens t, AppLocalizations l) {
+    // Closed is not the same as sent. A pool that has already left still reads
+    // as closed here, and the screen used to offer Dispatch anyway — pointing
+    // the operator at a tanker that is already in transit.
+    final avail = ref.watch(nodeAvailabilityForDateProvider(_availArgs)).asData?.value;
+    final left = avail?.available ?? 0;
+    final gone = avail?.dispatched ?? 0;
+    final stillToSend = left > 0;
+    return Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(
               horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
@@ -302,7 +310,10 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
               Text(l.ccDispatchClosedFor(_slotLabel(l)),
                   style: DhenuText.label.copyWith(color: t.ink)),
               const SizedBox(height: 2),
-              Text(l.ccDispatchReadyForDispatch,
+              Text(
+                  stillToSend
+                      ? l.ccDispatchReadyForDispatch
+                      : l.dispatchAmountDispatched(litres(gone, unit: true)),
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
             ])),
             TextButton(
@@ -312,13 +323,19 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
             ),
           ]),
         ),
-        const SizedBox(height: DhenuSpacing.md),
-        PrimaryAction(
-          label: l.ccDispatchToPlant,
-          icon: DhenuIcons.truck,
-          onPressed: _closingBusy ? null : _openDispatch,
-        ),
+        // Only offer the onward hand-off while something is still owed to the
+        // plant. Reopen stays either way — that is how a late VMCC gets added
+        // and the balance sent as a second load.
+        if (stillToSend) ...[
+          const SizedBox(height: DhenuSpacing.md),
+          PrimaryAction(
+            label: l.ccDispatchToPlant,
+            icon: DhenuIcons.truck,
+            onPressed: _closingBusy ? null : _openDispatch,
+          ),
+        ],
       ]);
+  }
 
   String _closeLabel(AppLocalizations l) => widget.node.isOvernightPool
       ? l.ccDispatchCloseReceivingPool
