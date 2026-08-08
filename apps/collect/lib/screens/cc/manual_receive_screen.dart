@@ -46,14 +46,32 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
   // it has no per-shift slot to name — same rule the Dispatch tab applies.
   bool get _perShift => !widget.node.isPooledDispatch;
   NodeDateArgs get _dateArgs => (nodeId: _ccNodeId, date: _iso);
+
+  /// The dispatch window that OWNS the (date, shift) being entered.
+  ///
+  /// Under overnight pooling a PM slot belongs to the NEXT day's window —
+  /// milk chilled tonight leaves with tomorrow morning's collection. Every
+  /// window operation here (status, availability, close, reopen, dispatch)
+  /// has to be anchored on that window, not on the date in the picker.
+  ///
+  /// Using the picked date meant a PM slot was governed by a window that did
+  /// not contain it: entering 5 Aug PM asked whether the (4 Aug PM + 5 Aug AM)
+  /// pool was closed — so a finished neighbouring window locked a slot that
+  /// was still wide open, and Close would have closed that neighbour rather
+  /// than the pool the milk had just gone into.
+  String get _anchorIso => widget.node.isOvernightPool && _shift == Shift.pm
+      ? isoDate(_date.add(const Duration(days: 1)))
+      : _iso;
+  NodeDateArgs get _anchorArgs => (nodeId: _ccNodeId, date: _anchorIso);
   AvailabilityDateArgs get _availArgs =>
-      (nodeId: _ccNodeId, date: _iso, shift: _perShift ? _shift.name : null);
+      (nodeId: _ccNodeId, date: _anchorIso, shift: _perShift ? _shift.name : null);
   String? get _closeArg => _perShift ? _shift.name : null;
 
-  bool _slotClosed(MpShiftStatus? st) {
-    if (st == null) return false;
-    return _perShift ? st.closedFor(_shift.name) : st.dayClosed;
-  }
+  /// Is the slot being written closed? Always the slot itself — a pooled
+  /// window spans two slots, and closing one must not lock the other.
+  /// `_anchorIso` guarantees the status describes the window this slot is in,
+  /// so its own shift flag is the answer for pooled and per-shift alike.
+  bool _slotClosed(MpShiftStatus? st) => st != null && st.closedFor(_shift.name);
 
   /// VMCC id → litres already received at this CC for the selected date + shift.
   /// A whole-day (BMC) consignment carries a null shift and counts for either.
@@ -82,6 +100,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     ref.invalidate(nodeInboundByDateProvider(_dateArgs));
     ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
     ref.invalidate(shiftStatusForDateProvider(_dateArgs));
+    ref.invalidate(shiftStatusForDateProvider(_anchorArgs));
     ref.invalidate(shiftStatusProvider(_ccNodeId));
     ref.invalidate(nodeAvailabilityProvider);
   }
@@ -107,7 +126,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
       builder: (_) => Scaffold(
         appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
         body: CcDispatchTab(
-            node: widget.node, initialDate: _iso, initialShift: _perShift ? _shift : null),
+            node: widget.node, initialDate: _anchorIso, initialShift: _perShift ? _shift : null),
       ),
     ));
     if (mounted) _invalidateSlot();
@@ -130,7 +149,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     final l = AppLocalizations.of(context);
     final inboundAsync = ref.watch(nodeInboundByDateProvider(_dateArgs));
     final received = _receivedFor(inboundAsync.asData?.value ?? const []);
-    final closed = _slotClosed(ref.watch(shiftStatusForDateProvider(_dateArgs)).asData?.value);
+    final closed = _slotClosed(ref.watch(shiftStatusForDateProvider(_anchorArgs)).asData?.value);
     // Only VMCCs that collect in the selected shift can have milk to receive.
     final shiftVmccs = widget.vmccs.where((v) => v.collectsShift(_shift.name)).toList();
     return Scaffold(
@@ -210,7 +229,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       OutlinedButton.icon(
         onPressed: _closingBusy ? null : () => _runClose(
-            () => mpRepo.closeShift(_ccNodeId, _iso, shift: _closeArg)),
+            () => mpRepo.closeShift(_ccNodeId, _anchorIso, shift: _closeArg)),
         icon: _closingBusy
             ? SizedBox(
                 width: 16, height: 16,
@@ -251,7 +270,7 @@ class _ManualReceiveScreenState extends ConsumerState<ManualReceiveScreen> {
             ])),
             TextButton(
               onPressed: _closingBusy ? null : () => _runClose(
-                  () => mpRepo.reopenShift(_ccNodeId, _iso, shift: _closeArg)),
+                  () => mpRepo.reopenShift(_ccNodeId, _anchorIso, shift: _closeArg)),
               child: Text(l.collectReopen, style: DhenuText.label.copyWith(color: t.brand)),
             ),
           ]),
