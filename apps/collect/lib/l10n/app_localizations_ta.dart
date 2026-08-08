@@ -304,6 +304,22 @@ class AppLocalizationsTa extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String ppHomeTankersToReceive(num count) {
+    final intl.NumberFormat countNumberFormat = intl.NumberFormat.compact(
+      locale: localeName,
+    );
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'பெற $countString டேங்கர்கள்',
+      one: 'பெற 1 டேங்கர்',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String ccReceivePoolWaitsForMorning(String date) {
     return 'மாலைப் பால் அடுத்த நாள் காலைச் சேகரிப்புடன் செல்லும். இந்தப் பூலை $date அன்று மூடி அனுப்பவும்.';
   }

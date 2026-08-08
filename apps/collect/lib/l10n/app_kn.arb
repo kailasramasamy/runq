@@ -80,6 +80,7 @@
   "pourDetailAmount": "ಮೊತ್ತ",
   "shiftAm": "AM",
   "shiftPm": "PM",
+  "ppHomeTankersToReceive": "{count, plural, =1{ಸ್ವೀಕರಿಸಲು 1 ಟ್ಯಾಂಕರ್} other{ಸ್ವೀಕರಿಸಲು {count} ಟ್ಯಾಂಕರ್‌ಗಳು}}",
   "ccReceivePoolWaitsForMorning": "ಸಂಜೆಯ ಹಾಲು ಮರುದಿನ ಬೆಳಗಿನ ಸಂಗ್ರಹದೊಂದಿಗೆ ಹೋಗುತ್ತದೆ. ಈ ಪೂಲ್ ಅನ್ನು {date} ರಂದು ಮುಚ್ಚಿ ರವಾನಿಸಿ.",
   "consignmentSlotPooled": "ಸಂಗ್ರಹಿತ",
   "shiftMorning": "ಬೆಳಿಗ್ಗೆ",

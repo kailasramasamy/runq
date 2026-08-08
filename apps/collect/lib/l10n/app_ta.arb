@@ -80,6 +80,7 @@
   "pourDetailAmount": "தொகை",
   "shiftAm": "AM",
   "shiftPm": "PM",
+  "ppHomeTankersToReceive": "{count, plural, =1{பெற 1 டேங்கர்} other{பெற {count} டேங்கர்கள்}}",
   "ccReceivePoolWaitsForMorning": "மாலைப் பால் அடுத்த நாள் காலைச் சேகரிப்புடன் செல்லும். இந்தப் பூலை {date} அன்று மூடி அனுப்பவும்.",
   "consignmentSlotPooled": "தொகுக்கப்பட்டது",
   "shiftMorning": "காலை",

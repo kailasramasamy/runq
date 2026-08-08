@@ -580,6 +580,12 @@ abstract class AppLocalizations {
   /// **'PM'**
   String get shiftPm;
 
+  /// PP home banner — consignments in transit awaiting receipt
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 tanker to receive} other{{count} tankers to receive}}'**
+  String ppHomeTankersToReceive(num count);
+
   /// Shown on the PM half of an overnight pool — close/dispatch belong to the anchor (AM) day
   ///
   /// In en, this message translates to:

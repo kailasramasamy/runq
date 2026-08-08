@@ -17,6 +17,7 @@ import '../../widgets/quality_badge.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
+import '../role_shell.dart';
 import '../shared/node_qc_report.dart';
 import '../shared/receive_history.dart';
 import '../shared/receive_leg.dart';
@@ -59,6 +60,14 @@ class PpHome extends ConsumerWidget {
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
     final recent = ref.watch(nodeReceivedRangeProvider(_recentArgs)).valueOrNull
         ?? const <MpConsignment>[];
+    // The hero and stats above are a day view, built on today's inbound. This
+    // is the work queue: everything still on the road whatever its collection
+    // date. A tanker dispatched on Tuesday and not yet taken in was invisible
+    // on this screen by Wednesday, because a today-scoped list drops it.
+    final waiting = (ref.watch(nodePendingInboundProvider(node.id)).valueOrNull
+            ?? const <MpConsignment>[])
+        .where((c) => c.kind == 'cc_to_pp')
+        .toList();
     final bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull ?? QualityBands.empty;
     final milkType = node.effectiveMilkType;
 
@@ -71,6 +80,10 @@ class PpHome extends ConsumerWidget {
         children: [
           _header(),
           const SizedBox(height: DhenuSpacing.lg),
+          if (waiting.isNotEmpty) ...[
+            _toReceiveBanner(context, t, l, waiting),
+            const SizedBox(height: DhenuSpacing.md),
+          ],
           _hero(context, l, t, consAsync, bands, milkType),
           const SizedBox(height: DhenuSpacing.md),
           if (node.capacityLitres != null) ...[
@@ -205,6 +218,43 @@ class PpHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.sm),
           Text(value, style: DhenuText.number(size: 20, color: t.ink)),
         ]),
+      );
+
+  /// Tankers on the road, whatever day they were collected — the one thing on
+  /// this page that is a queue rather than a day view. Tapping opens Receive,
+  /// which is where they get cleared.
+  Widget _toReceiveBanner(BuildContext context, DhenuTokens t, AppLocalizations l,
+          List<MpConsignment> waiting) =>
+      Material(
+        color: t.am.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.input),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(DhenuRadii.input),
+          // 1 = Receive, the same index PpShell maps 'receive' to.
+          onTap: () => RoleShell.goToTab(context, 1),
+          child: Padding(
+            padding: const EdgeInsets.all(DhenuSpacing.md),
+            child: Row(children: [
+              Icon(DhenuIcons.transit, size: 18, color: t.am),
+              const SizedBox(width: DhenuSpacing.md),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(l.ppHomeTankersToReceive(waiting.length),
+                      style: DhenuText.body.copyWith(
+                          color: t.ink, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    litres(
+                        waiting.fold<double>(0, (a, c) => a + (c.dispatchQty ?? 0)),
+                        unit: true),
+                    style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  ),
+                ]),
+              ),
+              Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
+            ]),
+          ),
+        ),
       );
 
   /// Everything on this page is today; these two are the way back through it.

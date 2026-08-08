@@ -205,6 +205,11 @@
   "pourDetailAmount": "Amount",
   "shiftAm": "AM",
   "shiftPm": "PM",
+  "ppHomeTankersToReceive": "{count, plural, =1{1 tanker to receive} other{{count} tankers to receive}}",
+  "@ppHomeTankersToReceive": {
+    "description": "PP home banner — consignments in transit awaiting receipt",
+    "placeholders": { "count": { "type": "num", "format": "compact" } }
+  },
   "ccReceivePoolWaitsForMorning": "Evening milk leaves with the next morning's collection. Close and dispatch this pool on {date}.",
   "@ccReceivePoolWaitsForMorning": {
     "description": "Shown on the PM half of an overnight pool — close/dispatch belong to the anchor (AM) day",

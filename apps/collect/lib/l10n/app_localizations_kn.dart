@@ -299,6 +299,22 @@ class AppLocalizationsKn extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String ppHomeTankersToReceive(num count) {
+    final intl.NumberFormat countNumberFormat = intl.NumberFormat.compact(
+      locale: localeName,
+    );
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ಸ್ವೀಕರಿಸಲು $countString ಟ್ಯಾಂಕರ್‌ಗಳು',
+      one: 'ಸ್ವೀಕರಿಸಲು 1 ಟ್ಯಾಂಕರ್',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String ccReceivePoolWaitsForMorning(String date) {
     return 'ಸಂಜೆಯ ಹಾಲು ಮರುದಿನ ಬೆಳಗಿನ ಸಂಗ್ರಹದೊಂದಿಗೆ ಹೋಗುತ್ತದೆ. ಈ ಪೂಲ್ ಅನ್ನು $date ರಂದು ಮುಚ್ಚಿ ರವಾನಿಸಿ.';
   }
