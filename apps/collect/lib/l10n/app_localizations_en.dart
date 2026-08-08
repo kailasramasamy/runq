@@ -301,6 +301,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String get consignmentSlotPooled => 'Pooled';
+
+  @override
   String get shiftMorning => 'Morning';
 
   @override

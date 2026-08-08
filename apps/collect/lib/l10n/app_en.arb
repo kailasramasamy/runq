@@ -205,6 +205,10 @@
   "pourDetailAmount": "Amount",
   "shiftAm": "AM",
   "shiftPm": "PM",
+  "consignmentSlotPooled": "Pooled",
+  "@consignmentSlotPooled": {
+    "description": "Whole-day pooled tanker — a consignment with no single shift"
+  },
   "shiftMorning": "Morning",
   "shiftEvening": "Evening",
   "shiftFarmerFallback": "Farmer",

@@ -455,10 +455,12 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
     );
   }
 
-  String _outboundTitle(AppLocalizations l, MpConsignment c) {
-    if (c.shift == null) return c.consignmentNo;
-    return c.shift == Shift.am ? l.dispatchShiftAm : l.dispatchShiftPm;
-  }
+  /// Slot the load belongs to. A pooled tanker used to fall back to showing
+  /// its consignment no here, which left the row with no slot label at all
+  /// and pushed the id out of the subtitle — now every row names its slot and
+  /// the id always sits below it.
+  String _outboundTitle(AppLocalizations l, MpConsignment c) =>
+      consignmentSlotL10n(l, c.shift);
 
   /// Pooled (BMC) consignments are titled by their number and carry no shift.
   IconData? _outboundIcon(MpConsignment c) => switch (c.shift) {
@@ -482,7 +484,6 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
   /// types — otherwise two loads of the same litres read identically.
   String? _outboundSubtitle(AppLocalizations l, MpConsignment c, bool mixed) {
     final type = mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : '';
-    if (c.shift == null) return type.isEmpty ? null : type.trimRight().replaceAll(RegExp(r' ·\$'), '');
     return '$type${c.consignmentNo}';
   }
 

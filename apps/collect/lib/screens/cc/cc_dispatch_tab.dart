@@ -580,9 +580,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
   /// Shift · consignment no, prefixed with the milk type when the day's
   /// dispatches mix types — otherwise two loads read identically.
   String _outboundSubtitle(AppLocalizations l, MpConsignment c, bool mixed) {
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? l.shiftAm : l.shiftPm} · ';
+    // Always name the slot — a pooled tanker used to render as a blank here,
+    // which reads the same as a shift nobody recorded.
+    final slot = '${consignmentSlotL10n(l, c.shift)} · ';
     final type = mixed && c.milkType != null ? '${milkTypeL10n(l, c.milkType!)} · ' : '';
-    return '$type$shift${c.consignmentNo}';
+    return '$type$slot${c.consignmentNo}';
   }
 
   Widget _outboundList(

@@ -299,6 +299,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String get consignmentSlotPooled => 'ಸಂಗ್ರಹಿತ';
+
+  @override
   String get shiftMorning => 'ಬೆಳಿಗ್ಗೆ';
 
   @override

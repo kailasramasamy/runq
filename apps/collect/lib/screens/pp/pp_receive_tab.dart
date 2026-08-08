@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -220,7 +221,7 @@ class PpReceiveTab extends ConsumerWidget {
     return DhenuCard(
       onTap: () => _openReceive(context, ref, l, c, name),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHeader(t, c, name),
+        _cardHeader(t, l, c, name),
         const SizedBox(height: DhenuSpacing.md),
         Text(litres(c.dispatchQty ?? 0, unit: true),
             style: DhenuText.number(size: 26, color: t.ink)),
@@ -284,9 +285,11 @@ class PpReceiveTab extends ConsumerWidget {
             ]),
           ],
           const SizedBox(height: 2),
-          Text('${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            '${consignmentSlotL10n(l, c.shift)} · '
+            '${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -339,7 +342,7 @@ class PpReceiveTab extends ConsumerWidget {
     }
   }
 
-  Widget _cardHeader(DhenuTokens t, MpConsignment c, String name) => Row(children: [
+  Widget _cardHeader(DhenuTokens t, AppLocalizations l, MpConsignment c, String name) => Row(children: [
         Container(
           width: 36, height: 36,
           decoration: BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
@@ -353,9 +356,14 @@ class PpReceiveTab extends ConsumerWidget {
             MilkTypePill(milkType: c.milkType!),
           ],
           const SizedBox(height: 2),
-          Text('${c.containerNo ?? c.consignmentNo} · ${prettyDate(c.collectionDate)}',
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+          // Name the slot the load came from — AM / PM, or Pooled for a
+          // whole-day tanker — so the plant can match it against what the CC
+          // says it sent.
+          Text(
+            '${consignmentSlotL10n(l, c.shift)} · '
+            '${c.containerNo ?? c.consignmentNo} · ${prettyDate(c.collectionDate)}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
       ]);
 

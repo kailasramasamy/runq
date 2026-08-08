@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../providers/transfer_providers.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
@@ -149,17 +150,15 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
           SourceRow(
             title: names[cs[i].toNodeId] ??
                 (_destType == 'pp' ? l.dispatchHistoryPlantFallback : l.dispatchHistoryCcFallback),
-            subtitle: _subtitle(cs[i]),
+            subtitle: _subtitle(l, cs[i]),
             litres: litres(cs[i].dispatchQty ?? 0, unit: true),
             trailingStatus: _status(t, l, cs[i]),
           ),
         ],
       ];
 
-  String _subtitle(MpConsignment c) {
-    final shift = c.shift == null ? '' : '${c.shift == Shift.am ? 'AM' : 'PM'} · ';
-    return '$shift${c.consignmentNo}';
-  }
+  String _subtitle(AppLocalizations l, MpConsignment c) =>
+      '${consignmentSlotL10n(l, c.shift)} · ${c.consignmentNo}';
 
   Widget _status(DhenuTokens t, AppLocalizations l, MpConsignment c) {
     if (c.status == 'reversed') {

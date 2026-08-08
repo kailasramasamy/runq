@@ -580,6 +580,12 @@ abstract class AppLocalizations {
   /// **'PM'**
   String get shiftPm;
 
+  /// Whole-day pooled tanker — a consignment with no single shift
+  ///
+  /// In en, this message translates to:
+  /// **'Pooled'**
+  String get consignmentSlotPooled;
+
   /// No description provided for @shiftMorning.
   ///
   /// In en, this message translates to:

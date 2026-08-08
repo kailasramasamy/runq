@@ -13,6 +13,19 @@ String milkTypeL10n(AppLocalizations l, MilkType m) => switch (m) {
       MilkType.cow => l.milkTypeCowLegacy,
     };
 
+/// Which collection slot a consignment carries: `AM` / `PM` for a per-shift
+/// dispatch, or `Pooled` when it is a whole-day tanker.
+///
+/// A null shift is the pooled case, not "unknown" — but rendering it as an
+/// empty string (which every screen used to do) makes a pooled tanker
+/// indistinguishable from one whose shift nobody recorded. Naming it lets a
+/// CC and a PP confirm they are looking at the same load.
+String consignmentSlotL10n(AppLocalizations l, Shift? shift) => switch (shift) {
+      Shift.am => l.shiftAm,
+      Shift.pm => l.shiftPm,
+      null => l.consignmentSlotPooled,
+    };
+
 /// Distinct milk types in [types], in first-seen order, ignoring nulls.
 ///
 /// Rows for two types are otherwise identical — same litres, same badge shape —

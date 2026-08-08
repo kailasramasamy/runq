@@ -304,6 +304,9 @@ class AppLocalizationsTa extends AppLocalizations {
   String get shiftPm => 'PM';
 
   @override
+  String get consignmentSlotPooled => 'தொகுக்கப்பட்டது';
+
+  @override
   String get shiftMorning => 'காலை';
 
   @override
