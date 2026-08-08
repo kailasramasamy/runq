@@ -6,8 +6,8 @@ import { rbacHook } from '../../hooks/rbac';
 import { ShiftClosureService } from './shift-closure.service';
 import { resolveMpPrincipal } from './access-scope';
 
-// Reopen is a write — operator + accountant + owner (a dispatched slot is
-// locked regardless, enforced in the service).
+// Reopen is a write — operator + accountant + owner. A dispatched slot can be
+// reopened too, so a missed entry can be corrected and the balance sent on.
 const READ_ROLES = ['owner', 'accountant', 'viewer', 'field_operator'] as const;
 const WRITE_ROLES = ['owner', 'accountant', 'field_operator'] as const;
 

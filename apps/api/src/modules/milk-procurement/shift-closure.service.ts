@@ -1,11 +1,11 @@
-import { and, eq, isNull, inArray } from 'drizzle-orm';
-import { mpShiftClosures, mpNodes, mpConsignments } from '@runq/db';
+import { and, eq, isNull } from 'drizzle-orm';
+import { mpShiftClosures, mpNodes } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CloseShiftInput, ReopenShiftInput } from '@runq/validators';
-import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 import { MpPrincipal, assertNodeAccess } from './access-scope';
 import {
-  poolSlots, statusSlots, isPooled, type Slot, type DispatchMode,
+  poolSlots, statusSlots, type Slot, type DispatchMode,
 } from './procurement-window';
 
 type Shift = 'am' | 'pm';
@@ -34,8 +34,13 @@ interface NodeMode { mode: DispatchMode }
  * shift) and gates dispatch. What a close covers is the node's `dispatchMode`:
  * `per_shift` closes the named shift alone, `day` closes today's AM+PM, and
  * `overnight` closes the pool window (yesterday PM + today AM) so the gate spans
- * two calendar days. Reopen is blocked once a dispatch for the slot exists —
- * milk has physically left.
+ * two calendar days.
+ *
+ * Reopen is always allowed, including after a dispatch: an operator who spots a
+ * missed VMCC or a wrong reading has to be able to reopen, correct it, and send
+ * the balance on. The already-dispatched consignments are left standing — a
+ * correction that drops collected below what has left is a real-world mismatch
+ * the operator must resolve by editing or reversing that consignment.
  */
 export class ShiftClosureService {
   constructor(
@@ -65,9 +70,6 @@ export class ShiftClosureService {
     assertNodeAccess(principal, input.nodeId);
     const node = await this.loadNode(input.nodeId);
     const slots = this.closeSlots(node, input.collectionDate, input.shift);
-    if (await this.hasDispatch(input.nodeId, input.collectionDate, node, slots[0])) {
-      throw new ConflictError('Shift already dispatched — cannot reopen');
-    }
     const now = new Date();
     for (const s of slots) {
       await this.db.update(mpShiftClosures)
@@ -112,20 +114,5 @@ export class ShiftClosureService {
       throw new ValidationError('This node closes per shift — select AM or PM.');
     }
     return poolSlots(node.mode, anchorDate, inputShift);
-  }
-
-  /** A dispatch covering the slot exists — pooled modes send one untagged tanker
-   * on the anchor date; per_shift tags each consignment with its shift. */
-  private async hasDispatch(nodeId: string, anchorDate: string, node: NodeMode, slot: Slot): Promise<boolean> {
-    const shiftCond = isPooled(node.mode)
-      ? isNull(mpConsignments.shift)
-      : eq(mpConsignments.shift, slot.shift);
-    const [row] = await this.db.select({ id: mpConsignments.id }).from(mpConsignments)
-      .where(and(
-        eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.fromNodeId, nodeId),
-        eq(mpConsignments.collectionDate, anchorDate),
-        inArray(mpConsignments.status, ['in_transit', 'received']), shiftCond,
-      )).limit(1);
-    return !!row;
   }
 }
