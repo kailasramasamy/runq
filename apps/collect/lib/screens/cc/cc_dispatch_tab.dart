@@ -377,6 +377,17 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           loading: _saving,
         ),
         ] else ...[
+          // The shift picker is navigation, not part of availability. Hiding it
+          // with the availability block stranded a per-shift operator on
+          // whichever shift happened to be selected — the other shift's
+          // dispatch was on screen-less, not missing.
+          if (_perShift) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: ShiftToggle(value: _shift, onChanged: _onShiftChanged),
+            ),
+            const SizedBox(height: DhenuSpacing.md),
+          ],
           // Everything the removed Outbound list carried — destination, status,
           // consignment no — now lives on this one card, so the screen states
           // the day's dispatch once instead of twice.
