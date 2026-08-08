@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, sql } from 'drizzle-orm';
 import { notifications } from '@runq/db';
 import type { Db } from '@runq/db';
 import { sendPushToUser } from '../../utils/push/push.service';
@@ -21,7 +21,22 @@ export class NotificationsService {
     private readonly userId: string,
   ) {}
 
-  async list(limit = 20): Promise<NotificationRow[]> {
+  /**
+   * Rows belonging to this user, optionally narrowed to one module's namespace.
+   * A single user can hold several personas (a dairy operator is usually also an
+   * employee), so a single-surface client must be able to scope its inbox — and
+   * every read AND write below has to apply the same scope, or the badge counts
+   * notices the list never shows and mark-all-read clears another app's inbox.
+   */
+  private scope(prefix?: string) {
+    return and(
+      eq(notifications.tenantId, this.tenantId),
+      eq(notifications.userId, this.userId),
+      prefix ? like(notifications.source, `${prefix}%`) : undefined,
+    );
+  }
+
+  async list(limit = 20, sourcePrefix?: string): Promise<NotificationRow[]> {
     const rows = await this.db
       .select({
         id: notifications.id,
@@ -34,10 +49,7 @@ export class NotificationsService {
         createdAt: notifications.createdAt,
       })
       .from(notifications)
-      .where(and(
-        eq(notifications.tenantId, this.tenantId),
-        eq(notifications.userId, this.userId),
-      ))
+      .where(this.scope(sourcePrefix))
       .orderBy(desc(notifications.createdAt))
       .limit(limit);
 
@@ -53,27 +65,19 @@ export class NotificationsService {
     }));
   }
 
-  async unreadCount(): Promise<number> {
+  async unreadCount(sourcePrefix?: string): Promise<number> {
     const rows = await this.db
       .select({ c: sql<number>`COUNT(*)::int` })
       .from(notifications)
-      .where(and(
-        eq(notifications.tenantId, this.tenantId),
-        eq(notifications.userId, this.userId),
-        isNull(notifications.readAt),
-      ));
+      .where(and(this.scope(sourcePrefix), isNull(notifications.readAt)));
     return rows[0]?.c ?? 0;
   }
 
-  async markAllRead(): Promise<void> {
+  async markAllRead(sourcePrefix?: string): Promise<void> {
     await this.db
       .update(notifications)
       .set({ readAt: new Date() })
-      .where(and(
-        eq(notifications.tenantId, this.tenantId),
-        eq(notifications.userId, this.userId),
-        isNull(notifications.readAt),
-      ));
+      .where(and(this.scope(sourcePrefix), isNull(notifications.readAt)));
   }
 
   async markRead(id: string): Promise<void> {

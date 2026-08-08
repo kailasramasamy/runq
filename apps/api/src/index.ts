@@ -8,6 +8,7 @@ import { startPerformanceReminderScheduler, stopPerformanceReminderScheduler } f
 import { startHrReminderScheduler, stopHrReminderScheduler } from './scheduler/hr-reminder-scheduler';
 import { startAnalyticsScheduler, stopAnalyticsScheduler } from './modules/analytics/scheduler';
 import { startCycleRollScheduler, stopCycleRollScheduler } from './scheduler/cycle-roll-scheduler';
+import { startMpTransitScheduler, stopMpTransitScheduler } from './scheduler/mp-transit-scheduler';
 
 async function main() {
   const env = loadEnv();
@@ -22,6 +23,7 @@ async function main() {
     stopHrReminderScheduler();
     stopAnalyticsScheduler();
     stopCycleRollScheduler();
+    stopMpTransitScheduler();
   });
 
   try {
@@ -34,6 +36,7 @@ async function main() {
     startHrReminderScheduler(app.db, app.redis, app.log);
     startAnalyticsScheduler(app.db, app.redis, app.log);
     startCycleRollScheduler(app.db, app.redis, app.log);
+    startMpTransitScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

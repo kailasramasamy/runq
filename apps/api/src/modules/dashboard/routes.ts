@@ -28,6 +28,20 @@ const cashTrendQuerySchema = z.object({ days: z.coerce.number().int().min(2).max
 const activityQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() });
 const limitQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() });
 
+/**
+ * `notifications.source` is namespaced by module (`hr_*`, `mp_*`), and one user
+ * can hold several personas at once — a dairy operator is usually also an
+ * employee. A client that owns only one of those surfaces passes its prefix so
+ * the list, the unread badge, and mark-all-read all agree on the same subset;
+ * omitting it keeps the tenant-wide inbox the web app expects.
+ */
+const notificationQuerySchema = limitQuerySchema.extend({
+  sourcePrefix: z.string().min(1).max(30).optional(),
+});
+const notificationScopeSchema = z.object({
+  sourcePrefix: z.string().min(1).max(30).optional(),
+});
+
 export const dashboardRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     '/summary',
@@ -117,9 +131,12 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
     '/notifications',
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
-      const { limit = 20 } = limitQuerySchema.parse(request.query);
+      const { limit = 20, sourcePrefix } = notificationQuerySchema.parse(request.query);
       const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
-      const [items, unread] = await Promise.all([svc.list(limit), svc.unreadCount()]);
+      const [items, unread] = await Promise.all([
+        svc.list(limit, sourcePrefix),
+        svc.unreadCount(sourcePrefix),
+      ]);
       return { data: { items, unread } };
     },
   );
@@ -128,8 +145,9 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
     '/notifications/mark-all-read',
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
+      const { sourcePrefix } = notificationScopeSchema.parse(request.query);
       const svc = new NotificationsService(request.server.db, request.tenantId, request.user?.userId ?? '');
-      await svc.markAllRead();
+      await svc.markAllRead(sourcePrefix);
       return { success: true };
     },
   );
