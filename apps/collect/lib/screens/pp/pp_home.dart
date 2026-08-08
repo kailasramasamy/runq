@@ -3,6 +3,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -405,9 +406,12 @@ class PpHome extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 2),
-          Text(c.containerNo ?? c.consignmentNo,
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+          // Slot first: it is what lets the plant match this row against the
+          // leg the CC says it dispatched.
+          Text(
+            '${consignmentSlotL10n(l, c.shift)} · ${c.containerNo ?? c.consignmentNo}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),

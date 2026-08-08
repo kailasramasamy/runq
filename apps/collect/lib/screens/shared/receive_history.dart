@@ -318,7 +318,9 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
   Widget _legTile(DhenuTokens t, AppLocalizations l, MpConsignment c, double? rate,
       {bool showMilkType = false}) {
     final isAm = c.shift == Shift.am, isPm = c.shift == Shift.pm;
-    final label = isAm ? l.shiftAm : isPm ? l.shiftPm : l.ccDayLabel;
+    // Same vocabulary the dispatch side uses — a null shift is a pooled
+    // whole-day tanker, and both ends should call it the same thing.
+    final label = consignmentSlotL10n(l, c.shift);
     final color = isAm ? t.am : isPm ? t.pm : t.inkSoft;
     final v = c.variancePct ?? 0;
     final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;

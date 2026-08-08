@@ -14,6 +14,8 @@ import '../../widgets/dhenu_states.dart';
 import '../../api/mp_repo.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_toast.dart';
+import '../shared/receive_history.dart';
+import '../shared/receive_leg.dart';
 import '../cc/receive_consignment_screen.dart';
 import 'pp_manual_receive_screen.dart';
 
@@ -105,6 +107,26 @@ class PpReceiveTab extends ConsumerWidget {
     );
   }
 
+  /// Way through to the full receive record. Mirrors the CC receive tab's
+  /// own history link, and lands on the same screen the PP home page links to.
+  Widget _seeAllReceivesLink(BuildContext context, DhenuTokens t, AppLocalizations l) => Center(
+        child: TextButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => Scaffold(
+              appBar: AppBar(
+                  title: Text(l.ccReceiveHistoryTitle,
+                      style: DhenuText.h2.copyWith(color: t.ink))),
+              body: ReceiveHistory(node: node, leg: ReceiveLeg.ccToPp(l)),
+            ),
+          )),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(l.homeSeeFullHistory, style: DhenuText.label.copyWith(color: t.brand)),
+            const SizedBox(width: 4),
+            Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
+          ]),
+        ),
+      );
+
   Future<void> _openManualReceive(BuildContext context, WidgetRef ref) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => PpManualReceiveScreen(ppNodeId: node.id)),
@@ -148,6 +170,9 @@ class PpReceiveTab extends ConsumerWidget {
           // from different CCs, and an undated run of cards gives no sense of
           // which day's intake you're looking at.
           ..._receivedByDay(context, ref, l, t, received, names),
+        // This list is capped at a few days and a few cards; the full record
+        // lives in the history screen the home page also links to.
+        if (received.isNotEmpty) _seeAllReceivesLink(context, t, l),
       ],
     );
   }
