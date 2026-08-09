@@ -614,6 +614,8 @@ export interface Adjustment {
   requiresApproval: boolean;
   totalValueDelta: string;
   itcReversalValue: string;
+  /** False = posted without a journal entry (stock the GL never capitalised). */
+  postGl: boolean;
   notes: string | null;
   journalEntryId: string | null;
   postedAt: string | null;
@@ -642,6 +644,8 @@ export interface CreateAdjustmentBody {
   notes?: string | null;
   requiresApproval?: boolean;
   itcReversalValue?: number;
+  /** False = movements only, no journal entry. See ZeroOutPreview. */
+  postGl?: boolean;
   lines: {
     itemId: string;
     batchNo?: string | null;
@@ -649,6 +653,34 @@ export interface CreateAdjustmentBody {
     unitCost?: number;
     notes?: string | null;
   }[];
+}
+
+/**
+ * How a pool's stock got onto the ledger, which decides whether writing it off
+ * needs a journal entry:
+ *   uncapitalised — MP raw-milk receipts. The ledger carries a cost but the GL
+ *                   never debited inventory (the milk is already expensed to
+ *                   5050 at cycle lock), so a JE would double-expense it.
+ *   capitalised   — GRN, reclaim, production. A JE is required.
+ *   mixed         — both, on one batch. Can't be resolved by a single flag.
+ */
+export type PoolBucket = 'uncapitalised' | 'capitalised' | 'mixed';
+
+export interface ZeroOutLine {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  batchNo: string | null;
+  qty: number;
+  avgCost: number;
+  value: number;
+  qtyDelta: number;
+  bucket: PoolBucket;
+}
+
+export interface ZeroOutPreview {
+  lines: ZeroOutLine[];
+  summary: Record<PoolBucket, { pools: number; qty: number; value: number }>;
 }
 
 export const INV_ADJ_KEYS = {
@@ -671,6 +703,19 @@ export function useAdjustment(id: string) {
     queryKey: INV_ADJ_KEYS.detail(id),
     queryFn: () => api.get<{ data: AdjustmentDetail }>(`/inventory/adjustments/${id}`).then(get),
     enabled: !!id,
+  });
+}
+
+/**
+ * Prospective zero-out lines for a warehouse. Only fetched when the dialog is
+ * open and a warehouse is chosen — it scans every on-hand pool.
+ */
+export function useZeroOutPreview(filter: { warehouseId: string; itemClass?: string }) {
+  return useQuery({
+    queryKey: ['inv', 'adjustments', 'zero-out', filter],
+    queryFn: () =>
+      api.get<{ data: ZeroOutPreview }>(`/inventory/adjustments/zero-out-preview${qs(filter)}`).then(get),
+    enabled: !!filter.warehouseId,
   });
 }
 

@@ -142,6 +142,12 @@ export function AdjustmentDetailPage() {
       {a.journalEntryId && (
         <p className="mt-4 text-xs text-zinc-500">Linked JE: <span className="font-mono">{a.journalEntryId}</span></p>
       )}
+      {!a.postGl && (
+        <p className="mt-4 text-xs text-amber-700 dark:text-amber-400">
+          No journal entry — this adjustment unwinds stock the ledger never capitalised.
+          Quantities moved; the books are untouched.
+        </p>
+      )}
 
       <ConfirmationDialog
         open={confirmPost}

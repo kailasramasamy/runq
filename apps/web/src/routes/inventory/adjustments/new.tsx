@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Eraser } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Input, Combobox, Select, Button, useToast,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
-import { useCreateAdjustment, useWarehouses, type AdjustmentReason } from '@/hooks/queries/use-inventory';
+import {
+  useCreateAdjustment, useWarehouses,
+  type AdjustmentReason, type PoolBucket, type ZeroOutLine,
+} from '@/hooks/queries/use-inventory';
 import { useItems } from '@/hooks/queries/use-items';
+import { ZeroOutDialog } from './_zero-out';
 
 interface DraftLine { itemId: string; batchNo: string; qtyDelta: number | ''; unitCost: number | ''; }
 const emptyLine = (): DraftLine => ({ itemId: '', batchNo: '', qtyDelta: '', unitCost: '' });
@@ -40,7 +44,29 @@ export function NewAdjustmentPage() {
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [itcReversalValue, setItcReversalValue] = useState<number | ''>('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const [postGl, setPostGl] = useState(true);
+  const [zeroOutOpen, setZeroOutOpen] = useState(false);
   const showItcReversal = ITC_REVERSAL_REASONS.includes(reason);
+
+  /**
+   * Replace the draft with a zero-out group. Unit cost is left blank so the
+   * ledger uses each pool's own weighted average — pinning the previewed cost
+   * would go stale if anything moves before this is posted.
+   */
+  function loadZeroOut(zeroLines: ZeroOutLine[], gl: boolean, bucket: PoolBucket) {
+    setLines(zeroLines.map((l) => ({
+      itemId: l.itemId,
+      batchNo: l.batchNo ?? '',
+      qtyDelta: l.qtyDelta,
+      unitCost: '',
+    })));
+    setReason('correction');
+    setPostGl(gl);
+    setNotes(bucket === 'uncapitalised'
+      ? 'Zero out on-hand — stock never capitalised to the GL'
+      : 'Zero out on-hand');
+    toast(`Loaded ${zeroLines.length} lines — review before saving`, 'success');
+  }
 
   const items = itemsRes.data?.data ?? [];
   const itemOpts = items
@@ -70,6 +96,7 @@ export function NewAdjustmentPage() {
         itcReversalValue: showItcReversal && itcReversalValue !== ''
           ? Number(itcReversalValue)
           : undefined,
+        postGl,
         lines: valid.map((l) => ({
           itemId: l.itemId,
           batchNo: l.batchNo || null,
@@ -132,6 +159,19 @@ export function NewAdjustmentPage() {
                 />
                 Require approval before posting
               </label>
+              <div className="md:col-span-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={postGl} onChange={(e) => setPostGl(e.target.checked)} />
+                  Post a journal entry
+                </label>
+                {!postGl && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    Stock will move without any journal entry. Only correct for stock the ledger
+                    never capitalised — milk-procurement receipts, which are already expensed at
+                    cycle lock. Posting a journal entry for those would expense the milk twice.
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -140,9 +180,20 @@ export function NewAdjustmentPage() {
           <CardContent>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold">Items</h3>
-              <Button type="button" variant="secondary" onClick={() => setLines((p) => [...p, emptyLine()])}>
-                <Plus size={14} /> Add line
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!warehouseId}
+                  title={warehouseId ? undefined : 'Pick a warehouse first'}
+                  onClick={() => setZeroOutOpen(true)}
+                >
+                  <Eraser size={14} /> Zero out on-hand
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setLines((p) => [...p, emptyLine()])}>
+                  <Plus size={14} /> Add line
+                </Button>
+              </div>
             </div>
             <p className="mb-2 text-xs text-zinc-500">
               Qty Δ: <strong>positive</strong> = inbound (found, revaluation up); <strong>negative</strong> = outbound (damage, expiry, write-off).
@@ -195,6 +246,13 @@ export function NewAdjustmentPage() {
           <Button type="button" variant="secondary" onClick={() => navigate({ to: '/inventory/adjustments' })}>Cancel</Button>
         </div>
       </form>
+
+      <ZeroOutDialog
+        open={zeroOutOpen}
+        onClose={() => setZeroOutOpen(false)}
+        warehouseId={warehouseId}
+        onLoad={loadZeroOut}
+      />
     </div>
   );
 }

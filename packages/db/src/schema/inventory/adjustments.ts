@@ -42,6 +42,17 @@ export const inventoryAdjustments = pgTable(
      * lands; no journal line is posted against it today.
      */
     itcReversalValue: decimal('itc_reversal_value', { precision: 18, scale: 2 }).notNull().default('0'),
+    /**
+     * False suppresses the journal entry on post — for stock the GL never
+     * capitalised. MP raw milk is the case this exists for: it carries a
+     * pour-derived unit cost on the ledger but no matching Dr Inventory, and
+     * the milk is already expensed to 5050 at cycle lock, so writing it off
+     * normally would double-expense it. See docs/dhenu-raw-milk-valuation.md §3.
+     *
+     * Ledger rows and the adjustment document are written either way — only
+     * the JE is skipped, so the quantity trail stays complete.
+     */
+    postGl: boolean('post_gl').notNull().default(true),
     journalEntryId: uuid('journal_entry_id'),
     postedAt: timestamp('posted_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

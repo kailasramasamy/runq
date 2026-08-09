@@ -11,6 +11,7 @@ import {
   receiveTransferSchema, transferFilterSchema,
   createAdjustmentSchema, updateAdjustmentSchema, cancelAdjustmentSchema,
   adjustmentFilterSchema,
+  zeroOutPreviewSchema,
   startStockTakeSchema, upsertCountLinesSchema, updateCountLineSchema,
   recountStockTakeSchema, stockTakeFilterSchema,
   upsertReorderRuleSchema, expiryFilterSchema,
@@ -31,6 +32,7 @@ import { StockQueryService } from './stock-query.service';
 import { InventoryDashboardService } from './dashboard.service';
 import { TransferService } from './transfer.service';
 import { AdjustmentService } from './adjustment.service';
+import { StockResetService } from './stock-reset.service';
 import { StockTakeService } from './stock-take.service';
 import { ReorderService } from './reorder.service';
 import { GrnExtractService } from './grn-extract.service';
@@ -327,6 +329,14 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const filter = adjustmentFilterSchema.parse(req.query);
     const svc = new AdjustmentService({ db: req.server.db, tenantId: req.tenantId });
     return await svc.list(filter);
+  });
+  // Prospective lines to flatten a warehouse's on-hand to nil, bucketed by
+  // whether the GL ever capitalised the stock. Read-only — the caller creates
+  // and posts the adjustments through the routes below.
+  app.get('/adjustments/zero-out-preview', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const query = zeroOutPreviewSchema.parse(req.query);
+    const svc = new StockResetService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: await svc.preview(query) };
   });
   app.post('/adjustments', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {
     const input = createAdjustmentSchema.parse(req.body);

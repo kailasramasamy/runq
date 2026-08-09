@@ -129,6 +129,7 @@ export class AdjustmentService {
           notes: input.notes ?? null,
           requiresApproval: input.requiresApproval ?? false,
           itcReversalValue: String(input.itcReversalValue ?? 0),
+          postGl: input.postGl ?? true,
           status: initialStatus,
           createdBy: this.ctx.userId ?? null,
         })
@@ -170,6 +171,7 @@ export class AdjustmentService {
           itcReversalValue: input.itcReversalValue === undefined
             ? existing.itcReversalValue
             : String(input.itcReversalValue),
+          postGl: input.postGl ?? existing.postGl,
           updatedAt: new Date(),
         })
         .where(eq(inventoryAdjustments.id, id))
@@ -264,14 +266,19 @@ export class AdjustmentService {
           .where(eq(inventoryAdjustmentLines.id, line.id));
       }
 
+      // post_gl=false unwinds stock the GL never capitalised (MP raw milk), so
+      // there is no asset to credit and no second expense to book. Ledger rows
+      // above are already written — only the JE is skipped.
       const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
-      const jeId = await poster.postAdjustment({
-        date: a.adjustmentDate,
-        adjustmentId: a.id,
-        adjNo: a.adjNo,
-        reason: a.reason,
-        valueDelta: totalValueDelta,
-      });
+      const jeId = a.postGl
+        ? await poster.postAdjustment({
+          date: a.adjustmentDate,
+          adjustmentId: a.id,
+          adjNo: a.adjNo,
+          reason: a.reason,
+          valueDelta: totalValueDelta,
+        })
+        : null;
 
       const [updated] = await tx
         .update(inventoryAdjustments)

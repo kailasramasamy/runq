@@ -31,6 +31,9 @@ export const createAdjustmentSchema = z.object({
   // Input tax to reverse under GST §17(5)(h). Recorded for the GSTR-3B Table
   // 4(B) wiring; no journal line is posted against it.
   itcReversalValue: z.number().nonnegative().optional(),
+  // False = write the ledger movements but no journal entry, for stock the GL
+  // never capitalised (MP raw milk). Defaults true.
+  postGl: z.boolean().optional(),
   lines: z.array(adjustmentLineInputSchema).min(1),
 });
 
@@ -40,6 +43,7 @@ export const updateAdjustmentSchema = z.object({
   adjustmentDate: dateString.optional(),
   notes: z.string().max(500).nullish(),
   itcReversalValue: z.number().nonnegative().optional(),
+  postGl: z.boolean().optional(),
   lines: z.array(adjustmentLineInputSchema).min(1).optional(),
 });
 
@@ -57,6 +61,23 @@ export const adjustmentFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
+/**
+ * Zero-out preview filter. Warehouse is required — on-hand is only meaningful
+ * per warehouse, and a tenant-wide flatten is never what anyone wants.
+ */
+export const zeroOutPreviewSchema = z.object({
+  warehouseId: z.string().uuid(),
+  itemClass: z.enum([
+    'raw_material', 'packaging', 'finished_good', 'semi_finished',
+    'trading_good', 'consumable', 'spare_part',
+  ]).optional(),
+  itemIds: z
+    .union([z.string().uuid(), z.array(z.string().uuid())])
+    .transform((v) => (Array.isArray(v) ? v : [v]))
+    .optional(),
+});
+
+export type ZeroOutPreviewQuery = z.infer<typeof zeroOutPreviewSchema>;
 export type CreateAdjustmentInput = z.infer<typeof createAdjustmentSchema>;
 export type UpdateAdjustmentInput = z.infer<typeof updateAdjustmentSchema>;
 export type CancelAdjustmentInput = z.infer<typeof cancelAdjustmentSchema>;

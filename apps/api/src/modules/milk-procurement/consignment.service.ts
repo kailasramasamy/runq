@@ -368,7 +368,7 @@ export class ConsignmentService {
     }).from(stockLedger)
       .where(and(eq(stockLedger.tenantId, this.tenantId), eq(stockLedger.id, c.stockLedgerId)));
     if (!orig?.batchNo) return;
-    const [drawn] = await this.db.select({ id: stockLedger.id }).from(stockLedger)
+    const [drawn] = await this.db.select({ sourceType: stockLedger.sourceType }).from(stockLedger)
       .where(and(
         eq(stockLedger.tenantId, this.tenantId),
         eq(stockLedger.itemId, orig.itemId),
@@ -377,10 +377,15 @@ export class ConsignmentService {
         sql`${stockLedger.qtyOut} > 0`,
         sql`not (${stockLedger.sourceType} = 'mp_receipt_adjustment' and ${stockLedger.sourceId} = ${c.id})`,
       )).limit(1);
-    if (drawn) {
-      throw new ConflictError(
-        'This milk has already been used in production — correct the quantity instead of deleting.');
-    }
+    if (!drawn) return;
+    // An inventory zero-out draws the batch down the same way production does,
+    // and undoing the receipt would push it negative just as surely — but
+    // saying "used in production" would send the user hunting a work order
+    // that does not exist.
+    throw new ConflictError(
+      drawn.sourceType === 'inventory_adjustment' || drawn.sourceType === 'inventory_stock_take'
+        ? 'This batch was cleared by an inventory adjustment — reverse that adjustment first.'
+        : 'This milk has already been used in production — correct the quantity instead of deleting.');
   }
 
   /** Reject if the destination CC's slot for this receipt is closed — a BMC CC
