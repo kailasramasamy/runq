@@ -3,11 +3,12 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Boxes, Search } from 'lucide-react';
 import {
   PageHeader, Input, Combobox, Table, TableHeader, TableBody, TableRow, TableCell, Th,
-  TableSkeleton, EmptyState, Badge,
+  TableSkeleton, EmptyState,
 } from '@/components/ui';
 import { useOnHand, useWarehouses } from '@/hooks/queries/use-inventory';
 import { InvClassTabs, classGroupForItemClass, type ItemClassGroup } from '@/components/inventory/inv-class-tabs';
 import type { OnHandRow } from '@/hooks/queries/use-inventory';
+import { groupByItem, ItemGroupRow, StockRow } from './_on-hand-rows';
 
 /** Section order + labels for the grouped ("All") view. Mirrors the tab
  *  strip's order so the two read as the same taxonomy. */
@@ -27,7 +28,14 @@ function groupRows(rows: OnHandRow[]) {
   })).filter((s) => s.rows.length > 0);
 }
 
-type Params = { q?: string; warehouseId?: string; lowOnly?: string; classGroup?: string };
+type Params = {
+  q?: string; warehouseId?: string; lowOnly?: string; classGroup?: string; view?: string;
+};
+
+/** Item totals are the default: stock arrives batch-per-receipt, so the raw
+ *  list runs to hundreds of rows for a handful of real items and a planner
+ *  sizing a work order only wants the total. Batches stay one click away. */
+type StockView = 'item' | 'batch';
 
 /** Strict parse — only one of the 5 valid bucket names round-trips. An
  *  absent or invalid param yields null so the screen knows to compute
@@ -45,6 +53,7 @@ export function OnHandPage() {
   const warehouseId = params.warehouseId ?? '';
   const lowOnly = params.lowOnly === 'true';
   const urlGroup = parseGroup(params.classGroup);
+  const view: StockView = params.view === 'batch' ? 'batch' : 'item';
 
   function updateSearch(patch: Partial<Params>) {
     navigate({
@@ -95,6 +104,7 @@ export function OnHandPage() {
 
   // Grouped only on 'all' — under a single-bucket pill a lone header is noise.
   const sections = classGroup === 'all' ? groupRows(rows) : [];
+  const itemGroups = groupByItem(rows);
 
   const whOptions = [
     { value: '', label: 'All warehouses' },
@@ -144,7 +154,12 @@ export function OnHandPage() {
           Below reorder level only
         </label>
         <div className="flex-1" />
-        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{rows.length} rows</span>
+        <ViewToggle value={view} onChange={(v) => updateSearch({ view: v === 'item' ? undefined : v })} />
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {view === 'item'
+            ? `${itemGroups.length} ${itemGroups.length === 1 ? 'item' : 'items'} · ${rows.length} batches`
+            : `${rows.length} rows`}
+        </span>
       </div>
 
       {isLoading ? (
@@ -162,7 +177,7 @@ export function OnHandPage() {
               <Th>Item</Th>
               <Th>SKU</Th>
               <Th>Warehouse</Th>
-              <Th>Batch</Th>
+              <Th>{view === 'item' ? 'Batches' : 'Batch'}</Th>
               <Th>Received</Th>
               <Th>Expiry</Th>
               <Th className="text-right">Qty</Th>
@@ -171,21 +186,51 @@ export function OnHandPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sections.length === 0
-              ? rows.map((r, i) => (
-                  <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
-                ))
-              : sections.map((s) => (
-                  <Fragment key={s.key}>
-                    <SectionHeaderRow label={s.label} rows={s.rows} />
-                    {s.rows.map((r, i) => (
-                      <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
-                    ))}
-                  </Fragment>
-                ))}
+            {view === 'item'
+              ? itemGroups.map((g) => <ItemGroupRow key={g.key} group={g} />)
+              : sections.length === 0
+                ? rows.map((r, i) => (
+                    <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
+                  ))
+                : sections.map((s) => (
+                    <Fragment key={s.key}>
+                      <SectionHeaderRow label={s.label} rows={s.rows} />
+                      {s.rows.map((r, i) => (
+                        <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
+                      ))}
+                    </Fragment>
+                  ))}
           </TableBody>
         </Table>
       )}
+    </div>
+  );
+}
+
+/** Item totals vs the raw batch list. Mirrors the class-tab pill styling so the
+ *  two controls on this toolbar read as one family. */
+function ViewToggle({ value, onChange }: { value: StockView; onChange: (v: StockView) => void }) {
+  const opts: { key: StockView; label: string }[] = [
+    { key: 'item', label: 'By item' },
+    { key: 'batch', label: 'By batch' },
+  ];
+  return (
+    <div className="flex items-center gap-1.5">
+      {opts.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={[
+            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            value === o.key
+              ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200'
+              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
+          ].join(' ')}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -212,67 +257,3 @@ function SectionHeaderRow({ label, rows }: { label: string; rows: OnHandRow[] })
   );
 }
 
-function StockRow({ row: r }: { row: OnHandRow }) {
-  return (
-    <TableRow>
-      <TableCell>
-        <div className="flex items-baseline gap-2">
-          <span className="font-medium">{r.itemName}</span>
-          {r.itemUnit && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">{r.itemUnit}</span>
-          )}
-        </div>
-        {r.reorderLevel != null && r.qty <= r.reorderLevel && (
-          <Badge variant="warning" className="mt-1">Low stock</Badge>
-        )}
-      </TableCell>
-      <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
-      <TableCell>{r.warehouseName}</TableCell>
-      <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
-      <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
-      <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
-      <TableCell className="text-right tabular-nums">
-        {r.qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">
-        ₹{r.avgCost.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-      </TableCell>
-      <TableCell className="text-right tabular-nums font-medium">
-        ₹{r.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-/** Per-row expiry indicator. Shows nothing for batches without a tracked
- *  date (most non-perishable stock), a coloured badge for batches inside
- *  the 2-day urgency window, and a plain date otherwise. */
-function ExpiryCell({ date }: { date: string | null }) {
-  if (!date) return <span className="text-zinc-400">—</span>;
-  const days = daysFromToday(date);
-  if (days == null) return <span className="text-xs text-zinc-500">{date}</span>;
-  if (days < 0) return <Badge variant="danger">Expired · {date}</Badge>;
-  if (days === 0) return <Badge variant="danger">Today · {date}</Badge>;
-  if (days === 1) return <Badge variant="warning">Tomorrow · {date}</Badge>;
-  if (days <= 7) return <Badge variant="warning">{days}d · {date}</Badge>;
-  return <span className="text-xs text-zinc-500">{date}</span>;
-}
-
-function daysFromToday(iso: string): number | null {
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((d.getTime() - today.getTime()) / 86_400_000);
-}
-
-/** Batch intake stamp: date plus clock time, since several tankers can land on
- *  the same day and the order they arrived is what matters for short-life stock. */
-function formatReceivedAt(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
-  });
-}
