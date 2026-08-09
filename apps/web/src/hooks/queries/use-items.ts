@@ -16,7 +16,7 @@ interface ItemFilters {
   /** Operational bucket — server expands to the matching item_class set. */
   itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'all';
   /** Row order within each class group. Omitted = alphabetical. */
-  sort?: 'name' | 'recent';
+  sort?: 'name' | 'recent' | 'category';
   page?: number;
   limit?: number;
   [key: string]: unknown;

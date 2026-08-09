@@ -16,7 +16,7 @@ import { api } from '@/lib/api-client';
 import {
   InvClassTabs, resolveDefaultClassGroup, type ItemClassGroup,
 } from '@/components/inventory/inv-class-tabs';
-import { groupItemsByClass, ItemSectionRow } from '@/components/inventory/item-sections';
+import { groupItemsByClass, groupItemsByCategory, ItemSectionRow } from '@/components/inventory/item-sections';
 import type { Item } from '@/hooks/queries/use-items';
 import type { ItemAttributeField, PaginatedResponse } from '@runq/types';
 import {
@@ -67,6 +67,7 @@ export function ItemsPage() {
   // tree in both spots; we detect which root we're on so internal nav
   // (edit / new / import / analysis) keeps the user in the same module.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isInventory = pathname.startsWith('/inventory');
   const itemsBase = pathname.startsWith('/inventory')
     ? '/inventory/items'
     : pathname.startsWith('/purchase')
@@ -133,10 +134,10 @@ export function ItemsPage() {
     limit: LIMIT,
     ...(search ? { search } : {}),
     ...(classGroup !== 'all' ? { itemClassGroup: classGroup } : {}),
-    // Inventory sorts by activity so a freshly received batch surfaces
-    // instead of sitting pages down under its initial letter. The finance
-    // and purchase catalogues stay alphabetical.
-    ...(pathname.startsWith('/inventory') ? { sort: 'recent' as const } : {}),
+    // Inventory reads the catalogue as a category tree, so rows come back
+    // ordered category → subcategory → name and the table sections on the
+    // same keys. Finance and purchase stay class-ranked and alphabetical.
+    ...(isInventory ? { sort: 'category' as const } : {}),
   });
   const { data: schemaRes } = useItemAttributeSchema();
   const toggle = useToggleItem();
@@ -170,16 +171,31 @@ export function ItemsPage() {
   const total = meta?.total ?? 0;
   const deletingItem = deletingId ? items.find((i) => i.id === deletingId) : null;
 
-  // On 'all' the table is split into class-group sections; under a single
-  // bucket every row shares a group, so a lone header would be noise. The
-  // server orders by class rank, so a section never straddles a page break.
-  type ItemEntry = { header?: { label: string; count: number }; item?: (typeof items)[number] };
-  const displayEntries: ItemEntry[] = classGroup === 'all'
-    ? groupItemsByClass(items).flatMap((s) => [
-        { header: { label: s.label, count: s.rows.length } },
-        ...s.rows.map((item) => ({ item })),
+  // Inventory sections by category → subcategory (the catalogue question is
+  // "what kind of thing is it"), the other modules by class group. Under a
+  // single class bucket every row shares a group, so a lone class header
+  // would be noise. Both orders come from the server, so a section never
+  // straddles a page break.
+  type ItemEntry = {
+    header?: { label: string; count: number; level: 1 | 2 };
+    item?: (typeof items)[number];
+  };
+  const displayEntries: ItemEntry[] = isInventory
+    ? groupItemsByCategory(items).flatMap((c) => [
+        { header: { label: c.label, count: c.count, level: 1 as const } },
+        ...c.subsections.flatMap((s) => [
+          ...(s.label
+            ? [{ header: { label: s.label, count: s.rows.length, level: 2 as const } }]
+            : []),
+          ...s.rows.map((item) => ({ item })),
+        ]),
       ])
-    : items.map((item) => ({ item }));
+    : classGroup === 'all'
+      ? groupItemsByClass(items).flatMap((s) => [
+          { header: { label: s.label, count: s.rows.length, level: 1 as const } },
+          ...s.rows.map((item) => ({ item })),
+        ])
+      : items.map((item) => ({ item }));
 
   // Pick up to 2 short-form schema fields for the desktop table — textarea
   // fields are too long, so skip them. The rest of the schema still shows
@@ -396,13 +412,14 @@ export function ItemsPage() {
                 />
               </td>
             </tr>
-          ) : displayEntries.map((entry) => {
+          ) : displayEntries.map((entry, idx) => {
             if (entry.header) {
               return (
                 <ItemSectionRow
-                  key={`section-${entry.header.label}`}
+                  key={`section-${idx}-${entry.header.label}`}
                   label={entry.header.label}
                   count={entry.header.count}
+                  level={entry.header.level}
                   colSpan={12}
                 />
               );

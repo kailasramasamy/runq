@@ -868,6 +868,7 @@ class InvItemListRow {
   final String? type; // 'product' | 'service'
   final String? itemClass;
   final String? category;
+  final String? subcategory;
   final double? defaultSellingPrice;
   final double? gstRate;
   final bool isActive;
@@ -876,8 +877,8 @@ class InvItemListRow {
   final double? stockQty;
   const InvItemListRow({
     required this.id, required this.name, this.sku, this.unit, this.type,
-    this.itemClass, this.category, this.defaultSellingPrice, this.gstRate,
-    required this.isActive, this.stockQty,
+    this.itemClass, this.category, this.subcategory, this.defaultSellingPrice,
+    this.gstRate, required this.isActive, this.stockQty,
   });
   factory InvItemListRow.fromJson(Map<String, dynamic> j) => InvItemListRow(
         id: j['id'] as String,
@@ -887,6 +888,7 @@ class InvItemListRow {
         type: j['type'] as String?,
         itemClass: j['itemClass'] as String?,
         category: j['category'] as String?,
+        subcategory: j['subcategory'] as String?,
         defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
         gstRate: (j['gstRate'] as num?)?.toDouble(),
         isActive: j['isActive'] as bool? ?? true,

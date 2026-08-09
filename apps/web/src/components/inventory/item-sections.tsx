@@ -37,14 +37,23 @@ export function groupItemsByClass<T extends ClassifiableItem>(rows: T[]) {
   })).filter((s) => s.rows.length > 0);
 }
 
-/** Class-group divider inside the items table. */
+/** Class-group divider inside the items table. `level` 2 is the nested
+ *  subcategory header — indented and lighter so the category above it still
+ *  reads as the parent. */
 export function ItemSectionRow({
-  label, count, colSpan,
-}: { label: string; count: number; colSpan: number }) {
+  label, count, colSpan, level = 1,
+}: { label: string; count: number; colSpan: number; level?: 1 | 2 }) {
+  const nested = level === 2;
   return (
-    <tr className="bg-zinc-50/80 dark:bg-zinc-800/40">
-      <td colSpan={colSpan} className="px-3 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <tr className={nested ? 'bg-zinc-50/40 dark:bg-zinc-800/20' : 'bg-zinc-50/80 dark:bg-zinc-800/40'}>
+      <td colSpan={colSpan} className={nested ? 'py-1.5 pl-7 pr-3' : 'px-3 py-2'}>
+        <span
+          className={
+            nested
+              ? 'text-[10.5px] font-medium tracking-wide text-zinc-400 dark:text-zinc-500'
+              : 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
+          }
+        >
           {label}
         </span>
         <span className="ml-2 text-xs text-zinc-500">
@@ -53,4 +62,36 @@ export function ItemSectionRow({
       </td>
     </tr>
   );
+}
+
+/** Minimal shape needed to bucket a row by its category tree position. */
+export interface CategorisedItem {
+  category?: string | null;
+  subcategory?: string | null;
+}
+
+const UNCATEGORISED = 'Uncategorised';
+
+/**
+ * Split rows into category sections, each holding its subcategory sub-sections.
+ * Rows filed directly on a root category (no subcategory) sit in a nameless
+ * first sub-section so they render straight under the category header. The
+ * server orders by the same category → subcategory keys, so a section never
+ * straddles a page break.
+ */
+export function groupItemsByCategory<T extends CategorisedItem>(rows: T[]) {
+  const byCategory = new Map<string, Map<string, T[]>>();
+  for (const row of rows) {
+    const cat = row.category?.trim() || UNCATEGORISED;
+    const sub = row.subcategory?.trim() || '';
+    if (!byCategory.has(cat)) byCategory.set(cat, new Map());
+    const subs = byCategory.get(cat)!;
+    if (!subs.has(sub)) subs.set(sub, []);
+    subs.get(sub)!.push(row);
+  }
+  return [...byCategory].map(([label, subs]) => ({
+    label,
+    count: [...subs.values()].reduce((n, r) => n + r.length, 0),
+    subsections: [...subs].map(([subLabel, subRows]) => ({ label: subLabel, rows: subRows })),
+  }));
 }

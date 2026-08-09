@@ -15,7 +15,6 @@ import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
-import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
@@ -100,9 +99,9 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         itemClassGroup: _classGroup,
         // Balance is the headline number on the tile, so the list needs it.
         withStock: true,
-        // Most recently received / edited first within each group — a fresh
-        // batch of an alphabetically-late item would otherwise sit pages down.
-        sort: 'recent',
+        // Ordered category → subcategory → name so the list can section by
+        // category on any class filter, and a section never straddles a page.
+        sort: 'category',
       );
       if (!mounted) return;
       setState(() {
@@ -200,11 +199,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         onAction: _openNew,
       );
     }
-    // On 'all' the list is split into class-group sections; under a single
-    // bucket every row shares a group, so a lone header would be noise.
-    final entries = _classGroup == 'all'
-        ? _sectionedEntries(_rows)
-        : List<Object>.from(_rows);
+    final entries = _sectionedEntries(_rows);
     return RefreshIndicator(
       color: InvColors.brand(context),
       onRefresh: () => _load(reset: true),
@@ -224,7 +219,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
           }
           final e = entries[i];
           return e is _SectionLabel
-              ? _SectionHeader(label: e.label, count: e.count)
+              ? _SectionHeader(label: e.label, count: e.count, nested: e.nested)
               : _ItemTile(row: e as InvItemListRow);
         },
       ),
@@ -233,57 +228,62 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
 }
 
 /// Marker entry in the flat list — a section title plus its row count.
+/// [nested] marks the subcategory header sitting under its category.
 class _SectionLabel {
-  const _SectionLabel(this.label, this.count);
+  const _SectionLabel(this.label, this.count, {this.nested = false});
   final String label;
   final int count;
+  final bool nested;
 }
 
-/// Bucket key for an item. Services get their own section rather than
-/// falling into "Consumables & spares", which they are not.
-String _sectionKey(InvItemListRow r) =>
-    r.type == 'service' ? 'services' : classGroupForItemClass(r.itemClass);
+const _uncategorised = 'Uncategorised';
 
-const _sectionOrder = <({String key, String label})>[
-  (key: 'finished', label: 'Finished Goods'),
-  (key: 'inputs', label: 'Raw Materials & Inputs'),
-  (key: 'trading', label: 'Trading Goods'),
-  (key: 'other', label: 'Consumables & Spares'),
-  (key: 'services', label: 'Services'),
-];
-
-/// Flatten rows into [header, ...rows, header, ...rows]. Buckets are filled
+/// Flatten rows into [category, subcategory?, ...rows, …]. Buckets are filled
 /// from the whole loaded set on every build, so load-more appends into the
-/// section a row belongs to instead of restarting the sequence.
+/// section a row belongs to instead of restarting the sequence. Rows filed
+/// straight on a root category carry no subcategory and render right under
+/// the category header.
 List<Object> _sectionedEntries(List<InvItemListRow> rows) {
-  final byKey = <String, List<InvItemListRow>>{};
+  final byCategory = <String, Map<String, List<InvItemListRow>>>{};
   for (final r in rows) {
-    byKey.putIfAbsent(_sectionKey(r), () => []).add(r);
+    final cat = (r.category?.trim().isNotEmpty == true) ? r.category!.trim() : _uncategorised;
+    final sub = r.subcategory?.trim() ?? '';
+    byCategory.putIfAbsent(cat, () => {}).putIfAbsent(sub, () => []).add(r);
   }
   return [
-    for (final s in _sectionOrder)
-      if ((byKey[s.key] ?? const []).isNotEmpty) ...[
-        _SectionLabel(s.label, byKey[s.key]!.length),
-        ...byKey[s.key]!,
+    for (final entry in byCategory.entries) ...[
+      _SectionLabel(
+        entry.key,
+        entry.value.values.fold(0, (n, list) => n + list.length),
+      ),
+      for (final sub in entry.value.entries) ...[
+        if (sub.key.isNotEmpty) _SectionLabel(sub.key, sub.value.length, nested: true),
+        ...sub.value,
       ],
+    ],
   ];
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label, required this.count});
+  const _SectionHeader({required this.label, required this.count, this.nested = false});
   final String label;
   final int count;
+  final bool nested;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
+      padding: nested
+          ? const EdgeInsets.fromLTRB(10, 4, 2, 0)
+          : const EdgeInsets.fromLTRB(2, 8, 2, 0),
       child: Row(
         children: [
           Expanded(
-            child: Text(label.toUpperCase(),
-                style: RunqText.label.copyWith(color: t.muted)),
+            child: nested
+                ? Text(label, style: RunqText.caption.copyWith(color: t.muted2))
+                : Text(label.toUpperCase(),
+                    style: RunqText.label.copyWith(color: t.muted)),
           ),
           Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
         ],

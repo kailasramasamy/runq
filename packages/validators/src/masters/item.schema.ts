@@ -131,8 +131,10 @@ export const itemFilterSchema = z.object({
   /** Row order within each class group. 'name' (default) is alphabetical;
    *  'recent' puts the most recently active items first — last stock
    *  movement, falling back to the item's own updated_at when it has never
-   *  held stock. Opt-in so the finance / purchase catalogues stay A–Z. */
-  sort: z.enum(['name', 'recent']).optional(),
+   *  held stock. Opt-in so the finance / purchase catalogues stay A–Z.
+   *  'category' drops the class rank entirely and orders by category →
+   *  subcategory → name, so the item screens can section by category. */
+  sort: z.enum(['name', 'recent', 'category']).optional(),
 });
 
 export const bulkCreateItemsSchema = z.object({

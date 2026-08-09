@@ -30,6 +30,14 @@ const ITEM_RECENCY_DESC = sql`GREATEST(
   ${items.updatedAt}
 ) DESC NULLS LAST`;
 
+/** Category-tree order: root name, then leaf name, both A–Z with uncategorised
+ *  items last. Mirrors toItem()'s derivation — a root-level leaf is the
+ *  category itself and has no subcategory, so it sorts ahead of its children. */
+const ITEM_CATEGORY_ASC = [
+  sql`COALESCE(${catParent.name}, ${catLeaf.name}) ASC NULLS LAST`,
+  sql`CASE WHEN ${catLeaf.parentId} IS NULL THEN NULL ELSE ${catLeaf.name} END ASC NULLS FIRST`,
+];
+
 type ItemRowWithCategory = {
   item: typeof items.$inferSelect;
   catLeafName: string | null;
@@ -180,9 +188,12 @@ export class ItemService {
         // render group sections, so rows must stay contiguous by bucket —
         // ordering by name alone would split a group across page boundaries.
         // Within a single-bucket filter the rank is constant and it's a no-op.
+        // sort='category' sections by category instead, so the class rank
+        // would fragment those sections and is dropped.
         .orderBy(
-          ITEM_CLASS_RANK,
-          ...(filters.sort === 'recent' ? [ITEM_RECENCY_DESC] : []),
+          ...(filters.sort === 'category'
+            ? ITEM_CATEGORY_ASC
+            : [ITEM_CLASS_RANK, ...(filters.sort === 'recent' ? [ITEM_RECENCY_DESC] : [])]),
           items.name,
         )
         .limit(limit)
