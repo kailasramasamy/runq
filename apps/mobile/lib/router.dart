@@ -39,6 +39,8 @@ import 'screens/analytics_screen.dart';
 import 'screens/cash_flow_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/collections_screen.dart';
+import 'screens/sales/sales_analytics_screen.dart';
+import 'screens/purchase/purchase_analytics_screen.dart';
 import 'screens/pay_runs_screen.dart';
 import 'screens/pay_run_detail_screen.dart';
 import 'screens/approvals_screen.dart';
@@ -798,6 +800,18 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/sales/collections',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const CollectionsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/sales/analytics',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const SalesAnalyticsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/purchases/analytics',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const PurchaseAnalyticsScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/purchases/bills',

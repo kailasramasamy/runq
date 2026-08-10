@@ -11,6 +11,7 @@ import '../widgets/hub_header.dart';
 import '../widgets/hub_quick_chip.dart';
 import '../widgets/hub_section_tile.dart';
 import '../widgets/section_head.dart';
+import 'customer_orders_screen.dart' show customerOrdersProvider;
 import 'invoices_screen.dart' show InvoiceRow;
 
 class SalesHubScreen extends ConsumerWidget {
@@ -19,6 +20,8 @@ class SalesHubScreen extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(invoiceSummaryProvider);
     ref.invalidate(invoicesProvider);
+    // The PO tile's "to review" count comes off this one.
+    ref.invalidate(customerOrdersProvider);
     await ref
         .read(invoiceSummaryProvider.future)
         .catchError((_) => throw 0);
@@ -51,11 +54,6 @@ class SalesHubScreen extends ConsumerWidget {
                     // Invoice — From PO / Quick / Blank / Upload — so the
                     // hub entry point doesn't shortcut into a single flow.
                     onTap: () => showInvoiceCreateSheet(context),
-                  ),
-                  HubQuickChip(
-                    icon: Icons.inbox_outlined,
-                    label: 'Customer POs',
-                    onTap: () => context.push('/sales/orders'),
                   ),
                   HubQuickChip(
                     icon: Icons.notifications_active_outlined,
@@ -233,6 +231,15 @@ class _SalesGrid extends ConsumerWidget {
         summary.maybeWhen(data: (s) => s.overdueCount, orElse: () => 0);
     final draftCount =
         summary.maybeWhen(data: (s) => s.draftCount, orElse: () => 0);
+    // Customer POs waiting on a human — same "to review" set the PO screen
+    // counts, read off the shared (autoDispose) inbox provider so opening
+    // that screen reuses this fetch instead of repeating it.
+    final posToReview = ref.watch(customerOrdersProvider).maybeWhen(
+          data: (rows) => rows
+              .where((r) => r.displayStatus == 'ready' || r.displayStatus == 'needs review')
+              .length,
+          orElse: () => 0,
+        );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -262,6 +269,24 @@ class _SalesGrid extends ConsumerWidget {
           caption: overdueCount > 0 ? '$overdueCount overdue' : 'no overdue',
           captionColor: overdueCount > 0 ? RunqColors.redInk : t.muted,
           onTap: () => context.push('/sales/collections'),
+        ),
+        HubSectionTile(
+          icon: Icons.inbox_rounded,
+          iconBg: isDark ? const Color(0xFF164E63) : const Color(0xFFCFFAFE),
+          iconFg: isDark ? const Color(0xFF67E8F9) : const Color(0xFF0E7490),
+          title: 'CUSTOMER POs',
+          metric: posToReview > 0 ? '$posToReview to review' : 'View all',
+          caption: posToReview > 0 ? 'tap to invoice' : 'nothing waiting',
+          onTap: () => context.push('/sales/orders'),
+        ),
+        HubSectionTile(
+          icon: Icons.insights_rounded,
+          iconBg: isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5),
+          iconFg: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
+          title: 'ANALYTICS',
+          metric: 'Revenue',
+          caption: 'trends & top customers',
+          onTap: () => context.push('/sales/analytics'),
         ),
       ],
     );

@@ -13,6 +13,29 @@ String formatINR(
   return '${currency ? '₹' : ''}$sign$body';
 }
 
+/// Compact money for chart labels and axes, held to three significant figures
+/// so a crowded axis stays readable: 64,900 → ₹65k, 1,240 → ₹1.2k.
+///
+/// Differs from `formatINR(compact: true)`, which keeps two decimals on the
+/// lakh and crore scales. The decimal only survives below 10 of a unit, where
+/// dropping it would round ₹6.7L to ₹7L and lose thirty thousand rupees.
+String formatChartINR(num? value) {
+  if (value == null || value.isNaN) return '—';
+  final abs = value.abs();
+  final sign = value < 0 ? '−' : '';
+  String unit(num scaled, String suffix) {
+    final text = scaled >= 10
+        ? scaled.round().toString()
+        : _trim(scaled.toStringAsFixed(1));
+    return '$sign₹$text$suffix';
+  }
+
+  if (abs >= 10000000) return unit(abs / 10000000, 'Cr');
+  if (abs >= 100000) return unit(abs / 100000, 'L');
+  if (abs >= 1000) return unit(abs / 1000, 'k');
+  return '$sign₹${abs.round()}';
+}
+
 String _compact(num abs) {
   if (abs >= 10000000) return '${_trim((abs / 10000000).toStringAsFixed(2))}Cr';
   if (abs >= 100000) return '${_trim((abs / 100000).toStringAsFixed(2))}L';

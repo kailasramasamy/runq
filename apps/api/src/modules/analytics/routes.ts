@@ -4,6 +4,8 @@ import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { LiveMetricsService } from './live-metrics.service';
+import { SalesAnalyticsService } from './sales-analytics.service';
+import { PurchaseAnalyticsService } from './purchase-analytics.service';
 import { ReportSummariesService } from './report-summaries.service';
 import { GstSummariesService } from './gst-summaries.service';
 import { readOrCompute, istDateTag, istMonthTag } from './snapshot-reader';
@@ -15,6 +17,19 @@ import { AppError } from '../../utils/errors';
 const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
 const sendReminderBody = z.object({ channel: z.enum(['email', 'sms', 'whatsapp']).default('email') });
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
+const salesAnalyticsQuery = z.object({
+  dateFrom: isoDate,
+  dateTo: isoDate,
+  /** Optional — scopes every figure to one customer. */
+  customerId: z.string().uuid().optional(),
+});
+const purchaseAnalyticsQuery = z.object({
+  dateFrom: isoDate,
+  dateTo: isoDate,
+  /** Optional — scopes every figure to one vendor. */
+  vendorId: z.string().uuid().optional(),
+});
 
 export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   function svc(req: { server: { db: typeof app.db; redis: typeof app.redis }; tenantId: string; log: typeof app.log }) {
@@ -28,6 +43,37 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.get('/sales-mtd',      { preHandler: [rbacHook([...ALL_ROLES])] }, async (req) => ({ data: await svc(req).salesMtd() }));
   app.get('/bills-due-week', { preHandler: [rbacHook([...ALL_ROLES])] }, async (req) => ({ data: await svc(req).billsDueThisWeek() }));
   app.get('/cash-forecast',  { preHandler: [rbacHook([...ALL_ROLES])] }, async (req) => ({ data: await svc(req).cashForecast() }));
+
+  // ─── Sales analytics (invoice basis, caller-supplied window) ───────────
+  // Computed live rather than snapshotted: the window is arbitrary, so there
+  // is no fixed period tag to cache against. One request feeds the whole
+  // mobile analytics screen.
+  app.get('/sales', { preHandler: [rbacHook([...ALL_ROLES])] }, async (req) => {
+    const q = salesAnalyticsQuery.safeParse(req.query);
+    if (!q.success) {
+      throw new AppError(400, 'dateFrom and dateTo are required as YYYY-MM-DD');
+    }
+    const { dateFrom, dateTo, customerId } = q.data;
+    if (dateFrom > dateTo) {
+      throw new AppError(400, 'dateFrom must be on or before dateTo');
+    }
+    const service = new SalesAnalyticsService(req.server.db, req.tenantId, customerId);
+    return { data: await service.summary(dateFrom, dateTo) };
+  });
+
+  // Purchase analytics — the AP mirror of /sales, bill basis.
+  app.get('/purchases', { preHandler: [rbacHook([...ALL_ROLES])] }, async (req) => {
+    const q = purchaseAnalyticsQuery.safeParse(req.query);
+    if (!q.success) {
+      throw new AppError(400, 'dateFrom and dateTo are required as YYYY-MM-DD');
+    }
+    const { dateFrom, dateTo, vendorId } = q.data;
+    if (dateFrom > dateTo) {
+      throw new AppError(400, 'dateFrom must be on or before dateTo');
+    }
+    const service = new PurchaseAnalyticsService(req.server.db, req.tenantId, vendorId);
+    return { data: await service.summary(dateFrom, dateTo) };
+  });
 
   // ─── Phase 1B step 1: snapshot-backed metrics ──────────────────────────
   const snapshotMetric = (metricKey: string, periodKind: 'day' | 'month') =>

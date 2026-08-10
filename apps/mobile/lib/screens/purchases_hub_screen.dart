@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/data_providers.dart';
+import '../providers/purchase_providers.dart';
 import '../services/bill_intake.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
@@ -19,6 +20,8 @@ class PurchasesHubScreen extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(billsSummaryProvider);
     ref.invalidate(billsProvider);
+    // The PO tile's "open" count comes off this one.
+    ref.invalidate(purchaseOrderListProvider);
     await ref.read(billsSummaryProvider.future).catchError((_) => throw 0);
   }
 
@@ -228,6 +231,12 @@ class _PurchasesGrid extends ConsumerWidget {
           data: (list) => list.where((p) => p.isPending).length,
           orElse: () => 0,
         );
+    // POs raised but not yet fully received — the ones still owing goods.
+    // Same 'Open' bucket the PO list's own tab uses.
+    final openPos = ref
+        .watch(purchaseOrderListProvider(
+            const POListParams(status: 'sent,partially_received')))
+        .maybeWhen(data: (r) => r.total, orElse: () => 0);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -253,6 +262,24 @@ class _PurchasesGrid extends ConsumerWidget {
           caption: awaiting > 0 ? 'unmatched in bank' : 'QR / UPI paid',
           captionColor: awaiting > 0 ? const Color(0xFF92400E) : t.muted,
           onTap: () => context.push('/payments-made'),
+        ),
+        HubSectionTile(
+          icon: Icons.assignment_outlined,
+          iconBg: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE),
+          iconFg: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+          title: 'PURCHASE ORDERS',
+          metric: openPos > 0 ? '$openPos open' : 'View all',
+          caption: openPos > 0 ? 'awaiting goods' : 'none open',
+          onTap: () => context.push('/purchase/pos'),
+        ),
+        HubSectionTile(
+          icon: Icons.insights_rounded,
+          iconBg: isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5),
+          iconFg: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857),
+          title: 'ANALYTICS',
+          metric: 'Spend',
+          caption: 'trends & top vendors',
+          onTap: () => context.push('/purchases/analytics'),
         ),
       ],
     );

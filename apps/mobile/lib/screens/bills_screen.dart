@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../api/models.dart';
 import '../providers/data_providers.dart';
 import '../services/bill_intake.dart';
@@ -221,7 +222,12 @@ class _TitleBar extends StatelessWidget {
             const SizedBox(width: 4),
           ],
           Expanded(child: Text('Bills', style: RunqText.h1.copyWith(color: t.ink))),
-          const SizedBox(width: 12),
+          IconButton(
+            onPressed: () => context.push('/purchases/analytics'),
+            icon: Icon(Icons.insights_rounded, color: t.muted),
+            tooltip: 'Purchase analytics',
+          ),
+          const SizedBox(width: 4),
           // Intake sheet carries scan / photos / files.
           AddBillButton(onTap: () => startBillIntake(context, showRecent: false)),
         ],
