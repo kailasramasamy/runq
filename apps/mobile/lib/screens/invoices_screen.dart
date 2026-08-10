@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../api/models.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_tokens.dart';
@@ -229,6 +230,11 @@ class _TitleBar extends StatelessWidget {
             const SizedBox(width: 4),
           ],
           Expanded(child: Text('Invoices', style: RunqText.h1.copyWith(color: t.ink))),
+          IconButton(
+            onPressed: () => context.push('/sales/analytics'),
+            icon: Icon(Icons.insights_rounded, color: t.muted),
+            tooltip: 'Sales analytics',
+          ),
         ],
       ),
     );

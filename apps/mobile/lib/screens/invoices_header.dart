@@ -66,8 +66,10 @@ class InvoicesHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Scope first: date range and customer decide what the numbers
-          // below mean, so they sit ahead of the status pills.
+          // Scope only: date range and customer decide what the numbers below
+          // mean. The status pills used to trail them in this same strip,
+          // which pushed every status but "All" off the right edge — they now
+          // get their own row under the search field.
           SizedBox(
             height: 38,
             child: ListView(
@@ -88,18 +90,6 @@ class InvoicesHeader extends StatelessWidget {
                   onTap: onPickCustomer,
                   onTrailing: hasCustomer ? onClearCustomer : null,
                 ),
-                const SizedBox(width: 8),
-                Container(width: 1, margin: const EdgeInsets.symmetric(vertical: 8), color: t.hairline),
-                const SizedBox(width: 8),
-                for (final tab in invoiceTabs) ...[
-                  FilterPill(
-                    label: tab.label,
-                    active: tab.key == tabKey,
-                    badge: badges[tab.key] ?? 0,
-                    onTap: () => onTab(tab.key),
-                  ),
-                  const SizedBox(width: 8),
-                ],
               ],
             ),
           ),
@@ -134,6 +124,26 @@ class InvoicesHeader extends StatelessWidget {
             controller: searchController,
             onChanged: onSearchChanged,
             hint: 'Search invoice no., customer…',
+          ),
+          const SizedBox(height: 10),
+          // Status filters sit with the history list they narrow, each
+          // carrying its own count so the split is readable without tapping.
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: invoiceTabs.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final tab = invoiceTabs[i];
+                return FilterPill(
+                  label: tab.label,
+                  active: tab.key == tabKey,
+                  badge: badges[tab.key] ?? 0,
+                  onTap: () => onTab(tab.key),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 12),
         ],

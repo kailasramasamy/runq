@@ -110,7 +110,7 @@ class _CustomerPickerScreenState extends State<CustomerPickerScreen> {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Scaffold(
-      backgroundColor: t.bgWarmer,
+      backgroundColor: t.bgWarm,
       appBar: AppBar(
         title: const Text('Pick customer'),
         leading: IconButton(
@@ -130,7 +130,20 @@ class _CustomerPickerScreenState extends State<CustomerPickerScreen> {
                 decoration: _decoration(t),
               ),
               const SizedBox(height: 12),
-              Expanded(child: _buildList(t)),
+              // The rows used to sit straight on the warm page background,
+              // which read as one flat beige slab. Lifting them onto a
+              // surface card separates the list from the search above it.
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: t.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: t.hairline, width: 0.5),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _buildList(t),
+                ),
+              ),
             ],
           ),
         ),
@@ -161,7 +174,7 @@ class _CustomerPickerScreenState extends State<CustomerPickerScreen> {
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: ordered.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairlineSoft),
+      separatorBuilder: (_, _) => Divider(height: 1, color: t.hairlineSoft, indent: 60),
       itemBuilder: (_, i) {
         final c = ordered[i];
         final selected = c.id == currentId;
@@ -193,7 +206,7 @@ class _CustomerTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               RqAvatar(name: customer.name, size: 36),
