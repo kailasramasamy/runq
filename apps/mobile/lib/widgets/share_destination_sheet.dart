@@ -76,28 +76,30 @@ class _SheetState extends State<_Sheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text('What did you share?', style: RunqText.h3),
               ),
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  "Most shares are a supplier's invoice — we'll assume that unless you say otherwise.",
-                  style: RunqText.caption.copyWith(color: t.muted),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _PrimaryTile(
+              const SizedBox(height: 10),
+              // Every option is an equal-weight tile — the three routine
+              // share-ins carry no visual default, so nothing nudges the
+              // user towards a pipeline the file may not belong in.
+              _Tile(
                 icon: Icons.receipt_long_outlined,
+                tint: RunqColors.indigo,
                 title: 'Vendor bill',
                 subtitle: 'Invoice received from a supplier — books an expense',
                 onTap: () => Navigator.pop(context, ShareDestination.vendorBill),
               ),
-              const SizedBox(height: 4),
               _Tile(
                 icon: Icons.assignment_outlined,
                 tint: const Color(0xFF06B6D4),
                 title: 'Customer PO',
                 subtitle: 'A purchase order from a customer — generates a sales invoice',
                 onTap: () => Navigator.pop(context, ShareDestination.customerPo),
+              ),
+              _Tile(
+                icon: Icons.qr_code_scanner_outlined,
+                tint: const Color(0xFF0891B2),
+                title: 'Payment made',
+                subtitle: 'UPI/QR payment you made — logs it to match your bank',
+                onTap: () => Navigator.pop(context, ShareDestination.quickPayment),
               ),
               const SizedBox(height: 4),
               if (!_showMore)
@@ -128,74 +130,7 @@ class _SheetState extends State<_Sheet> {
         subtitle: "Vendor's invoice for an open PO — posts GRN + bill",
         onTap: () => Navigator.pop(context, ShareDestination.receiveAgainstPo),
       ),
-      _Tile(
-        icon: Icons.qr_code_scanner_outlined,
-        tint: const Color(0xFF0891B2),
-        title: 'Payment made',
-        subtitle: 'UPI/QR payment you made — logs it to match your bank',
-        onTap: () => Navigator.pop(context, ShareDestination.quickPayment),
-      ),
     ];
-  }
-}
-
-/// The prominent, one-tap default option — vendor bill covers the large
-/// majority of share-ins, so it gets a filled hero button instead of
-/// competing as just another list tile.
-class _PrimaryTile extends StatelessWidget {
-  final IconData icon;
-  final String title, subtitle;
-  final VoidCallback onTap;
-  const _PrimaryTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Material(
-        color: RunqColors.indigo,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: RunqText.bodyStrong.copyWith(color: Colors.white)),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.85)),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, size: 20, color: Colors.white),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
