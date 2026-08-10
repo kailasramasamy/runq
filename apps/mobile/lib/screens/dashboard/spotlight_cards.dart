@@ -19,8 +19,14 @@ class SpotlightCards extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(dashboardSummaryProvider);
+    // Sized to the card's content plus a hair of slack — the strip sits
+    // between the quick actions and the GST block, so every extra pixel here
+    // pushes the rest of the home feed below the fold. The card is nearly all
+    // text, so the height tracks the user's text scale (capped, or an
+    // accessibility setting would eat the whole screen).
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6);
     return SizedBox(
-      height: 168,
+      height: 136 * scale,
       child: AsyncSlot<DashboardSummary>(
         value: summary,
         onRetry: () => ref.invalidate(dashboardSummaryProvider),
@@ -160,7 +166,7 @@ class _SpotlightCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: _spotlightGradient(context),
               borderRadius: BorderRadius.circular(RunqRadii.card),
@@ -172,28 +178,28 @@ class _SpotlightCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 32, height: 32,
+                    width: 28, height: 28,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: t.bgWarm,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(icon, size: 18, color: t.muted),
+                    child: Icon(icon, size: 16, color: t.muted),
                   ),
                   const Spacer(),
-                  _Pill(label: pillLabel, bg: pill.bg, ink: pill.ink),
+                  Flexible(child: _Pill(label: pillLabel, bg: pill.bg, ink: pill.ink)),
                 ],
               ),
               const Spacer(),
               Text(headline, style: RunqText.numberLg.copyWith(color: t.ink)),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 sub,
                 style: RunqText.caption.copyWith(color: t.muted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   if (ctaIcon != null) ...[
@@ -233,7 +239,12 @@ class _Pill extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label, style: RunqText.micro.copyWith(color: ink)),
+      child: Text(
+        label,
+        style: RunqText.micro.copyWith(color: ink),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }
