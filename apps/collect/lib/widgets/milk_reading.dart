@@ -87,6 +87,8 @@ class MilkReadingField extends StatelessWidget {
     this.focusNode,
     this.next,
     this.autofocus = false,
+    this.errorText,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -94,6 +96,12 @@ class MilkReadingField extends StatelessWidget {
   final FocusNode? focusNode;
   final FocusNode? next;
   final bool autofocus;
+
+  /// Shown under the field — the dispatch legs use it for over-availability.
+  final String? errorText;
+
+  /// Fired per keystroke, for callers whose save button tracks validity live.
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => TextField(
@@ -104,7 +112,8 @@ class MilkReadingField extends StatelessWidget {
         textCapitalization: TextCapitalization.none,
         textInputAction: next != null ? TextInputAction.next : TextInputAction.done,
         onSubmitted: (_) => next?.requestFocus(),
+        onChanged: onChanged,
         style: DhenuText.h2.copyWith(color: DT(context).ink, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, errorText: errorText),
       );
 }

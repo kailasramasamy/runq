@@ -2715,6 +2715,15 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dispatchSnfHint => 'SNF %';
 
   @override
+  String get dispatchQtyLabel => 'அளவு (L)';
+
+  @override
+  String get dispatchWaterLabel => 'நீர் %';
+
+  @override
+  String get dispatchContainerFieldLabel => 'கொள்கலன்';
+
+  @override
   String get dispatchWaterHint => 'நீர் % (விருப்பம்)';
 
   @override

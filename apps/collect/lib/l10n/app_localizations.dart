@@ -4712,6 +4712,24 @@ abstract class AppLocalizations {
   /// **'SNF %'**
   String get dispatchSnfHint;
 
+  /// No description provided for @dispatchQtyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty (L)'**
+  String get dispatchQtyLabel;
+
+  /// No description provided for @dispatchWaterLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Water %'**
+  String get dispatchWaterLabel;
+
+  /// No description provided for @dispatchContainerFieldLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Container'**
+  String get dispatchContainerFieldLabel;
+
   /// No description provided for @dispatchWaterHint.
   ///
   /// In en, this message translates to:

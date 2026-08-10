@@ -2693,6 +2693,15 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchSnfHint => 'SNF %';
 
   @override
+  String get dispatchQtyLabel => 'ಪ್ರಮಾಣ (L)';
+
+  @override
+  String get dispatchWaterLabel => 'ನೀರು %';
+
+  @override
+  String get dispatchContainerFieldLabel => 'ಕಂಟೇನರ್';
+
+  @override
   String get dispatchWaterHint => 'ನೀರು % (ಐಚ್ಛಿಕ)';
 
   @override

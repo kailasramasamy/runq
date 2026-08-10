@@ -144,19 +144,31 @@ class VmccHome extends ConsumerWidget {
         ]),
       );
 
-  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, SyncSnapshot sync) => Row(
-        children: [
+  /// Two lines rather than one: the sync pill is as wide as a centre's name, so
+  /// sharing a row squeezed the title into a wrap that read as two centres. The
+  /// name now gets the width it needs, and the pill drops to the status line
+  /// where it belongs — both rows are then one idea each.
+  Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, SyncSnapshot sync) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(node.name, style: DhenuText.h2.copyWith(color: t.ink)),
-              Text(
-                shiftFrom(currentShift()) == Shift.am ? l.homeAmShiftInProgress : l.homePmShiftInProgress,
-                style: DhenuText.caption.copyWith(color: t.inkSoft),
-              ),
-            ]),
+            child: Text(node.name,
+                style: DhenuText.h2.copyWith(color: t.ink),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
+          const SizedBox(width: DhenuSpacing.sm),
           const NotificationBell(),
-          const SizedBox(width: DhenuSpacing.xs),
+        ]),
+        const SizedBox(height: DhenuSpacing.xs),
+        Row(children: [
+          Expanded(
+            child: Text(
+              shiftFrom(currentShift()) == Shift.am ? l.homeAmShiftInProgress : l.homePmShiftInProgress,
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: DhenuSpacing.sm),
           SyncStatus(
             state: sync.state,
             pendingCount: sync.pendingCount,
@@ -164,13 +176,17 @@ class VmccHome extends ConsumerWidget {
             agoLabel: l.homeJustNow,
             onTap: () => showSyncQueueSheet(context, ref, node.id),
           ),
-        ],
-      );
+        ]),
+      ]);
 
   /// Recording is the headline action only while the slot is open. Once it's
   /// closed, offering "Record collection" leads to a screen with no form on it,
   /// so the slot's next step — dispatch — takes the button instead. Recording
   /// stays reachable underneath for back-dating or reopening.
+  ///
+  /// With the slot closed AND nothing left undispatched, dispatch would open a
+  /// screen with no milk to send, so recording takes the button back — it is
+  /// the only thing still worth doing (a back-date, or reopening the slot).
   Widget _primaryAction(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l) {
     final status = ref.watch(shiftStatusProvider(node.id)).asData?.value;
     final shift = shiftFrom(currentShift());
@@ -180,6 +196,14 @@ class VmccHome extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => RecordCollectionScreen(node: node)),
         );
     if (!closed) {
+      return PrimaryAction(label: l.recordCollectionTitle, onPressed: openRecord);
+    }
+    // Null while the slots are still loading — treat that as "maybe", so the
+    // button doesn't flash in and out on every home-screen open.
+    final pending = ref.watch(pendingDispatchProvider(node.id)).valueOrNull;
+    final dispatchable = pending == null ||
+        pending.any((s) => s.closed && s.available > 0);
+    if (!dispatchable) {
       return PrimaryAction(label: l.recordCollectionTitle, onPressed: openRecord);
     }
     return Column(children: [

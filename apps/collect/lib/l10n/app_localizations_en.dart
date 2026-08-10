@@ -2719,6 +2719,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispatchSnfHint => 'SNF %';
 
   @override
+  String get dispatchQtyLabel => 'Qty (L)';
+
+  @override
+  String get dispatchWaterLabel => 'Water %';
+
+  @override
+  String get dispatchContainerFieldLabel => 'Container';
+
+  @override
   String get dispatchWaterHint => 'Water % (optional)';
 
   @override

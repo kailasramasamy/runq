@@ -5,6 +5,7 @@ import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_icons.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
+import 'milk_reading.dart';
 import 'milk_type_toggle.dart';
 import '../utils/format.dart';
 import 'dhenu_card.dart';
@@ -143,31 +144,61 @@ class DispatchTypeCard extends StatelessWidget {
             ],
           ],
           const SizedBox(height: DhenuSpacing.md),
-          TextField(
-            controller: entry.qty,
-            keyboardType: TextInputType.number,
-            textCapitalization: TextCapitalization.none,
-            onChanged: (_) => onChanged(),
-            decoration: InputDecoration(
-              hintText: l.dispatchQtyHint,
-              errorText: over ? l.dispatchErrorOverQty(entry.available.toStringAsFixed(1)) : null,
+          // The three measured figures share one row: they are short numbers,
+          // and stacking them pushed a second milk type off the screen. Labels
+          // float rather than hint, so a filled field still says what it is.
+          // Weighted, not equal thirds: a pooled CC leg runs to four digits
+          // ("1200.0") while FAT and SNF are always three characters, so an
+          // even split clips the one number that matters most.
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              flex: 4,
+              child: MilkReadingField(
+                controller: entry.qty,
+                label: l.dispatchQtyLabel,
+                onChanged: (_) => onChanged(),
+                errorText: over
+                    ? l.dispatchErrorOverQty(entry.available.toStringAsFixed(1))
+                    : null,
+              ),
             ),
-          ),
-          const SizedBox(height: DhenuSpacing.md),
-          Row(children: [
-            Expanded(child: _num(entry.fat, l.dispatchFatHint)),
-            const SizedBox(width: DhenuSpacing.md),
-            Expanded(child: _num(entry.snf, l.dispatchSnfHint)),
+            const SizedBox(width: DhenuSpacing.sm),
+            Expanded(
+              flex: 3,
+              child: MilkReadingField(
+                controller: entry.fat,
+                label: l.dispatchFatHint,
+                onChanged: (_) => onChanged(),
+              ),
+            ),
+            const SizedBox(width: DhenuSpacing.sm),
+            Expanded(
+              flex: 3,
+              child: MilkReadingField(
+                controller: entry.snf,
+                label: l.dispatchSnfHint,
+                onChanged: (_) => onChanged(),
+              ),
+            ),
           ]),
-          const SizedBox(height: DhenuSpacing.md),
+          const SizedBox(height: DhenuSpacing.sm),
+          // Optional metadata, kept at body size so the measured trio above
+          // stays the thing the eye lands on.
           Row(children: [
-            Expanded(child: _num(entry.water, l.dispatchWaterHint)),
-            const SizedBox(width: DhenuSpacing.md),
+            Expanded(
+              child: TextField(
+                controller: entry.water,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textCapitalization: TextCapitalization.none,
+                decoration: InputDecoration(labelText: l.dispatchWaterLabel),
+              ),
+            ),
+            const SizedBox(width: DhenuSpacing.sm),
             Expanded(
               child: TextField(
                 controller: entry.container,
                 textCapitalization: TextCapitalization.characters,
-                decoration: InputDecoration(hintText: l.dispatchContainerHint),
+                decoration: InputDecoration(labelText: l.dispatchContainerFieldLabel),
               ),
             ),
           ]),
@@ -183,11 +214,4 @@ class DispatchTypeCard extends StatelessWidget {
       ]),
     );
   }
-
-  Widget _num(TextEditingController c, String hint) => TextField(
-        controller: c,
-        keyboardType: TextInputType.number,
-        textCapitalization: TextCapitalization.none,
-        decoration: InputDecoration(hintText: hint),
-      );
 }
