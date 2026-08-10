@@ -5,6 +5,7 @@ import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/mp_context_provider.dart';
+import '../providers/mp_refresh.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/centre_switcher.dart';
@@ -28,6 +29,16 @@ class HomeDispatcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Every centre the operator can run shares one provider cache, and the
+    // node-scoped families are not autoDispose — so a mode left behind keeps
+    // serving what it last saw. Dispatching in CC mode changes the PP's inbound
+    // queue, but nothing invalidates a provider keyed by the destination node.
+    // Watched here rather than in the persona homes because both _AdminHome and
+    // _OperatorHome switch centres, and the listener must survive the rebuild
+    // that the switch itself triggers.
+    ref.listen<MpNode?>(mpActiveNodeProvider, (prev, next) {
+      if (prev?.id != next?.id) refreshMpNodeData(ref);
+    });
     final auth = ref.watch(authProvider);
     if (!auth.hasMilkProcurement) return const NoAccessScreen();
     switch (auth.persona) {
