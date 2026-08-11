@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { NotFoundError } from '../errors';
 import type { StorageProvider, UploadParams } from './storage.interface';
 
 export class S3StorageProvider implements StorageProvider {
@@ -25,12 +26,23 @@ export class S3StorageProvider implements StorageProvider {
     return key;
   }
 
+  /// A key the DB still points at but the bucket no longer holds is a
+  /// missing resource, not a server fault — map it to 404 so callers get
+  /// the same answer they would from the local provider.
   async getStream(storageKey: string): Promise<Readable> {
-    const response = await this.client.send(new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: storageKey,
-    }));
-    return response.Body as Readable;
+    try {
+      const response = await this.client.send(new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: storageKey,
+      }));
+      return response.Body as Readable;
+    } catch (err) {
+      const name = (err as { name?: string }).name;
+      if (name === 'NoSuchKey' || name === 'NotFound') {
+        throw new NotFoundError('File');
+      }
+      throw err;
+    }
   }
 
   async delete(storageKey: string): Promise<void> {
