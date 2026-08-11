@@ -420,6 +420,29 @@ class HrRepo {
     return HrMuster.fromJson(_data(res));
   }
 
+  /// Weekly-off weekdays for an employee, read off their current shift
+  /// assignment. Server returns assignment history newest-first as
+  /// `{ assign, shift }` pairs; we take the latest shift's
+  /// `weeklyOffDays`. Values are JS weekday numbers (0 = Sunday), matching
+  /// the `shifts.weekly_off_days` jsonb column.
+  ///
+  /// Falls back to `[0]` (Sunday off) when the employee has no shift
+  /// assigned — the same default the shifts table uses — so the calendar
+  /// still greys out weekends for unrostered staff.
+  Future<List<int>> employeeWeeklyOffDays(String employeeId) async {
+    final res = await apiClient.get('/hr/employees/$employeeId/shifts');
+    final rows = _dataList(res);
+    if (rows.isEmpty) return const [0];
+    final shift = rows.first['shift'];
+    if (shift is! Map) return const [0];
+    final days = shift['weeklyOffDays'];
+    if (days is! List || days.isEmpty) return const [0];
+    return days
+        .map((d) => d is int ? d : int.tryParse('$d') ?? -1)
+        .where((d) => d >= 0 && d <= 6)
+        .toList();
+  }
+
   // ── /hr/leave-* ──────────────────────────────────────────────────────────
 
   /// Pass [forEmployeeId] to scope to types applicable to that employee's

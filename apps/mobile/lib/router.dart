@@ -548,7 +548,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/hr/people/:id',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
-            HrEmployeeDetailScreen(id: state.pathParameters['id']!),
+            HrEmployeeDetailScreen(
+              id: state.pathParameters['id']!,
+              initialTab: state.uri.queryParameters['tab'],
+            ),
             key: state.pageKey,
           ),
         ),

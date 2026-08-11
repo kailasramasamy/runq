@@ -7,6 +7,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
 import '../../providers/hr_persona_provider.dart';
@@ -75,6 +76,8 @@ class _EmployeeTimeState extends ConsumerState<_EmployeeTime> {
             ),
             const SizedBox(width: 4),
             Text('Time', style: RunqText.h1.copyWith(color: t.ink)),
+            const Spacer(),
+            _myCalendarButton(),
           ],
         ),
         const SizedBox(height: 14),
@@ -117,6 +120,25 @@ class _EmployeeTimeState extends ConsumerState<_EmployeeTime> {
           },
         ),
       ],
+    );
+  }
+
+  /// Opens the employee's own month calendar. Hidden until `/hr/me`
+  /// resolves an employee record — a user with no linked employee (a CA
+  /// login, say) has no attendance to show.
+  Widget _myCalendarButton() {
+    final me = ref.watch(hrMeProvider).asData?.value;
+    final empId = me?.employee?.id;
+    if (empId == null) return const SizedBox.shrink();
+    return TextButton.icon(
+      // Opens the employee-detail Time tab — the single place attendance and
+      // leave are viewed and managed. There is no separate calendar screen.
+      onPressed: () => context.push('/hr/people/$empId?tab=time'),
+      icon: const Icon(Icons.calendar_month_outlined, size: 18),
+      label: Text('Calendar',
+          style: RunqText.caption.copyWith(
+              color: HrColors.brand(context), fontWeight: FontWeight.w700)),
+      style: TextButton.styleFrom(foregroundColor: HrColors.brand(context)),
     );
   }
 

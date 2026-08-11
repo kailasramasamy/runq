@@ -573,3 +573,148 @@ final hrRewardsProvider =
 final hrPointsBalanceProvider = FutureProvider<HrPointsBalance>((ref) async {
   return _watchAuth(ref, () => hrRepo.pointsBalance());
 });
+
+// ─── Attendance calendar ───────────────────────────────────────────────────
+
+/// Identity for a month of one employee's attendance.
+class HrMonthQuery {
+  final String employeeId;
+  final int year, month;
+  const HrMonthQuery({
+    required this.employeeId,
+    required this.year,
+    required this.month,
+  });
+
+  DateTime get first => DateTime(year, month, 1);
+
+  /// Last calendar day of the month — `day: 0` of the next month.
+  DateTime get last => DateTime(year, month + 1, 0);
+
+  @override
+  bool operator ==(Object other) =>
+      other is HrMonthQuery &&
+      other.employeeId == employeeId &&
+      other.year == year &&
+      other.month == month;
+
+  @override
+  int get hashCode => Object.hash(employeeId, year, month);
+}
+
+String _dayKey(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+/// Everything the month calendar needs for one employee, resolved to a
+/// per-day status. Attendance rows win; a day with no row falls back to
+/// holiday → weekly-off → unmarked (past) → upcoming (future).
+class HrAttendanceMonth {
+  final HrMonthQuery query;
+  final Map<String, HrAttendanceRow> rows;
+  final Map<String, HrHoliday> holidays;
+  final List<int> weeklyOffDays;
+  final List<HrLeaveRequest> leaves;
+
+  HrAttendanceMonth({
+    required this.query,
+    required this.rows,
+    required this.holidays,
+    required this.weeklyOffDays,
+    required this.leaves,
+  });
+
+  HrAttendanceRow? rowFor(DateTime d) => rows[_dayKey(d)];
+  HrHoliday? holidayFor(DateTime d) => holidays[_dayKey(d)];
+
+  /// `shifts.weekly_off_days` stores JS weekday numbers (0 = Sunday);
+  /// Dart's `DateTime.weekday` is 1 = Monday … 7 = Sunday.
+  bool isWeeklyOff(DateTime d) => weeklyOffDays.contains(d.weekday % 7);
+
+  /// The approved/pending leave request covering [d], if any — lets the
+  /// day sheet name the leave type behind a 'leave' status.
+  HrLeaveRequest? leaveFor(DateTime d) {
+    final day = DateTime(d.year, d.month, d.day);
+    for (final l in leaves) {
+      if (l.status == 'rejected' || l.status == 'cancelled') continue;
+      final from = DateTime(l.fromDate.year, l.fromDate.month, l.fromDate.day);
+      final to = DateTime(l.toDate.year, l.toDate.month, l.toDate.day);
+      if (!day.isBefore(from) && !day.isAfter(to)) return l;
+    }
+    return null;
+  }
+
+  String statusFor(DateTime d) {
+    final row = rowFor(d);
+    if (row != null) return row.status;
+    if (holidayFor(d) != null) return 'holiday';
+    if (isWeeklyOff(d)) return 'week_off';
+    final today = DateTime.now();
+    final isFuture = DateTime(d.year, d.month, d.day)
+        .isAfter(DateTime(today.year, today.month, today.day));
+    return isFuture ? 'upcoming' : 'unmarked';
+  }
+
+  /// Counts per status across the month, derived the same way the grid
+  /// renders — so the summary strip can never disagree with the cells.
+  Map<String, int> get counts {
+    final out = <String, int>{};
+    for (var day = 1; day <= query.last.day; day++) {
+      final s = statusFor(DateTime(query.year, query.month, day));
+      if (s == 'upcoming') continue;
+      out[s] = (out[s] ?? 0) + 1;
+    }
+    return out;
+  }
+
+  /// Overtime logged across the month, for the summary strip.
+  double get otHours =>
+      rows.values.fold(0.0, (sum, r) => sum + (r.otHours ?? 0));
+}
+
+/// One month of attendance for one employee, joined with holidays, the
+/// employee's weekly offs, and their leave requests. Four calls, fanned
+/// out in parallel; holidays and weekly-offs are cached by their own
+/// providers so paging months only refetches the attendance rows.
+final hrAttendanceMonthProvider =
+    FutureProvider.family<HrAttendanceMonth, HrMonthQuery>((ref, q) async {
+  final holidaysF = ref.watch(hrHolidaysByYearProvider(q.year).future);
+  final weeklyOffF = ref.watch(hrEmployeeWeeklyOffsProvider(q.employeeId).future);
+  final leavesF = ref.watch(hrEmployeeLeaveRequestsProvider(q.employeeId).future);
+  final rowsF = _watchAuth(
+    ref,
+    () => hrRepo.attendance(employeeId: q.employeeId, from: q.first, to: q.last),
+  );
+
+  final rows = await rowsF;
+  final holidays = await holidaysF;
+  final weeklyOff = await weeklyOffF;
+  final leaves = await leavesF;
+
+  return HrAttendanceMonth(
+    query: q,
+    rows: {for (final r in rows) _dayKey(r.date): r},
+    holidays: {
+      for (final h in holidays)
+        if (h.date.year == q.year && h.date.month == q.month) _dayKey(h.date): h,
+    },
+    weeklyOffDays: weeklyOff,
+    leaves: leaves,
+  );
+});
+
+/// Weekly-off weekdays from the employee's current shift assignment.
+/// Split out from [hrAttendanceMonthProvider] so month paging reuses it.
+final hrEmployeeWeeklyOffsProvider =
+    FutureProvider.family<List<int>, String>((ref, employeeId) async {
+  return _watchAuth(ref, () => hrRepo.employeeWeeklyOffDays(employeeId));
+});
+
+/// Leave types applicable to a specific employee — gender-filtered by the
+/// server. Backs the manager's mark-attendance sheet, which picks a type
+/// on someone else's behalf and must not offer types they can't take.
+final hrLeaveTypesForEmployeeProvider =
+    FutureProvider.family<List<HrLeaveType>, String>((ref, employeeId) async {
+  return _watchAuth(ref, () => hrRepo.leaveTypes(forEmployeeId: employeeId));
+});
