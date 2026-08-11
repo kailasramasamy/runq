@@ -20,6 +20,9 @@ const ALL_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const deviceTokenSchema = z.object({
   token: z.string().min(1).max(4096),
   platform: z.enum(['android', 'ios']),
+  // Which app is registering. Defaults to 'runq' so a client that predates
+  // app scoping keeps working — it just keeps receiving runQ pushes, as now.
+  app: z.enum(['runq', 'dhenu']).default('runq'),
 });
 const removeDeviceTokenSchema = z.object({ token: z.string().min(1).max(4096) });
 const aiSummaryQuerySchema = z.object({ refresh: z.string().optional() });
@@ -168,13 +171,14 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
     '/device-token',
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
-      const { token, platform } = deviceTokenSchema.parse(request.body);
+      const { token, platform, app: deviceApp } = deviceTokenSchema.parse(request.body);
       await registerDeviceToken(
         request.server.db,
         request.tenantId,
         request.user?.userId ?? '',
         token,
         platform,
+        deviceApp,
       );
       return { success: true };
     },

@@ -108,6 +108,10 @@ class PushService {
       await apiClient.post('/dashboard/device-token', {
         'token': token,
         'platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+        // Dhenu only ever wants milk-procurement (`mp_*`) notices. Without
+        // this the shared backend fanned HR/finance pushes here too, since
+        // both apps resolve to the same user id when the phone matches.
+        'app': 'dhenu',
       });
       _registeredToken = token;
     } on ApiException {

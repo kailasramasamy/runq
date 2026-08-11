@@ -5,26 +5,48 @@ import { getFcm } from './firebase-admin';
 
 export type DevicePlatform = 'android' | 'ios';
 
+/** The app a device token belongs to. See `deviceAppEnum`. */
+export type DeviceApp = 'runq' | 'dhenu';
+
 export interface PushPayload {
   title: string;
   body?: string;
   targetUrl?: string;
 }
 
-/** Upsert a device's FCM token, re-pointing it at the current tenant/user. */
+/**
+ * Which app should receive a notification, from its `source` tag.
+ *
+ * The two apps are mutually exclusive audiences: Dhenu is a milk-procurement
+ * app and has no business buzzing about leave approvals, just as runQ has no
+ * business buzzing about a milk dispatch. `mp_*` is the Dhenu namespace (see
+ * `MpNotificationSource`); everything else — `hr_*`, finance, system — is runQ.
+ */
+export function appForSource(source?: string): DeviceApp {
+  return source?.startsWith('mp_') ? 'dhenu' : 'runq';
+}
+
+/**
+ * Upsert a device's FCM token, re-pointing it at the current tenant/user/app.
+ *
+ * Re-pointing `app` matters for self-healing: rows that predate app scoping
+ * were backfilled as 'runq', and flip to their real app the first time that
+ * app registers its token again (which both do on every launch).
+ */
 export async function registerDeviceToken(
   db: Db,
   tenantId: string,
   userId: string,
   token: string,
   platform: DevicePlatform,
+  app: DeviceApp = 'runq',
 ): Promise<void> {
   await db
     .insert(deviceTokens)
-    .values({ tenantId, userId, token, platform })
+    .values({ tenantId, userId, token, platform, app })
     .onConflictDoUpdate({
       target: deviceTokens.token,
-      set: { tenantId, userId, platform, lastSeenAt: new Date() },
+      set: { tenantId, userId, platform, app, lastSeenAt: new Date() },
     });
 }
 
@@ -34,9 +56,13 @@ export async function unregisterDeviceToken(db: Db, token: string): Promise<void
 }
 
 /**
- * Push an FCM notification to every device a user has registered. No-op when
- * FCM is unconfigured or the user has no devices. Tokens FCM reports as
- * unregistered/invalid are pruned so the table self-heals.
+ * Push an FCM notification to a user's devices *for one app*. No-op when FCM
+ * is unconfigured or the user has no devices registered for that app. Tokens
+ * FCM reports as unregistered/invalid are pruned so the table self-heals.
+ *
+ * [app] is not optional by accident: one user commonly holds tokens for both
+ * runQ and Dhenu under the same `users.id`, and an unscoped send delivers the
+ * same notification to both phones.
  *
  * Callers fire-and-forget this — a push failure must not break the in-app
  * notification that triggered it.
@@ -46,6 +72,7 @@ export async function sendPushToUser(
   tenantId: string,
   userId: string,
   payload: PushPayload,
+  app: DeviceApp,
 ): Promise<void> {
   const fcm = getFcm();
   if (!fcm) return;
@@ -53,7 +80,11 @@ export async function sendPushToUser(
   const rows = await db
     .select({ token: deviceTokens.token })
     .from(deviceTokens)
-    .where(and(eq(deviceTokens.tenantId, tenantId), eq(deviceTokens.userId, userId)));
+    .where(and(
+      eq(deviceTokens.tenantId, tenantId),
+      eq(deviceTokens.userId, userId),
+      eq(deviceTokens.app, app),
+    ));
   if (rows.length === 0) return;
 
   const tokens = rows.map((r) => r.token);

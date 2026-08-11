@@ -1,7 +1,7 @@
 import { and, desc, eq, isNull, like, sql } from 'drizzle-orm';
 import { notifications } from '@runq/db';
 import type { Db } from '@runq/db';
-import { sendPushToUser } from '../../utils/push/push.service';
+import { appForSource, sendPushToUser } from '../../utils/push/push.service';
 
 export interface NotificationRow {
   id: string;
@@ -98,23 +98,29 @@ export class NotificationsService {
     body?: string;
     targetUrl?: string;
   }): Promise<void> {
+    const source = input.source ?? 'system';
     await this.db.insert(notifications).values({
       tenantId: this.tenantId,
       userId: this.userId,
       type: input.type ?? 'info',
-      source: input.source ?? 'system',
+      source,
       title: input.title,
       body: input.body ?? null,
       targetUrl: input.targetUrl ?? null,
     });
 
-    // Mirror the in-app notification to the user's mobile devices. Fire-and-
-    // forget: a push failure must not fail notification creation.
-    void sendPushToUser(this.db, this.tenantId, this.userId, {
-      title: input.title,
-      body: input.body,
-      targetUrl: input.targetUrl,
-    }).catch((err) => {
+    // Mirror the in-app notification to the user's mobile devices — but only
+    // the app this notice belongs to. The same person is often signed into
+    // both runQ and Dhenu under one `users.id`; sending unscoped buzzed both
+    // phones for every event. `source` already namespaces the in-app inbox
+    // the same way, so routing off it keeps push and inbox consistent.
+    void sendPushToUser(
+      this.db,
+      this.tenantId,
+      this.userId,
+      { title: input.title, body: input.body, targetUrl: input.targetUrl },
+      appForSource(source),
+    ).catch((err) => {
       console.error('[push] sendPushToUser failed:', err);
     });
   }

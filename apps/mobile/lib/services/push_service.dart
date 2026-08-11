@@ -89,6 +89,10 @@ class PushService {
       await apiClient.post('/dashboard/device-token', {
         'token': token,
         'platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+        // Scopes which pushes this device gets. The same person often signs
+        // into Dhenu with the same phone number and so resolves to the same
+        // user id; without this both apps received every notification.
+        'app': 'runq',
       });
       _registeredToken = token;
     } on ApiException {
