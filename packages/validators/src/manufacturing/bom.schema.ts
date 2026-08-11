@@ -28,6 +28,11 @@ export const createBomSchema = z.object({
   outputItemId: z.string().uuid(),
   outputQty: z.number().positive('Output qty must be positive'),
   outputUom: z.string().min(1).max(20),
+  /**
+   * Output is branded at dispatch, not at production — a short DN line
+   * backflushes this recipe instead of failing. See migration 0186.
+   */
+  allowAutoRepack: z.boolean().default(false),
   effectiveFrom: z.string().date().nullish(),
   notes: z.string().nullish(),
   lines: z.array(bomLineSchema).min(1, 'At least one input line required'),

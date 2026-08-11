@@ -72,6 +72,11 @@ class InvDispatchPreviewLine {
   final String? suggestedBatchNo;
   final double availableQty;
 
+  /// Set when the SKU is branded only at dispatch: it holds no stock of its
+  /// own, so `availableQty` is 0 by design and the pool behind it is what can
+  /// actually ship. Null for ordinary items.
+  final InvRepackSource? repackFrom;
+
   const InvDispatchPreviewLine({
     required this.invoiceLineId,
     required this.description,
@@ -85,6 +90,7 @@ class InvDispatchPreviewLine {
     required this.resolution,
     this.suggestedBatchNo,
     required this.availableQty,
+    this.repackFrom,
   });
 
   /// Only these lines can move stock, and only if something is still owed.
@@ -92,7 +98,12 @@ class InvDispatchPreviewLine {
       (resolution == InvLineResolution.item || resolution == InvLineResolution.alias) &&
       remainingQty > 0;
 
-  bool get short => shippable && remainingQty > availableQty;
+  /// What this line can draw on, counting stock the dispatch would make.
+  double get coverQty => availableQty + (repackFrom?.capacityQty ?? 0);
+
+  /// A made-on-demand SKU sitting at zero isn't short — that is its normal
+  /// state. What can actually run out is the pool behind it.
+  bool get short => shippable && remainingQty > coverQty;
 
   factory InvDispatchPreviewLine.fromJson(Map<String, dynamic> j) => InvDispatchPreviewLine(
         invoiceLineId: j['invoiceLineId'] as String,
@@ -107,6 +118,23 @@ class InvDispatchPreviewLine {
         resolution: _resolution(j['resolution'] as String?),
         suggestedBatchNo: j['suggestedBatchNo'] as String?,
         availableQty: double.tryParse(j['availableQty']?.toString() ?? '0') ?? 0,
+        repackFrom: j['repackFrom'] == null
+            ? null
+            : InvRepackSource.fromJson((j['repackFrom'] as Map).cast<String, dynamic>()),
+      );
+}
+
+/// The pool a made-on-demand SKU is drawn from, and how many packs the
+/// limiting component could still produce.
+class InvRepackSource {
+  final String poolItemName;
+  final double capacityQty;
+
+  const InvRepackSource({required this.poolItemName, required this.capacityQty});
+
+  factory InvRepackSource.fromJson(Map<String, dynamic> j) => InvRepackSource(
+        poolItemName: (j['poolItemName'] as String?) ?? '',
+        capacityQty: double.tryParse(j['capacityQty']?.toString() ?? '0') ?? 0,
       );
 }
 

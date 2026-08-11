@@ -47,6 +47,7 @@ class ManufacturingRepo {
     required String outputItemId,
     required double outputQty,
     required String outputUom,
+    bool allowAutoRepack = false,
     String? effectiveFrom,
     String? notes,
     required List<Map<String, dynamic>> lines,
@@ -57,6 +58,7 @@ class ManufacturingRepo {
       'outputItemId': outputItemId,
       'outputQty': outputQty,
       'outputUom': outputUom,
+      'allowAutoRepack': allowAutoRepack,
       if (effectiveFrom != null) 'effectiveFrom': effectiveFrom,
       if (notes != null) 'notes': notes,
       'lines': lines,
@@ -460,7 +462,10 @@ class ManufacturingRepo {
   /// items list; `itemClass` and `itemClassGroup` are optional pre-filters.
   ///
   /// `itemClassGroup='finished'` → finished_good + semi_finished (BOM output picker).
-  /// `itemClassGroup='inputs'`   → raw_material + packaging + consumable (BOM input + WO ad-hoc).
+  /// `itemClassGroup='inputs'`   → raw_material + packaging + consumable.
+  /// `itemClassGroup='all'`      → no class filter (BOM input picker), because a
+  /// recipe can legitimately consume a semi-finished item — the unlabelled pool
+  /// behind a made-on-demand SKU is exactly that, and the narrower group hid it.
   Future<List<MfgItemRow>> searchItems(
     String query, {
     String? itemClass,
@@ -468,7 +473,9 @@ class ManufacturingRepo {
   }) async {
     final qp = <String, String>{'search': query, 'limit': '30'};
     if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
-    if (itemClassGroup != null && itemClassGroup.isNotEmpty) {
+    // 'all' is the absence of a filter — mirror inventory_repo and omit it
+    // rather than relying on the server to interpret the literal.
+    if (itemClassGroup != null && itemClassGroup.isNotEmpty && itemClassGroup != 'all') {
       qp['itemClassGroup'] = itemClassGroup;
     }
     final qs = qp.entries

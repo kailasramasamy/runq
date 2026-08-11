@@ -123,6 +123,9 @@ class Bom {
   final String outputUom;
   final int version;
   final bool isActive;
+  /// Output is branded only at dispatch, so it keeps no stock of its own — a
+  /// short delivery note runs this recipe on the spot. See migration 0186.
+  final bool allowAutoRepack;
   final String? effectiveFrom;
   final String? notes;
   final List<BomLine> lines;
@@ -143,6 +146,7 @@ class Bom {
     required this.version,
     required this.isActive,
     required this.lines,
+    this.allowAutoRepack = false,
     required this.createdAt,
     required this.updatedAt,
     this.linkedWoCount = 0,
@@ -160,6 +164,7 @@ class Bom {
         outputUom: (j['outputUom'] as String?) ?? '',
         version: _int(j['version']),
         isActive: _bool(j['isActive']),
+        allowAutoRepack: _bool(j['allowAutoRepack']),
         lines: (j['lines'] as List? ?? const [])
             .cast<Map<String, dynamic>>()
             .map(BomLine.fromJson)

@@ -67,6 +67,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
   }
   const [effectiveFrom, setEffectiveFrom] = useState(initial?.effectiveFrom ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [allowAutoRepack, setAllowAutoRepack] = useState(initial?.allowAutoRepack ?? false);
   const [lines, setLines] = useState<BomLineField[]>(
     initial?.lines?.length
       ? initial.lines.map((l) => ({
@@ -81,8 +82,14 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Output items: finished_good / semi_finished bucket. Inputs: raw_material /
-  // packaging / consumable. Pre-filtering keeps each combobox short and on-task.
+  // Output items: the finished_good / semi_finished bucket.
+  //
+  // Inputs are deliberately unfiltered. A recipe's components are usually raw
+  // material and packaging, but a semi-finished item is a legitimate input too —
+  // it is exactly what a second-stage recipe consumes, including the unlabelled
+  // pool behind a made-on-demand SKU. Restricting this to the 'inputs' group
+  // made those recipes impossible to key in. The combobox is searchable, so the
+  // longer list costs nothing.
   const { data: outputItemsData } = useItems({
     limit: 500,
     type: 'product',
@@ -91,7 +98,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
   const { data: inputItemsData } = useItems({
     limit: 500,
     type: 'product',
-    itemClassGroup: 'inputs',
+    itemClassGroup: 'all',
   });
   const outputItemOptions = (outputItemsData?.data ?? []).map((i) => ({
     value: i.id,
@@ -158,6 +165,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
       outputItemId,
       outputQty: Number(outputQty),
       outputUom: outputUom.trim(),
+      allowAutoRepack,
       effectiveFrom: effectiveFrom || null,
       notes: notes.trim() || null,
       lines: lines.map((l) => ({
@@ -287,6 +295,27 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
               />
             </div>
           </div>
+
+          <label className="mt-4 flex cursor-pointer select-none items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded border-zinc-300"
+              checked={allowAutoRepack}
+              onChange={(e) => setAllowAutoRepack(e.target.checked)}
+            />
+            <span className="flex-1">
+              <span className="block text-[12.5px] font-medium">
+                Make on demand at dispatch
+              </span>
+              <span className="mt-0.5 block text-[11px]" style={{ color: 'var(--text-3)' }}>
+                For products that are only branded when they ship. The output
+                keeps no stock of its own — a delivery note that is short runs
+                this recipe on the spot, drawing its components, then sends what
+                it just made. Leave off unless the labelling decision really is
+                taken on the loading bay.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 

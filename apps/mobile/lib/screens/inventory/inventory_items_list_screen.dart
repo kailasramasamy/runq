@@ -18,15 +18,27 @@ import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
-// Class-group filters shown as a pill strip. 'all' clears the filter; the
-// rest map to the server's item_class_group buckets.
-const _classFilters = <({String key, String label})>[
-  (key: 'all', label: 'All'),
-  (key: 'finished', label: 'Finished'),
-  (key: 'inputs', label: 'Inputs'),
-  (key: 'trading', label: 'Trading'),
-  (key: 'other', label: 'Other'),
+// Class filters shown as a pill strip. 'all' clears the filter; the rest are
+// either a server item_class_group bucket or, where `isClass` is set, a single
+// item_class.
+//
+// "Unlabelled" is the semi-finished bucket on its own — bulk stock that has
+// been made but not yet branded, which is what a made-on-demand SKU is drawn
+// from. It lives inside the 'finished' group, where it is buried among the
+// packed goods, so it earns a pill of its own: it is the number the plant
+// actually counts.
+const _classFilters = <({String key, String label, bool isClass})>[
+  (key: 'all', label: 'All', isClass: false),
+  (key: 'finished', label: 'Finished', isClass: false),
+  (key: 'semi_finished', label: 'Unlabelled', isClass: true),
+  (key: 'inputs', label: 'Inputs', isClass: false),
+  (key: 'trading', label: 'Trading', isClass: false),
+  (key: 'other', label: 'Other', isClass: false),
 ];
+
+/// Whether a pill key selects a single item_class rather than a group.
+bool _isClassKey(String key) =>
+    _classFilters.any((f) => f.key == key && f.isClass);
 
 class InventoryItemsListScreen extends ConsumerStatefulWidget {
   const InventoryItemsListScreen({super.key, this.initialClassGroup});
@@ -93,10 +105,12 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     });
     try {
       final next = reset ? 1 : _page + 1;
+      final selectsOneClass = _isClassKey(_classGroup);
       final res = await inventoryRepo.items(
         page: next,
         search: _search,
-        itemClassGroup: _classGroup,
+        itemClassGroup: selectsOneClass ? null : _classGroup,
+        itemClass: selectsOneClass ? _classGroup : null,
         // Balance is the headline number on the tile, so the list needs it.
         withStock: true,
         // Ordered category → subcategory → name so the list can section by

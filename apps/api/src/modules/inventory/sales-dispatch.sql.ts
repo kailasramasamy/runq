@@ -61,6 +61,49 @@ export function hasUndispatchedLines(invoiceIdExpr: SQL) {
   )`;
 }
 
+/**
+ * How many branded packs the pool behind a made-on-demand SKU could still
+ * produce, and which input runs out first.
+ *
+ * Without this the preview shows a flat 0 on hand for a SKU that is in fact
+ * fully coverable, and the operator reads it as an out-of-stock. Reporting the
+ * *limiting* input rather than assuming the bulk one is the constraint means a
+ * label shortage says "labels", which is the thing that actually needs fixing.
+ *
+ * Expects `i` (the resolved item) and `sii` in scope. Yields no row when the
+ * SKU has no active auto-repack BOM, so the join stays a cheap no-op for the
+ * ordinary case.
+ */
+export function repackCapacityJoin(warehouseIdExpr: SQL | string) {
+  return sql`
+    LEFT JOIN LATERAL (
+      SELECT src.name AS pool_item_name, cap.capacity_qty
+      FROM boms b
+      JOIN LATERAL (
+        SELECT
+          bl.input_item_id,
+          (COALESCE((
+            SELECT SUM(soh2.qty) FROM stock_on_hand soh2
+            WHERE soh2.tenant_id = b.tenant_id
+              AND soh2.item_id = bl.input_item_id
+              AND soh2.warehouse_id = ${warehouseIdExpr}
+          ), 0) / NULLIF(bl.qty_per_output * (1 + bl.scrap_pct / 100), 0))
+            * b.output_qty AS capacity_qty
+        FROM bom_lines bl
+        WHERE bl.bom_id = b.id AND bl.is_optional = false
+        ORDER BY capacity_qty ASC
+        LIMIT 1
+      ) cap ON true
+      JOIN items src ON src.id = cap.input_item_id
+      WHERE b.tenant_id = sii.tenant_id
+        AND b.output_item_id = i.id
+        AND b.is_active = true
+        AND b.allow_auto_repack = true
+      LIMIT 1
+    ) rp ON true
+  `;
+}
+
 /** Count of lines on the invoice that resolve to a stock-tracked item. */
 export function stockableLineCount(invoiceIdExpr: SQL) {
   return sql<number>`(

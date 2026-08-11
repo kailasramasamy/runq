@@ -111,6 +111,7 @@ export class BomService {
           outputUom: input.outputUom,
           version: 1,
           isActive: true,
+          allowAutoRepack: input.allowAutoRepack,
           effectiveFrom: input.effectiveFrom ?? null,
           notes: input.notes ?? null,
           createdBy: userId ?? null,
@@ -183,6 +184,7 @@ export class BomService {
           outputUom: input.outputUom ?? existing.outputUom,
           version: existing.version + 1,
           isActive: true,
+          allowAutoRepack: input.allowAutoRepack ?? existing.allowAutoRepack,
           effectiveFrom: input.effectiveFrom !== undefined ? (input.effectiveFrom ?? null) : existing.effectiveFrom,
           notes: input.notes !== undefined ? (input.notes ?? null) : existing.notes,
           createdBy: userId ?? null,
@@ -223,6 +225,7 @@ export class BomService {
           outputUom: source.outputUom,
           version: 1,
           isActive: false,
+          allowAutoRepack: source.allowAutoRepack,
           effectiveFrom: source.effectiveFrom ?? null,
           notes: source.notes ?? null,
           createdBy: userId ?? null,
@@ -317,6 +320,7 @@ export class BomService {
       if (input.name !== undefined) patch.name = input.name;
       if (input.outputQty !== undefined) patch.outputQty = String(input.outputQty);
       if (input.outputUom !== undefined) patch.outputUom = input.outputUom;
+      if (input.allowAutoRepack !== undefined) patch.allowAutoRepack = input.allowAutoRepack;
       if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom ?? null;
       if (input.notes !== undefined) patch.notes = input.notes ?? null;
 
@@ -369,6 +373,7 @@ export class BomService {
       outputUom: row.outputUom,
       version: row.version,
       isActive: row.isActive,
+      allowAutoRepack: row.allowAutoRepack,
       effectiveFrom: row.effectiveFrom ?? null,
       notes: row.notes ?? null,
       createdBy: row.createdBy ?? null,

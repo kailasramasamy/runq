@@ -96,6 +96,15 @@ export class ProductionEntryService {
   }
 
   /**
+   * Same as `preview`, inside a caller's transaction — so a repack can read the
+   * allocation it is about to post (to learn the pool expiry it inherits)
+   * against stock as the transaction sees it.
+   */
+  async previewInTx(tx: Tx, input: ProductionPreviewInput): Promise<ProductionPreview> {
+    return this.buildPreview(tx, input);
+  }
+
+  /**
    * Post the run. Everything — WO row, consumption, output, close — happens in
    * one transaction, so a failure part-way never leaves stock consumed without
    * finished goods to show for it.
@@ -113,7 +122,7 @@ export class ProductionEntryService {
     // collision aborts it — retry the whole run rather than a bare insert.
     for (let attempt = 0; attempt < MAX_WO_NUMBER_ATTEMPTS; attempt++) {
       try {
-        woId = await this.db.transaction((tx: Tx) => this.postRun(tx, input, warnings, userId));
+        woId = await this.db.transaction((tx: Tx) => this.recordInTx(tx, input, warnings, userId));
         break;
       } catch (err) {
         if (!this.isDuplicateKey(err)) throw err;
@@ -133,7 +142,16 @@ export class ProductionEntryService {
 
   // ─── Posting ────────────────────────────────────────────────────────────
 
-  private async postRun(
+  /**
+   * Post the run inside a caller's transaction, returning the new WO id.
+   *
+   * `record` wraps this in its own transaction and retry loop. Dispatch calls it
+   * directly (see inventory/dispatch-repack.service.ts) so a repack and the
+   * delivery it feeds either both post or neither does. A caller that joins its
+   * own transaction this way inherits the WO-number retry, because only it can
+   * restart the transaction — DeliveryNoteService.dispatch does exactly that.
+   */
+  async recordInTx(
     tx: Tx,
     input: RecordProductionInput,
     warnings: string[],

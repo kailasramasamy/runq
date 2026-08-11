@@ -44,6 +44,12 @@ export const boms = pgTable(
 
     version: integer('version').notNull().default(1),
     isActive: boolean('is_active').notNull().default(true),
+    /**
+     * Late differentiation: the output SKU is only labelled at dispatch, so it
+     * holds no standing stock. A short dispatch line backflushes this recipe on
+     * the spot instead of failing. See migration 0186.
+     */
+    allowAutoRepack: boolean('allow_auto_repack').notNull().default(false),
     effectiveFrom: date('effective_from'),
     notes: text('notes'),
 
@@ -66,6 +72,9 @@ export const boms = pgTable(
     uniqueIndex('uq_bom_active_per_item')
       .on(t.tenantId, t.outputItemId)
       .where(sql`${t.isActive} = true`),
+    index('idx_bom_auto_repack')
+      .on(t.tenantId, t.outputItemId)
+      .where(sql`${t.allowAutoRepack} = true AND ${t.isActive} = true`),
   ],
 );
 

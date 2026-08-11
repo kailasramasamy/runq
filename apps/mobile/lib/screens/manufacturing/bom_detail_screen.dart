@@ -237,6 +237,13 @@ class _BomDetailScreenState extends ConsumerState<BomDetailScreen> {
                             label: 'Output',
                             value: '${_qty(bom.outputQty)} × ${bom.outputUom}',
                           ),
+                          if (bom.allowAutoRepack) ...[
+                            Divider(color: t.hairline, height: 1),
+                            const _InfoRow(
+                              label: 'Made on demand',
+                              value: 'Yes — run at dispatch, no stock held',
+                            ),
+                          ],
                           if (bom.effectiveFrom != null) ...[
                             Divider(color: t.hairline, height: 1),
                             _InfoRow(

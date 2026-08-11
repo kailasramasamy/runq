@@ -28,6 +28,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
   String? _outputItemId;
   String? _outputItemName;
   DateTime? _effectiveFrom;
+  bool _allowAutoRepack = false;
   final List<_BomLineInput> _lines = [];
   bool _busy = false;
 
@@ -69,7 +70,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
   }
 
   Future<void> _addLine() async {
-    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
+    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'all');
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(
@@ -107,6 +108,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
         outputItemId: _outputItemId!,
         outputQty: double.parse(_outputQtyCtl.text),
         outputUom: _outputUomCtl.text.trim(),
+        allowAutoRepack: _allowAutoRepack,
         effectiveFrom: _effectiveFrom?.toIso8601String().substring(0, 10),
         notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
         lines: _lines.asMap().entries.map((e) => {
@@ -223,6 +225,11 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
                           capitalization: TextCapitalization.sentences,
                           maxLines: 3,
                         ),
+                        const SizedBox(height: 4),
+                        _AutoRepackToggle(
+                          value: _allowAutoRepack,
+                          onChanged: (v) => setState(() => _allowAutoRepack = v),
+                        ),
                       ],
                     ),
                   ),
@@ -315,6 +322,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
   String? _outputItemId;
   String? _outputItemName;
   DateTime? _effectiveFrom;
+  bool _allowAutoRepack = false;
   final List<_BomLineInput> _lines = [];
   bool _busy = false;
   bool _loaded = false;
@@ -341,6 +349,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
     _outputItemId = bom.outputItemId;
     _outputItemName = bom.outputItemName;
     _hasLinkedWos = bom.linkedWoCount > 0;
+    _allowAutoRepack = bom.allowAutoRepack;
     if (bom.effectiveFrom != null) {
       _effectiveFrom = DateTime.tryParse(bom.effectiveFrom!);
     }
@@ -369,7 +378,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
           l.inputUom.isNotEmpty);
 
   Future<void> _addLine() async {
-    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'inputs');
+    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'all');
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(
@@ -408,6 +417,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
         'outputItemId': _outputItemId!,
         'outputQty': double.parse(_outputQtyCtl.text),
         'outputUom': _outputUomCtl.text.trim(),
+        'allowAutoRepack': _allowAutoRepack,
         'effectiveFrom': _effectiveFrom?.toIso8601String().substring(0, 10),
         'notes': _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
         'lines': _lines.asMap().entries.map((e) => {
@@ -562,6 +572,11 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
                               label: 'Notes',
                               capitalization: TextCapitalization.sentences,
                               maxLines: 3,
+                            ),
+                            const SizedBox(height: 4),
+                            _AutoRepackToggle(
+                              value: _allowAutoRepack,
+                              onChanged: (v) => setState(() => _allowAutoRepack = v),
                             ),
                           ],
                         ),
@@ -944,6 +959,38 @@ class _DatePickerTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Marks a recipe whose output is only branded when it ships.
+///
+/// Such a SKU deliberately keeps no stock of its own — a delivery note that is
+/// short runs the recipe on the spot, draws its components and sends what it
+/// just made. Shared by the create and edit forms so the wording (and the
+/// warning about when *not* to use it) can only be written once.
+class _AutoRepackToggle extends StatelessWidget {
+  const _AutoRepackToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return SwitchListTile.adaptive(
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      dense: true,
+      title: Text('Make on demand at dispatch', style: RunqText.body),
+      subtitle: Text(
+        'For products branded only when they ship. The output holds no stock '
+        'of its own — a short delivery note runs this recipe, then sends what '
+        'it made. Leave off unless that decision is really taken at dispatch.',
+        style: RunqText.caption.copyWith(color: t.muted),
       ),
     );
   }

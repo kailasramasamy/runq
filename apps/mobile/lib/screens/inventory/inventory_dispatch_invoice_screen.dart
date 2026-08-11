@@ -78,10 +78,12 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
   List<InvDispatchPreviewLine> _selected(InvDispatchPreview p) =>
       p.shippable.where((l) => _qtyFor(l) > 0).toList();
 
-  /// Selected lines asking for more than the warehouse holds. The ledger
-  /// would reject these, so we say so before the round-trip.
+  /// Selected lines asking for more than the warehouse could supply. The
+  /// ledger would reject these, so we say so before the round-trip. Counts
+  /// stock the dispatch would make on the spot, or every made-on-demand line
+  /// would be flagged as short at its normal zero.
   List<InvDispatchPreviewLine> _shortages(InvDispatchPreview p) =>
-      _selected(p).where((l) => _qtyFor(l) > l.availableQty).toList();
+      _selected(p).where((l) => _qtyFor(l) > l.coverQty).toList();
 
   Future<void> _submit(InvDispatchPreview preview) async {
     final wh = _warehouseId;
@@ -393,7 +395,7 @@ class _LineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final short = qty > line.availableQty;
+    final short = qty > line.coverQty;
     return InvCard(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
@@ -438,8 +440,12 @@ class _LineCard extends StatelessWidget {
                           _Stat(label: 'Sent', value: _n(line.dispatchedQty)),
                         ],
                         _Stat(
-                          label: 'Stock',
-                          value: _n(line.availableQty),
+                          // A made-on-demand SKU reads "0 (+240 to make)" —
+                          // the zero is real, and so is the ability to ship.
+                          label: line.repackFrom == null ? 'Stock' : 'Stock / to make',
+                          value: line.repackFrom == null
+                              ? _n(line.availableQty)
+                              : '${_n(line.availableQty)} (+${_n(line.repackFrom!.capacityQty)})',
                           alert: short,
                         ),
                       ],

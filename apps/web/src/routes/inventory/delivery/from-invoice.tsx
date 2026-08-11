@@ -162,7 +162,12 @@ function LineRow({ line, edit, onPatch }: {
   onPatch: (p: Partial<LineEdit>) => void;
 }) {
   const shippable = isShippable(line);
-  const short = shippable && Number(edit.qty) > line.availableQty;
+  // A made-on-demand SKU is never "short" at 0 on hand — that is its normal
+  // state. What can run out is the pool behind it.
+  const coverQty = line.repackFrom
+    ? line.availableQty + line.repackFrom.capacityQty
+    : line.availableQty;
+  const short = shippable && Number(edit.qty) > coverQty;
   return (
     <TableRow>
       <TableCell>
@@ -192,18 +197,27 @@ function LineRow({ line, edit, onPatch }: {
         {shippable && line.trackBatches ? (
           <Input
             value={edit.batchNo}
+            // Leaving it blank on a made-on-demand line is the normal case: the
+            // batch doesn't exist yet and dispatch numbers the one it produces.
+            placeholder={line.repackFrom && !edit.batchNo ? 'Made at dispatch' : 'FEFO'}
             onChange={(e) => onPatch({ batchNo: e.target.value })}
-            placeholder="FEFO"
             className="h-8 w-36 py-0 text-[12.5px]"
           />
         ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
       </TableCell>
       <TableCell className="text-right tabular-nums">
-        {shippable ? (
-          <span style={short ? { color: 'var(--danger-text)' } : undefined}>
-            {line.availableQty}
-          </span>
-        ) : '—'}
+        {!shippable ? '—' : (
+          <>
+            <span style={short ? { color: 'var(--danger-text)' } : undefined}>
+              {line.availableQty}
+            </span>
+            {line.repackFrom && (
+              <div className="text-[11px] font-normal" style={{ color: 'var(--text-3)' }}>
+                +{line.repackFrom.capacityQty} from {line.repackFrom.poolItemName}
+              </div>
+            )}
+          </>
+        )}
       </TableCell>
     </TableRow>
   );

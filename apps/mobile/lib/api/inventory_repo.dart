@@ -186,6 +186,10 @@ class InventoryRepo {
     int limit = 25,
     String? search,
     String? itemClassGroup,
+    /// A single item_class, for filters finer than a group — 'semi_finished'
+    /// on its own, say, which the 'finished' group would bury among the
+    /// packed goods.
+    String? itemClass,
     bool withStock = false,
     String? sort,
   }) async {
@@ -196,6 +200,7 @@ class InventoryRepo {
     if (itemClassGroup != null && itemClassGroup != 'all') {
       qp['itemClassGroup'] = itemClassGroup;
     }
+    if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
     final res = await apiClient.get('/masters/items${_qs(qp)}');
     return InvItemPage.fromResponse(res);
   }
@@ -370,6 +375,16 @@ class InventoryRepo {
 
   Future<InvAdjustment> postAdjustment(String id) async {
     final res = await apiClient.post('/inventory/adjustments/$id/post', const {});
+    return InvAdjustment.fromJson(_data(res));
+  }
+
+  /// Abandon a draft that can't be posted. The document stays on the list as
+  /// cancelled rather than vanishing, so the audit trail keeps the attempt.
+  Future<InvAdjustment> cancelAdjustment(String id, String reason) async {
+    final res = await apiClient.post(
+      '/inventory/adjustments/$id/cancel',
+      {'reason': reason},
+    );
     return InvAdjustment.fromJson(_data(res));
   }
 

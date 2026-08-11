@@ -24,7 +24,7 @@ import { AppError, ConflictError, NotFoundError } from '../../utils/errors';
 import { nextDocNo } from './sequence';
 import {
   RESOLVED_ITEM_JOIN, dispatchedQtyFor, committedQtyFor,
-  hasUndispatchedLines, stockableLineCount,
+  hasUndispatchedLines, stockableLineCount, repackCapacityJoin,
 } from './sales-dispatch.sql';
 import {
   dispatchStatus, isStockable, overCommitMessage, remainingQty, resolveLine,
@@ -56,6 +56,12 @@ export interface PreviewLine {
   resolution: LineResolution;
   suggestedBatchNo: string | null;
   availableQty: number;
+  /**
+   * Set when the SKU is only branded at dispatch: it holds no standing stock,
+   * so `availableQty` reads 0 and the pool behind it is what can actually be
+   * shipped. Null for ordinary items.
+   */
+  repackFrom: { poolItemName: string; capacityQty: number } | null;
 }
 
 export class SalesDispatchService {
@@ -184,10 +190,13 @@ export class SalesDispatchService {
           WHERE soh.tenant_id = sii.tenant_id
             AND soh.item_id = i.id
             AND soh.warehouse_id = ${warehouseId}
-        ), 0)::text        AS available_qty
+        ), 0)::text        AS available_qty,
+        rp.pool_item_name  AS pool_item_name,
+        rp.capacity_qty::text AS repack_capacity_qty
       FROM sales_invoice_items sii
       ${RESOLVED_ITEM_JOIN}
       LEFT JOIN items i ON i.id = COALESCE(sii.item_id, a.item_id)
+      ${repackCapacityJoin(warehouseId)}
       WHERE sii.invoice_id = ${invoiceId} AND sii.tenant_id = ${this.ctx.tenantId}
       ORDER BY sii.created_at ASC
     `);
@@ -219,6 +228,13 @@ export class SalesDispatchService {
         ? await this.suggestBatch(r.item_id, warehouseId, remaining)
         : null,
       availableQty: Number(r.available_qty ?? 0),
+      repackFrom: r.pool_item_name
+        ? {
+          poolItemName: r.pool_item_name as string,
+          // Floored: a fraction of a pack can't be labelled and shipped.
+          capacityQty: Math.floor(Number(r.repack_capacity_qty ?? 0)),
+        }
+        : null,
     };
   }
 

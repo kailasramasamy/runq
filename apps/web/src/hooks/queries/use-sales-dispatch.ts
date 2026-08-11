@@ -50,6 +50,12 @@ export interface DispatchPreviewLine {
   resolution: LineResolution;
   suggestedBatchNo: string | null;
   availableQty: number;
+  /**
+   * Present when the SKU is only branded at dispatch, so it holds no stock of
+   * its own and `availableQty` is 0 by design. `capacityQty` is how many packs
+   * the limiting component could still make.
+   */
+  repackFrom: { poolItemName: string; capacityQty: number } | null;
 }
 
 export interface DispatchPreview {

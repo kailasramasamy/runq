@@ -10,12 +10,24 @@ import type {
 import { AppError, ConflictError, NotFoundError } from '../../utils/errors';
 import { StockLedgerService } from './stock-ledger.service';
 import { InventoryGlPoster } from './gl-poster';
+import { DispatchRepackService } from './dispatch-repack.service';
 import { nextDocNo } from './sequence';
 
 interface Ctx { db: Db; tenantId: string; userId?: string }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any;
+
+/** Enough to clear a same-instant collision without masking a real conflict. */
+const MAX_DISPATCH_ATTEMPTS = 3;
+
+function isDuplicateKey(err: unknown): boolean {
+  const code =
+    (err as { code?: string })?.code ?? (err as { cause?: { code?: string } })?.cause?.code;
+  return code === '23505';
+}
 
 export class DeliveryNoteService {
   constructor(private readonly ctx: Ctx) {}
@@ -283,84 +295,114 @@ export class DeliveryNoteService {
     });
   }
 
+  /**
+   * A dispatch that has to make its goods first posts a work order inside this
+   * transaction, and WO and batch numbers are day-sequenced — two clerks
+   * confirming at the same moment can pick the same one. The transaction is
+   * atomic, so the loser has consumed nothing and simply runs again against
+   * fresh numbers. Anything that isn't a collision propagates on the first try.
+   */
   async dispatch(id: string) {
-    return this.ctx.db.transaction(async (tx) => {
-      const [dn] = await tx
-        .select()
-        .from(deliveryNotes)
-        .where(and(eq(deliveryNotes.id, id), eq(deliveryNotes.tenantId, this.ctx.tenantId)))
-        .limit(1);
-      if (!dn) throw new NotFoundError('Delivery note');
-      if (dn.status !== 'draft') throw new ConflictError(`Delivery note is ${dn.status}`);
-      // Returns are posted whole by SalesReturnService — they never sit in
-      // draft, so an inbound doc reaching here means something is wrong.
-      if (dn.direction !== 'out') throw new ConflictError('Sales returns are not dispatched');
-
-      const lines = await tx
-        .select()
-        .from(deliveryNoteLines)
-        .where(eq(deliveryNoteLines.dnId, id));
-      if (lines.length === 0) throw new AppError(400, 'Delivery note has no lines');
-
-      const ledger = new StockLedgerService(this.ctx.tenantId);
-      const dispatchDate = new Date(dn.dispatchDate);
-      let cogsTotal = 0;
-      const lineCosts: Array<{ id: string; unitCost: number; lineTotal: number }> = [];
-      for (const line of lines) {
-        const qty = Number(line.qty);
-        const result = await ledger.recordMovement(tx, {
-          itemId: line.itemId,
-          warehouseId: dn.warehouseId,
-          batchNo: line.batchNo ?? null,
-          movementType: 'delivery',
-          sourceType: 'delivery_note',
-          sourceId: dn.id,
-          sourceLineId: line.id,
-          qtyDelta: -qty,
-          movedAt: dispatchDate,
-          postedBy: this.ctx.userId ?? null,
-        });
-        const lineTotal = qty * result.unitCostUsed;
-        cogsTotal += lineTotal;
-        lineCosts.push({ id: line.id, unitCost: result.unitCostUsed, lineTotal });
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.ctx.db.transaction((tx) => this.postDispatch(tx, id));
+      } catch (err) {
+        if (attempt >= MAX_DISPATCH_ATTEMPTS || !isDuplicateKey(err)) throw err;
       }
+    }
+  }
 
-      // Snapshot per-line COGS back onto the line for audit trail.
-      for (const lc of lineCosts) {
-        await tx
-          .update(deliveryNoteLines)
-          .set({ unitCost: String(lc.unitCost), lineTotal: String(lc.lineTotal) })
-          .where(eq(deliveryNoteLines.id, lc.id));
-      }
+  private async postDispatch(tx: Tx, id: string) {
+    const [dn] = await tx
+      .select()
+      .from(deliveryNotes)
+      .where(and(eq(deliveryNotes.id, id), eq(deliveryNotes.tenantId, this.ctx.tenantId)))
+      .limit(1);
+    if (!dn) throw new NotFoundError('Delivery note');
+    if (dn.status !== 'draft') throw new ConflictError(`Delivery note is ${dn.status}`);
+    // Returns are posted whole by SalesReturnService — they never sit in
+    // draft, so an inbound doc reaching here means something is wrong.
+    if (dn.direction !== 'out') throw new ConflictError('Sales returns are not dispatched');
 
-      const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
-      const jeId = await poster.postDelivery({
-        date: dn.dispatchDate,
-        dnId: dn.id,
-        dnNo: dn.dnNo,
-        cogsValue: cogsTotal,
-      });
+    const lines = await tx
+      .select()
+      .from(deliveryNoteLines)
+      .where(eq(deliveryNoteLines.dnId, id));
+    if (lines.length === 0) throw new AppError(400, 'Delivery note has no lines');
 
-      const [updated] = await tx
-        .update(deliveryNotes)
-        .set({
-          status: 'dispatched',
-          dispatchedAt: new Date(),
-          journalEntryId: jeId,
-          totalValue: String(cogsTotal),
-          updatedAt: new Date(),
-        })
-        .where(eq(deliveryNotes.id, id))
-        .returning();
+    // SKUs that only exist once labelled are made here, before the ledger
+    // looks for them. Same transaction, so an unsourceable repack aborts the
+    // whole dispatch rather than consuming pool stock for nothing.
+    await this.topUpByRepack(tx, dn, lines);
 
-      await tx.execute(sql`
-        UPDATE stock_ledger SET journal_entry_id = ${jeId}
-        WHERE tenant_id = ${this.ctx.tenantId}
-          AND source_type = 'delivery_note' AND source_id = ${dn.id}
-      `);
+    const cogsTotal = await this.postLineMovements(tx, dn, lines);
 
-      return updated!;
+    const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
+    const jeId = await poster.postDelivery({
+      date: dn.dispatchDate,
+      dnId: dn.id,
+      dnNo: dn.dnNo,
+      cogsValue: cogsTotal,
     });
+
+    const [updated] = await tx
+      .update(deliveryNotes)
+      .set({
+        status: 'dispatched',
+        dispatchedAt: new Date(),
+        journalEntryId: jeId,
+        totalValue: String(cogsTotal),
+        updatedAt: new Date(),
+      })
+      .where(eq(deliveryNotes.id, id))
+      .returning();
+
+    await tx.execute(sql`
+      UPDATE stock_ledger SET journal_entry_id = ${jeId}
+      WHERE tenant_id = ${this.ctx.tenantId}
+        AND source_type = 'delivery_note' AND source_id = ${dn.id}
+    `);
+
+    return updated!;
+  }
+
+  /**
+   * Draw every line out of stock, snapshotting the COGS each one cost onto the
+   * line for the audit trail. Returns the total for the GL posting.
+   */
+  private async postLineMovements(
+    tx: Tx,
+    dn: typeof deliveryNotes.$inferSelect,
+    lines: Row[],
+  ): Promise<number> {
+    const ledger = new StockLedgerService(this.ctx.tenantId);
+    const dispatchDate = new Date(dn.dispatchDate);
+    let cogsTotal = 0;
+
+    for (const line of lines) {
+      const qty = Number(line.qty);
+      const result = await ledger.recordMovement(tx, {
+        itemId: line.itemId,
+        warehouseId: dn.warehouseId,
+        batchNo: line.batchNo ?? null,
+        movementType: 'delivery',
+        sourceType: 'delivery_note',
+        sourceId: dn.id,
+        sourceLineId: line.id,
+        qtyDelta: -qty,
+        movedAt: dispatchDate,
+        postedBy: this.ctx.userId ?? null,
+      });
+      const lineTotal = qty * result.unitCostUsed;
+      cogsTotal += lineTotal;
+
+      await tx
+        .update(deliveryNoteLines)
+        .set({ unitCost: String(result.unitCostUsed), lineTotal: String(lineTotal) })
+        .where(eq(deliveryNoteLines.id, line.id));
+    }
+
+    return cogsTotal;
   }
 
   async cancel(id: string, input: CancelDeliveryNoteInput) {
@@ -443,6 +485,35 @@ export class DeliveryNoteService {
         .returning();
       return u!;
     });
+  }
+
+  /**
+   * Make any line whose SKU is only branded at dispatch (see
+   * DispatchRepackService). Mutates the in-memory lines so the ledger loop that
+   * follows draws the batch the repack just produced, and writes that batch back
+   * to the DN so the document says what actually shipped.
+   *
+   * Lines needing nothing are left untouched — a genuinely short line still
+   * fails in the ledger, with its usual message.
+   */
+  private async topUpByRepack(tx: Tx, dn: typeof deliveryNotes.$inferSelect, lines: Row[]) {
+    const repack = new DispatchRepackService(this.ctx.db, this.ctx.tenantId);
+    for (const line of lines) {
+      const outcome = await repack.topUpInTx(
+        tx,
+        { itemId: line.itemId, batchNo: line.batchNo ?? null, qty: Number(line.qty) },
+        dn.warehouseId,
+        { dnNo: dn.dnNo, dispatchDate: dn.dispatchDate },
+        this.ctx.userId,
+      );
+      if (!outcome?.batchNo) continue;
+
+      line.batchNo = outcome.batchNo;
+      await tx
+        .update(deliveryNoteLines)
+        .set({ batchNo: outcome.batchNo })
+        .where(eq(deliveryNoteLines.id, line.id));
+    }
   }
 
   /**

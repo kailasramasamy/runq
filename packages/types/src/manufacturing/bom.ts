@@ -13,6 +13,8 @@ export interface Bom {
   outputUom: string;
   version: number;
   isActive: boolean;
+  /** Output is labelled at dispatch, so a short DN line makes it on demand. */
+  allowAutoRepack: boolean;
   effectiveFrom: string | null;
   notes: string | null;
   createdBy: string | null;

@@ -172,6 +172,15 @@ export function BomDetailPage({ bomId }: Props) {
                     v{bom.version}
                   </span>
                 </dd>
+                {bom.allowAutoRepack && (
+                  <>
+                    <dt style={{ color: 'var(--text-3)' }}>Made on demand</dt>
+                    <dd>
+                      Yes — a short delivery note runs this recipe at dispatch,
+                      so {bom.outputItemName} holds no stock of its own.
+                    </dd>
+                  </>
+                )}
                 {bom.effectiveFrom && (
                   <>
                     <dt style={{ color: 'var(--text-3)' }}>Effective from</dt>
