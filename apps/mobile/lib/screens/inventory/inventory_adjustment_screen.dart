@@ -87,7 +87,7 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
                   padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
                   child: _AdjTile(
                     adj: list[i],
-                    onTap: () => _openDetail(context, list[i]),
+                    onTap: () => _openDetail(context, ref, list[i]),
                   ),
                 );
               },
@@ -98,13 +98,23 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openDetail(BuildContext context, InvAdjustment adj) async {
-    await showModalBottomSheet<void>(
+  Future<void> _openDetail(
+    BuildContext context,
+    WidgetRef ref,
+    InvAdjustment adj,
+  ) async {
+    final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AdjDetailSheet(adj: adj),
     );
+    // Posting or discarding from the sheet changes both the document's status
+    // and, for a post, the stock behind it.
+    if (changed == true) {
+      ref.invalidate(invAdjustmentListProvider(null));
+      invalidateStockViews(ref);
+    }
   }
 
   void _openSheet(BuildContext context, WidgetRef ref) async {
@@ -522,8 +532,12 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     String? itemSku,
     String? itemUnit,
     String? batchNo,
+    bool tracksBatches = false,
     required double availSnapshot,
   }) async {
+    // An on-hand row always carries its batch; only an item picked with no
+    // stock at this warehouse can be batch-tracked and batch-less.
+    final needsBatchNo = tracksBatches && (batchNo ?? '').isEmpty;
     final key = _draftKey(itemId, batchNo);
     final existing = _drafts[key];
     final result = await showModalBottomSheet<_AdjLineSheetResult>(
@@ -535,6 +549,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
         itemSku: itemSku,
         itemUnit: itemUnit,
         batchNo: batchNo,
+        needsBatchNo: needsBatchNo,
         availSnapshot: availSnapshot,
         // Default direction: Remove if there's on-hand to take from,
         // otherwise Add (matches the most common intent on each row).
@@ -544,13 +559,17 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       ),
     );
     if (result == null || !mounted) return;
+    // A batch typed in the sheet becomes part of the draft's identity, so two
+    // batches of the same item stay separate rows.
+    final resolvedBatch = result.batchNo ?? batchNo;
+    final resolvedKey = _draftKey(itemId, resolvedBatch);
     setState(() {
       if (result.cleared) {
         _drafts.remove(key);
       } else {
-        _drafts[key] = _AdjDraft(
+        _drafts[resolvedKey] = _AdjDraft(
           itemId: itemId, itemName: itemName, itemSku: itemSku,
-          itemUnit: itemUnit, batchNo: batchNo,
+          itemUnit: itemUnit, batchNo: resolvedBatch,
           availSnapshot: availSnapshot,
           unsignedQty: result.qty!,
           isOutbound: result.isOutbound!,
@@ -579,7 +598,8 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       await _openLineSheet(
         itemId: item.id, itemName: item.name,
         itemSku: item.sku, itemUnit: item.unit,
-        batchNo: null, availSnapshot: 0,
+        batchNo: null, tracksBatches: item.trackBatches,
+        availSnapshot: 0,
       );
     }
   }
@@ -629,7 +649,19 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
               ),
           ],
         );
-        await inventoryRepo.postAdjustment(a.id);
+        try {
+          await inventoryRepo.postAdjustment(a.id);
+        } catch (e) {
+          // Create and post are two calls, so a rejected post used to leave the
+          // draft behind — unpostable, and with no way to finish or discard it
+          // from here. Cancelling keeps the attempt in the audit trail without
+          // parking a document nobody can act on; the draft rows are still on
+          // screen, so the user fixes the cause and posts again.
+          await inventoryRepo
+              .cancelAdjustment(a.id, 'Auto-cancelled — posting failed')
+              .catchError((_) => a);
+          rethrow;
+        }
         adjNos.add(a.adjNo);
       }
       if (!mounted) return;
@@ -825,9 +857,44 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     return out;
   }
 
+  /// Drafts for stock this warehouse doesn't hold — added through "Add product
+  /// not on hand", so no row in the on-hand query represents them.
+  ///
+  /// Without this they were drafted into an invisible document: nothing on the
+  /// screen changed, and the only proof the item was going in arrived after
+  /// posting. They get their own band at the top rather than being filed into
+  /// a category, because "not on hand" is the useful thing to say about them
+  /// and the draft carries no category to file them under anyway.
+  List<_AdjDraft> _draftsNotOnHand(List<InvOnHandRow> rows) {
+    final onHandKeys = rows
+        .map((r) => _draftKey(r.itemId, r.batchNo.isEmpty ? null : r.batchNo))
+        .toSet();
+    final out = _drafts.entries
+        .where((e) => !onHandKeys.contains(e.key))
+        .map((e) => e.value)
+        .toList();
+    out.sort((a, b) => a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase()));
+    return out;
+  }
+
+  /// A draft rendered as a zero-qty on-hand row, so one tile draws both cases.
+  InvOnHandRow _rowForDraft(_AdjDraft d) => InvOnHandRow(
+        itemId: d.itemId,
+        itemName: d.itemName,
+        itemSku: d.itemSku,
+        itemUnit: d.itemUnit,
+        warehouseId: warehouseId ?? '',
+        warehouseName: '',
+        batchNo: d.batchNo ?? '',
+        qty: 0,
+        avgCost: 0,
+        value: 0,
+      );
+
   Widget _buildList(BuildContext context, List<InvOnHandRow> rows) {
     final visible = _visibleRows(rows);
-    if (visible.isEmpty) {
+    final incoming = _draftsNotOnHand(rows);
+    if (visible.isEmpty && incoming.isEmpty) {
       return InvEmptyState(
         icon: Icons.search_off_rounded,
         title: 'No items match',
@@ -838,13 +905,23 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
         onAction: _openExtraPicker,
       );
     }
-    final entries = _sectioned(visible);
+    final entries = <_ListEntry>[
+      if (incoming.isNotEmpty) ...[
+        _ListEntry.group('Adding — not currently on hand', incoming.length),
+        ...incoming.map((d) => _ListEntry.row(_rowForDraft(d))),
+      ],
+      ..._sectioned(visible),
+    ];
     return ListView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
       itemCount: entries.length + 2,
       itemBuilder: (ctx, idx) {
-        if (idx == 0) return _listHeader(context, rows.length, visible.length);
+        // Incoming rows count toward "shown" — they are on screen, even though
+        // they are absent from the on-hand total they'd otherwise be measured against.
+        if (idx == 0) {
+          return _listHeader(context, rows.length, visible.length + incoming.length);
+        }
         if (idx == entries.length + 1) return _addOtherFooter(context);
         return _entryTile(ctx, entries[idx - 1]);
       },
@@ -1072,7 +1149,15 @@ class _OnHandTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _QtyPill(text: _fmtQty(row.qty)),
+                // Drafted rows read "0 → 20": the number that matters before
+                // posting is what the shelf will say afterwards, and a delta
+                // alone left the user doing the arithmetic.
+                _QtyPill(
+                  text: hasDraft
+                      ? '${_fmtQty(row.qty)} → ${_fmtQty(row.qty + signedDelta)}'
+                      : _fmtQty(row.qty),
+                  emphasis: hasDraft,
+                ),
                 if (hasDraft) ...[
                   const SizedBox(height: 4),
                   Container(
@@ -1108,22 +1193,28 @@ class _OnHandTile extends StatelessWidget {
 // ── Qty pill — subtle bordered chip used to surface the on-hand count ───
 
 class _QtyPill extends StatelessWidget {
-  const _QtyPill({required this.text});
+  const _QtyPill({required this.text, this.emphasis = false});
   final String text;
+  /// Tints the pill for a row carrying an unposted change, so a scan of the
+  /// list separates "this is the stock" from "this is what it will become".
+  final bool emphasis;
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final brand = InvColors.brand(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: t.bgWarmer,
+        color: emphasis ? brand.withValues(alpha: 0.10) : t.bgWarmer,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: t.hairlineSoft),
+        border: Border.all(
+          color: emphasis ? brand.withValues(alpha: 0.35) : t.hairlineSoft,
+        ),
       ),
       child: Text(
         text,
         style: RunqText.caption.copyWith(
-          color: t.ink,
+          color: emphasis ? brand : t.ink,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -1138,15 +1229,20 @@ class _AdjLineSheetResult {
     required this.qty,
     required this.isOutbound,
     required this.reason,
+    this.batchNo,
   }) : cleared = false;
   const _AdjLineSheetResult.cleared()
       : qty = null,
         isOutbound = null,
         reason = null,
+        batchNo = null,
         cleared = true;
   final double? qty;
   final bool? isOutbound;
   final String? reason;
+  /// Typed by the user for a batch-tracked item that has no on-hand row to
+  /// inherit one from. Null whenever the batch came in with the line.
+  final String? batchNo;
   final bool cleared;
 }
 
@@ -1167,6 +1263,7 @@ class _AdjLineSheet extends StatefulWidget {
     this.itemSku,
     this.itemUnit,
     this.batchNo,
+    this.needsBatchNo = false,
     required this.availSnapshot,
     required this.initialIsOutbound,
     this.initialReason,
@@ -1176,6 +1273,9 @@ class _AdjLineSheet extends StatefulWidget {
   final String? itemSku;
   final String? itemUnit;
   final String? batchNo;
+  /// The item tracks batches but arrived without one — the sheet has to ask,
+  /// because the stock ledger refuses a batch-tracked movement without it.
+  final bool needsBatchNo;
   final double availSnapshot;
   final bool initialIsOutbound;
   final String? initialReason;
@@ -1186,6 +1286,7 @@ class _AdjLineSheet extends StatefulWidget {
 
 class _AdjLineSheetState extends State<_AdjLineSheet> {
   final _ctrl = TextEditingController();
+  final _batchCtrl = TextEditingController();
   final _focus = FocusNode();
   late bool _isOutbound;
   late String _reason;
@@ -1204,6 +1305,7 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
   @override
   void dispose() {
     _ctrl.dispose();
+    _batchCtrl.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -1233,8 +1335,21 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
       );
       return;
     }
+    final batch = _batchCtrl.text.trim();
+    // Caught here rather than at save: the stock ledger rejects a batch-tracked
+    // movement with no batch, and that error would land on the whole document
+    // long after the user left this sheet.
+    if (widget.needsBatchNo && batch.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This item tracks batches — enter a batch number')),
+      );
+      return;
+    }
     Navigator.of(context).pop(_AdjLineSheetResult.saved(
-      qty: q, isOutbound: _isOutbound, reason: _reason,
+      qty: q,
+      isOutbound: _isOutbound,
+      reason: _reason,
+      batchNo: batch.isEmpty ? null : batch,
     ));
   }
 
@@ -1262,112 +1377,138 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
             title: 'Adjust stock',
             onClose: () => Navigator.of(context).pop(),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Item header
-                Row(
+          // Flexible + scrollable so the sheet shrinks to whatever the
+          // DraggableScrollableSheet allows instead of overflowing. Its height
+          // varies with the keyboard, the reason list, and whether this item
+          // needs a batch — sizing to natural height only ever fitted by luck.
+          Flexible(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.inventory_2_outlined, size: 18, color: t.muted),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(widget.itemName,
-                              style: RunqText.bodyStrong
-                                  .copyWith(color: t.ink, fontSize: 15),
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                          if (sub.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(sub, style: RunqText.caption.copyWith(color: t.muted)),
-                          ],
-                        ],
-                      ),
+                    // Item header
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 18, color: t.muted),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(widget.itemName,
+                                  style: RunqText.bodyStrong
+                                      .copyWith(color: t.ink, fontSize: 15),
+                                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                              if (sub.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(sub, style: RunqText.caption.copyWith(color: t.muted)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Direction toggle — explicit Add vs Remove choice, big
-                // enough that the user can't miss what sign is being applied.
-                _DirectionToggle(
-                  isOutbound: _isOutbound,
-                  onChanged: _setDirection,
-                ),
-                const SizedBox(height: 16),
-                _Lbl(_isOutbound ? 'Qty to Remove' : 'Qty to Add'),
-                TextField(
-                  controller: _ctrl,
-                  focusNode: _focus,
-                  style: RunqText.body.copyWith(color: t.ink, fontSize: 16),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: _dec(context, hint: '0'),
-                  onSubmitted: (_) => _save(),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.inventory_outlined, size: 13, color: t.muted),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'On hand: ${_fmtQty(widget.availSnapshot)}$unitSuffix',
+                    const SizedBox(height: 16),
+                    // Direction toggle — explicit Add vs Remove choice, big
+                    // enough that the user can't miss what sign is being applied.
+                    _DirectionToggle(
+                      isOutbound: _isOutbound,
+                      onChanged: _setDirection,
+                    ),
+                    const SizedBox(height: 16),
+                    _Lbl(_isOutbound ? 'Qty to Remove' : 'Qty to Add'),
+                    TextField(
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      style: RunqText.body.copyWith(color: t.ink, fontSize: 16),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: _dec(context, hint: '0'),
+                      onSubmitted: (_) => _save(),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.inventory_outlined, size: 13, color: t.muted),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'On hand: ${_fmtQty(widget.availSnapshot)}$unitSuffix',
+                            style: RunqText.caption.copyWith(color: t.muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (widget.needsBatchNo) ...[
+                      const SizedBox(height: 16),
+                      _Lbl('Batch number'),
+                      TextField(
+                        controller: _batchCtrl,
+                        textCapitalization: TextCapitalization.characters,
+                        style: RunqText.body.copyWith(color: t.ink),
+                        decoration: _dec(context, hint: 'e.g. RM-20260811'),
+                        onSubmitted: (_) => _save(),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'This item is batch-tracked, and none of its stock is here '
+                        'yet — name the batch this quantity belongs to.',
                         style: RunqText.caption.copyWith(color: t.muted),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _Lbl('Reason'),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final r in reasons)
-                      InvFilterPill(
-                        label: _reasonLabels[r] ?? r,
-                        active: _reason == r,
-                        onTap: () => setState(() => _reason = r),
-                        activeColor: _isOutbound ? InvColors.error : InvColors.success,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    if (widget.initialQty != null) ...[
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(
-                              const _AdjLineSheetResult.cleared()),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: InvColors.error,
-                            side: BorderSide(
-                                color: InvColors.error.withValues(alpha: 0.4)),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text('Clear'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                     ],
-                    Expanded(
-                      flex: 2,
-                      child: InvPrimaryButton(
-                        label: 'Save',
-                        icon: Icons.check_circle_outline,
-                        onTap: _save,
-                      ),
+                    const SizedBox(height: 16),
+                    _Lbl('Reason'),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final r in reasons)
+                          InvFilterPill(
+                            label: _reasonLabels[r] ?? r,
+                            active: _reason == r,
+                            onTap: () => setState(() => _reason = r),
+                            activeColor: _isOutbound ? InvColors.error : InvColors.success,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        if (widget.initialQty != null) ...[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(
+                                  const _AdjLineSheetResult.cleared()),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: InvColors.error,
+                                side: BorderSide(
+                                    color: InvColors.error.withValues(alpha: 0.4)),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              child: const Text('Clear'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          flex: 2,
+                          child: InvPrimaryButton(
+                            label: 'Save',
+                            icon: Icons.check_circle_outline,
+                            onTap: _save,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -1785,6 +1926,7 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
   InvAdjustmentDetail? _detail;
   Object? _err;
   bool _loading = true;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -1937,8 +2079,84 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
             if (i > 0) const SizedBox(height: 8),
             _DetailLineCard(line: d.lines[i]),
           ],
+        if (_isUnfinished(d.status)) ...[
+          const SizedBox(height: 20),
+          _draftActions(d),
+        ],
       ],
     );
+  }
+
+  /// A document that has been created but hasn't moved stock yet. Until now the
+  /// sheet was read-only, so one of these could only be looked at — a draft
+  /// whose post had failed sat on the list permanently with no way to finish or
+  /// discard it from the app.
+  bool _isUnfinished(String status) => status == 'draft' || status == 'pending_approval';
+
+  Widget _draftActions(InvAdjustmentDetail d) {
+    final t = RT(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'This adjustment has not moved any stock yet.',
+          style: RunqText.caption.copyWith(color: t.muted),
+        ),
+        const SizedBox(height: 10),
+        InvPrimaryButton(
+          label: _busy ? 'Posting…' : 'Post adjustment',
+          icon: Icons.check_circle_outline,
+          onTap: _busy ? null : () => _post(d),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _busy ? null : () => _cancel(d),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: InvColors.error,
+            side: BorderSide(color: InvColors.error.withValues(alpha: 0.4)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          child: const Text('Discard'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _post(InvAdjustmentDetail d) => _act(
+        d,
+        () => inventoryRepo.postAdjustment(d.id),
+        '${d.adjNo} posted — stock updated',
+      );
+
+  Future<void> _cancel(InvAdjustmentDetail d) => _act(
+        d,
+        () => inventoryRepo.cancelAdjustment(d.id, 'Discarded from mobile'),
+        '${d.adjNo} discarded',
+      );
+
+  /// Runs an action, closes the sheet on success, and keeps it open on failure
+  /// so the reason stays next to the document it belongs to. The messenger is
+  /// captured before the pop — afterwards this context has no scaffold.
+  Future<void> _act(
+    InvAdjustmentDetail d,
+    Future<void> Function() action,
+    String successMessage,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await action();
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      // Surfaced verbatim: the ledger's reason ("Batch number is required for
+      // this item") is the only thing that says why it will not post.
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 }
 
