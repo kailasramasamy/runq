@@ -117,19 +117,20 @@ export class EmployeeService {
   }
 
   async create(input: CreateEmployeeInput) {
+    const employeeCode = input.employeeCode ?? (await this.nextEmployeeCode());
     const [existing] = await this.db
       .select({ id: employees.id })
       .from(employees)
       .where(and(
         eq(employees.tenantId, this.tenantId),
-        eq(employees.employeeCode, input.employeeCode),
+        eq(employees.employeeCode, employeeCode),
       ))
       .limit(1);
     if (existing) throw new ConflictError('Employee code already exists');
 
     const [row] = await this.db
       .insert(employees)
-      .values({ tenantId: this.tenantId, ...this.normalize(input) } as any)
+      .values({ tenantId: this.tenantId, ...this.normalize(input), employeeCode } as any)
       .returning();
 
     // Seed the new hire's leave balances for the current year so their
@@ -198,6 +199,64 @@ export class EmployeeService {
         ));
     }
     return { ok: true };
+  }
+
+  /**
+   * Next employee code, continuing whatever numbering the tenant already
+   * uses rather than imposing one. The most recently created code that
+   * ends in digits defines the shape — prefix, separator and zero-padding
+   * width are all copied from it, so a tenant on "EMP-0010" gets
+   * "EMP-0011" and one on "VD001" gets "VD002".
+   *
+   * The sequence comes from the MAX suffix across every code sharing that
+   * prefix, not from the last row's own number, so a gap left by a
+   * deleted employee is never reused. Falls back to EMP-0001 for a tenant
+   * with no numeric codes at all.
+   */
+  async nextEmployeeCode(): Promise<string> {
+    const [last] = await this.db
+      .select({ code: employees.employeeCode })
+      .from(employees)
+      .where(and(
+        eq(employees.tenantId, this.tenantId),
+        sql`${employees.employeeCode} ~ '[0-9]+$'`,
+      ))
+      .orderBy(desc(employees.createdAt))
+      .limit(1);
+
+    // Split trailing digits from whatever precedes them ("EMP-" + "0010").
+    const parsed = last?.code ? /^(.*?)(\d+)$/.exec(last.code) : null;
+    const prefix = parsed?.[1] ?? 'EMP-';
+    const width = parsed?.[2]?.length ?? 4;
+
+    const [agg] = await this.db
+      .select({
+        maxSeq: sql<number>`COALESCE(MAX((regexp_replace(${employees.employeeCode}, '^.*?(\\d+)$', '\\1'))::bigint), 0)`,
+      })
+      .from(employees)
+      .where(and(
+        eq(employees.tenantId, this.tenantId),
+        // Match the prefix literally — a tenant running both "EMP-0010"
+        // and "VD001" must not have the two sequences bleed together.
+        // starts_with, not LIKE: codes may contain `_`, which LIKE would
+        // read as a single-character wildcard.
+        sql`starts_with(${employees.employeeCode}, ${prefix})`,
+        sql`${employees.employeeCode} ~ '[0-9]+$'`,
+      ));
+
+    let seq = Number(agg?.maxSeq ?? 0) + 1;
+    // Safety net for odd manual codes that share the prefix but sort oddly.
+    while (await this.codeExists(`${prefix}${String(seq).padStart(width, '0')}`)) seq += 1;
+    return `${prefix}${String(seq).padStart(width, '0')}`;
+  }
+
+  private async codeExists(code: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(eq(employees.tenantId, this.tenantId), eq(employees.employeeCode, code)))
+      .limit(1);
+    return !!row;
   }
 
   private normalize(input: Record<string, any>): Record<string, any> {

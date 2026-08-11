@@ -122,7 +122,11 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
   // ─── Validation gates per step ──────────────────────────────────────────
 
   bool _canAdvanceBasic() {
-    return _firstName.text.trim().isNotEmpty && _code.text.trim().isNotEmpty;
+    // Code is optional on create — blank means the server continues the
+    // tenant's numbering. Editing keeps it required: an existing record
+    // already has one and blanking it would be a rename, not a default.
+    if (widget.existing != null && _code.text.trim().isEmpty) return false;
+    return _firstName.text.trim().isNotEmpty;
   }
 
   bool _canAdvanceJob() => _joiningDate != null;
@@ -169,7 +173,7 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
       return shaped;
     }
     final body = <String, dynamic>{
-      'employeeCode': _code.text.trim(),
+      'employeeCode': _code.text.trim().isEmpty ? null : _code.text.trim(),
       'firstName': _firstName.text.trim(),
       'lastName': clean(_lastName),
       'email': clean(_email),
@@ -211,10 +215,13 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
   /// been entered. Bypasses step-level canAdvance gating so a single-field
   /// edit doesn't force walking the whole wizard.
   Future<void> _savePartial() async {
-    if (_firstName.text.trim().isEmpty || _code.text.trim().isEmpty) {
+    if (_firstName.text.trim().isEmpty ||
+        (widget.existing != null && _code.text.trim().isEmpty)) {
       showRunqSnack(
         context,
-        'Name and employee code are required.',
+        widget.existing == null
+            ? 'Name is required.'
+            : 'Name and employee code are required.',
         kind: SnackKind.error,
       );
       throw StateError('missing-minimum');
@@ -302,8 +309,7 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
       // edit lets them update a single field without walking every step.
       secondaryActionLabel: isCreate ? 'Save draft' : 'Save changes',
       onSecondaryAction: _savePartial,
-      secondaryActionEnabled: () =>
-          _firstName.text.trim().isNotEmpty && _code.text.trim().isNotEmpty,
+      secondaryActionEnabled: () => _canAdvanceBasic(),
       steps: [
         HrWizardStep(
           title: 'Basic',
@@ -313,6 +319,10 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
             firstName: _firstName,
             lastName: _lastName,
             code: _code,
+            suggestedCode: isCreate
+                ? ref.watch(hrNextEmployeeCodeProvider).asData?.value
+                : null,
+            codeRequired: !isCreate,
             email: _email,
             phone: _phone,
             onChanged: () => setState(() {}),
@@ -392,11 +402,18 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
 
 class _BasicStep extends StatelessWidget {
   final TextEditingController firstName, lastName, code, email, phone;
+  /// Code the server would assign if the field is left blank. Null while
+  /// it loads, or on edit where the record already has one.
+  final String? suggestedCode;
+  /// Only on edit — an existing record can't have its code blanked.
+  final bool codeRequired;
   final VoidCallback onChanged;
   const _BasicStep({
     required this.firstName,
     required this.lastName,
     required this.code,
+    required this.suggestedCode,
+    required this.codeRequired,
     required this.email,
     required this.phone,
     required this.onChanged,
@@ -421,9 +438,11 @@ class _BasicStep extends StatelessWidget {
         ),
         HrTextField(
           label: 'Employee code',
-          hint: 'VD041 / EMP-001',
+          hint: suggestedCode == null
+              ? 'VD041 / EMP-001'
+              : 'Auto: $suggestedCode — or type your own',
           controller: code,
-          required: true,
+          required: codeRequired,
           textCapitalization: TextCapitalization.characters,
           formatters: [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-_]'))],
           onChanged: (_) => onChanged(),

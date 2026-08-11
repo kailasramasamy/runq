@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardHeader, CardContent, Input, Select, Button, Combobox } from '@/components/ui';
 import type { Employee } from '@/hooks/queries/use-hr';
-import { useDepartments, useDesignations, useEmployees } from '@/hooks/queries/use-hr';
+import { useDepartments, useDesignations, useEmployees, useNextEmployeeCode } from '@/hooks/queries/use-hr';
 
 interface Props {
   initialData?: Employee;
@@ -71,7 +71,7 @@ function clean(s: FormState, { partial = false }: { partial?: boolean } = {}) {
   for (const k of Object.keys(out)) {
     if (out[k] === '') out[k] = null;
   }
-  out.employeeCode = s.employeeCode.trim();
+  out.employeeCode = s.employeeCode.trim() || null;
   out.firstName = s.firstName.trim();
   // On a partial save, default the joining date to today so a brand-new
   // draft still satisfies the server's required-on-create column. The user
@@ -103,6 +103,9 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
   // Active employees power the reporting-manager picker. Fetch a wide page so
   // the Combobox (searchable) lists everyone for typical SME headcounts.
   const { data: empData } = useEmployees({ status: 'active', limit: 500 });
+  // Only on create — an existing record already has its code.
+  const { data: nextCode } = useNextEmployeeCode(!initialData);
+  const suggestedCode = nextCode?.data.employeeCode;
 
   function up<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -141,7 +144,13 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
         <CardHeader>Basic details</CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Input label="Employee code *" value={form.employeeCode} onChange={(e) => up('employeeCode', e.target.value)} required />
+            <Input
+              label={initialData ? 'Employee code *' : 'Employee code'}
+              value={form.employeeCode}
+              onChange={(e) => up('employeeCode', e.target.value)}
+              required={!!initialData}
+              placeholder={suggestedCode ? `Auto: ${suggestedCode}` : undefined}
+            />
             <Select
               label="Employment type *"
               options={[
@@ -272,7 +281,7 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
           <Button
             type="button"
             variant="outline"
-            disabled={isLoading || !form.firstName.trim() || !form.employeeCode.trim()}
+            disabled={isLoading || !form.firstName.trim() || (!!initialData && !form.employeeCode.trim())}
             onClick={() => onSaveDraft(clean(form, { partial: true }))}
             title="Save what you have now — finish details anytime"
           >

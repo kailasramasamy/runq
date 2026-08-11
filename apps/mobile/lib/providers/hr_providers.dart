@@ -142,6 +142,12 @@ final hrLeaveTypesProvider = FutureProvider<List<HrLeaveType>>((ref) async {
   return _watchAuth(ref, () => hrRepo.leaveTypes());
 });
 
+/// Next employee code, for the new-employee form's hint. Advisory —
+/// the server assigns the real one when the record saves.
+final hrNextEmployeeCodeProvider = FutureProvider<String>((ref) async {
+  return _watchAuth(ref, () => hrRepo.nextEmployeeCode());
+});
+
 /// Every configured type, retired ones included. Backs the leave-types
 /// admin screen only — pickers want [hrLeaveTypesProvider], which hides
 /// what nobody can apply for any more.

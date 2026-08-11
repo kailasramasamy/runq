@@ -9,7 +9,9 @@ const aadhaarRegex = /^[0-9]{12}$/;
 const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 export const createEmployeeSchema = z.object({
-  employeeCode: z.string().min(1).max(30),
+  // Omit to have the server continue the tenant's own numbering from the
+  // last code it issued. Clients still send one when the user types it.
+  employeeCode: z.string().min(1).max(30).optional(),
   firstName: z.string().min(1).max(100),
   lastName: z.string().max(100).nullish(),
   email: z.string().email().nullish().or(z.literal('')),

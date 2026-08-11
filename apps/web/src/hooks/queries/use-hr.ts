@@ -268,6 +268,18 @@ export function useEmployees(filters?: EmployeeFilters) {
   });
 }
 
+/// Code the server would assign next, for the new-employee form's
+/// placeholder. Advisory — create() generates its own at save time, so a
+/// stale suggestion costs nothing. `enabled` keeps it off the edit form.
+export function useNextEmployeeCode(enabled = true) {
+  return useQuery({
+    queryKey: ['hr', 'employees', 'next-code'] as const,
+    queryFn: () => api.get<ApiSuccess<{ employeeCode: string }>>('/hr/employees/next-code'),
+    enabled,
+    staleTime: 0,
+  });
+}
+
 export function useEmployee(id: string | null) {
   return useQuery({
     queryKey: HR_KEYS.employee(id!),

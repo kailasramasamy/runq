@@ -119,6 +119,14 @@ class HrRepo {
     return HrEmployee.fromJson(_data(res));
   }
 
+  /// Code the server would assign next, for the new-employee form's hint.
+  /// Advisory only — create() generates its own at save time, so this
+  /// going stale costs nothing.
+  Future<String> nextEmployeeCode() async {
+    final res = await apiClient.get('/hr/employees/next-code');
+    return _data(res)['employeeCode'] as String;
+  }
+
   Future<HrEmployee> updateEmployee(String id, Map<String, dynamic> body) async {
     final res = await apiClient.put('/hr/employees/$id', body);
     return HrEmployee.fromJson(_data(res));

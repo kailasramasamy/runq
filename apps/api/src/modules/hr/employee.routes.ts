@@ -19,6 +19,17 @@ export const employeeRoutes: FastifyPluginAsync = async (app) => {
     return await svc.list(filter);
   });
 
+  // Preview of the code create would assign, so the new-employee form can
+  // prefill it. Only a suggestion — two people opening the form at once
+  // see the same value, and whoever saves second gets the next one from
+  // create()'s own generation. Declared before /employees/:id; Fastify
+  // matches the static segment first regardless, but keeping them
+  // adjacent makes the precedence obvious.
+  app.get('/employees/next-code', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const svc = new EmployeeService(req.server.db, req.tenantId);
+    return { data: { employeeCode: await svc.nextEmployeeCode() } };
+  });
+
   app.get('/employees/:id', { preHandler: [rbacHook([...ALL])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const scope = await resolveHrAccessScope(req);
