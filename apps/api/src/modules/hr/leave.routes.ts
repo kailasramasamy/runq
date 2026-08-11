@@ -53,14 +53,18 @@ const leaveTypesQuerySchema = z.object({
   // Mobile clients pass their own employee id to hide gender-gated
   // types they can't use. Omit on admin screens to see every type.
   forEmployeeId: z.string().uuid().optional(),
+  // Retired types stay in the table so history keeps resolving, but
+  // they're hidden everywhere by default. Only the leave-types admin
+  // screen asks for them, so it can show and re-activate them.
+  includeInactive: z.coerce.boolean().optional(),
 });
 
 export const leaveRoutes: FastifyPluginAsync = async (app) => {
   // --- Leave types ---
   app.get('/leave-types', { preHandler: [rbacHook([...ALL])] }, async (req) => {
-    const { forEmployeeId } = leaveTypesQuerySchema.parse(req.query);
+    const { forEmployeeId, includeInactive } = leaveTypesQuerySchema.parse(req.query);
     const svc = new LeaveTypeService(req.server.db, req.tenantId);
-    return { data: await svc.list({ forEmployeeId }) };
+    return { data: await svc.list({ forEmployeeId, includeInactive }) };
   });
 
   app.post('/leave-types', { preHandler: [rbacHook([...WRITE])] }, async (req, reply) => {

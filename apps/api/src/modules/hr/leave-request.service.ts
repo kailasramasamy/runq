@@ -74,6 +74,8 @@ export class LeaveRequestService {
       .where(and(eq(leaveTypes.id, input.leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
       .limit(1);
     if (!type) throw new NotFoundError('Leave type');
+    // Retired type — existing requests stay valid, new ones don't.
+    if (!type.isActive) throw new ConflictError(`${type.name} is no longer available`);
 
     if (input.halfDay && input.fromDate !== input.toDate) {
       throw new ConflictError('Half-day leave must be on a single date');
@@ -205,11 +207,12 @@ export class LeaveRequestService {
     // Validate type still belongs to tenant if it changed.
     if (input.leaveTypeId && input.leaveTypeId !== req.leaveTypeId) {
       const [type] = await this.db
-        .select({ id: leaveTypes.id })
+        .select({ id: leaveTypes.id, name: leaveTypes.name, isActive: leaveTypes.isActive })
         .from(leaveTypes)
         .where(and(eq(leaveTypes.id, leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
         .limit(1);
       if (!type) throw new NotFoundError('Leave type');
+      if (!type.isActive) throw new ConflictError(`${type.name} is no longer available`);
     }
 
     if (halfDay && fromDate !== toDate) {

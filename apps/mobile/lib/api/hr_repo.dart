@@ -449,9 +449,16 @@ class HrRepo {
   /// gender — used by the Apply Leave sheet so an employee doesn't see
   /// types they can't actually use (e.g. males seeing Maternity). Admin
   /// screens omit it and see every configured type.
-  Future<List<HrLeaveType>> leaveTypes({String? forEmployeeId}) async {
+  ///
+  /// Retired types are excluded unless [includeInactive] is set — only the
+  /// leave-types admin screen wants them, so it can re-activate them.
+  Future<List<HrLeaveType>> leaveTypes({
+    String? forEmployeeId,
+    bool includeInactive = false,
+  }) async {
     final qp = <String, String>{};
     if (forEmployeeId != null) qp['forEmployeeId'] = forEmployeeId;
+    if (includeInactive) qp['includeInactive'] = 'true';
     final path = qp.isEmpty
         ? '/hr/leave-types'
         : '/hr/leave-types?${Uri(queryParameters: qp).query}';

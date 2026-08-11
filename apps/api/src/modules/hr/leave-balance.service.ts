@@ -179,6 +179,13 @@ export class LeaveBalanceService {
       ${leaveTypes.applicableGender} = 'all'
       OR ${leaveTypes.applicableGender} = ${employees.gender}::text
     )`);
+    // Retired types drop off the Leave screen, but only once they're
+    // spent — hiding a row while the employee still has earned days on
+    // it would make those days silently disappear before settlement.
+    conditions.push(sql`(
+      ${leaveTypes.isActive}
+      OR ${leaveBalances.opening} + ${leaveBalances.accrued} - ${leaveBalances.used} <> 0
+    )`);
 
     const rows = await this.db
       .select({

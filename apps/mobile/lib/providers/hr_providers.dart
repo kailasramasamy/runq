@@ -142,6 +142,13 @@ final hrLeaveTypesProvider = FutureProvider<List<HrLeaveType>>((ref) async {
   return _watchAuth(ref, () => hrRepo.leaveTypes());
 });
 
+/// Every configured type, retired ones included. Backs the leave-types
+/// admin screen only — pickers want [hrLeaveTypesProvider], which hides
+/// what nobody can apply for any more.
+final hrAllLeaveTypesProvider = FutureProvider<List<HrLeaveType>>((ref) async {
+  return _watchAuth(ref, () => hrRepo.leaveTypes(includeInactive: true));
+});
+
 /// Self-scoped leave types — hides gender-gated types the logged-in
 /// employee can't apply for (males → no ML, females → no PAT, NULL
 /// gender → only 'all'-applicable types). Used by the Apply Leave sheet

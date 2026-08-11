@@ -20,18 +20,26 @@ import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_form.dart';
 
+/// Retiring or restoring a type moves it between the two lists, so both
+/// have to drop — this screen reads the full one, every picker reads the
+/// active-only one.
+void _refreshLeaveTypes(WidgetRef ref) {
+  ref.invalidate(hrAllLeaveTypesProvider);
+  ref.invalidate(hrLeaveTypesProvider);
+}
+
 class HrLeaveTypesScreen extends ConsumerWidget {
   const HrLeaveTypesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final typesAsync = ref.watch(hrLeaveTypesProvider);
+    final typesAsync = ref.watch(hrAllLeaveTypesProvider);
 
     Future<void> seedDefaults() async {
       try {
         await apiClient.post('/hr/leave-types/seed-defaults');
-        ref.invalidate(hrLeaveTypesProvider);
+        _refreshLeaveTypes(ref);
         if (context.mounted) {
           showRunqSnack(context, 'Default types seeded', kind: SnackKind.success);
         }
@@ -65,7 +73,7 @@ class HrLeaveTypesScreen extends ConsumerWidget {
               child: RefreshIndicator(
                 color: HrColors.brand(context),
                 onRefresh: () async {
-                  ref.invalidate(hrLeaveTypesProvider);
+                  _refreshLeaveTypes(ref);
                   await Future<void>.delayed(const Duration(milliseconds: 250));
                 },
                 child: typesAsync.when(
@@ -233,7 +241,7 @@ Future<void> _openEditor(
     isScrollControlled: true,
     builder: (_) => _LeaveTypeEditor(existing: existing),
   );
-  ref.invalidate(hrLeaveTypesProvider);
+  _refreshLeaveTypes(ref);
 }
 
 class _LeaveTypeEditor extends StatefulWidget {
@@ -477,7 +485,7 @@ Future<void> _confirmDelete(
   if (ok != true) return;
   try {
     await hrRepo.deleteLeaveType(lt.id);
-    ref.invalidate(hrLeaveTypesProvider);
+    _refreshLeaveTypes(ref);
     if (context.mounted) showRunqSnack(context, 'Leave type deleted', kind: SnackKind.success);
   } catch (e) {
     if (context.mounted) showRunqSnack(context, 'Delete failed: $e', kind: SnackKind.error);

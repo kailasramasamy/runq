@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, Trash2, CalendarOff, Sparkles } from 'lucide-react';
+import { Plus, Pencil, Trash2, CalendarOff, Sparkles } from 'lucide-react';
 import {
-  PageHeader, Button, Input,
+  PageHeader, Button,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, Badge, useToast, ConfirmationDialog, Modal,
 } from '@/components/ui';
 import { EmptyState, ListToolbar } from '@/components/ar/primitives';
+import { LeaveTypeForm, type LeaveTypeFormValues } from '@/components/hr/leave-type-form';
 import {
   useLeaveTypes, useCreateLeaveType, useUpdateLeaveType, useDeleteLeaveType, useSeedDefaultLeaveTypes,
   type LeaveType,
@@ -14,19 +15,15 @@ import { useIsReadOnly } from '@/providers/auth-provider';
 export function LeaveTypesPage() {
   const readOnly = useIsReadOnly();
   const { toast } = useToast();
-  const { data, isLoading } = useLeaveTypes();
+  // The one screen that shows retired types — it's where you re-activate them.
+  const { data, isLoading } = useLeaveTypes({ includeInactive: true });
   const create = useCreateLeaveType();
   const update = useUpdateLeaveType();
   const remove = useDeleteLeaveType();
   const seedDefaults = useSeedDefaultLeaveTypes();
 
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [daysPerYear, setDaysPerYear] = useState('');
-  const [carryForward, setCarryForward] = useState(false);
-  const [encashable, setEncashable] = useState(false);
-  const [isPaid, setIsPaid] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<LeaveType | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -37,19 +34,17 @@ export function LeaveTypesPage() {
         t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q))
     : types;
 
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    create.mutate({
-      name: name.trim(),
-      code: code.trim().toUpperCase(),
-      daysPerYear: Number(daysPerYear || 0),
-      carryForward, encashable, isPaid,
-    }, {
-      onSuccess: () => {
-        setName(''); setCode(''); setDaysPerYear(''); setCarryForward(false); setEncashable(false); setIsPaid(true);
-        setShowAdd(false);
-        toast('Leave type created', 'success');
-      },
+  function handleCreate(values: LeaveTypeFormValues) {
+    create.mutate(values, {
+      onSuccess: () => { setShowAdd(false); toast('Leave type created', 'success'); },
+      onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
+    });
+  }
+
+  function handleUpdate(values: LeaveTypeFormValues) {
+    if (!editing) return;
+    update.mutate({ id: editing.id, ...values }, {
+      onSuccess: () => { setEditing(null); toast('Leave type updated', 'success'); },
       onError: (err: any) => toast(err?.message ?? 'Failed', 'error'),
     });
   }
@@ -82,22 +77,22 @@ export function LeaveTypesPage() {
 
       {showAdd && (
         <Modal open onClose={() => setShowAdd(false)} title="Add leave type" size="lg">
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Input label="Name *" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Casual Leave" autoFocus />
-              <Input label="Code *" maxLength={10} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required placeholder="CL" />
-              <Input label="Days/year" type="number" min="0" step="0.5" value={daysPerYear} onChange={(e) => setDaysPerYear(e.target.value)} />
-            </div>
-            <div className="flex flex-wrap items-center gap-4 text-[13px]" style={{ color: 'var(--text-2)' }}>
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={carryForward} onChange={(e) => setCarryForward(e.target.checked)} /> Carry forward</label>
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={encashable} onChange={(e) => setEncashable(e.target.checked)} /> Encashable</label>
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)} /> Paid</label>
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Adding…' : 'Add'}</Button>
-            </div>
-          </form>
+          <LeaveTypeForm
+            onSubmit={handleCreate}
+            onCancel={() => setShowAdd(false)}
+            pending={create.isPending}
+          />
+        </Modal>
+      )}
+
+      {editing && (
+        <Modal open onClose={() => setEditing(null)} title={`Edit ${editing.name}`} size="lg">
+          <LeaveTypeForm
+            initial={editing}
+            onSubmit={handleUpdate}
+            onCancel={() => setEditing(null)}
+            pending={update.isPending}
+          />
         </Modal>
       )}
 
@@ -133,21 +128,38 @@ export function LeaveTypesPage() {
           ) : filtered.map((t: LeaveType) => (
             <TableRow key={t.id}>
               <TableCell><span className="num font-medium" style={{ color: 'var(--text-1)' }}>{t.code}</span></TableCell>
-              <TableCell style={{ color: 'var(--text-2)' }}>{t.name}</TableCell>
+              <TableCell style={{ color: 'var(--text-2)' }}>
+                <span className="flex items-center gap-2">
+                  {t.name}
+                  {!t.isActive && <Badge variant="outline">Retired</Badge>}
+                </span>
+              </TableCell>
               <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(t.daysPerYear)}</TableCell>
               <TableCell>{t.carryForward ? <Badge variant="info">{t.maxCarryForward ? `max ${Number(t.maxCarryForward)}` : 'Yes'}</Badge> : <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>
               <TableCell>{t.isPaid ? <Badge variant="success">Paid</Badge> : <Badge variant="outline">Unpaid</Badge>}</TableCell>
               <TableCell>{t.encashable ? <Badge variant="primary">Yes</Badge> : <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>
               <TableCell align="right">
                 {!readOnly && (
-                  <button
-                    className="rounded p-1 hover:bg-[var(--surface-2)]"
-                    style={{ color: 'var(--text-3)' }}
-                    onClick={() => setDeleteId(t.id)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      className="rounded p-1 hover:bg-[var(--surface-2)]"
+                      style={{ color: 'var(--text-3)' }}
+                      onClick={() => setEditing(t)}
+                      aria-label="Edit"
+                      title="Edit leave type"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      className="rounded p-1 hover:bg-[var(--surface-2)]"
+                      style={{ color: 'var(--text-3)' }}
+                      onClick={() => setDeleteId(t.id)}
+                      aria-label="Delete"
+                      title="Delete leave type"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 )}
               </TableCell>
             </TableRow>
@@ -166,7 +178,7 @@ export function LeaveTypesPage() {
           });
         }}
         title="Delete leave type?"
-        description="Cannot delete if any requests reference it."
+        description="Its accrued balances go too. Blocked if any leave requests reference it."
         confirmLabel="Delete"
         variant="danger"
       />

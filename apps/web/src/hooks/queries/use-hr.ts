@@ -450,10 +450,13 @@ export const LEAVE_KEYS = {
   requests: (f?: unknown) => ['hr', 'leave', 'requests', f] as const,
 };
 
-export function useLeaveTypes() {
+/// `includeInactive` is for the leave-types admin screen — everywhere
+/// else should see only what employees can actually apply for.
+export function useLeaveTypes(opts: { includeInactive?: boolean } = {}) {
+  const qs = opts.includeInactive ? '?includeInactive=true' : '';
   return useQuery({
-    queryKey: LEAVE_KEYS.types,
-    queryFn: () => api.get<ApiSuccess<LeaveType[]>>(`/hr/leave-types`),
+    queryKey: [...LEAVE_KEYS.types, opts.includeInactive ?? false],
+    queryFn: () => api.get<ApiSuccess<LeaveType[]>>(`/hr/leave-types${qs}`),
   });
 }
 export function useCreateLeaveType() {

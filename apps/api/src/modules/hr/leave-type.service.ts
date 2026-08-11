@@ -1,5 +1,5 @@
 import { eq, and, asc, sql } from 'drizzle-orm';
-import { employees, leaveTypes, leaveRequests } from '@runq/db';
+import { employees, leaveTypes, leaveRequests, leaveBalances } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateLeaveTypeInput, UpdateLeaveTypeInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
@@ -22,8 +22,14 @@ export class LeaveTypeService {
   /// configured type so they can manage them. NULL-gender employees see
   /// only 'all'-applicable types — same strict policy as the balances
   /// endpoint.
-  async list(opts: { forEmployeeId?: string } = {}) {
+  ///
+  /// Retired (`isActive: false`) types are hidden unless `includeInactive`
+  /// is set. Hiding is the default so every picker that reaches for this
+  /// list — Apply Leave, mark-attendance — stops offering them without
+  /// needing to know the flag exists.
+  async list(opts: { forEmployeeId?: string; includeInactive?: boolean } = {}) {
     const conditions = [eq(leaveTypes.tenantId, this.tenantId)];
+    if (!opts.includeInactive) conditions.push(eq(leaveTypes.isActive, true));
 
     if (opts.forEmployeeId) {
       const [emp] = await this.db
@@ -88,16 +94,31 @@ export class LeaveTypeService {
       .limit(1);
     if (used) throw new ConflictError('Leave type is in use by requests');
 
-    const [row] = await this.db
-      .delete(leaveTypes)
-      .where(and(eq(leaveTypes.id, id), eq(leaveTypes.tenantId, this.tenantId)))
-      .returning();
-    if (!row) throw new NotFoundError('Leave type');
-    return row;
+    // Balances are derived bookkeeping — the accrual scheduler creates a
+    // row per employee × type, so almost every type has them and they'd
+    // otherwise trip the FK. With no requests behind it, `used` is 0, so
+    // there's nothing to preserve.
+    return this.db.transaction(async (tx) => {
+      await tx
+        .delete(leaveBalances)
+        .where(and(
+          eq(leaveBalances.tenantId, this.tenantId),
+          eq(leaveBalances.leaveTypeId, id),
+        ));
+
+      const [row] = await tx
+        .delete(leaveTypes)
+        .where(and(eq(leaveTypes.id, id), eq(leaveTypes.tenantId, this.tenantId)))
+        .returning();
+      if (!row) throw new NotFoundError('Leave type');
+      return row;
+    });
   }
 
   async seedDefaults() {
-    const existing = await this.list();
+    // Count retired types too — a tenant that disabled everything but CL
+    // is still configured, and re-seeding would collide on uq_lt_tenant_code.
+    const existing = await this.list({ includeInactive: true });
     if (existing.length > 0) return { skipped: true, count: existing.length };
     let created = 0;
     for (const t of DEFAULT_TYPES) {
