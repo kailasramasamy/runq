@@ -134,11 +134,16 @@ class _ActionsSheet extends ConsumerWidget {
           // Section: status change (danger-ish)
           _SheetGroup(rows: [
             _SheetRow(
-              icon: emp.status == 'active' ? Icons.pause_circle_outline : Icons.play_circle_outline,
-              label: emp.status == 'active' ? 'Mark inactive' : 'Mark active',
+              icon: Icons.badge_outlined,
+              label: 'Change employment status',
+              trailing: employmentStatusLabel(emp.status),
               onTap: () async {
+                // Root navigator's context outlives this sheet — the
+                // status picker opens after we've popped, same reason
+                // the photo action grabs it.
+                final rootCtx = Navigator.of(context, rootNavigator: true).context;
                 Navigator.of(context).pop();
-                await _toggleStatus(context, emp);
+                await showEmploymentStatusSheet(rootCtx, ref, emp);
               },
             ),
           ]),
@@ -368,37 +373,3 @@ Future<void> _pickAndUploadPhoto(BuildContext context, HrEmployee emp) async {
   }
 }
 
-/// Flip active ↔ inactive via the update endpoint (status is partial-
-/// updateable). Invalidates the detail + list providers so the chips
-/// rerender.
-Future<void> _toggleStatus(BuildContext context, HrEmployee emp) async {
-  final next = emp.status == 'active' ? 'inactive' : 'active';
-  final label = next == 'active' ? 'active' : 'inactive';
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: Text('Mark $label?'),
-      content: Text('${emp.displayName} will be set to "$label". Payroll and attendance behaviour depends on the new status.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(foregroundColor: HrColors.teal),
-          child: Text('Mark $label'),
-        ),
-      ],
-    ),
-  );
-  if (ok != true) return;
-  try {
-    await hrRepo.updateEmployee(emp.id, {'status': next});
-    if (context.mounted) {
-      ProviderScope.containerOf(context, listen: false)
-        ..invalidate(hrEmployeeProvider(emp.id))
-        ..invalidate(hrEmployeesProvider);
-      showRunqSnack(context, 'Marked $label', kind: SnackKind.success);
-    }
-  } catch (e) {
-    if (context.mounted) showRunqSnack(context, 'Update failed: $e', kind: SnackKind.error);
-  }
-}

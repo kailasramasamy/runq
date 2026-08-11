@@ -188,11 +188,15 @@ class _FilterChips extends StatelessWidget {
   final ValueChanged<String?> onChange;
   const _FilterChips({required this.active, required this.onChange});
 
+  // Mirrors the four employee_status values. 'All' is unfiltered — it
+  // already includes terminated rows; the explicit chip is for reviewing
+  // exits on their own.
   static const _opts = [
     (null, 'All'),
     ('active', 'Active'),
     ('on_leave', 'On Leave'),
     ('inactive', 'Inactive'),
+    ('terminated', 'Terminated'),
   ];
 
   @override
