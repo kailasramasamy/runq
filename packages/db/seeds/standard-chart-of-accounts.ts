@@ -55,6 +55,9 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '1114', name: 'Short-Term Investments', type: 'asset', parent: '1100' },
   { code: '1115', name: 'Accrued Revenue', type: 'asset', parent: '1100' },
   { code: '1116', name: 'Bank Suspense', type: 'asset', parent: '1100', system: true },
+  // Advances to contract / wage workers, recovered at contract settlement.
+  // An asset while outstanding — the wage expense lands once, at settlement.
+  { code: '1122', name: 'Employee Advances', type: 'asset', parent: '1100', system: true },
   // Milk procurement (Dhenu) — farmer receivables recovered via payout deductions.
   { code: '1150', name: 'Farmer Advances', type: 'asset', parent: '1100' },
   { code: '1151', name: 'Cattle-Feed Loans', type: 'asset', parent: '1100' },

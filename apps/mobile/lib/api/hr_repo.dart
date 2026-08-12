@@ -6,6 +6,7 @@ library;
 
 import 'dart:io';
 import 'api_client.dart';
+import 'hr_contract_models.dart';
 import 'hr_models.dart';
 
 Map<String, dynamic> _data(dynamic res) {
@@ -1104,6 +1105,212 @@ class HrRepo {
   Future<List<HrActivityEvent>> recentActivity() async {
     final res = await apiClient.get('/hr/dashboard/recent-activity');
     return _dataList(res).map(HrActivityEvent.fromJson).toList();
+  }
+
+  // ── Labour contracts ────────────────────────────────────────────────────
+
+  Future<List<HrContract>> contracts({String? status, String? type}) async {
+    final qp = <String, String>{
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (type != null && type.isNotEmpty) 'type': type,
+    };
+    final suffix = qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get('/hr/contracts$suffix');
+    return _dataList(res).map(HrContract.fromJson).toList();
+  }
+
+  /// Detail carries the crew, day log, advances, settlements and the live
+  /// balance inline — the screen shows all of it, so one round trip.
+  ///
+  /// [asOf] re-runs the earnings maths to a chosen date, which is how the
+  /// calendar shows a running total part-way through an open-ended term.
+  Future<HrContract> contract(String id, {DateTime? asOf}) async {
+    final q = asOf == null ? '' : '?asOf=${_isoDate(asOf)}';
+    final res = await apiClient.get('/hr/contracts/$id$q');
+    return HrContract.fromJson(_data(res));
+  }
+
+  Future<HrContract> createContract({
+    required String name,
+    required String leadPersonName,
+    String? leadPersonPhone,
+    required String contractType,
+    required DateTime startDate,
+    DateTime? endDate,
+    double? fixedAmount,
+    double? dailyRate,
+    List<Map<String, dynamic>>? members,
+    String? notes,
+  }) async {
+    final res = await apiClient.post('/hr/contracts', {
+      'name': name,
+      'leadPersonName': leadPersonName,
+      if (leadPersonPhone != null && leadPersonPhone.isNotEmpty)
+        'leadPersonPhone': leadPersonPhone,
+      'contractType': contractType,
+      'startDate': _isoDate(startDate),
+      if (endDate != null) 'endDate': _isoDate(endDate),
+      if (fixedAmount != null) 'fixedAmount': fixedAmount,
+      if (dailyRate != null) 'dailyRate': dailyRate,
+      if (members != null && members.isNotEmpty) 'members': members,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return HrContract.fromJson(_data(res));
+  }
+
+  Future<HrContract> updateContract(
+    String id, {
+    required String name,
+    required String leadPersonName,
+    String? leadPersonPhone,
+    required DateTime startDate,
+    DateTime? endDate,
+    double? fixedAmount,
+    String? notes,
+  }) async {
+    final res = await apiClient.put('/hr/contracts/$id', {
+      'name': name,
+      'leadPersonName': leadPersonName,
+      'leadPersonPhone':
+          (leadPersonPhone != null && leadPersonPhone.isNotEmpty) ? leadPersonPhone : null,
+      'startDate': _isoDate(startDate),
+      'endDate': endDate == null ? null : _isoDate(endDate),
+      if (fixedAmount != null) 'fixedAmount': fixedAmount,
+      'notes': (notes != null && notes.isNotEmpty) ? notes : null,
+    });
+    return HrContract.fromJson(_data(res));
+  }
+
+  Future<void> cancelContract(String id) async {
+    await apiClient.put('/hr/contracts/$id/cancel', {});
+  }
+
+  // ── Crew ────────────────────────────────────────────────────────────────
+
+  Future<HrContractMember> addMember(
+    String contractId, {
+    required String name,
+    String? role,
+    required double dailyRate,
+    DateTime? joinedOn,
+  }) async {
+    final res = await apiClient.post('/hr/contracts/$contractId/members', {
+      'name': name,
+      if (role != null && role.isNotEmpty) 'role': role,
+      'dailyRate': dailyRate,
+      if (joinedOn != null) 'joinedOn': _isoDate(joinedOn),
+    });
+    return HrContractMember.fromJson(_data(res));
+  }
+
+  Future<HrContractMember> updateMember(
+    String memberId, {
+    required String name,
+    String? role,
+    required double dailyRate,
+    DateTime? joinedOn,
+    DateTime? leftOn,
+  }) async {
+    final res = await apiClient.put('/hr/members/$memberId', {
+      'name': name,
+      'role': (role != null && role.isNotEmpty) ? role : null,
+      'dailyRate': dailyRate,
+      'joinedOn': joinedOn == null ? null : _isoDate(joinedOn),
+      'leftOn': leftOn == null ? null : _isoDate(leftOn),
+    });
+    return HrContractMember.fromJson(_data(res));
+  }
+
+  Future<void> removeMember(String memberId) async {
+    await apiClient.delete('/hr/members/$memberId');
+  }
+
+  // ── Calendar ────────────────────────────────────────────────────────────
+
+  /// Mark a span of days. Sending 'worked' clears whatever exception was
+  /// there — an unmarked day already means worked.
+  Future<void> markContractDays(
+    String contractId, {
+    required DateTime fromDate,
+    required DateTime toDate,
+    required String status,
+    List<String>? memberIds,
+    String? note,
+  }) async {
+    await apiClient.post('/hr/contracts/$contractId/days', {
+      'fromDate': _isoDate(fromDate),
+      'toDate': _isoDate(toDate),
+      'status': status,
+      if (memberIds != null && memberIds.isNotEmpty) 'memberIds': memberIds,
+      if (note != null && note.isNotEmpty) 'note': note,
+    });
+  }
+
+  // ── Advances ────────────────────────────────────────────────────────────
+
+  Future<HrAdvance> payAdvance(
+    String contractId, {
+    required double amount,
+    required DateTime paidOn,
+    String? memberId,
+    required String paymentMethod,
+    String? bankAccountId,
+    String? reference,
+    String? notes,
+  }) async {
+    final res = await apiClient.post('/hr/contracts/$contractId/advances', {
+      'amount': amount,
+      'paidOn': _isoDate(paidOn),
+      if (memberId != null) 'memberId': memberId,
+      'paymentMethod': paymentMethod,
+      if (bankAccountId != null) 'bankAccountId': bankAccountId,
+      if (reference != null && reference.isNotEmpty) 'reference': reference,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return HrAdvance.fromJson(_data(res));
+  }
+
+  Future<void> cancelAdvance(String id) async {
+    await apiClient.put('/hr/advances/$id/cancel', {});
+  }
+
+  // ── Settlement ──────────────────────────────────────────────────────────
+
+  Future<HrSettlementPreview> settlementPreview(
+    String contractId, {
+    DateTime? throughDate,
+    double otherDeductions = 0,
+  }) async {
+    final qp = <String, String>{
+      if (throughDate != null) 'throughDate': _isoDate(throughDate),
+      if (otherDeductions > 0) 'otherDeductions': '$otherDeductions',
+    };
+    final suffix = qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+    final res = await apiClient.get('/hr/contracts/$contractId/settlement-preview$suffix');
+    return HrSettlementPreview.fromJson(_data(res));
+  }
+
+  Future<HrSettlement> createSettlement(
+    String contractId, {
+    DateTime? throughDate,
+    double otherDeductions = 0,
+    String? notes,
+  }) async {
+    final res = await apiClient.post('/hr/contracts/$contractId/settlement', {
+      if (throughDate != null) 'throughDate': _isoDate(throughDate),
+      'otherDeductions': otherDeductions,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return HrSettlement.fromJson(_data(res));
+  }
+
+  Future<HrSettlement> approveSettlement(String id) async {
+    final res = await apiClient.put('/hr/settlements/$id/approve', {});
+    return HrSettlement.fromJson(_data(res));
+  }
+
+  Future<void> cancelSettlement(String id) async {
+    await apiClient.put('/hr/settlements/$id/cancel', {});
   }
 }
 

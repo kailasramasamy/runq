@@ -62,6 +62,7 @@ export * from './hr/employee-payment.schema';
 export * from './hr/phase-next.schema';
 export * from './hr/resume.schema';
 export * from './hr/reward.schema';
+export * from './hr/contract.schema';
 export * from './common/webhook-endpoint.schema';
 export * from './fa/category.schema';
 export * from './fa/asset.schema';

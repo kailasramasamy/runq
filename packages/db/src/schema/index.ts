@@ -85,6 +85,7 @@ export * from './hr/attendance-punches';
 export * from './hr/attendance-regularizations';
 export * from './hr/tax-declarations';
 export * from './hr/loans';
+export * from './hr/contracts';
 export * from './hr/fnf';
 export * from './hr/onboarding';
 export * from './hr/letters';

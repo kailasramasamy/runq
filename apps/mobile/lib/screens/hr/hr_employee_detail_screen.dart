@@ -34,6 +34,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_attendance_leave_body.dart';
+import 'widgets/hr_collapsing_title.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_employment_status_sheet.dart';
 import 'widgets/hr_resume_tab.dart';
@@ -121,12 +122,34 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
                 scrolledUnderElevation: 0,
                 backgroundColor: HrColors.tealDeep,
                 systemOverlayStyle: RunqSystemBars.lightIcons,
-                // Drop the default leading/actions so the hero owns the full
-                // top row — keeps the layout clean and predictable instead
-                // of fighting the FlexibleSpaceBar.
+                // The toolbar row lives on the SliverAppBar, not inside the
+                // hero. A FlexibleSpaceBar background is bottom-anchored, so
+                // collapsing clips it from the top — anything placed up there
+                // is the first thing to disappear, which stranded both the
+                // back button and the name. Here they stay pinned.
                 automaticallyImplyLeading: false,
+                leading: IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                ),
+                titleSpacing: 0,
+                // Left-aligned against the back button. AppBar centres titles
+                // on iOS by default, which would strand a two-line name/code
+                // block in the middle of the bar.
+                centerTitle: false,
+                title: HrCollapsingTitle(
+                  title: emp.displayName,
+                  subtitle: emp.employeeCode,
+                ),
+                actions: [
+                  if (canManage)
+                    IconButton(
+                      onPressed: () => _showActionsSheet(context, emp),
+                      icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                    ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: _Hero(emp: emp, canManage: canManage),
+                  background: _Hero(emp: emp),
                   collapseMode: CollapseMode.pin,
                 ),
                 bottom: PreferredSize(

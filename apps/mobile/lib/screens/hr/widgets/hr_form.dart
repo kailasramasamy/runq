@@ -59,6 +59,14 @@ class HrWizard extends StatefulWidget {
   /// For a "Save draft" this is typically `hasMinimumFields()`.
   final bool Function()? secondaryActionEnabled;
 
+  /// Lets the user jump to any step by tapping its name in the progress
+  /// strip. Turn this on for edit flows: the record is already complete, so
+  /// making someone walk Continue through four steps to change one field is
+  /// pure friction. A create flow leaves it off — steps there are only
+  /// reachable once the ones before them validate — but even then the strip
+  /// stays tappable for steps already visited.
+  final bool allowStepJump;
+
   const HrWizard({
     super.key,
     required this.title,
@@ -69,6 +77,7 @@ class HrWizard extends StatefulWidget {
     this.secondaryActionLabel,
     this.onSecondaryAction,
     this.secondaryActionEnabled,
+    this.allowStepJump = false,
   });
 
   @override
@@ -77,15 +86,31 @@ class HrWizard extends StatefulWidget {
 
 class _HrWizardState extends State<HrWizard> {
   late int _index;
+
+  /// Furthest step reached this session. Stepping back must not un-reach the
+  /// steps already cleared, or the strip would strand the user mid-flow.
+  late int _furthest;
+
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialStep.clamp(0, widget.steps.length - 1);
+    _furthest = _index;
   }
 
   bool get _isLast => _index == widget.steps.length - 1;
+
+  bool _canJumpTo(int i) => widget.allowStepJump || i <= _furthest;
+
+  void _jumpTo(int i) {
+    if (_busy || i == _index || !_canJumpTo(i)) return;
+    setState(() {
+      _index = i;
+      if (i > _furthest) _furthest = i;
+    });
+  }
 
   Future<void> _next() async {
     if (!widget.steps[_index].canAdvance()) return;
@@ -104,7 +129,10 @@ class _HrWizardState extends State<HrWizard> {
       }
       return;
     }
-    setState(() => _index += 1);
+    setState(() {
+      _index += 1;
+      if (_index > _furthest) _furthest = _index;
+    });
   }
 
   Future<void> _runSecondary() async {
@@ -148,8 +176,10 @@ class _HrWizardState extends State<HrWizard> {
               _Header(
                 title: widget.title,
                 index: _index,
-                total: widget.steps.length,
+                stepTitles: [for (final s in widget.steps) s.title],
                 onBack: _back,
+                onJump: _jumpTo,
+                canJumpTo: _canJumpTo,
                 secondaryLabel: widget.secondaryActionLabel,
                 onSecondary: widget.onSecondaryAction == null ? null : _runSecondary,
                 secondaryEnabled: !_busy
@@ -227,20 +257,27 @@ class _HrWizardState extends State<HrWizard> {
 
 class _Header extends StatelessWidget {
   final String title;
-  final int index, total;
+  final int index;
+  final List<String> stepTitles;
   final VoidCallback onBack;
+  final ValueChanged<int> onJump;
+  final bool Function(int) canJumpTo;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
   final bool secondaryEnabled;
   const _Header({
     required this.title,
     required this.index,
-    required this.total,
+    required this.stepTitles,
     required this.onBack,
+    required this.onJump,
+    required this.canJumpTo,
     this.secondaryLabel,
     this.onSecondary,
     this.secondaryEnabled = true,
   });
+
+  int get total => stepTitles.length;
 
   @override
   Widget build(BuildContext context) {
@@ -293,21 +330,88 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        // Step progress — fills as the user advances, a clearer signal than
-        // the count chip alone.
+        // Step progress. Each segment names its step and is tappable when
+        // reachable, so a one-field edit is one tap rather than a walk
+        // through every Continue button.
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: (index + 1) / total,
-              minHeight: 4,
-              backgroundColor: t.hairline,
-              valueColor: const AlwaysStoppedAnimation<Color>(HrColors.teal),
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
+          child: Row(
+            children: [
+              for (var i = 0; i < total; i++)
+                Expanded(
+                  child: _StepSegment(
+                    label: stepTitles[i],
+                    state: i == index
+                        ? _SegState.current
+                        : canJumpTo(i)
+                            ? _SegState.reachable
+                            : _SegState.locked,
+                    onTap: canJumpTo(i) ? () => onJump(i) : null,
+                    // Hairline gutters between segments, not around the strip.
+                    leftGap: i > 0,
+                  ),
+                ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+enum _SegState { current, reachable, locked }
+
+/// One step in the header strip: a 4px rail with its name underneath. The
+/// rail carries the progress reading the old LinearProgressIndicator gave;
+/// the name is what makes jumping possible, since "step 4" means nothing
+/// until you know it's the statutory one.
+class _StepSegment extends StatelessWidget {
+  final String label;
+  final _SegState state;
+  final VoidCallback? onTap;
+  final bool leftGap;
+  const _StepSegment({
+    required this.label,
+    required this.state,
+    required this.onTap,
+    required this.leftGap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = HrColors.brand(context);
+    final (railColor, inkColor, weight) = switch (state) {
+      _SegState.current => (HrColors.teal, brand, FontWeight.w700),
+      _SegState.reachable => (HrColors.teal.withValues(alpha: 0.42), t.muted, FontWeight.w500),
+      _SegState.locked => (t.hairline, t.muted2, FontWeight.w500),
+    };
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: EdgeInsets.only(left: leftGap ? 3 : 0, right: 3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: railColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: RunqText.micro.copyWith(color: inkColor, fontWeight: weight),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -756,6 +860,11 @@ class HrDateField extends StatelessWidget {
   final ValueChanged<DateTime?> onChanged;
   final bool required;
   final DateTime? firstDate, lastDate;
+
+  /// Placeholder when no date is set. An unset date is often meaningful
+  /// rather than missing — an open-ended contract has no end date — so the
+  /// caller can say what the blank means instead of "Select…".
+  final String? hint;
   const HrDateField({
     super.key,
     required this.label,
@@ -764,6 +873,7 @@ class HrDateField extends StatelessWidget {
     this.required = false,
     this.firstDate,
     this.lastDate,
+    this.hint,
   });
 
   Future<void> _pick(BuildContext context) async {
@@ -789,7 +899,7 @@ class HrDateField extends StatelessWidget {
     const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     final isEmpty = value == null;
     final shown = isEmpty
-        ? 'Select…'
+        ? (hint ?? 'Select…')
         : '${value!.day} ${m[value!.month - 1]} ${value!.year}';
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),

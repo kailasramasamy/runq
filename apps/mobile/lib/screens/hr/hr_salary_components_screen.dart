@@ -351,6 +351,7 @@ class _ComponentEditorState extends State<_ComponentEditor> {
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 children: [
                   HrFormSection(children: [

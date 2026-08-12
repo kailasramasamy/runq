@@ -35,6 +35,7 @@ import { lifecycleRoutes } from './phase-next/lifecycle.routes';
 import { helpdeskPerformanceRoutes } from './phase-next/helpdesk-performance.routes';
 import { ExpenseClaimPostingService } from './expense-claim-posting.service';
 import { rewardRoutes } from './reward.routes';
+import { contractRoutes } from './contracts/routes';
 import { StatutoryCalendarService } from './statutory-calendar.service';
 import { employees, users, payslips, payrollRuns } from '@runq/db';
 import { and, eq, sql, desc } from 'drizzle-orm';
@@ -73,6 +74,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(lifecycleRoutes);
   await app.register(helpdeskPerformanceRoutes);
   await app.register(rewardRoutes);
+  await app.register(contractRoutes);
 
   // GET /hr/me — resolve the logged-in user to their employee record (by
   // email match within the tenant) and indicate whether they should see

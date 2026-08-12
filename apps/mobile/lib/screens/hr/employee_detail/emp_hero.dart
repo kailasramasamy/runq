@@ -7,9 +7,7 @@ part of '../hr_employee_detail_screen.dart';
 
 class _Hero extends StatelessWidget {
   final HrEmployee emp;
-  /// Whether the viewer (HR / admin) may open the … actions menu.
-  final bool canManage;
-  const _Hero({required this.emp, required this.canManage});
+  const _Hero({required this.emp});
 
   @override
   Widget build(BuildContext context) {
@@ -17,28 +15,16 @@ class _Hero extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(gradient: HrColors.profileGradient),
-      padding: EdgeInsets.fromLTRB(8, topPad + 4, 8, 18),
+      padding: EdgeInsets.fromLTRB(8, topPad, 8, 18),
       child: Column(
         mainAxisSize: MainAxisSize.max,
         children: [
-          // Action row (back + overflow). Sitting inside the hero so the
-          // FlexibleSpaceBar doesn't fight the SliverAppBar's default
-          // leading/actions for positioning.
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-              ),
-              const Spacer(),
-              if (canManage)
-                IconButton(
-                  onPressed: () => _showActionsSheet(context, emp),
-                  icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
+          // Clearance for the SliverAppBar's own toolbar row (back button,
+          // collapsed name/code, … menu), which is painted over this
+          // gradient. The hero only owns what sits below it — a
+          // FlexibleSpaceBar background is clipped from the top as it
+          // collapses, so nothing that must survive can live up here.
+          const SizedBox(height: kToolbarHeight),
           // Avatar — centered, with a translucent white ring so the photo
           // pops against the gradient even when it's a similar hue.
           _HeroAvatar(

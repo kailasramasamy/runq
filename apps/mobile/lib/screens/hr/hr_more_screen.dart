@@ -124,6 +124,10 @@ class HrMoreScreen extends ConsumerWidget {
                     onTap: () => context.push('/hr/departments')),
                 _Row(Icons.badge_outlined, 'Designations',
                     onTap: () => context.push('/hr/designations')),
+                // Contract / wage workers are paid outside payroll —
+                // engagement, advances and settlement all live here.
+                _Row(Icons.assignment_ind_outlined, 'Contracts',
+                    onTap: () => context.push('/hr/contracts')),
                 _Row(Icons.event_note_outlined, 'Leave types', onTap: () => context.push('/hr/leave-types')),
                 _Row(Icons.tune_outlined, 'Adjust leave balance',
                     onTap: () => context.push('/hr/adjust-leave-balance')),

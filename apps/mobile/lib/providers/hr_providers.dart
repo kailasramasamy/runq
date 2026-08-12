@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/hr_contract_models.dart';
 import '../api/hr_models.dart';
 import '../api/hr_repo.dart';
 import 'auth_provider.dart';
@@ -730,4 +731,53 @@ final hrEmployeeWeeklyOffsProvider =
 final hrLeaveTypesForEmployeeProvider =
     FutureProvider.family<List<HrLeaveType>, String>((ref, employeeId) async {
   return _watchAuth(ref, () => hrRepo.leaveTypes(forEmployeeId: employeeId));
+});
+
+// ─── Labour contracts ─────────────────────────────────────────────────────
+
+/// Contract list, optionally narrowed by status. Null status = every
+/// contract, which is what the "All" filter chip asks for.
+final hrContractsProvider =
+    FutureProvider.family<List<HrContract>, String?>((ref, status) async {
+  return _watchAuth(ref, () => hrRepo.contracts(status: status));
+});
+
+/// One contract with its crew, day log, advances, settlements and live
+/// balance. The detail endpoint returns all of it together, so the screen
+/// renders in one pass instead of stitching five loading states.
+final hrContractProvider =
+    FutureProvider.family<HrContract, String>((ref, id) async {
+  return _watchAuth(ref, () => hrRepo.contract(id));
+});
+
+class HrSettlementQuery {
+  final String contractId;
+  final DateTime? throughDate;
+  final double otherDeductions;
+  const HrSettlementQuery(this.contractId, {this.throughDate, this.otherDeductions = 0});
+
+  @override
+  bool operator ==(Object other) =>
+      other is HrSettlementQuery &&
+      other.contractId == contractId &&
+      other.throughDate == throughDate &&
+      other.otherDeductions == otherDeductions;
+
+  @override
+  int get hashCode => Object.hash(contractId, throughDate, otherDeductions);
+}
+
+/// Live settlement figures. Recomputed server-side from the day log on
+/// every fetch, so a day marked while the sheet is open is picked up by
+/// invalidating this rather than by any client-side arithmetic.
+final hrSettlementPreviewProvider =
+    FutureProvider.family<HrSettlementPreview, HrSettlementQuery>((ref, q) async {
+  return _watchAuth(
+    ref,
+    () => hrRepo.settlementPreview(
+      q.contractId,
+      throughDate: q.throughDate,
+      otherDeductions: q.otherDeductions,
+    ),
+  );
 });

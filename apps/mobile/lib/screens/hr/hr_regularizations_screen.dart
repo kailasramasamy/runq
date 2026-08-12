@@ -9,10 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
 import '../../providers/app_role_provider.dart';
+import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_colors.dart';
+import 'widgets/hr_status_date_picker.dart';
 
 class HrRegularizationsScreen extends ConsumerStatefulWidget {
   const HrRegularizationsScreen({super.key});
@@ -353,8 +355,14 @@ class _PendingCard extends ConsumerWidget {
 }
 
 class _NewRegSheet extends StatefulWidget {
-  const _NewRegSheet();
+  /// The requester's own employee record, resolved by the caller. Null for a
+  /// user with no linked employee (a CA login, say) — the date picker then
+  /// falls back to Material's, since there is no attendance to colour it by.
+  final String? employeeId;
+  const _NewRegSheet({required this.employeeId});
+
   static void show(BuildContext context, WidgetRef ref) {
+    final employeeId = ref.read(hrMeProvider).asData?.value.employee?.id;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -364,7 +372,7 @@ class _NewRegSheet extends StatefulWidget {
       ),
       builder: (_) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: const _NewRegSheet(),
+        child: _NewRegSheet(employeeId: employeeId),
       ),
     ).then((_) => ref.invalidate(myRegularizationsProvider));
   }
@@ -381,6 +389,41 @@ class _NewRegSheetState extends State<_NewRegSheet> {
 
   String _fmtTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  /// A regularization is raised against a day that went wrong, so the picker
+  /// shows each day's status — the absent and not-marked days are the ones
+  /// worth picking, and they're now visible without leaving the sheet.
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final first = now.subtract(const Duration(days: 90));
+    final employeeId = widget.employeeId;
+    final Future<DateTime?> pending = employeeId == null
+        ? showDatePicker(
+            context: context,
+            initialDate: _date,
+            firstDate: first,
+            lastDate: now,
+            builder: (ctx, child) => Theme(
+              data: Theme.of(ctx).copyWith(
+                colorScheme:
+                    Theme.of(ctx).colorScheme.copyWith(primary: HrColors.teal),
+              ),
+              child: child!,
+            ),
+          )
+        : showHrStatusDatePicker(
+            context,
+            employeeId: employeeId,
+            initialDate: _date,
+            firstDate: first,
+            lastDate: now,
+            title: 'Pick a day',
+            subtitle: 'Raise a regularization for a day that was missed or '
+                'marked wrong.',
+          );
+    final picked = await pending;
+    if (picked != null && mounted) setState(() => _date = picked);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -409,21 +452,7 @@ class _NewRegSheetState extends State<_NewRegSheet> {
             _FieldLabel('Date'),
             InkWell(
               borderRadius: BorderRadius.circular(10),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime.now().subtract(const Duration(days: 90)),
-                  lastDate: DateTime.now(),
-                  builder: (ctx, child) => Theme(
-                    data: Theme.of(ctx).copyWith(
-                      colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: HrColors.teal),
-                    ),
-                    child: child!,
-                  ),
-                );
-                if (picked != null) setState(() => _date = picked);
-              },
+              onTap: _pickDate,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 decoration: BoxDecoration(

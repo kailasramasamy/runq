@@ -86,6 +86,60 @@ void main() {
     expect(find.text('4.5'), findsOneWidget);
   });
 
+  /// When the grid doubles as a bounded date picker, a tap outside the
+  /// window must be inert — otherwise the mark sheet would happily accept an
+  /// end date before its own start and write a backwards range.
+  testWidgets('days outside selectableDay do not report a tap',
+      (tester) async {
+    final taps = <DateTime>[];
+    await tester.pumpWidget(MaterialApp(
+      theme: RunqTheme.light(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: HrMonthCalendar(
+            month: DateTime(2026, 8),
+            statusFor: (_) => 'present',
+            selectableDay: (d) => d.day >= 10 && d.day <= 20,
+            onTapDay: taps.add,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('5'));
+    await tester.tap(find.text('25'));
+    expect(taps, isEmpty, reason: 'out-of-range days must be inert');
+
+    await tester.tap(find.text('10'));
+    await tester.tap(find.text('20'));
+    expect(taps, [DateTime(2026, 8, 10), DateTime(2026, 8, 20)]);
+  });
+
+  testWidgets('out-of-range days are dimmed, in-range days are not',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: RunqTheme.light(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: HrMonthCalendar(
+            month: DateTime(2026, 8),
+            statusFor: (_) => 'present',
+            selectableDay: (d) => d.day >= 10,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    Finder opacityAbove(String day) => find.ancestor(
+          of: find.text(day),
+          matching: find.byType(Opacity),
+        );
+    expect(opacityAbove('5'), findsOneWidget);
+    expect(opacityAbove('15'), findsNothing);
+  });
+
   testWidgets('renders in dark mode without overflow', (tester) async {
     await pumpCalendar(
       tester,

@@ -17,6 +17,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/hr_models.dart';
 import '../../api/hr_repo.dart';
 import '../../providers/hr_providers.dart';
+import '../../theme/runq_theme.dart';
+import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import 'widgets/hr_form.dart';
 
@@ -310,6 +312,10 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
       secondaryActionLabel: isCreate ? 'Save draft' : 'Save changes',
       onSecondaryAction: _savePartial,
       secondaryActionEnabled: () => _canAdvanceBasic(),
+      // Editing an existing record: every step already holds valid data, so
+      // the strip lets the user tap straight to the one field they came to
+      // change. Creating still walks the steps in order.
+      allowStepJump: !isCreate,
       steps: [
         HrWizardStep(
           title: 'Basic',
@@ -712,17 +718,23 @@ class _PayBankStep extends StatelessWidget {
         HrFormSection(
           title: 'Compensation',
           children: [
-            HrTextField(
-              label: 'Annual CTC (₹)',
-              hint: '600000',
-              controller: ctcAnnual,
-              keyboard: const TextInputType.numberWithOptions(decimal: true),
-              formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              textCapitalization: TextCapitalization.none,
-            ),
+            // Annual CTC drives the monthly payroll run, which a wage or
+            // contract worker never enters — they are paid per contract
+            // engagement instead. Offering the field would invite someone to
+            // fill it and expect a payslip that never comes.
+            if (!_isWageOrContract)
+              HrTextField(
+                label: 'Annual CTC (₹)',
+                hint: '600000',
+                controller: ctcAnnual,
+                keyboard: const TextInputType.numberWithOptions(decimal: true),
+                formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                textCapitalization: TextCapitalization.none,
+              ),
             if (_isWageOrContract)
               HrTextField(
-                label: 'Daily wage rate (₹)',
+                label: 'Default daily wage rate (₹)',
+                hint: 'Seeds new contracts — optional',
                 controller: dailyWage,
                 keyboard: const TextInputType.numberWithOptions(decimal: true),
                 formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
@@ -737,6 +749,10 @@ class _PayBankStep extends StatelessWidget {
               ),
           ],
         ),
+        if (_isWageOrContract) ...[
+          const SizedBox(height: 8),
+          const _ContractHint(),
+        ],
         const SizedBox(height: 12),
         HrFormSection(
           title: 'Payout account',
@@ -765,6 +781,36 @@ class _PayBankStep extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Points a wage/contract hire at where their money actually lives. Without
+/// it the Pay step reads as though compensation is unset, when in fact it
+/// belongs to a contract engagement rather than the employee record.
+class _ContractHint extends StatelessWidget {
+  const _ContractHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 14, color: t.muted2),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Wage and contract workers are paid per engagement, not through '
+              'the monthly payroll run. Create a contract under HR → More → '
+              'Contracts to set the term, pay advances and settle.',
+              style: RunqText.caption.copyWith(color: t.muted2),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -205,6 +205,10 @@ class HrEditorSheet extends StatelessWidget {
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              // Sheets are mostly text inputs, so the keyboard covers half
+              // the form. Dragging to see the rest should put it away rather
+              // than fight it.
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(children: children),
             ),
           ),

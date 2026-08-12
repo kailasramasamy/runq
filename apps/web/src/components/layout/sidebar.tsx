@@ -15,7 +15,7 @@ import {
   ArrowDownToLine, ArrowUpFromLine, HandCoins, ShoppingCart,
   ChevronDown, Briefcase, CalendarClock, CalendarDays, Clock3, IdCard,
   Network, Waypoints,
-  Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat,
+  Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat, FileSignature,
   Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
   Factory, FlaskConical, TrendingUp, Milk, Droplets, Users2, SlidersHorizontal,
 } from 'lucide-react';
@@ -49,7 +49,8 @@ export const HR_NAV_GROUPS: NavGroup[] = [
       { key: 'hr-org-chart', label: 'Org chart', icon: Network, path: '/hr/org-chart' },
       { key: 'hr-departments', label: 'Departments', icon: Briefcase, path: '/hr/departments' },
       { key: 'hr-designations', label: 'Designations', icon: IdCard, path: '/hr/designations' },
-      { key: 'hr-contract-labour', label: 'Contract labour', icon: HardHat, path: '/hr/contract-labour' },
+      { key: 'hr-contracts', label: 'Contracts', icon: FileSignature, path: '/hr/contracts' },
+      { key: 'hr-contract-labour', label: 'Wage register', icon: HardHat, path: '/hr/contract-labour' },
     ],
   },
   {

@@ -128,6 +128,7 @@ class _AssignSheetState extends ConsumerState<_AssignSheet> {
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 children: [
                   HrFormSection(children: [

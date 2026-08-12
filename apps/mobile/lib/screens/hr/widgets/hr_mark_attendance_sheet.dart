@@ -30,6 +30,7 @@ import 'hr_attendance_status.dart';
 import 'hr_colors.dart';
 import 'hr_date_range_field.dart';
 import 'hr_sheet_bits.dart';
+import 'hr_status_date_picker.dart';
 
 /// Returns true when something was written, so callers can refresh.
 Future<bool> showHrMarkAttendanceSheet(
@@ -372,14 +373,22 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
   /// The end date can only move forward from the tapped day, and is capped
   /// at [_kMaxRangeDays] — a plain-status range is written one day at a
   /// time, so an unbounded span would fire an unbounded number of requests.
+  ///
+  /// Uses the status-aware picker rather than Material's: extending a range
+  /// overwrites every day it covers, so the user needs to see which of those
+  /// days already carry a leave, a holiday, or a punched-in present.
   Future<void> _pickEndDate() async {
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await showHrStatusDatePicker(
+      context,
+      employeeId: widget.employeeId,
       initialDate: _toDate,
       firstDate: widget.date,
       lastDate: _dayOnly(widget.date).add(
         const Duration(days: _kMaxRangeDays - 1),
       ),
+      title: 'Mark through',
+      subtitle: 'Every day from ${hrShortDate(widget.date)} to the day you '
+          'pick will be set to ${hrStatusMeta(_status).label.toLowerCase()}.',
     );
     if (picked != null) setState(() => _toDate = picked);
   }

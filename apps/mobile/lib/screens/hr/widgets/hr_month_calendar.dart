@@ -34,6 +34,11 @@ class HrMonthCalendar extends StatelessWidget {
   /// the at-a-glance calendar embedded in the employee-detail Time tab.
   final bool compact;
 
+  /// Days this predicate rejects are dimmed and untappable — used when the
+  /// grid doubles as a bounded date picker. Null means every day is fair
+  /// game, which is what the read-only Time tab wants.
+  final bool Function(DateTime)? selectableDay;
+
   const HrMonthCalendar({
     super.key,
     required this.month,
@@ -41,6 +46,7 @@ class HrMonthCalendar extends StatelessWidget {
     this.onTapDay,
     this.selected,
     this.compact = false,
+    this.selectableDay,
   });
 
   @override
@@ -111,11 +117,15 @@ class HrMonthCalendar extends StatelessWidget {
     // A past working day with no row is the actionable case — outline it in
     // the ink colour instead of filling, so it reads as a gap not a state.
     final isGap = status == 'unmarked';
+    final selectable = selectableDay?.call(day) ?? true;
 
-    return AspectRatio(
+    // Out-of-range days keep their status colour but drop to a third of the
+    // opacity, so the month still reads as a whole while the pickable window
+    // stands out.
+    final cell = AspectRatio(
       aspectRatio: 1,
       child: GestureDetector(
-        onTap: onTapDay == null ? null : () => onTapDay!(day),
+        onTap: onTapDay == null || !selectable ? null : () => onTapDay!(day),
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(
@@ -163,6 +173,7 @@ class HrMonthCalendar extends StatelessWidget {
         ),
       ),
     );
+    return selectable ? cell : Opacity(opacity: 0.32, child: cell);
   }
 }
 

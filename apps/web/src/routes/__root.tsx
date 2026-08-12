@@ -181,6 +181,7 @@ import { Form24QPage } from './hr/form-24q';
 import { Form16Page } from './hr/form-16';
 import { TdsChallansPage } from './hr/tds-challans';
 import { ContractLabourPage } from './hr/contract-labour';
+import { ContractsPage } from './hr/contracts';
 import { RewardsPage } from './hr/rewards';
 import { RewardTypesPage } from './hr/reward-types';
 import { WebhooksPage } from './settings/webhooks';
@@ -2074,6 +2075,11 @@ const hrContractLabourRoute = createRoute({
   path: '/contract-labour',
   component: ContractLabourPage,
 });
+const hrContractsRoute = createRoute({
+  getParentRoute: () => hrRoute,
+  path: '/contracts',
+  component: ContractsPage,
+});
 // Expense claims spans both modules — employees raise + HR approves here,
 // Finance posts + reimburses. Mounted under HR too so HR-only roles reach
 // it without crossing into the Finance-guarded route tree.
@@ -3080,6 +3086,7 @@ export const routeTree = rootRoute.addChildren([
       hrTdsChallansRoute,
       hrForm16Route,
       hrContractLabourRoute,
+  hrContractsRoute,
       hrExpenseClaimsRoute,
       hrRewardsRoute,
       hrRewardTypesRoute,
