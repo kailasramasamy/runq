@@ -31,7 +31,12 @@ packages/db/mp_*.mjs
 # bury the real changes in `git status` and get swept up by a careless
 # `git add apps/api`.
 #
-# Anchored to the api root on purpose: everything versioned lives in
-# apps/api/src/ or apps/api/scripts/, and neither is matched by this.
-apps/api/*.ts
-apps/collect/test/_*probe*.dart
+# Matched by intent-naming rather than by extension, so a genuine file landing
+# at the api root still shows up. Anchored to that root on purpose: everything
+# versioned lives in apps/api/src/ or apps/api/scripts/, and a script named
+# verify-* or seed-* in there is real work — neither directory is matched.
+apps/api/probe-*.ts
+apps/api/fix-*.ts
+apps/api/verify-*.ts
+apps/api/*.tmp.ts
+apps/collect/test/_*probe*
