@@ -71,7 +71,7 @@ export const statutoryChallans = pgTable('statutory_challans', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index('idx_sc_tenant_status').on(t.tenantId, t.status),
-  index('idx_sc_tenant_kind').on(t.tenantId, t.kind),
-  index('idx_sc_tenant_run').on(t.tenantId, t.payrollRunId),
+  index('idx_schal_tenant_status').on(t.tenantId, t.status),
+  index('idx_schal_tenant_kind').on(t.tenantId, t.kind),
+  index('idx_schal_tenant_run').on(t.tenantId, t.payrollRunId),
 ]);

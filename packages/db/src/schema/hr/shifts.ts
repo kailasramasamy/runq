@@ -31,5 +31,5 @@ export const employeeShifts = pgTable('employee_shifts', {
   effectiveTo: date('effective_to'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index('idx_es_tenant_emp').on(t.tenantId, t.employeeId),
+  index('idx_eshift_tenant_emp').on(t.tenantId, t.employeeId),
 ]);
