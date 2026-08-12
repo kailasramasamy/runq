@@ -19,7 +19,6 @@ const CLASS_OPTIONS = [
 const BUCKET_LABEL: Record<PoolBucket, string> = {
   uncapitalised: 'Not on the GL',
   capitalised: 'On the GL',
-  mixed: 'Mixed — needs a manual call',
 };
 
 const BUCKET_HELP: Record<PoolBucket, string> = {
@@ -30,17 +29,7 @@ const BUCKET_HELP: Record<PoolBucket, string> = {
   capitalised:
     'Goods receipts, reclaims and production output. Inventory was debited when this stock '
     + 'arrived, so writing it off posts the matching journal entry.',
-  mixed:
-    'One batch fed by both sources. A single adjustment cannot be half on the GL, so split '
-    + 'these by hand — or zero the other two groups first and review what is left.',
 };
-
-/**
- * A pool carrying no value posts no journal entry either way — the GL poster
- * short-circuits on a zero delta — so the mixed-source ambiguity has nothing
- * to bite on and the group is safe to load as-is.
- */
-const isHarmless = (lines: ZeroOutLine[]) => lines.every((l) => l.value === 0);
 
 const fmtQty = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const fmtMoney = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -62,7 +51,7 @@ export function ZeroOutDialog({ open, onClose, warehouseId, onLoad }: {
     ...(itemClass ? { itemClass } : {}),
   });
 
-  const buckets: PoolBucket[] = ['uncapitalised', 'capitalised', 'mixed'];
+  const buckets: PoolBucket[] = ['uncapitalised', 'capitalised'];
   const present = buckets.filter((b) => (data?.summary[b].pools ?? 0) > 0);
 
   return (
@@ -109,36 +98,36 @@ function BucketPanel({ bucket, pools, qty, value, lines, onLoad }: {
   lines: ZeroOutLine[];
   onLoad: () => void;
 }) {
-  // Mixed only needs a manual call when there is value at stake to misroute.
-  const blocked = bucket === 'mixed' && !isHarmless(lines);
-  const isMixed = bucket === 'mixed';
+  // A batch fed by both kinds of source is split across the two groups, so
+  // the same batch number can appear in each. Flagged, because two rows with
+  // one batch number otherwise reads as a duplicate.
+  const hasSplit = lines.some((l) => l.splitFromMixed);
   return (
-    <div className={`rounded-lg border p-3 ${blocked
-      ? 'border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30'
-      : 'border-zinc-200 dark:border-zinc-800'}`}
-    >
+    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {blocked && <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400" />}
           <h4 className="text-sm font-semibold">{BUCKET_LABEL[bucket]}</h4>
           <Badge variant={bucket === 'capitalised' ? 'info' : 'warning'}>
             {pools} {pools === 1 ? 'batch' : 'batches'}
           </Badge>
         </div>
-        {!blocked && (
-          <Button type="button" variant="secondary" onClick={onLoad}>
-            Load {pools} {pools === 1 ? 'line' : 'lines'}
-            {bucket === 'capitalised' ? ' (posts GL)' : ' (no GL)'}
-          </Button>
-        )}
+        <Button type="button" variant="secondary" onClick={onLoad}>
+          Load {pools} {pools === 1 ? 'line' : 'lines'}
+          {bucket === 'capitalised' ? ' (posts GL)' : ' (no GL)'}
+        </Button>
       </div>
 
-      <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">
-        {isMixed && !blocked
-          ? 'One batch fed by both sources — but it carries no value, so no journal entry '
-            + 'posts either way and it is safe to zero out directly.'
-          : BUCKET_HELP[bucket]}
-      </p>
+      <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">{BUCKET_HELP[bucket]}</p>
+      {hasSplit && (
+        <p className="mb-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span>
+            Rows marked <strong>split</strong> are part of a batch fed by both
+            sources. Its stock is divided across both groups — load each group
+            to zero the batch fully.
+          </span>
+        </p>
+      )}
       <p className="mb-2 text-xs text-zinc-500">
         Total <strong>{fmtQty(qty)}</strong> · ledger value <strong>{fmtMoney(value)}</strong>
       </p>
@@ -162,9 +151,16 @@ function PoolTable({ lines }: { lines: ZeroOutLine[] }) {
       </TableHeader>
       <TableBody>
         {lines.map((l) => (
-          <TableRow key={`${l.itemId}-${l.batchNo ?? ''}`}>
+          <TableRow key={`${l.itemId}-${l.batchNo ?? ''}-${l.bucket}`}>
             <TableCell>{l.itemName}</TableCell>
-            <TableCell className="font-mono text-xs">{l.batchNo ?? '—'}</TableCell>
+            <TableCell className="font-mono text-xs">
+              {l.batchNo ?? '—'}
+              {l.splitFromMixed && (
+                <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                  split
+                </span>
+              )}
+            </TableCell>
             <TableCell className="text-right">{fmtQty(l.qty)}</TableCell>
             <TableCell className="text-right">{fmtMoney(l.avgCost)}</TableCell>
             <TableCell className="text-right">{fmtMoney(l.value)}</TableCell>

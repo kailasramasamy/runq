@@ -662,9 +662,10 @@ export interface CreateAdjustmentBody {
  *                   never debited inventory (the milk is already expensed to
  *                   5050 at cycle lock), so a JE would double-expense it.
  *   capitalised   — GRN, reclaim, production. A JE is required.
- *   mixed         — both, on one batch. Can't be resolved by a single flag.
+ * A batch fed by both is apportioned FIFO and emitted as one line in each
+ * bucket, flagged `splitFromMixed`.
  */
-export type PoolBucket = 'uncapitalised' | 'capitalised' | 'mixed';
+export type PoolBucket = 'uncapitalised' | 'capitalised';
 
 export interface ZeroOutLine {
   itemId: string;
@@ -676,6 +677,8 @@ export interface ZeroOutLine {
   value: number;
   qtyDelta: number;
   bucket: PoolBucket;
+  /** One half of a batch fed by both kinds of source. */
+  splitFromMixed: boolean;
 }
 
 export interface ZeroOutPreview {
