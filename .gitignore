@@ -12,6 +12,9 @@ coverage/
 # Runtime upload directory — per-tenant blobs land here, never commit.
 apps/api/uploads/
 
+# Database snapshots from scripts/sync-prod-to-local.sh — real customer data.
+tmp/db-sync/
+
 # Editor / tool-local state
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
