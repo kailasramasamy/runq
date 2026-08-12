@@ -10,6 +10,13 @@
 //   present / absent / week_off / holiday → POST /hr/attendance, a plain
 //       upsert on (employeeId, date). No balance is involved.
 //
+// Clearing is the third path — DELETE /hr/attendance, which also cancels
+// the leave behind a leave-marked day. See hr_clear_day.dart.
+//
+// Failures land in an inline banner, never a toast: this is a modal bottom
+// sheet, and a ScaffoldMessenger snack renders behind it, which made a
+// rejected range mark look like a dead button.
+//
 // Self-marking exception: the server refuses self-approval of leave
 // (LeaveRequestService.review) whatever the caller's role. When the target
 // is the logged-in user's own employee record we submit the request and
@@ -25,10 +32,11 @@ import '../../../api/hr_repo.dart';
 import '../../../providers/hr_providers.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
-import '../../../widgets/runq_snack.dart';
 import 'hr_attendance_status.dart';
+import 'hr_clear_day.dart';
 import 'hr_colors.dart';
 import 'hr_date_range_field.dart';
+import 'hr_mark_sheet_chips.dart';
 import 'hr_sheet_bits.dart';
 import 'hr_status_date_picker.dart';
 
@@ -41,6 +49,8 @@ Future<bool> showHrMarkAttendanceSheet(
   String? currentStatus,
   String? contextNote,
   required bool isSelf,
+  bool canClear = false,
+  String? clearWarning,
 }) async {
   final res = await showModalBottomSheet<bool>(
     context: context,
@@ -53,6 +63,8 @@ Future<bool> showHrMarkAttendanceSheet(
       currentStatus: currentStatus,
       contextNote: contextNote,
       isSelf: isSelf,
+      canClear: canClear,
+      clearWarning: clearWarning,
     ),
   );
   return res ?? false;
@@ -69,6 +81,15 @@ class _MarkSheet extends ConsumerStatefulWidget {
   final String? contextNote;
 
   final bool isSelf;
+
+  /// Whether the day carries a marking that can be removed — an attendance
+  /// row or a live leave. A blank day has nothing to clear.
+  final bool canClear;
+
+  /// What clearing will actually take with it, when the day belongs to a
+  /// multi-day leave. Null for a plain one-day marking.
+  final String? clearWarning;
+
   const _MarkSheet({
     required this.employeeId,
     required this.employeeName,
@@ -76,6 +97,8 @@ class _MarkSheet extends ConsumerStatefulWidget {
     required this.currentStatus,
     required this.contextNote,
     required this.isSelf,
+    required this.canClear,
+    required this.clearWarning,
   });
 
   @override
@@ -92,6 +115,10 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
 
   final _notes = TextEditingController();
   bool _saving = false;
+
+  /// Last server refusal, shown in the sheet itself. Cleared on every new
+  /// attempt so a stale message never sits next to a fresh spinner.
+  String? _error;
 
   bool get _isLeave => _status == 'leave' || _status == 'half_day';
 
@@ -141,7 +168,13 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
                 const SizedBox(height: 16),
                 Text('Mark as', style: RunqText.label.copyWith(color: t.muted2)),
                 const SizedBox(height: 8),
-                _statusChips(),
+                HrStatusChips(
+                  selected: _status,
+                  onSelect: (s) => setState(() {
+                    _status = s;
+                    if (s == 'half_day') _toDate = widget.date;
+                  }),
+                ),
                 const SizedBox(height: 16),
                 HrDateRangeField(
                   from: widget.date,
@@ -160,7 +193,10 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
                   _notesField(),
                 ],
                 const SizedBox(height: 20),
+                HrSheetError(message: _error),
                 _saveButton(types),
+                if (widget.canClear)
+                  HrClearDayButton(busy: _saving, onPressed: _clear),
               ],
             ),
           ),
@@ -184,50 +220,6 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
     );
   }
 
-  Widget _statusChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: kHrMarkableStatuses.map((s) {
-        final meta = hrStatusMeta(s);
-        final pair = hrStatusColors(context, s);
-        final on = _status == s;
-        final t = RT(context);
-        return GestureDetector(
-          onTap: () => setState(() {
-            _status = s;
-            if (s == 'half_day') _toDate = widget.date;
-          }),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: on ? pair[0] : t.surface,
-              borderRadius: BorderRadius.circular(RunqRadii.chip),
-              border: Border.all(
-                color: on ? pair[1] : t.hairline,
-                width: on ? 1.5 : 0.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(meta.icon, size: 15, color: on ? pair[1] : t.muted),
-                const SizedBox(width: 6),
-                Text(
-                  meta.label,
-                  style: RunqText.caption.copyWith(
-                    color: on ? pair[1] : t.ink,
-                    fontWeight: on ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _leaveSection(RunqTokens t, List<HrLeaveType> types, bool loading) {
     if (loading) {
       return const Padding(
@@ -235,7 +227,7 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
         child: Center(child: CircularProgressIndicator(color: HrColors.teal)),
       );
     }
-    if (types.isEmpty) return _noTypesNotice(t);
+    if (types.isEmpty) return const HrNoLeaveTypesNotice();
 
     final balances = ref
             .watch(hrEmployeeLeaveBalancesProvider(
@@ -249,10 +241,11 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
       children: [
         Text('Leave type', style: RunqText.label.copyWith(color: t.muted2)),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: types.map((lt) => _typeChip(t, lt, balances)).toList(),
+        HrLeaveTypeChips(
+          types: types,
+          balances: balances,
+          selectedId: _leaveTypeId,
+          onSelect: (id) => setState(() => _leaveTypeId = id),
         ),
         const SizedBox(height: 14),
         _reasonField(),
@@ -262,64 +255,11 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
     );
   }
 
-  Widget _typeChip(RunqTokens t, HrLeaveType lt, List<HrLeaveBalance> balances) {
-    final on = _leaveTypeId == lt.id;
-    final bal = balances.where((b) => b.leaveTypeId == lt.id).firstOrNull;
-    final brand = HrColors.brand(context);
-    return GestureDetector(
-      onTap: () => setState(() => _leaveTypeId = lt.id),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: on ? HrColors.tealSubtle : t.surface,
-          borderRadius: BorderRadius.circular(RunqRadii.chip),
-          border: Border.all(
-            color: on ? brand : t.hairline,
-            width: on ? 1.5 : 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(lt.code,
-                style: RunqText.caption.copyWith(
-                  color: on ? brand : t.ink,
-                  fontWeight: FontWeight.w700,
-                )),
-            if (bal != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                _trimNum(bal.balance),
-                style: RunqText.caption.copyWith(color: on ? brand : t.muted),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _reasonField() =>
       HrSheetTextField(controller: _notes, hint: 'Reason (optional)');
 
   Widget _notesField() =>
       HrSheetTextField(controller: _notes, hint: 'Notes (optional)');
-
-  Widget _noTypesNotice(RunqTokens t) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: t.inputFill,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      child: Text(
-        'No leave types configured. The day will be marked on the calendar '
-        'only — no leave balance will be deducted.',
-        style: RunqText.caption.copyWith(color: t.muted),
-      ),
-    );
-  }
 
   Widget _balanceNotice(RunqTokens t) {
     final msg = widget.isSelf
@@ -410,7 +350,10 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       final types = ref.read(hrLeaveTypesForEmployeeProvider(widget.employeeId))
               .asData?.value ?? const <HrLeaveType>[];
@@ -419,13 +362,55 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
       } else {
         await _saveAsStamp();
       }
-      _invalidate();
+      hrInvalidateAttendance(ref);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() => _saving = false);
-      showRunqSnack(context, e.message, kind: SnackKind.error);
+      setState(() {
+        _saving = false;
+        _error = _explain(e.message);
+      });
+    }
+  }
+
+  /// The server's overlap refusal is true but unhelpful mid-range: the user
+  /// picked a span and one day inside it already carries a leave. Say which
+  /// way out — the whole request is rejected, not just the clashing day.
+  String _explain(String message) {
+    if (!message.toLowerCase().contains('overlapping')) return message;
+    final where = _dayCount() > 1
+        ? 'somewhere in ${hrShortDate(widget.date)} – ${hrShortDate(_toDate)}'
+        : 'on ${hrShortDate(widget.date)}';
+    return 'A leave already exists $where, so nothing was marked. Clear that '
+        'leave first, or pick a range that avoids it.';
+  }
+
+  Future<void> _clear() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final cleared = await confirmAndClearDay(
+        context,
+        ref,
+        employeeId: widget.employeeId,
+        date: widget.date,
+        leaveWarning: widget.clearWarning,
+      );
+      if (!mounted) return;
+      if (cleared == null) {
+        setState(() => _saving = false);
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.message;
+      });
     }
   }
 
@@ -457,16 +442,6 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
       );
     }
   }
-
-  void _invalidate() {
-    ref.invalidate(hrAttendanceMonthProvider);
-    ref.invalidate(hrEmployeeLeaveBalancesProvider);
-    ref.invalidate(hrEmployeeLeaveRequestsProvider);
-    ref.invalidate(hrMyLeaveBalancesProvider);
-    ref.invalidate(hrMyLeaveRequestsProvider);
-    ref.invalidate(hrPendingLeaveRequestsProvider);
-    ref.invalidate(hrMusterTodayProvider);
-  }
 }
 
 /// Upper bound on a single mark. Long enough for a maternity block or a
@@ -474,5 +449,3 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
 const _kMaxRangeDays = 62;
 
 DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-String _trimNum(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);

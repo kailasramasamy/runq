@@ -61,6 +61,40 @@ class HrSheetNote extends StatelessWidget {
   }
 }
 
+/// Failure banner rendered inside the sheet. A snackbar can't be used here
+/// — ScaffoldMessenger puts it behind the modal sheet, which is how a
+/// rejected mark ended up looking like a dead button.
+class HrSheetError extends StatelessWidget {
+  final String? message;
+  const HrSheetError({super.key, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = message?.trim() ?? '';
+    if (text.isEmpty) return const SizedBox.shrink();
+    const danger = Color(0xFFDC2626);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: danger.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: danger.withValues(alpha: 0.35), width: 0.8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, size: 15, color: danger),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: RunqText.caption.copyWith(color: danger)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class HrSheetTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;

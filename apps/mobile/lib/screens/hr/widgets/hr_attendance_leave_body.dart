@@ -22,6 +22,7 @@ import '../../../providers/hr_providers.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'hr_colors.dart';
+import 'hr_date_range_field.dart';
 import 'hr_day_detail_sheet.dart';
 import 'hr_leave_summary_cards.dart';
 import 'hr_mark_attendance_sheet.dart';
@@ -166,7 +167,15 @@ class _HrAttendanceLeaveBodyState extends ConsumerState<HrAttendanceLeaveBody> {
       DateTime day, HrAttendanceMonth m, bool canMark) async {
     final status = m.statusFor(day);
     if (canMark) {
-      await _mark(day, status == 'upcoming' ? null : status, _contextNote(day, m));
+      await _mark(
+        day,
+        status == 'upcoming' ? null : status,
+        _contextNote(day, m),
+        // Only a real row or a live leave can be cleared — a holiday or a
+        // Sunday is derived, so there's nothing there to delete.
+        canClear: m.rowFor(day) != null || m.leaveFor(day) != null,
+        clearWarning: _clearWarning(day, m),
+      );
       return;
     }
     await showHrDayDetailSheet(
@@ -199,7 +208,25 @@ class _HrAttendanceLeaveBodyState extends ConsumerState<HrAttendanceLeaveBody> {
 
   static String _trim(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
 
-  Future<void> _mark(DateTime day, String? status, String? note) async {
+  /// What the user is really about to undo. A leave day can't be cleared on
+  /// its own — the balance was deducted against the whole request — so the
+  /// confirm names the span and the days coming back.
+  String? _clearWarning(DateTime day, HrAttendanceMonth m) {
+    final l = m.leaveFor(day);
+    if (l == null) return null;
+    return 'This day is part of ${l.typeName} from '
+        '${hrShortDate(l.fromDate)} to ${hrShortDate(l.toDate)}. Clearing '
+        'cancels the whole leave, restores ${_trim(l.totalDays)} day(s) of '
+        'balance, and unmarks every day it covers.';
+  }
+
+  Future<void> _mark(
+    DateTime day,
+    String? status,
+    String? note, {
+    required bool canClear,
+    required String? clearWarning,
+  }) async {
     final me = ref.read(hrMeProvider).asData?.value;
     final changed = await showHrMarkAttendanceSheet(
       context,
@@ -209,6 +236,8 @@ class _HrAttendanceLeaveBodyState extends ConsumerState<HrAttendanceLeaveBody> {
       currentStatus: status,
       contextNote: note,
       isSelf: me?.employee?.id == widget.employeeId,
+      canClear: canClear,
+      clearWarning: clearWarning,
     );
     if (!changed || !mounted) return;
     ref.invalidate(hrAttendanceMonthProvider);

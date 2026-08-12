@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   upsertAttendanceSchema, bulkAttendanceSchema, attendanceFilterSchema,
@@ -8,6 +8,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { AttendanceService } from './attendance.service';
 import { resolveHrAccessScope } from './access-scope';
 import { HrNotifier } from './hr-notifier';
+import { fetchLeaveNoticeData } from './leave.routes';
 
 const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
@@ -17,6 +18,28 @@ const WRITE = ['owner', 'accountant', 'hr'] as const;
 const SELF_OR_WRITE = ['owner', 'accountant', 'hr', 'viewer'] as const;
 
 const dateOnlyQuery = z.object({ date: z.string().date() });
+const clearDayQuery = z.object({
+  employeeId: z.string().uuid(),
+  date: z.string().date(),
+});
+
+/// Viewers are gated to their access scope on any attendance write:
+///   - kind:'self'   → only their own row
+///   - kind:'subset' → anyone in their reporting subtree (a manager
+///                     marking for their team)
+///   - kind:'all'    → never reached; admin write-roles skip this check
+/// Returns the refusal message, or null when the write is allowed.
+async function refuseOutOfScope(
+  req: FastifyRequest, employeeId: string,
+): Promise<string | null> {
+  if (req.activeRole !== 'viewer') return null;
+  const scope = await resolveHrAccessScope(req);
+  if (scope.kind === 'self' && scope.selfEmployeeId === employeeId) return null;
+  if (scope.kind === 'subset' && scope.ids.has(employeeId)) return null;
+  return scope.kind === 'subset'
+    ? 'You can only change attendance for yourself or your team'
+    : 'Viewers can only change their own attendance';
+}
 
 export const attendanceRoutes: FastifyPluginAsync = async (app) => {
   app.get('/attendance', { preHandler: [rbacHook([...ALL])] }, async (req) => {
@@ -28,26 +51,40 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/attendance', { preHandler: [rbacHook([...SELF_OR_WRITE])] }, async (req, reply) => {
     const input = upsertAttendanceSchema.parse(req.body);
-    // Viewers are gated to their access scope:
-    //   - kind:'self'   → can only stamp their own row
-    //   - kind:'subset' → can stamp anyone in their reporting subtree
-    //                     (manager marking attendance for their team)
-    //   - kind:'all'    → never reached here; admin write-roles below
-    // Admin / accountant / hr fall through with no extra restriction.
-    if (req.activeRole === 'viewer') {
-      const scope = await resolveHrAccessScope(req);
-      final: {
-        if (scope.kind === 'self' && scope.selfEmployeeId === input.employeeId) break final;
-        if (scope.kind === 'subset' && scope.ids.has(input.employeeId)) break final;
-        return reply.status(403).send({
-          message: scope.kind === 'subset'
-            ? 'You can only stamp attendance for yourself or your team'
-            : 'Viewers can only stamp their own attendance',
-        });
-      }
-    }
+    const refusal = await refuseOutOfScope(req, input.employeeId);
+    if (refusal) return reply.status(403).send({ message: refusal });
     const svc = new AttendanceService(req.server.db, req.tenantId);
     return reply.status(201).send({ data: await svc.upsert(input) });
+  });
+
+  // Undo for a mis-marked day. Keyed on employee + date rather than the
+  // row id: the calendar knows the day, and a leave-backed day may have
+  // no row of its own to point at.
+  app.delete('/attendance', { preHandler: [rbacHook([...SELF_OR_WRITE])] }, async (req, reply) => {
+    const input = clearDayQuery.parse(req.query);
+    const refusal = await refuseOutOfScope(req, input.employeeId);
+    if (refusal) return reply.status(403).send({ message: refusal });
+    const svc = new AttendanceService(req.server.db, req.tenantId);
+    const data = await svc.clearDay(input.employeeId, input.date);
+
+    // Wiping a day can take an approved leave with it — same notice the
+    // explicit cancel route sends, so the manager isn't left with a stale
+    // picture of who's off.
+    const gone = data.cancelledLeave;
+    if (gone) {
+      fetchLeaveNoticeData(req.server.db, req.tenantId, input.employeeId, gone.leaveTypeId)
+        .then(({ fullName, leaveTypeName }) =>
+          new HrNotifier(req.server.db, req.tenantId).notifyManagerOf(input.employeeId, {
+            source: 'hr_leave',
+            title: 'Leave cancelled',
+            body: `Approved ${leaveTypeName} for ${fullName} (${gone.fromDate}–${gone.toDate}) was cleared from the calendar.`,
+            targetUrl: '/hr/leave-requests',
+          }),
+        )
+        .catch((e) => req.log.error(e, 'attendance:clear notify failed'));
+    }
+
+    return { data };
   });
 
   app.post('/attendance/bulk', { preHandler: [rbacHook([...WRITE])] }, async (req) => {

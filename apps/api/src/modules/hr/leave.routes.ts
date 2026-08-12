@@ -15,7 +15,7 @@ import { resolveHrAccessScope } from './access-scope';
 import { HrNotifier } from './hr-notifier';
 
 /** Fetch the minimal data needed to build leave notification copy. */
-async function fetchLeaveNoticeData(
+export async function fetchLeaveNoticeData(
   db: import('@runq/db').Db,
   tenantId: string,
   employeeId: string,

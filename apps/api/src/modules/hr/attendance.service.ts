@@ -1,11 +1,12 @@
 import { eq, and, gte, lte, asc, sql, inArray } from 'drizzle-orm';
-import { attendance, biometricImports, employees } from '@runq/db';
+import { attendance, biometricImports, employees, leaveRequests } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
   UpsertAttendanceInput, AttendanceFilter, BiometricImportInput,
 } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import { applyHrScope, type HrAccessScope } from './access-scope';
+import { LeaveRequestService } from './leave-request.service';
 
 function calcHours(checkIn?: string | null, checkOut?: string | null): number | null {
   if (!checkIn || !checkOut) return null;
@@ -89,6 +90,56 @@ export class AttendanceService {
       })
       .returning();
     return row;
+  }
+
+  /// Wipes a day's marking — the undo for a mis-tapped calendar cell.
+  ///
+  /// A leave day can't be erased in isolation: the balance was deducted
+  /// against the whole request, so clearing any day it covers cancels the
+  /// request (which restores the balance) and clears every day of its span.
+  /// Callers warn the user before calling; the returned dates say what went.
+  async clearDay(employeeId: string, date: string) {
+    const [leave] = await this.db
+      .select({
+        id: leaveRequests.id,
+        from: leaveRequests.fromDate,
+        to: leaveRequests.toDate,
+        leaveTypeId: leaveRequests.leaveTypeId,
+        status: leaveRequests.status,
+      })
+      .from(leaveRequests)
+      .where(and(
+        eq(leaveRequests.tenantId, this.tenantId),
+        eq(leaveRequests.employeeId, employeeId),
+        inArray(leaveRequests.status, ['pending', 'approved']),
+        lte(leaveRequests.fromDate, date),
+        gte(leaveRequests.toDate, date),
+      ))
+      .limit(1);
+
+    if (leave) await new LeaveRequestService(this.db, this.tenantId).cancel(leave.id);
+
+    const cleared = await this.db
+      .delete(attendance)
+      .where(and(
+        eq(attendance.tenantId, this.tenantId),
+        eq(attendance.employeeId, employeeId),
+        leave
+          ? and(gte(attendance.date, leave.from), lte(attendance.date, leave.to))
+          : eq(attendance.date, date),
+      ))
+      .returning({ date: attendance.date });
+
+    if (!leave && cleared.length === 0) throw new NotFoundError('Attendance');
+    return {
+      clearedDates: cleared.map((r) => r.date).sort(),
+      cancelledLeaveId: leave?.id ?? null,
+      // Only an approved leave is worth telling a manager about — a
+      // pending one they never acted on isn't news.
+      cancelledLeave: leave?.status === 'approved'
+        ? { leaveTypeId: leave.leaveTypeId, fromDate: leave.from, toDate: leave.to }
+        : null,
+    };
   }
 
   async bulkUpsert(records: UpsertAttendanceInput[]) {

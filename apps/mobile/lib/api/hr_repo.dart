@@ -405,6 +405,20 @@ class HrRepo {
     return HrAttendanceRow.fromJson(_data(res));
   }
 
+  /// Clears a day's marking. A day covered by a pending/approved leave
+  /// takes its whole leave with it — the server cancels the request (which
+  /// restores the balance) and wipes every day it spans. Returns the dates
+  /// that were actually cleared, so the caller can say what happened.
+  Future<List<DateTime>> clearAttendanceDay({
+    required String employeeId,
+    required DateTime date,
+  }) async {
+    final qp = {'employeeId': employeeId, 'date': _isoDate(date)};
+    final res = await apiClient.delete('/hr/attendance?${Uri(queryParameters: qp).query}');
+    final dates = (_data(res)['clearedDates'] as List?) ?? const [];
+    return dates.map((d) => DateTime.parse(d as String)).toList();
+  }
+
   /// Bulk-upsert attendance rows. Server caps the batch at 1000 records.
   /// Returns the inserted/updated count from `{count}` in the response.
   Future<int> bulkStampAttendance(List<Map<String, dynamic>> records) async {
