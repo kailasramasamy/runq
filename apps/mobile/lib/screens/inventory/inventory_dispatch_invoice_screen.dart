@@ -27,6 +27,7 @@ import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryDispatchInvoiceScreen extends ConsumerStatefulWidget {
   const InventoryDispatchInvoiceScreen({super.key, required this.invoiceId});
@@ -87,9 +88,11 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
 
   Future<void> _submit(InvDispatchPreview preview) async {
     final wh = _warehouseId;
-    if (wh == null) return _toast('Pick a warehouse');
+    if (wh == null) return _toast('Pick a warehouse', kind: SnackKind.warning);
     final selected = _selected(preview);
-    if (selected.isEmpty) return _toast('Nothing to dispatch');
+    if (selected.isEmpty) {
+      return _toast('Nothing to dispatch', kind: SnackKind.warning);
+    }
 
     setState(() => _posting = true);
     try {
@@ -110,25 +113,27 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
       );
       try {
         await inventoryRepo.dispatchDn(dn.id);
-        _toast('${dn.dnNo} dispatched — stock updated');
+        _toast('${dn.dnNo} dispatched — stock updated',
+            kind: SnackKind.success);
       } catch (e) {
         // Draft survives; the operator fixes the batch and posts from there.
-        _toast('Draft ${dn.dnNo} saved, but stock did not post: $e');
+        _toast('Draft ${dn.dnNo} saved, but stock did not post',
+            kind: SnackKind.warning, detail: snackErrorText(e));
       }
       ref.invalidate(invPendingDispatchProvider);
       ref.invalidate(invDnListProvider(null));
       ref.invalidate(invKpisProvider);
       if (mounted) context.pushReplacement('/inventory/delivery/${dn.id}');
     } catch (e) {
-      _toast('$e');
+      _toast(snackErrorText(e), kind: SnackKind.error);
     } finally {
       if (mounted) setState(() => _posting = false);
     }
   }
 
-  void _toast(String msg) {
+  void _toast(String msg, {SnackKind kind = SnackKind.info, String? detail}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showRunqSnack(context, msg, kind: kind, description: detail);
   }
 
   @override

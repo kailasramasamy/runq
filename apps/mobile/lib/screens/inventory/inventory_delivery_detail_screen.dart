@@ -15,6 +15,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryDeliveryDetailScreen extends ConsumerStatefulWidget {
   const InventoryDeliveryDetailScreen({super.key, required this.dnId});
@@ -41,12 +42,12 @@ class _State extends ConsumerState<InventoryDeliveryDetailScreen> {
       ref.invalidate(invDnDetailProvider(widget.dnId));
       ref.invalidate(invDnListProvider(null));
       ref.invalidate(invKpisProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dispatched — stock + COGS booked')),
-      );
+      RunqSnack.success(context, 'Dispatched',
+          description: 'Stock and COGS booked.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't dispatch this delivery",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,12 +62,11 @@ class _State extends ConsumerState<InventoryDeliveryDetailScreen> {
       if (!mounted) return;
       ref.invalidate(invDnDetailProvider(widget.dnId));
       ref.invalidate(invDnListProvider(null));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cancelled')),
-      );
+      RunqSnack.success(context, 'Delivery cancelled');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't cancel this delivery",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

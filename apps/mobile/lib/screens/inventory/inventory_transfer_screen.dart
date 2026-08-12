@@ -18,6 +18,7 @@ import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryTransferScreen extends ConsumerWidget {
   const InventoryTransferScreen({super.key});
@@ -130,11 +131,12 @@ class InventoryTransferScreen extends ConsumerWidget {
     try {
       await inventoryRepo.receiveTransfer(id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$no received')));
+      RunqSnack.success(context, '$no received');
       ref.invalidate(invTransferListProvider(null));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't receive $no",
+          description: snackErrorText(e));
     }
   }
 }
@@ -396,9 +398,7 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
     // Dedupe — if the item is already in the draft, just focus its row.
     final existing = _lines.indexWhere((l) => l.item.id == item.id);
     if (existing != -1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${item.name} is already in this transfer')),
-      );
+      RunqSnack.warning(context, '${item.name} is already in this transfer');
       return;
     }
     final draft = _LineDraft(item);
@@ -468,12 +468,12 @@ class _NewTransferSheetState extends ConsumerState<_NewTransferSheet> {
       await inventoryRepo.dispatchTransfer(t.id);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${t.transferNo} dispatched (in transit)')),
-      );
+      RunqSnack.success(context, '${t.transferNo} dispatched',
+          description: 'In transit.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't dispatch the transfer",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }

@@ -683,16 +683,13 @@ class _ItemSheetState extends State<_ItemSheet> {
   void _save() {
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an amount greater than zero')),
-      );
+      RunqSnack.warning(context, 'Enter an amount greater than zero');
       return;
     }
     final desc = _descCtrl.text.trim();
     if (desc.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a short description so you can recognise this later')),
-      );
+      RunqSnack.warning(context, 'Add a short description',
+          description: 'It helps you recognise this expense later.');
       return;
     }
     Navigator.of(context).pop(_Item(

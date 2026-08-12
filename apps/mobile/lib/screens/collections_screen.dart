@@ -11,6 +11,7 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
 import '../widgets/runq_card.dart';
+import '../widgets/runq_snack.dart';
 import '../widgets/section_head.dart';
 
 class CollectionsScreen extends ConsumerWidget {
@@ -541,12 +542,13 @@ class _ActionSheet extends ConsumerWidget {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok) {
         await Clipboard.setData(ClipboardData(text: rendered.text));
-        messenger.showSnackBar(const SnackBar(
-            content: Text('WhatsApp not available — message copied to clipboard')));
+        showRunqSnackOn(messenger, 'Message copied to clipboard',
+            kind: SnackKind.warning,
+            description: "WhatsApp isn't available on this device.");
       }
     } catch (e) {
-      messenger.showSnackBar(
-          SnackBar(content: Text('Could not open WhatsApp: $e')));
+      showRunqSnackOn(messenger, "Couldn't open WhatsApp",
+          kind: SnackKind.error, description: snackErrorText(e));
     }
   }
 
@@ -573,13 +575,10 @@ class _ActionSheet extends ConsumerWidget {
         ruleId: rule.id,
       );
       navigator.pop();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Reminder sent')),
-      );
+      showRunqSnackOn(messenger, 'Reminder sent', kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text("Couldn't send reminder: $e")),
-      );
+      showRunqSnackOn(messenger, "Couldn't send reminder",
+          kind: SnackKind.error, description: snackErrorText(e));
     }
   }
 }

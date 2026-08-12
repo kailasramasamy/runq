@@ -19,6 +19,7 @@ import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 const Map<String, String> _reasonLabels = {
   'damage': 'Damage', 'expiry': 'Expiry', 'theft': 'Theft', 'found': 'Found',
@@ -666,14 +667,15 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(adjNos.length == 1
-            ? '${adjNos.first} posted'
-            : '${adjNos.length} adjustments posted')),
-      );
+      RunqSnack.success(
+          context,
+          adjNos.length == 1
+              ? '${adjNos.first} posted'
+              : '${adjNos.length} adjustments posted');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't post the adjustment",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -1324,15 +1326,12 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
   void _save() {
     final q = double.tryParse(_ctrl.text) ?? -1;
     if (q <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a positive qty')),
-      );
+      RunqSnack.warning(context, 'Enter a positive qty');
       return;
     }
     if (_isOutbound && q > widget.availSnapshot) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Only ${_fmtQty(widget.availSnapshot)} on hand')),
-      );
+      RunqSnack.warning(
+          context, 'Only ${_fmtQty(widget.availSnapshot)} on hand');
       return;
     }
     final batch = _batchCtrl.text.trim();
@@ -1340,9 +1339,8 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
     // movement with no batch, and that error would land on the whole document
     // long after the user left this sheet.
     if (widget.needsBatchNo && batch.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This item tracks batches — enter a batch number')),
-      );
+      RunqSnack.warning(context, 'Enter a batch number',
+          description: 'This item is batch-tracked.');
       return;
     }
     Navigator.of(context).pop(_AdjLineSheetResult.saved(
@@ -2149,13 +2147,13 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
       await action();
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+      showRunqSnackOn(messenger, successMessage, kind: SnackKind.success);
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
       // Surfaced verbatim: the ledger's reason ("Batch number is required for
       // this item") is the only thing that says why it will not post.
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showRunqSnackOn(messenger, snackErrorText(e), kind: SnackKind.error);
     }
   }
 }

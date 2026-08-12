@@ -17,6 +17,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryDeliveryEditScreen extends ConsumerStatefulWidget {
   const InventoryDeliveryEditScreen({super.key, required this.dnId});
@@ -98,9 +99,7 @@ class _State extends ConsumerState<InventoryDeliveryEditScreen> {
     final item = await inventoryRepo.findByBarcode(code);
     if (!mounted) return;
     if (item == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No item matched that barcode')),
-      );
+      RunqSnack.warning(context, 'No item matched that barcode');
       return;
     }
     setState(() {
@@ -120,9 +119,7 @@ class _State extends ConsumerState<InventoryDeliveryEditScreen> {
         .where((l) => l.itemId.isNotEmpty && (double.tryParse(l.qty) ?? 0) > 0)
         .toList();
     if (valid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one line with qty > 0')),
-      );
+      RunqSnack.warning(context, 'Add at least one line with qty > 0');
       return;
     }
     setState(() => _submitting = true);
@@ -144,13 +141,12 @@ class _State extends ConsumerState<InventoryDeliveryEditScreen> {
       if (!mounted) return;
       ref.invalidate(invDnDetailProvider(widget.dnId));
       ref.invalidate(invDnListProvider(null));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dispatch updated')),
-      );
+      RunqSnack.success(context, 'Dispatch updated');
       context.pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't update the dispatch",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

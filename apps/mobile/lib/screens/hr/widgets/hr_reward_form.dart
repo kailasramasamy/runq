@@ -13,12 +13,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../api/api_client.dart';
 import '../../../api/hr_models.dart';
 import '../../../api/hr_repo.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'hr_colors.dart';
+import '../../../widgets/runq_snack.dart';
 
 class InitiateRewardResult {
   final String employeeId;
@@ -141,8 +141,8 @@ class _InitiateRewardSheetState extends State<_InitiateRewardSheet> {
       setState(() => _citationCtrl.text = citation);
     } catch (e) {
       if (!mounted) return;
-      final msg = e is ApiException ? e.message : "Couldn't generate a citation";
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      RunqSnack.error(context,
+          snackErrorText(e, fallback: "Couldn't generate a citation"));
     } finally {
       if (mounted) setState(() => _generatingCitation = false);
     }

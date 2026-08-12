@@ -30,6 +30,7 @@ import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryGrnNewScreen extends ConsumerStatefulWidget {
   const InventoryGrnNewScreen({super.key});
@@ -162,21 +163,18 @@ class _InventoryGrnNewScreenState extends ConsumerState<InventoryGrnNewScreen> {
           ..addAll(result.lines.map(_DraftLine.fromExtracted));
       });
       final unmatched = _lines.where((l) => l.itemId == null).length;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(unmatched == 0
-              ? 'Extracted ${_lines.length} line(s). Review and post.'
-              : '$unmatched of ${_lines.length} need an item — tap to map.'),
-        ),
-      );
+      if (unmatched == 0) {
+        RunqSnack.success(context, 'Extracted ${_lines.length} line(s)',
+            description: 'Review and post.');
+      } else {
+        RunqSnack.warning(
+            context, '$unmatched of ${_lines.length} need an item',
+            description: 'Tap a line to map it.');
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('AI extract failed: $e\nSwitch to Manual entry.'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      RunqSnack.error(context, "Couldn't read that bill",
+          description: 'Switched to Manual entry — ${snackErrorText(e)}');
       setState(() => _mode = 'manual');
     } finally {
       if (mounted) setState(() => _extracting = false);
@@ -270,15 +268,12 @@ class _InventoryGrnNewScreenState extends ConsumerState<InventoryGrnNewScreen> {
       // Refresh list + dashboard so the new GRN appears immediately.
       ref.invalidate(invGrnListProvider(null));
       ref.invalidate(invKpisProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('GRN ${grn.grnNo} posted')),
-      );
+      RunqSnack.success(context, 'GRN ${grn.grnNo} posted');
       context.pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
-      );
+      RunqSnack.error(context, "Couldn't post the GRN",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -502,9 +497,7 @@ class _ManualEntryPanelState extends State<_ManualEntryPanel> {
       final item = await inventoryRepo.findByBarcode(code);
       if (!mounted) return;
       if (item == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No item matched that barcode')),
-        );
+        RunqSnack.warning(context, 'No item matched that barcode');
       } else {
         widget.onPicked(item);
         _barcodeCtrl.clear();

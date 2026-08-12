@@ -17,6 +17,7 @@ import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryDeliveryScreen extends ConsumerStatefulWidget {
   const InventoryDeliveryScreen({super.key});
@@ -331,9 +332,7 @@ class _NewDnSheetState extends ConsumerState<_NewDnSheet> {
     final item = await inventoryRepo.findByBarcode(code);
     if (!mounted) return;
     if (item == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No item matched that barcode')),
-      );
+      RunqSnack.warning(context, 'No item matched that barcode');
     } else {
       setState(() => picked = item);
     }
@@ -365,12 +364,11 @@ class _NewDnSheetState extends ConsumerState<_NewDnSheet> {
       await inventoryRepo.dispatchDn(dn.id);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delivery ${dn.dnNo} dispatched')),
-      );
+      RunqSnack.success(context, 'Delivery ${dn.dnNo} dispatched');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't dispatch the delivery",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }

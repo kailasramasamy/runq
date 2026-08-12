@@ -74,12 +74,8 @@ class _RedeemPointsSheetState extends State<_RedeemPointsSheet> {
       Navigator.of(context).pop();
       widget.ref.invalidate(hrPointsBalanceProvider);
       widget.ref.invalidate(hrRewardsProvider);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Redemption submitted for HR approval'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showRunqSnackOn(messenger, 'Redemption submitted for HR approval',
+          kind: SnackKind.success);
     } catch (e) {
       if (!mounted) return;
       final msg = e is ApiException

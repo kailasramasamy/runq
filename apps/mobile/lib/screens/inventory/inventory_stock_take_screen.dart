@@ -26,6 +26,7 @@ import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../widgets/runq_snack.dart';
 
 class InventoryStockTakeScreen extends ConsumerWidget {
   const InventoryStockTakeScreen({super.key});
@@ -452,7 +453,7 @@ class _StartSheetState extends ConsumerState<_StartSheet> {
 
   Future<void> _submit() async {
     if (warehouseId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick a warehouse')));
+      RunqSnack.warning(context, 'Pick a warehouse');
       return;
     }
     setState(() => submitting = true);
@@ -462,7 +463,8 @@ class _StartSheetState extends ConsumerState<_StartSheet> {
       Navigator.of(context).pop(st.id);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't start the stock take",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -606,13 +608,13 @@ class _CountScreenState extends ConsumerState<_CountScreen> {
     try {
       await inventoryRepo.postStockTake(widget.stockTakeId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Posted — adjustment + JE created')),
-      );
+      RunqSnack.success(context, 'Stock take posted',
+          description: 'Adjustment and journal entry created.');
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't post the stock take",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => posting = false);
     }
@@ -772,9 +774,7 @@ class _CountSheetState extends State<_CountSheet> {
   Future<void> _save() async {
     final qty = double.tryParse(_ctrl.text) ?? -1;
     if (qty < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a non-negative qty')),
-      );
+      RunqSnack.warning(context, 'Enter a non-negative qty');
       return;
     }
     setState(() => _saving = true);
@@ -790,7 +790,8 @@ class _CountSheetState extends State<_CountSheet> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      RunqSnack.error(context, "Couldn't save the count",
+          description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

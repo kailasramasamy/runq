@@ -9,6 +9,7 @@ import '../api/models.dart';
 import '../api/repos.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
+import '../widgets/runq_snack.dart';
 
 /// In-app preview for a bill attachment. Downloads bytes, writes to the
 /// app-sandboxed temp dir, then renders inline:
@@ -77,7 +78,8 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Share failed: $e')));
+        RunqSnack.error(context, "Couldn't share this file",
+            description: snackErrorText(e));
       }
     }
   }
