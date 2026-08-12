@@ -48,6 +48,36 @@ class InvPendingDispatch {
       );
 }
 
+/// What a bulk run did to one invoice. `skipped` is not a failure — an
+/// invoice with no stocked lines, or one that already has a delivery note,
+/// has nothing to ship and says so.
+class InvDispatchOutcome {
+  final String invoiceId;
+  final String status; // dispatched | skipped | failed | off
+  final String? reason;
+  final String? dnNo;
+
+  const InvDispatchOutcome({
+    required this.invoiceId,
+    required this.status,
+    this.reason,
+    this.dnNo,
+  });
+
+  bool get shipped => status == 'dispatched';
+  bool get failed => status == 'failed';
+
+  factory InvDispatchOutcome.fromJson(Map<String, dynamic> j) {
+    final o = (j['outcome'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return InvDispatchOutcome(
+      invoiceId: (j['invoiceId'] as String?) ?? '',
+      status: (o['status'] as String?) ?? 'failed',
+      reason: o['reason'] as String?,
+      dnNo: o['dnNo'] as String?,
+    );
+  }
+}
+
 /// How an invoice line found its stock item.
 enum InvLineResolution { item, alias, unmapped, notStocked }
 

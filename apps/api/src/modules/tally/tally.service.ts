@@ -289,6 +289,7 @@ ${ledgers.join('\n')}
         isInterState: salesInvoices.isInterState, reverseCharge: salesInvoices.reverseCharge,
         cgstAmount: salesInvoices.cgstAmount, sgstAmount: salesInvoices.sgstAmount,
         igstAmount: salesInvoices.igstAmount, cessAmount: salesInvoices.cessAmount,
+        dispatchWaivedAt: salesInvoices.dispatchWaivedAt,
         wmsInvoiceId: salesInvoices.wmsInvoiceId,
         irnNumber: salesInvoices.irnNumber, irnDate: salesInvoices.irnDate,
         createdAt: salesInvoices.createdAt, updatedAt: salesInvoices.updatedAt,

@@ -13,7 +13,7 @@
  *   3. unmapped — reported to the UI, never silently dropped
  */
 
-import { and, asc, eq, sql, ilike, gte, lte, count, inArray } from 'drizzle-orm';
+import { and, asc, eq, sql, ilike, gte, lte, count, inArray, isNull } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import {
   deliveryNotes, deliveryNoteLines, items, customers, salesInvoices,
@@ -76,6 +76,9 @@ export class SalesDispatchService {
       eq(salesInvoices.tenantId, this.ctx.tenantId),
       sql`${salesInvoices.status} NOT IN ('draft', 'cancelled')`,
       hasUndispatchedLines(sql`${salesInvoices.id}`),
+      // Waived invoices predate inventory tracking — there is no stock to
+      // draw and never will be, so they are not work waiting to be done.
+      isNull(salesInvoices.dispatchWaivedAt),
     ];
     if (filter.customerId) conds.push(eq(salesInvoices.customerId, filter.customerId));
     if (filter.from) conds.push(gte(salesInvoices.invoiceDate, filter.from));
@@ -100,6 +103,58 @@ export class SalesDispatchService {
       total,
       totalPages: Math.ceil(total / filter.limit),
     };
+  }
+
+  /**
+   * Takes invoices out of the queue without moving stock.
+   *
+   * For the cut-over: a tenant that billed for months before receiving
+   * anything into inventory has a queue it can never work — on-hand is zero
+   * because nothing was ever received, and back-filling an opening balance
+   * to make it clear would invent a warehouse history. Waiving records that
+   * these goods left outside inventory, which is what actually happened.
+   *
+   * Deliberately not a dispatch: no delivery note, no stock ledger row, no
+   * COGS. Nothing to reverse later beyond clearing the column.
+   *
+   * Only touches invoices that are actually in the queue, so it can't
+   * quietly waive one that has already shipped or is still a draft.
+   */
+  async waiveDispatch(input: { upto: string; invoiceIds?: string[] }) {
+    const rows = await this.ctx.db
+      .update(salesInvoices)
+      .set({ dispatchWaivedAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(salesInvoices.tenantId, this.ctx.tenantId),
+        sql`${salesInvoices.status} NOT IN ('draft', 'cancelled')`,
+        isNull(salesInvoices.dispatchWaivedAt),
+        lte(salesInvoices.invoiceDate, input.upto),
+        hasUndispatchedLines(sql`${salesInvoices.id}`),
+        input.invoiceIds?.length
+          ? inArray(salesInvoices.id, input.invoiceIds)
+          : undefined,
+      ))
+      .returning({ id: salesInvoices.id });
+
+    // Cancel any draft DN left hanging on a waived invoice. A failed
+    // dispatch leaves its draft behind on purpose — it holds the picked
+    // lines for a human to finish — but once the invoice is out of the
+    // queue nobody will. Left alone it would keep counting against
+    // `committedQtyFor`, so those lines would look already-spoken-for the
+    // next time stock exists.
+    const cancelled = rows.length
+      ? await this.ctx.db
+        .update(deliveryNotes)
+        .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+        .where(and(
+          eq(deliveryNotes.tenantId, this.ctx.tenantId),
+          eq(deliveryNotes.status, 'draft'),
+          inArray(deliveryNotes.invoiceId, rows.map((r) => r.id)),
+        ))
+        .returning({ id: deliveryNotes.id })
+      : [];
+
+    return { waived: rows.length, draftsCancelled: cancelled.length };
   }
 
   private pendingRows(where: NonNullable<ReturnType<typeof and>>, filter: PendingDispatchFilter) {

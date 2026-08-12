@@ -31,8 +31,8 @@ class SalesDispatchRepo {
   /// Returns [total] alongside the page because the rows are capped — a
   /// caller that counts `rows.length` for a badge reports the page size, not
   /// how much work is actually waiting.
-  Future<PendingPage> pending({String? from, String? q}) async {
-    final qp = <String, String>{'limit': '100'};
+  Future<PendingPage> pending({String? from, String? q, int page = 1}) async {
+    final qp = <String, String>{'limit': '100', 'page': '$page'};
     if (from != null && from.isNotEmpty) qp['from'] = from;
     if (q != null && q.isNotEmpty) qp['q'] = q;
     final res = await apiClient.get('/inventory/sales-dispatch/pending?${_qs(qp)}');
@@ -69,6 +69,35 @@ class SalesDispatchRepo {
       'lines': lines.map((l) => l.toJson()).toList(),
     });
     return InvDn.fromJson(_data(res));
+  }
+
+  /// Ships a batch straight off the queue — preview, draft DN and post, all
+  /// server-side. The server runs them one after another (concurrent
+  /// dispatches race for the same batches) and caps the batch at 25, so a
+  /// backlog is cleared by calling this repeatedly.
+  ///
+  /// Never throws for a single bad invoice: each one reports its own
+  /// outcome, and the ones that couldn't ship stay in the queue.
+  Future<List<InvDispatchOutcome>> dispatchBulk({
+    required List<String> invoiceIds,
+    String dateMode = 'invoice',
+  }) async {
+    final res = await apiClient.post('/inventory/sales-dispatch/bulk', {
+      'invoiceIds': invoiceIds,
+      'dateMode': dateMode,
+    });
+    return _dataList(res).map(InvDispatchOutcome.fromJson).toList();
+  }
+
+  /// The inventory cut-over: everything invoiced on or before [upto] leaves
+  /// the queue without moving stock. For invoices raised before the
+  /// warehouse was ever stocked there is nothing to draw on, and inventing
+  /// an opening balance to make them dispatchable would be a fiction.
+  ///
+  /// Returns how many invoices were waived.
+  Future<int> waiveDispatch({required String upto}) async {
+    final res = await apiClient.post('/inventory/sales-dispatch/waive', {'upto': upto});
+    return (_data(res)['waived'] as num?)?.toInt() ?? 0;
   }
 
   /// Remember a description → item mapping so future invoices self-resolve.

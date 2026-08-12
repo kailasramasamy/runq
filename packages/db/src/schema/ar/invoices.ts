@@ -47,6 +47,18 @@ export const salesInvoices = pgTable('sales_invoices', {
   igstAmount: decimal('igst_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   cessAmount: decimal('cess_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   reverseCharge: boolean('reverse_charge').notNull().default(false),
+  /**
+   * Set when the goods on this invoice will never be dispatched through
+   * inventory — it predates the day the warehouse started being tracked.
+   *
+   * A business that invoiced for months before stocking anything has a
+   * queue full of rows it can never work: there is no stock to draw and
+   * inventing an opening balance to fit would be a fabricated history.
+   * Waiving drops them out of the queue while saying plainly that no goods
+   * moved, which is the truth. It is not "dispatched".
+   */
+  dispatchWaivedAt: timestamp('dispatch_waived_at', { withTimezone: true }),
+
   // WMS integration
   wmsInvoiceId: varchar('wms_invoice_id', { length: 100 }),
   // IRN placeholder for e-invoicing (populated externally)

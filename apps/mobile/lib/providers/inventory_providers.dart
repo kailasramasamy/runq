@@ -75,10 +75,18 @@ final invDnDetailProvider = FutureProvider.autoDispose
 
 /// Invoices awaiting dispatch. Defaults to the last 60 days — see
 /// SalesDispatchRepo.pending for why the floor exists.
+/// The queue's date floor. Without one, a tenant that invoiced for years
+/// before dispatch tracking existed opens this list on its whole back
+/// catalogue — so the count, the list and "Dispatch all" all use this same
+/// window, and mean the same thing by "pending".
+String invPendingDispatchFrom() => DateTime.now()
+    .subtract(const Duration(days: 60))
+    .toIso8601String()
+    .substring(0, 10);
+
 final invPendingDispatchProvider =
     FutureProvider.autoDispose<PendingPage>((ref) async {
-  final floor = DateTime.now().subtract(const Duration(days: 60));
-  return salesDispatchRepo.pending(from: floor.toIso8601String().substring(0, 10));
+  return salesDispatchRepo.pending(from: invPendingDispatchFrom());
 });
 
 /// (invoiceId, warehouseId) — availability and FEFO batches are per-warehouse.

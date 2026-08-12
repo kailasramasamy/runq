@@ -53,6 +53,35 @@ export const pendingDispatchFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
+/**
+ * Clearing a backlog off the "Awaiting dispatch" queue in one action.
+ *
+ * Capped at 25 ids because the server ships them strictly one after another
+ * — concurrent dispatches race for the same batches — so an unbounded list
+ * would hold a request open past any sane proxy timeout. Clients chunk and
+ * show progress instead.
+ */
+export const bulkDispatchSchema = z.object({
+  invoiceIds: z.array(z.string().uuid()).min(1).max(25),
+  /** `invoice` backdates each DN to its invoice date; `today` posts now. */
+  dateMode: z.enum(['invoice', 'today']).default('invoice'),
+  warehouseId: z.string().uuid().nullish(),
+});
+
+/**
+ * The inventory cut-over: everything invoiced on or before [upto] leaves the
+ * dispatch queue without moving stock. For a tenant whose invoicing predates
+ * its warehouse, these goods went out before inventory existed to record it.
+ *
+ * [upto] is required and has no default — silently waiving "everything" is
+ * not something a caller should be able to do by omission.
+ */
+export const waiveDispatchSchema = z.object({
+  upto: dateString,
+  /** Narrows the sweep to specific invoices; omit to take the whole window. */
+  invoiceIds: z.array(z.string().uuid()).max(1000).optional(),
+});
+
 /** Records goods coming back against a dispatched DN, at its original cost. */
 export const salesReturnSchema = z.object({
   returnDate: dateString,
@@ -90,3 +119,5 @@ export type CancelDeliveryNoteInput = z.infer<typeof cancelDeliveryNoteSchema>;
 export type DispatchFromInvoiceInput = z.infer<typeof dispatchFromInvoiceSchema>;
 export type PendingDispatchFilter = z.infer<typeof pendingDispatchFilterSchema>;
 export type SalesReturnInput = z.infer<typeof salesReturnSchema>;
+export type BulkDispatchInput = z.infer<typeof bulkDispatchSchema>;
+export type WaiveDispatchInput = z.infer<typeof waiveDispatchSchema>;

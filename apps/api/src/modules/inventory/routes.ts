@@ -4,7 +4,7 @@ import {
   createGrnSchema, updateGrnSchema, cancelGrnSchema, grnFilterSchema,
   createDeliveryNoteSchema, updateDeliveryNoteSchema, cancelDeliveryNoteSchema,
   deliveryNoteFilterSchema, dispatchFromInvoiceSchema, pendingDispatchFilterSchema,
-  salesReturnSchema,
+  bulkDispatchSchema, waiveDispatchSchema, salesReturnSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
@@ -28,6 +28,7 @@ import { GrnService } from './grn.service';
 import { DeliveryNoteService } from './delivery.service';
 import { SalesDispatchService } from './sales-dispatch.service';
 import { SalesReturnService } from './sales-return.service';
+import { AutoDispatchService } from './auto-dispatch.service';
 import { StockQueryService } from './stock-query.service';
 import { InventoryDashboardService } from './dashboard.service';
 import { TransferService } from './transfer.service';
@@ -253,6 +254,32 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const input = dispatchFromInvoiceSchema.parse(req.body);
     const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId });
     return reply.status(201).send({ data: await svc.createFromInvoice(id, input) });
+  });
+
+  // Clears a batch off the queue in one action. Sequential inside — see
+  // AutoDispatchService.runForInvoices — and capped by the schema, so the
+  // client chunks a long backlog and reports progress between calls.
+  app.post('/sales-dispatch/bulk', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req) => {
+    const input = bulkDispatchSchema.parse(req.body);
+    const svc = new AutoDispatchService({
+      db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId,
+    });
+    const results = await svc.runForInvoices(input.invoiceIds, {
+      dateMode: input.dateMode,
+      warehouseId: input.warehouseId,
+      notes: 'Bulk dispatch from Awaiting dispatch',
+    });
+    return { data: results };
+  });
+
+  // The cut-over: drop pre-inventory invoices out of the queue without
+  // pretending stock moved. See SalesDispatchService.waiveDispatch.
+  app.post('/sales-dispatch/waive', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req) => {
+    const input = waiveDispatchSchema.parse(req.body);
+    const svc = new SalesDispatchService({
+      db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId,
+    });
+    return { data: await svc.waiveDispatch(input) };
   });
 
   app.get('/sales-dispatch/:id/status', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {

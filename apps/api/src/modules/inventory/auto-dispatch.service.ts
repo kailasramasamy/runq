@@ -34,6 +34,20 @@ export type AutoDispatchOutcome =
   | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
   | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
 
+/** How a hand-driven run should date and address its delivery notes. */
+export interface BulkDispatchOptions {
+  /** `invoice` backdates each DN to the day it was billed; `today` posts now. */
+  dateMode: 'invoice' | 'today';
+  /** Override the tenant default — needed when several godowns are active. */
+  warehouseId?: string | null;
+  notes?: string | null;
+}
+
+export interface BulkDispatchResult {
+  invoiceId: string;
+  outcome: AutoDispatchOutcome;
+}
+
 export class AutoDispatchService {
   constructor(private readonly ctx: Ctx) {}
 
@@ -62,10 +76,60 @@ export class AutoDispatchService {
         };
       }
 
-      return await this.dispatchInvoice(invoiceId, warehouseId);
+      return await this.dispatchInvoice(invoiceId, warehouseId, { dateMode: 'today' });
     } catch (err) {
       return { status: 'failed', reason: messageOf(err) };
     }
+  }
+
+  /**
+   * The same shipment, asked for by hand — clearing a backlog off the
+   * pending-dispatch queue rather than riding an invoice being issued.
+   *
+   * Not gated on `autoDispatchOnInvoice`: that setting says "ship without
+   * being asked", and this caller is asking. Everything downstream is
+   * identical, including never throwing.
+   */
+  async dispatchOne(
+    invoiceId: string,
+    opts: BulkDispatchOptions,
+  ): Promise<AutoDispatchOutcome> {
+    try {
+      const existingDn = await this.existingDnFor(invoiceId);
+      if (existingDn) {
+        return { status: 'skipped', reason: `Already has delivery note ${existingDn}` };
+      }
+
+      const warehouseId = opts.warehouseId ?? await this.defaultWarehouseId();
+      if (!warehouseId) {
+        return {
+          status: 'skipped',
+          reason: 'No default warehouse — set one in Inventory → Warehouses, or pick one for this run',
+        };
+      }
+
+      return await this.dispatchInvoice(invoiceId, warehouseId, opts);
+    } catch (err) {
+      return { status: 'failed', reason: messageOf(err) };
+    }
+  }
+
+  /**
+   * A batch of invoices, one after another.
+   *
+   * Strictly sequential, and not an accident: two dispatches in flight race
+   * for the same batches, the second finding a bin the first already claimed.
+   * The caller chunks — this loop is bounded by what fits in one request.
+   */
+  async runForInvoices(
+    invoiceIds: string[],
+    opts: BulkDispatchOptions,
+  ): Promise<BulkDispatchResult[]> {
+    const out: BulkDispatchResult[] = [];
+    for (const invoiceId of invoiceIds) {
+      out.push({ invoiceId, outcome: await this.dispatchOne(invoiceId, opts) });
+    }
+    return out;
   }
 
   // ─── Internals ──────────────────────────────────────────────────────────
@@ -73,9 +137,10 @@ export class AutoDispatchService {
   private async dispatchInvoice(
     invoiceId: string,
     warehouseId: string,
+    opts: BulkDispatchOptions,
   ): Promise<AutoDispatchOutcome> {
     const dispatch = new SalesDispatchService(this.ctx);
-    const { lines } = await dispatch.previewInvoice(invoiceId, warehouseId);
+    const { invoice, lines } = await dispatch.previewInvoice(invoiceId, warehouseId);
 
     // Same filter the confirm screen applies: lines that resolve to a stocked
     // item and still owe goods. An unmapped description or a service line is
@@ -91,10 +156,17 @@ export class AutoDispatchService {
 
     const dn = await dispatch.createFromInvoice(invoiceId, {
       warehouseId,
-      dispatchDate: new Date().toISOString().slice(0, 10),
+      // Backdating to the invoice puts the stock movement and its COGS entry
+      // on the day the goods were billed, which is what a backlog being
+      // cleared after the fact actually describes. FEFO still picks from
+      // stock on hand now, so the closing position is right even though the
+      // intermediate history is reconstructed.
+      dispatchDate: opts.dateMode === 'invoice'
+        ? invoice.invoiceDate
+        : new Date().toISOString().slice(0, 10),
       vehicleNo: null,
       lrNo: null,
-      notes: 'Auto-dispatched on invoice issue',
+      notes: opts.notes ?? 'Auto-dispatched on invoice issue',
       lines: shippable.map((l) => ({
         itemId: l.itemId!,
         invoiceLineId: l.invoiceLineId,

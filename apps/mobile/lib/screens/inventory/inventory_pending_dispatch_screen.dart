@@ -21,6 +21,7 @@ import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/list_filter_kit.dart';
+import 'inventory_bulk_dispatch.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
@@ -82,6 +83,12 @@ class _State extends ConsumerState<InventoryPendingDispatchScreen> {
       appBar: InvPlainAppBar(
         title: 'Awaiting dispatch',
         onBack: () => context.pop(),
+        // Both actions work the server-side queue, not the rows on screen —
+        // the count behind this list runs well past the 100 it loads.
+        trailing: switch (rows.valueOrNull?.total ?? 0) {
+          0 => null,
+          final total => _QueueMenu(total: total),
+        },
       ),
       body: RefreshIndicator(
         color: InvColors.brand(context),
@@ -305,6 +312,52 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
       child: Text(label, style: RunqText.micro.copyWith(color: ink)),
+    );
+  }
+}
+
+/// The two ways to empty this queue, which are not variations of each other:
+/// one ships the goods, the other says they left before inventory existed.
+/// Putting them behind the same menu keeps the destructive one from sitting
+/// under a thumb on the app bar.
+class _QueueMenu extends ConsumerWidget {
+  const _QueueMenu({required this.total});
+  final int total;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert, color: InvColors.brand(context)),
+      onSelected: (v) => switch (v) {
+        'dispatch' => runBulkDispatch(
+            context, ref, pendingTotal: total, from: invPendingDispatchFrom()),
+        _ => runWaiveDispatch(context, ref, pendingTotal: total),
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'dispatch',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.local_shipping_outlined, size: 20),
+            title: Text('Dispatch all',
+                style: RunqText.body.copyWith(color: t.ink)),
+            subtitle: Text('Moves stock, posts cost',
+                style: RunqText.micro.copyWith(color: t.muted)),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'waive',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.playlist_remove, size: 20),
+            title: Text('Clear without stock',
+                style: RunqText.body.copyWith(color: t.ink)),
+            subtitle: Text('For invoices raised before you tracked stock',
+                style: RunqText.micro.copyWith(color: t.muted)),
+          ),
+        ),
+      ],
     );
   }
 }
