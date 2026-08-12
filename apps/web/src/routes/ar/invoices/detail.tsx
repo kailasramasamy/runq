@@ -114,7 +114,28 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     return `/api/v1/ar/invoices/${invoiceId}/print?tenantId=${tenantId}${fmt}`;
   }
   function handleSend() {
-    sendMutation.mutate({ id: invoiceId, data: { channel: 'email', sendEmail: false } });
+    sendMutation.mutate(
+      { id: invoiceId, data: { channel: 'email', sendEmail: false } },
+      {
+        // Silent unless the tenant dispatches on issue — then the operator
+        // needs to know whether the goods actually left before walking away.
+        onSuccess: (res) => {
+          const d = res.data.autoDispatch;
+          if (!d) return;
+          if (d.status === 'dispatched') {
+            toast(`Invoice sent · ${d.dnNo} dispatched, stock updated`, 'success');
+          } else if (d.status === 'failed') {
+            toast(
+              `Invoice sent, but stock did not post — ${d.reason}`
+                + (d.dnNo ? `. Draft ${d.dnNo} is waiting in Sales dispatch.` : ''),
+              'error',
+            );
+          } else {
+            toast(`Invoice sent · not dispatched — ${d.reason}`, 'info');
+          }
+        },
+      },
+    );
   }
   function handleMarkPaid() {
     markPaidMutation.mutate(

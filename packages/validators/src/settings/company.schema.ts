@@ -31,6 +31,8 @@ export const companySettingsSchema = z.object({
   upiId: z.string().max(100).nullish(),
   // Default margin (%) used by smart-import when source rows lack margin
   defaultMarginPercent: z.number().min(0).max(100).nullish(),
+  /** Post the delivery note automatically when an invoice is issued. */
+  autoDispatchOnInvoice: z.boolean().nullish(),
   // Payroll statutory profile — registration identifiers printed on challans
   // and statutory returns. ESIC: 17-digit employer code. EPFO: establishment
   // code (free-form, varies by region/office). PT: state-issued enrolment no.

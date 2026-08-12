@@ -118,6 +118,7 @@ export function CompanySettingsPage() {
   const [pincode, setPincode] = useState('');
   const [upiId, setUpiId] = useState('');
   const [defaultMargin, setDefaultMargin] = useState('');
+  const [autoDispatchOnInvoice, setAutoDispatchOnInvoice] = useState(false);
   const [gstFilingStart, setGstFilingStart] = useState(''); // YYYY-MM for the input
   const [esiRegistrationNumber, setEsiRegistrationNumber] = useState('');
   const [pfEstablishmentCode, setPfEstablishmentCode] = useState('');
@@ -162,6 +163,7 @@ export function CompanySettingsPage() {
           ? String(data.data.defaultMarginPercent)
           : '',
       );
+      setAutoDispatchOnInvoice(data.data.autoDispatchOnInvoice === true);
       // MMYYYY → YYYY-MM for the month input
       const sp = data.data.gstFilingStartPeriod;
       if (sp && sp.length === 6) {
@@ -217,6 +219,7 @@ export function CompanySettingsPage() {
         upiId: upiId || null,
         defaultMarginPercent:
           defaultMargin.trim() === '' ? null : Number(defaultMargin),
+        autoDispatchOnInvoice,
         // YYYY-MM → MMYYYY
         gstFilingStartPeriod: gstFilingStart
           ? `${gstFilingStart.substring(5, 7)}${gstFilingStart.substring(0, 4)}`
@@ -324,6 +327,15 @@ export function CompanySettingsPage() {
                 placeholder="e.g. 30"
                 helper="Used by Items › Smart Import when the source row has no margin value. Leave blank to skip."
               />
+
+              <div className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
+                <StatutoryToggle
+                  label="Dispatch stock when an invoice is issued"
+                  description="Raises and posts the delivery note automatically, picking batches FEFO — for businesses that ship what they bill the same day. Issuing never fails on stock: if the warehouse can't cover a line, the invoice still goes out and a draft delivery note is left in Inventory › Sales dispatch. Off means stock moves only when you confirm it there."
+                  checked={autoDispatchOnInvoice}
+                  onChange={setAutoDispatchOnInvoice}
+                />
+              </div>
             </CardContent>
 
             <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

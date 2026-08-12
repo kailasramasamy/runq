@@ -22,6 +22,8 @@ import { getTenantName } from '../../utils/tenant-name';
 import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
 import { defaultPackSize } from '../gst/hsn-canonical-uqc';
 import { getMessageProvider } from '../../utils/messaging';
+import { AutoDispatchService } from '../inventory/auto-dispatch.service';
+import type { AutoDispatchOutcome } from '../inventory/auto-dispatch.service';
 import type { TaxCategory, TaxBreakdown } from '@runq/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1022,7 +1024,12 @@ export class InvoiceService {
   async batchUpdateStatus(
     invoiceIds: string[],
     targetStatus: 'sent' | 'cancelled',
-  ): Promise<{ updated: number; skipped: { id: string; reason: string }[] }> {
+  ): Promise<{
+    updated: number;
+    skipped: { id: string; reason: string }[];
+    dispatched?: number;
+    dispatchFailed?: number;
+  }> {
     const allowedFrom: SalesInvoiceStatus = 'draft';
     const skipped: { id: string; reason: string }[] = [];
 
@@ -1048,10 +1055,28 @@ export class InvoiceService {
       }
     }
 
-    return { updated: updatedIds.size, skipped };
+    // Cancelling owes no goods; only a batch that just went out gets shipped.
+    if (targetStatus !== 'sent' || updatedIds.size === 0) {
+      return { updated: updatedIds.size, skipped };
+    }
+
+    const outcomes = await this.autoDispatchBatch([...updatedIds]);
+    if (outcomes.every((o) => o.status === 'off')) {
+      return { updated: updatedIds.size, skipped };
+    }
+    return {
+      updated: updatedIds.size,
+      skipped,
+      dispatched: outcomes.filter((o) => o.status === 'dispatched').length,
+      dispatchFailed: outcomes.filter((o) => o.status === 'failed').length,
+    };
   }
 
-  async send(id: string, input: SendInvoiceInput, userId?: string): Promise<SalesInvoice> {
+  async send(
+    id: string,
+    input: SendInvoiceInput,
+    userId?: string,
+  ): Promise<SalesInvoice & { autoDispatch?: AutoDispatchOutcome }> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {
       throw new ConflictError('Only draft invoices can be sent');
@@ -1072,7 +1097,30 @@ export class InvoiceService {
       void this.sendInvoiceEmail(invoice, existing.customerId, existing.customerName);
     }
 
-    return invoice;
+    // Awaited, unlike the delivery above: the operator needs to know whether
+    // the goods moved before they walk away from the screen. The invoice is
+    // already committed, and runForInvoice never throws, so a warehouse problem
+    // can only downgrade the message — never the billing document.
+    const autoDispatch = await this.autoDispatch().runForInvoice(id);
+    return autoDispatch.status === 'off' ? invoice : { ...invoice, autoDispatch };
+  }
+
+  /**
+   * Ship what a batch of invoices owes, once they have all been issued.
+   *
+   * Sequential on purpose: each dispatch takes stock, and two running at once
+   * would race for the same batches — the second discovering an empty bin the
+   * first had already claimed.
+   */
+  private async autoDispatchBatch(invoiceIds: string[]): Promise<AutoDispatchOutcome[]> {
+    const service = this.autoDispatch();
+    const out: AutoDispatchOutcome[] = [];
+    for (const id of invoiceIds) out.push(await service.runForInvoice(id));
+    return out;
+  }
+
+  private autoDispatch(): AutoDispatchService {
+    return new AutoDispatchService({ db: this.db, tenantId: this.tenantId });
   }
 
   private async sendInvoiceWhatsApp(

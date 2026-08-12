@@ -43,6 +43,17 @@ export interface TenantSettings {
   // Default margin (%) applied to imported items when the source has no
   // margin column or the row's margin cell is blank.
   defaultMarginPercent?: number;
+  /**
+   * Issue an invoice and the goods leave stock in the same action — a delivery
+   * note is raised and posted automatically, FEFO-picked.
+   *
+   * For a business that ships what it invoices the same day, working a dispatch
+   * queue is a second pass over work already done. Off by default: it makes
+   * stock movement a side effect of a billing action, which is only right when
+   * the two really are the same event. Invoicing never fails when this is on —
+   * a rejected dispatch leaves a draft DN for the queue instead.
+   */
+  autoDispatchOnInvoice?: boolean;
   // Payroll statutory profile — registration identifiers printed on challans
   // and statutory returns (ESIC employer code, EPFO establishment code,
   // Professional Tax enrolment no., and TAN for Form 24Q).

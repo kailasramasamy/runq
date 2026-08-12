@@ -135,14 +135,27 @@ export function useUpdateInvoiceHsn() {
   });
 }
 
+/**
+ * Present only when the tenant dispatches stock on issue — the invoice went
+ * out either way, so this reports what happened to the goods behind it.
+ */
+export type AutoDispatchOutcome =
+  | { status: 'skipped'; reason: string }
+  | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
+  | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
+
+type SentInvoice = SalesInvoice & { autoDispatch?: AutoDispatchOutcome };
+
 export function useSendInvoice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: SendInvoiceInput }) =>
-      api.post<ApiSuccess<SalesInvoice>>(`/ar/invoices/${id}/send`, data),
+      api.post<ApiSuccess<SentInvoice>>(`/ar/invoices/${id}/send`, data),
     onSuccess: (_res, { id }) => {
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.all });
       qc.invalidateQueries({ queryKey: INVOICE_KEYS.detail(id) });
+      // Auto-dispatch moves stock and raises a DN, so those views are stale too.
+      qc.invalidateQueries({ queryKey: ['inventory'] });
     },
   });
 }
