@@ -25,3 +25,13 @@ apps/mobile/android/build/
 # Ad-hoc milk-procurement dev/e2e scripts (kept local, not versioned)
 apps/api/mp_*.mjs
 packages/db/mp_*.mjs
+
+# One-off scripts written against a dev database to answer a single question —
+# probes, data fixes, spot checks. Dozens accumulate, and left untracked they
+# bury the real changes in `git status` and get swept up by a careless
+# `git add apps/api`.
+#
+# Anchored to the api root on purpose: everything versioned lives in
+# apps/api/src/ or apps/api/scripts/, and neither is matched by this.
+apps/api/*.ts
+apps/collect/test/_*probe*.dart
