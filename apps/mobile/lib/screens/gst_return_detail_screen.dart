@@ -15,7 +15,9 @@ import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/section_head.dart';
 import 'gst/gst_status_chip.dart';
-import 'gst/gst_auth_sheet.dart';
+import 'gst/gst_auth_screen.dart';
+import 'gst/gst_evc_screen.dart';
+import 'gst/gst_form_kit.dart';
 
 class GstReturnDetailScreen extends ConsumerStatefulWidget {
   final String id;
@@ -37,6 +39,9 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
   void _refresh() {
     ref.invalidate(gstReturnDetailProvider(_id));
     ref.invalidate(gstReturnsProvider);
+    // The dashboard's GST strip reads its own provider — without this it keeps
+    // serving the pre-filing snapshot until the app is restarted.
+    ref.invalidate(gstReadinessProvider);
   }
 
   Future<void> _validate() async {
@@ -64,7 +69,7 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
   Future<void> _authenticate(String gstin) async {
     final username =
         ref.read(gstCompanyProfileProvider).valueOrNull?.gstUsername;
-    final ok = await showGstAuthSheet(context, gstin: gstin, username: username);
+    final ok = await openGstAuth(context, gstin: gstin, username: username);
     if (ok == true && mounted) setState(() => _authenticated = true);
   }
 
@@ -86,7 +91,7 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
         final username =
             ref.read(gstCompanyProfileProvider).valueOrNull?.gstUsername;
         final ok =
-            await showGstAuthSheet(context, gstin: gstin, username: username);
+            await openGstAuth(context, gstin: gstin, username: username);
         if (ok != true) {
           if (mounted) setState(() => _busy = false);
           return;
@@ -113,7 +118,7 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
   }
 
   Future<void> _file(String type) async {
-    final evc = await showEvcSheet(context, returnId: _id);
+    final evc = await openGstEvc(context, returnId: _id);
     if (evc == null || evc.length < 6 || !mounted) return;
     final nav = Navigator.of(context);
     setState(() => _busy = true);
@@ -210,6 +215,7 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
       await gstRepo.delete(_id);
       if (!mounted) return;
       ref.invalidate(gstReturnsProvider);
+      ref.invalidate(gstReadinessProvider);
       showRunqSnack(context, 'Draft deleted', kind: SnackKind.success);
       Navigator.of(context).pop();
     } catch (e) {
@@ -281,8 +287,18 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
     final t = RT(context);
     final detail = ref.watch(gstReturnDetailProvider(_id));
 
+    // The bar lives on the Scaffold, not inside the scroll view: it has to
+    // survive scrolling AND the loading/error states, otherwise a return that
+    // fails to load leaves the user with no way back.
+    final ret = detail.valueOrNull?.ret;
+
     return Scaffold(
+      appBar: _ReturnAppBar(
+        ret: ret,
+        onMenu: ret == null ? null : () => _openMenu(ret),
+      ),
       body: SafeArea(
+        top: false,
         bottom: false,
         child: RefreshIndicator(
           color: t.brand,
@@ -300,7 +316,6 @@ class _GstReturnDetailScreenState extends ConsumerState<GstReturnDetailScreen> {
               authenticated: _authenticated,
               busy: _busy,
               onReverify: _reverify,
-              onMenu: () => _openMenu(d.ret),
             ),
           ),
         ),
@@ -329,27 +344,23 @@ class _Body extends StatelessWidget {
   final bool authenticated;
   final bool busy;
   final VoidCallback onReverify;
-  final VoidCallback onMenu;
   const _Body({
     required this.detail,
     required this.authenticated,
     required this.busy,
     required this.onReverify,
-    required this.onMenu,
   });
 
   @override
   Widget build(BuildContext context) {
     final ret = detail.ret;
     final isGstr1 = ret.returnType == 'gstr1';
-    final type = isGstr1 ? 'GSTR-1' : 'GSTR-3B';
 
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       slivers: [
-        SliverToBoxAdapter(child: _Header(type: type, ret: ret, onMenu: onMenu)),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           sliver: SliverToBoxAdapter(child: _SummaryCard(detail: detail)),
         ),
         SliverPadding(
@@ -404,41 +415,70 @@ class _Body extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  final String type;
-  final GstReturn ret;
-  final VoidCallback onMenu;
-  const _Header({required this.type, required this.ret, required this.onMenu});
+/// Persistent screen chrome: back, eyebrow + period title, status chip and the
+/// overflow menu. [ret] is null until the return loads — the bar still renders
+/// so the back button and title placeholder are there during load and on error.
+class _ReturnAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final GstReturn? ret;
+  final VoidCallback? onMenu;
+  const _ReturnAppBar({required this.ret, required this.onMenu});
+
+  static const _height = 64.0;
+  static const _hairline = 0.6;
+
+  // Must include the hairline `bottom`, or Scaffold lays the bar out 0.6px
+  // short of what AppBar actually needs and it overflows.
+  @override
+  Size get preferredSize => const Size.fromHeight(_height + _hairline);
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    final r = ret;
+    final type = r == null
+        ? 'Return'
+        : (r.returnType == 'gstr1' ? 'GSTR-1' : 'GSTR-3B');
+
+    return AppBar(
+      toolbarHeight: _height,
+      backgroundColor: t.bgWarm,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
+          ? RunqSystemBars.lightIcons
+          : RunqSystemBars.darkIcons,
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: Icon(Icons.arrow_back_rounded, color: t.ink),
+        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+      ),
+      titleSpacing: 0,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_rounded, color: t.ink),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(type, style: RunqText.body.copyWith(color: t.muted)),
-                Text(ret.periodLabel, style: RunqText.h2.copyWith(color: t.ink)),
-              ],
-            ),
-          ),
-          GstStatusChip(status: ret.status),
+          Text(type, style: RunqText.caption.copyWith(color: t.muted)),
+          if (r != null)
+            Text(r.periodLabel,
+                style: RunqText.h3.copyWith(color: t.ink),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+        ],
+      ),
+      actions: [
+        if (r != null) ...[
+          GstStatusChip(status: r.status),
           IconButton(
             onPressed: onMenu,
             icon: Icon(Icons.more_horiz_rounded, color: t.ink),
+            tooltip: 'More actions',
           ),
         ],
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(_hairline),
+        child: Container(height: _hairline, color: t.hairline),
       ),
     );
   }
@@ -564,7 +604,10 @@ class _SummaryCard extends StatelessWidget {
               Expanded(
                 child: _MiniStat(
                   label: isGstr1 ? 'Taxable' : 'Output tax',
-                  value: formatINR(summary.totalTax, compact: true),
+                  // GSTR-1's tile is labelled "Taxable" — it must show the
+                  // taxable value, not repeat the tax already in the hero.
+                  value: formatINR(
+                      isGstr1 ? summary.totalTaxable : summary.totalTax),
                 ),
               ),
               const SizedBox(width: 12),
@@ -573,7 +616,7 @@ class _SummaryCard extends StatelessWidget {
                   label: isGstr1 ? 'Invoices' : 'Taxable',
                   value: isGstr1
                       ? '${summary.itemCount}'
-                      : formatINR(summary.totalTaxable, compact: true),
+                      : formatINR(summary.totalTaxable),
                 ),
               ),
             ],
@@ -621,8 +664,16 @@ class _MiniStat extends StatelessWidget {
               style: RunqText.caption.copyWith(
                   color: Colors.white.withValues(alpha: 0.65))),
           const SizedBox(height: 2),
-          Text(value,
-              style: RunqText.tabular(size: 18, w: FontWeight.w700, color: Colors.white)),
+          // Full (un-abbreviated) rupee values can outgrow a half-width tile;
+          // scale down rather than truncate — the digits are the point.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                maxLines: 1,
+                style: RunqText.tabular(
+                    size: 18, w: FontWeight.w700, color: Colors.white)),
+          ),
         ],
       ),
     );
@@ -813,11 +864,8 @@ class _Gstr1Sections extends StatelessWidget {
     double taxable = 0;
     double tax = 0;
     for (final e in list) {
-      taxable += _num(e['taxableValue']);
-      tax += _num(e['igstAmount']) +
-          _num(e['cgstAmount']) +
-          _num(e['sgstAmount']) +
-          _num(e['cessAmount']);
+      taxable += _entryTaxable(e);
+      tax += _entryTax(e);
     }
     return _SectionStat(
       label: label,
@@ -1026,13 +1074,18 @@ class _SectionRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(stat.label, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                  Text(stat.label,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Text(
                     stat.count == 0
                         ? stat.detail
                         : '${stat.count} ${stat.count == 1 ? 'entry' : 'entries'} · ${stat.detail}',
                     style: RunqText.caption.copyWith(color: t.muted2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -1042,10 +1095,10 @@ class _SectionRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(formatINR(stat.taxable, compact: true),
+                Text(formatINR(stat.taxable, paise: true),
                     style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
                 const SizedBox(height: 2),
-                Text('+${formatINR(stat.tax, compact: true)} tax',
+                Text('+${formatINR(stat.tax, paise: true)} tax',
                     style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
@@ -1067,11 +1120,105 @@ void _showSectionEntries(BuildContext context, _SectionStat stat, String returnI
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
+    // A 243-entry section fills the screen; without this the sheet slides
+    // under the status bar and its title collides with the clock.
+    useSafeArea: true,
     builder: (_) => GstSheetShell(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: _SectionEntriesSheet(stat: stat, returnId: returnId),
     ),
   );
+}
+
+/// Plain-language note for a GSTR-1 section: the GSTN table it feeds, why it
+/// exists, and what the left-hand label on each row identifies. Shown in the
+/// section sheet so the numbers can be read without a GST manual to hand.
+typedef _SectionGuide = ({String table, String what, String rowKey});
+
+_SectionGuide _sectionGuide(String key) => switch (key) {
+      'b2b' => (
+          table: 'Table 4A',
+          what: 'Invoice-wise sales to buyers who have a GSTIN. This is what '
+              'they see in their GSTR-2B and claim input tax credit against, '
+              'so numbers and values must match their books.',
+          rowKey: 'Invoice number',
+        ),
+      'b2cl' => (
+          table: 'Table 5A',
+          what: 'Inter-state sales over ₹2.5 lakh to unregistered buyers. '
+              'Reported invoice-wise so the destination state can settle its '
+              'share of IGST.',
+          rowKey: 'Invoice number',
+        ),
+      'b2cs' => (
+          table: 'Table 7',
+          what: 'All other sales to unregistered buyers, aggregated by place '
+              'of supply and tax rate rather than per invoice. Exempt lines '
+              'are reported under Nil-rated instead — a 0% row is invalid here.',
+          rowKey: 'Place of supply',
+        ),
+      'cdn' => (
+          table: 'Table 9B',
+          what: 'Credit and debit notes raised against B2B invoices already '
+              'reported. Filing one adjusts the buyer’s input tax credit.',
+          rowKey: 'Note number',
+        ),
+      'exp' => (
+          table: 'Table 6A',
+          what: 'Zero-rated supplies outside India, with shipping bill '
+              'details. This is what IGST refund claims are built from.',
+          rowKey: 'Invoice number',
+        ),
+      'nil' => (
+          table: 'Table 8',
+          what: 'Nil-rated, exempt and non-GST sales, aggregated and split '
+              'intra- vs inter-state. There is no tax column by definition.',
+          rowKey: 'Supply type',
+        ),
+      _ => (
+          table: 'Table 12',
+          what: 'Quantity and value rolled up by HSN code, tax rate and unit. '
+              'Covers every sale in the period, so it restates the full '
+              'turnover from a different angle. Tap a row for the breakdown.',
+          rowKey: 'HSN code',
+        ),
+    };
+
+/// The explanation panel above a section's entries: what the table is for,
+/// then a legend for how to read a row.
+class _GuideNote extends StatelessWidget {
+  final _SectionGuide guide;
+  final bool showTax;
+  const _GuideNote({required this.guide, required this.showTax});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: t.bgWarm,
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(guide.what,
+              style: RunqText.caption.copyWith(color: t.muted, height: 1.45)),
+          const SizedBox(height: 8),
+          Text(
+            showTax
+                ? '${guide.rowKey} on the left · taxable value on the right, '
+                    'with GST beneath it.'
+                : '${guide.rowKey} on the left · exempt value on the right.',
+            style: RunqText.caption.copyWith(color: t.muted2, height: 1.45),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SectionEntriesSheet extends StatelessWidget {
@@ -1085,6 +1232,10 @@ class _SectionEntriesSheet extends StatelessWidget {
       _strOrNull(e['hsnCode']) ??
       _strOrNull(e['partyGstin']) ??
       _strOrNull(e['pos']) ??
+      // b2cs/nil entries have no document number — identify them by
+      // place of supply and/or supply type instead of rendering '—'.
+      _strOrNull(e['placeOfSupply']) ??
+      _strOrNull(e['supplyType']) ??
       '—';
 
   String? _subtitle(Map<String, dynamic> e) =>
@@ -1092,23 +1243,44 @@ class _SectionEntriesSheet extends StatelessWidget {
       _strOrNull(e['partyGstin']) ??
       _strOrNull(e['description']);
 
-  double _entryTax(Map<String, dynamic> e) =>
-      _num(e['igstAmount']) +
-      _num(e['cgstAmount']) +
-      _num(e['sgstAmount']) +
-      _num(e['cessAmount']);
-
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final guide = _sectionGuide(stat.key);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(stat.label, style: RunqText.h3.copyWith(color: t.ink)),
-        const SizedBox(height: 2),
-        Text('${stat.count} ${stat.count == 1 ? 'entry' : 'entries'}',
-            style: RunqText.caption.copyWith(color: t.muted)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(stat.label,
+                      style: RunqText.h3.copyWith(color: t.ink),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${guide.table} · ${stat.count} '
+                    '${stat.count == 1 ? 'entry' : 'entries'}',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: Icon(Icons.close_rounded, color: t.ink),
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _GuideNote(guide: guide, showTax: stat.key != 'nil'),
         const SizedBox(height: 12),
         Flexible(
           child: ListView.separated(
@@ -1150,11 +1322,11 @@ class _SectionEntriesSheet extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(formatINR(_num(e['taxableValue']), compact: true),
+                          Text(formatINR(_entryTaxable(e), paise: true),
                               style: RunqText.tabular(
                                   size: 14, w: FontWeight.w700, color: t.ink)),
                           const SizedBox(height: 2),
-                          Text('+${formatINR(_entryTax(e), compact: true)} tax',
+                          Text('+${formatINR(_entryTax(e), paise: true)} tax',
                               style: RunqText.caption.copyWith(color: t.muted)),
                         ],
                       ),
@@ -1430,11 +1602,9 @@ _Summary _computeSummary(GstReturnDetail d) {
       for (final e in list) {
         if (e is! Map) continue;
         count++;
-        taxable += _num(e['taxableValue']);
-        tax += _num(e['igstAmount']) +
-            _num(e['cgstAmount']) +
-            _num(e['sgstAmount']) +
-            _num(e['cessAmount']);
+        final entry = e.cast<String, dynamic>();
+        taxable += _entryTaxable(entry);
+        tax += _entryTax(entry);
       }
     }
     return _Summary(taxable, tax, count);
@@ -1468,6 +1638,50 @@ double _num(Object? v) {
   if (v is num) return v.toDouble();
   if (v is String) return double.tryParse(v) ?? 0;
   return 0;
+}
+
+/// GSTR-1 section entries come in three shapes and only one carries the
+/// money on the entry itself:
+///   flat     — b2cs/b2cl/exp/hsn: taxableValue + tax fields on the entry
+///   nested   — b2b/cdn/b2ba: per-rate breakdown inside items[]
+///   nil      — Table 8: nil/exempt/non-GST buckets, never taxed
+/// Reading `taxableValue` off a nested or nil entry silently yields 0, so
+/// every call site must go through these two helpers.
+double _entryTaxable(Map<String, dynamic> e) {
+  final items = e['items'];
+  if (items is List) {
+    double sum = 0;
+    for (final it in items) {
+      if (it is Map) sum += _num(it['taxableValue']);
+    }
+    return sum;
+  }
+  if (e.containsKey('nilRatedAmount') ||
+      e.containsKey('exemptAmount') ||
+      e.containsKey('nonGstAmount')) {
+    return _num(e['nilRatedAmount']) +
+        _num(e['exemptAmount']) +
+        _num(e['nonGstAmount']);
+  }
+  return _num(e['taxableValue']);
+}
+
+double _entryTax(Map<String, dynamic> e) {
+  double taxOf(Map<String, dynamic> m) =>
+      _num(m['igstAmount']) +
+      _num(m['cgstAmount']) +
+      _num(m['sgstAmount']) +
+      _num(m['cessAmount']);
+
+  final items = e['items'];
+  if (items is List) {
+    double sum = 0;
+    for (final it in items) {
+      if (it is Map) sum += taxOf(it.cast<String, dynamic>());
+    }
+    return sum;
+  }
+  return taxOf(e);
 }
 
 /// Bottom action bar driven by return status + client-local auth state.

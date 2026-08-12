@@ -9,7 +9,7 @@ import '../theme/runq_tokens.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
-import 'gst/gst_auth_sheet.dart';
+import 'gst/gst_form_kit.dart';
 import 'gst/gst_status_chip.dart';
 
 class GstReturnsScreen extends ConsumerStatefulWidget {
@@ -25,6 +25,7 @@ class _GstReturnsScreenState extends ConsumerState<GstReturnsScreen> {
 
   Future<void> _refresh() async {
     ref.invalidate(gstReturnsProvider);
+    ref.invalidate(gstReadinessProvider);
     await ref.read(gstReturnsProvider.future).catchError((_) => throw 0);
   }
 
@@ -38,6 +39,7 @@ class _GstReturnsScreenState extends ConsumerState<GstReturnsScreen> {
           : await gstRepo.generateGstr1(period);
       if (!mounted) return;
       ref.invalidate(gstReturnsProvider);
+      ref.invalidate(gstReadinessProvider);
       showRunqSnack(context,
           '${type == 'gstr3b' ? 'GSTR-3B' : 'GSTR-1'} draft generated',
           kind: SnackKind.success);

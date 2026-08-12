@@ -62,6 +62,11 @@ class GstSection extends ConsumerWidget {
             : days == 0
                 ? 'Due today'
                 : 'Due in $days ${days == 1 ? 'day' : 'days'}';
+    // Once GSTR-1 is filed the strip retargets to GSTR-3B and stops mentioning
+    // it — which reads as though the filing never happened. Name the step
+    // that's done, so the card shows progress rather than only what's left.
+    final gstr1Done = gst.gstr1Status.isFiled && !bothFiled && !targetIsNext;
+
     final subParts = <String>[
       if (dueText != null) dueText,
       if (failing != null) failing.detail ?? failing.label,
@@ -99,6 +104,25 @@ class GstSection extends ConsumerWidget {
             headline,
             style: RunqText.h3.copyWith(color: t.ink),
           ),
+          if (gstr1Done) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_rounded,
+                    size: 14,
+                    color: isDark
+                        ? const Color(0xFF34D399)
+                        : RunqColors.greenInk),
+                const SizedBox(width: 6),
+                Text('GSTR-1 filed for ${gst.periodLabel}',
+                    style: RunqText.caption.copyWith(
+                        color: isDark
+                            ? const Color(0xFF34D399)
+                            : RunqColors.greenInk)),
+              ],
+            ),
+          ],
           if (subParts.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(

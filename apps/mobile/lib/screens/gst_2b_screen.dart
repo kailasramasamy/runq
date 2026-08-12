@@ -9,7 +9,7 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
-import 'gst/gst_auth_sheet.dart';
+import 'gst/gst_form_kit.dart';
 
 final _periodProvider = StateProvider<String>((_) {
   final now = DateTime.now();
