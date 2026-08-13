@@ -165,6 +165,50 @@ export class LeaveBalanceService {
     return { created };
   }
 
+  /**
+   * Re-point `year`'s balances at a leave type's current quota, after that
+   * quota was edited. Balance rows are a snapshot taken at provision time, so
+   * without this an edit only reaches employees provisioned *after* it —
+   * everyone else keeps the old number, and re-running "Initialize balances"
+   * can't help them (it skips rows that already exist).
+   *
+   * `used` is never touched: days already taken stay taken, so the remaining
+   * balance re-derives from the new quota instead of rewriting history.
+   * Monthly-accrual types are skipped — their `accrued` is what the scheduler
+   * has credited so far, not the annual quota, and overwriting it would grant
+   * a full year up front.
+   */
+  async resyncQuota(leaveTypeId: string, year: number) {
+    const [type] = await this.db
+      .select()
+      .from(leaveTypes)
+      .where(and(eq(leaveTypes.id, leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
+      .limit(1);
+    if (!type) throw new NotFoundError('Leave type');
+    if (type.accrualMode === 'monthly') return { updated: 0, skipped: 'monthly' as const };
+
+    const rows = await this.db
+      .select({ id: leaveBalances.id, joiningDate: employees.joiningDate })
+      .from(leaveBalances)
+      .innerJoin(employees, eq(employees.id, leaveBalances.employeeId))
+      .where(and(
+        eq(leaveBalances.tenantId, this.tenantId),
+        eq(leaveBalances.leaveTypeId, leaveTypeId),
+        eq(leaveBalances.year, year),
+      ));
+
+    let updated = 0;
+    for (const r of rows) {
+      const accrued = proratedAccrued(Number(type.daysPerYear), new Date(r.joiningDate), year);
+      await this.db
+        .update(leaveBalances)
+        .set({ accrued: String(accrued), updatedAt: new Date() })
+        .where(eq(leaveBalances.id, r.id));
+      updated++;
+    }
+    return { updated, skipped: null };
+  }
+
   async list(filter: { employeeId?: string; year?: number }) {
     const conditions = [eq(leaveBalances.tenantId, this.tenantId)];
     if (filter.employeeId) conditions.push(eq(leaveBalances.employeeId, filter.employeeId));

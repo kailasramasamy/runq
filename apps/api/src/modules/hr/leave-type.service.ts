@@ -3,6 +3,7 @@ import { employees, leaveTypes, leaveRequests, leaveBalances } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateLeaveTypeInput, UpdateLeaveTypeInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { LeaveBalanceService } from './leave-balance.service';
 
 const DEFAULT_TYPES = [
   { name: 'Casual Leave', code: 'CL', daysPerYear: 12, carryForward: false, isPaid: true },
@@ -77,12 +78,27 @@ export class LeaveTypeService {
   }
 
   async update(id: string, input: UpdateLeaveTypeInput) {
+    const [before] = await this.db
+      .select({ daysPerYear: leaveTypes.daysPerYear })
+      .from(leaveTypes)
+      .where(and(eq(leaveTypes.id, id), eq(leaveTypes.tenantId, this.tenantId)))
+      .limit(1);
+
     const [row] = await this.db
       .update(leaveTypes)
       .set({ ...this.serialize(input), updatedAt: new Date() } as any)
       .where(and(eq(leaveTypes.id, id), eq(leaveTypes.tenantId, this.tenantId)))
       .returning();
     if (!row) throw new NotFoundError('Leave type');
+
+    // Balance rows snapshot the quota when they're provisioned, so an edit
+    // that doesn't push through leaves every already-provisioned employee on
+    // the old number — and re-running "Initialize balances" won't correct them
+    // either, since it only inserts missing rows.
+    if (before && Number(before.daysPerYear) !== Number(row.daysPerYear)) {
+      await new LeaveBalanceService(this.db, this.tenantId)
+        .resyncQuota(id, new Date().getUTCFullYear());
+    }
     return row;
   }
 
@@ -141,6 +157,7 @@ export class LeaveTypeService {
     const out: Record<string, any> = { ...input };
     if (out.daysPerYear != null) out.daysPerYear = String(out.daysPerYear);
     if (out.maxCarryForward != null) out.maxCarryForward = String(out.maxCarryForward);
+    if (out.maxBalance != null) out.maxBalance = String(out.maxBalance);
     return out;
   }
 }
