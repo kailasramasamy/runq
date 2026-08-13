@@ -109,9 +109,11 @@ class _HrEmployeeDetailScreenState extends ConsumerState<HrEmployeeDetailScreen>
         loading: () => const Center(child: CircularProgressIndicator(color: HrColors.teal)),
         error: (e, _) => Center(child: Text('$e', style: RunqText.body.copyWith(color: t.muted))),
         data: (emp) {
-          // Hero height = status bar inset + content. Bumped to accommodate
-          // the chip-strip breathing room before the tab bar.
-          final heroHeight = MediaQuery.of(context).padding.top + 278;
+          // Hero height = status bar inset + content: toolbar row (56) + the
+          // avatar/identity band (up to 91 with a two-line role) + 16 bottom.
+          // The band is a fixed-height sliver, so this has to clear the
+          // tallest the identity column can get — see _HeroIdentity.
+          final heroHeight = MediaQuery.of(context).padding.top + 164;
           return NestedScrollView(
             headerSliverBuilder: (ctx, _) => [
               SliverAppBar(

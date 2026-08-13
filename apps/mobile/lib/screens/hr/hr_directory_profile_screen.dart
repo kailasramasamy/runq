@@ -164,50 +164,57 @@ class _HeroBody extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(gradient: HrColors.profileGradient),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 22),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      // Avatar left, identity right — the stacked poster layout spent most of
+      // the first screen on the header before any actual profile content.
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HrAvatar(
             name: emp.displayName,
             photoUrl: emp.photoUrl,
             employeeId: emp.id,
-            size: 88,
+            size: 64,
           ),
-          const SizedBox(height: 12),
-          Text(
-            emp.displayName,
-            textAlign: TextAlign.center,
-            style: RunqText.h2.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  emp.displayName,
+                  style: RunqText.h3.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+                if (role.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    role,
+                    style: RunqText.caption.copyWith(
+                      color: Colors.white.withValues(alpha: 0.78),
+                    ),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _HeroChip(label: _statusLabel(emp.status)),
+                    _HeroChip(label: _empTypeLabel(emp.employmentType)),
+                    _HeroChip(label: emp.employeeCode),
+                    if (emp.joiningDate != null)
+                      _HeroChip(label: 'Joined ${_monthYear(emp.joiningDate!)}'),
+                  ],
+                ),
+              ],
             ),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-          ),
-          if (role.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              role,
-              textAlign: TextAlign.center,
-              style: RunqText.body.copyWith(
-                color: Colors.white.withValues(alpha: 0.78),
-              ),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            alignment: WrapAlignment.center,
-            children: [
-              _HeroChip(label: _statusLabel(emp.status)),
-              _HeroChip(label: _empTypeLabel(emp.employmentType)),
-              _HeroChip(label: emp.employeeCode),
-              if (emp.joiningDate != null)
-                _HeroChip(label: 'Joined ${_monthYear(emp.joiningDate!)}'),
-            ],
           ),
         ],
       ),

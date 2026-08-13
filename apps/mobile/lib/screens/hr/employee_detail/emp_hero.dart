@@ -15,9 +15,10 @@ class _Hero extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(gradient: HrColors.profileGradient),
-      padding: EdgeInsets.fromLTRB(8, topPad, 8, 18),
+      padding: EdgeInsets.fromLTRB(16, topPad, 16, 16),
       child: Column(
         mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Clearance for the SliverAppBar's own toolbar row (back button,
           // collapsed name/code, … menu), which is painted over this
@@ -25,50 +26,21 @@ class _Hero extends StatelessWidget {
           // FlexibleSpaceBar background is clipped from the top as it
           // collapses, so nothing that must survive can live up here.
           const SizedBox(height: kToolbarHeight),
-          // Avatar — centered, with a translucent white ring so the photo
-          // pops against the gradient even when it's a similar hue.
-          _HeroAvatar(
-            name: emp.displayName,
-            photoUrl: emp.photoUrl,
-            employeeId: emp.id,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            emp.displayName,
-            textAlign: TextAlign.center,
-            style: RunqText.h2.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
-            ),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            [
-              if (emp.designationName != null) emp.designationName!,
-              if (emp.departmentName != null) emp.departmentName!,
-            ].join(' · '),
-            textAlign: TextAlign.center,
-            style: RunqText.body.copyWith(
-              color: Colors.white.withValues(alpha: 0.78),
-            ),
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            alignment: WrapAlignment.center,
+          // Avatar left, identity right. Stacking them vertically read as a
+          // profile poster and cost ~90pt of header before the tabs even
+          // started; side-by-side says the same thing in one band.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _HeroChip(label: _statusLabel(emp.status), dotColor: _statusDot(emp.status)),
-              _HeroChip(label: _empType(emp.employmentType)),
-              _HeroChip(label: emp.employeeCode),
+              _HeroAvatar(
+                name: emp.displayName,
+                photoUrl: emp.photoUrl,
+                employeeId: emp.id,
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: _HeroIdentity(emp: emp)),
             ],
           ),
-          // Breathing room between chips and the pinned tab strip below,
-          // so the hero doesn't feel compressed against the tabs.
-          const SizedBox(height: 18),
         ],
       ),
     );
@@ -97,6 +69,63 @@ class _Hero extends StatelessWidget {
       };
 }
 
+// Name, role and status chips — the right-hand column of the hero band.
+class _HeroIdentity extends StatelessWidget {
+  final HrEmployee emp;
+  const _HeroIdentity({required this.emp});
+
+  @override
+  Widget build(BuildContext context) {
+    final role = [
+      if (emp.designationName != null) emp.designationName!,
+      if (emp.departmentName != null) emp.departmentName!,
+    ].join(' · ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          emp.displayName,
+          style: RunqText.h3.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          role,
+          style: RunqText.caption.copyWith(
+            color: Colors.white.withValues(alpha: 0.78),
+          ),
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 10),
+        // Scrolls rather than wraps: the hero is a fixed-height sliver, so a
+        // long employee code spilling onto a second chip row would overflow it.
+        SizedBox(
+          height: 24,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            children: [
+              _HeroChip(
+                label: _Hero._statusLabel(emp.status),
+                dotColor: _Hero._statusDot(emp.status),
+              ),
+              const SizedBox(width: 6),
+              _HeroChip(label: _Hero._empType(emp.employmentType)),
+              const SizedBox(width: 6),
+              _HeroChip(label: emp.employeeCode),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HeroAvatar extends StatelessWidget {
   final String name;
   final String? photoUrl;
@@ -110,7 +139,7 @@ class _HeroAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         // Soft drop shadow grounds the tile against the gradient — replaces
         // the bordered "ring" which felt heavy around a photo.
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.22),
@@ -123,7 +152,7 @@ class _HeroAvatar extends StatelessWidget {
         name: name,
         photoUrl: photoUrl,
         employeeId: employeeId,
-        size: 108,
+        size: 72,
       ),
     );
     if (!hasPhoto) return avatar;
