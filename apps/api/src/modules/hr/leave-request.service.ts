@@ -1,6 +1,7 @@
 import { eq, and, gte, lte, desc, inArray, sql } from 'drizzle-orm';
 import {
   leaveRequests, leaveTypes, leaveBalances, employees, holidays, attendance, users,
+  shifts, employeeShifts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
@@ -8,7 +9,7 @@ import type {
   UpdateLeaveRequestInput,
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
-import { countLeaveDays } from './leave-days';
+import { countLeaveDays, countedLeaveDates } from './leave-days';
 import { LeaveBalanceService } from './leave-balance.service';
 import { applyHrScope, type HrAccessScope } from './access-scope';
 
@@ -101,7 +102,7 @@ export class LeaveRequestService {
     const days = countLeaveDays(input.fromDate, input.toDate, {
       halfDay: input.halfDay,
       holidayDates,
-      weeklyOffDays: [0], // Sunday default; per-employee shift handling deferred
+      weeklyOffDays: await this.weeklyOffDaysFor(input.employeeId, input.fromDate),
     });
 
     if (days <= 0) {
@@ -182,11 +183,95 @@ export class LeaveRequestService {
     if (input.approved) {
       const year = Number(req.fromDate.slice(0, 4));
       const balSvc = new LeaveBalanceService(this.db, this.tenantId);
-      await balSvc.incrementUsed(req.employeeId, req.leaveTypeId, year, Number(req.days));
+      const split = await this.splitPaidUnpaid(req);
+      // Only the paid portion draws down the balance. Without the split the
+      // balance simply goes negative, which reads as "quota exceeded" nowhere
+      // and still pays the employee in full.
+      await balSvc.incrementUsed(req.employeeId, req.leaveTypeId, year, split.paid);
+      if (split.unpaid > 0) {
+        await this.db
+          .update(leaveRequests)
+          .set({ unpaidDays: String(split.unpaid), updatedAt: new Date() })
+          .where(eq(leaveRequests.id, id));
+      }
       // Auto-mark attendance for approved leave days
-      await this.markAttendanceForLeave(req.employeeId, req.fromDate, req.toDate, req.halfDay);
+      await this.markAttendanceForLeave(
+        req.employeeId, req.fromDate, req.toDate, req.halfDay, split.unpaidDates,
+      );
     }
     return row;
+  }
+
+  /**
+   * How much of an approved request is paid vs unpaid. Only types flagged
+   * `overflowUnpaid` split — everyone else keeps the old behaviour of drawing
+   * the balance negative, so this is inert for tenants that haven't opted in.
+   *
+   * The paid days are the *earliest* ones in the range: an employee part-way
+   * through their quota gets the front of the leave paid and the tail unpaid,
+   * which is what both they and payroll expect.
+   */
+  private async splitPaidUnpaid(req: { employeeId: string; leaveTypeId: string; fromDate: string; toDate: string; halfDay: boolean; days: string }) {
+    const days = Number(req.days);
+    const [type] = await this.db
+      .select({ overflowUnpaid: leaveTypes.overflowUnpaid })
+      .from(leaveTypes)
+      .where(and(eq(leaveTypes.id, req.leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
+      .limit(1);
+    if (!type?.overflowUnpaid) return { paid: days, unpaid: 0, unpaidDates: [] as string[] };
+
+    const available = await this.availableBalance(
+      req.employeeId, req.leaveTypeId, Number(req.fromDate.slice(0, 4)),
+    );
+    const paid = Math.max(0, Math.min(days, available));
+    const unpaid = Math.round((days - paid) * 100) / 100;
+    if (unpaid <= 0) return { paid, unpaid: 0, unpaidDates: [] as string[] };
+
+    // A half-day request is a single 0.5-day date — it can't be split, so it
+    // lands wholly on whichever side the balance falls.
+    if (req.halfDay) {
+      return { paid, unpaid, unpaidDates: paid > 0 ? [] : [req.fromDate] };
+    }
+    const dates = await this.countedDatesFor(req.employeeId, req.fromDate, req.toDate);
+    return { paid, unpaid, unpaidDates: dates.slice(Math.floor(paid)) };
+  }
+
+  /// opening + accrued − used for one (employee, type, year). 0 when no row
+  /// exists yet — an unprovisioned type has nothing to draw on.
+  private async availableBalance(employeeId: string, leaveTypeId: string, year: number): Promise<number> {
+    const [bal] = await this.db
+      .select({
+        opening: leaveBalances.opening,
+        accrued: leaveBalances.accrued,
+        used: leaveBalances.used,
+      })
+      .from(leaveBalances)
+      .where(and(
+        eq(leaveBalances.tenantId, this.tenantId),
+        eq(leaveBalances.employeeId, employeeId),
+        eq(leaveBalances.leaveTypeId, leaveTypeId),
+        eq(leaveBalances.year, year),
+      ))
+      .limit(1);
+    if (!bal) return 0;
+    return Number(bal.opening) + Number(bal.accrued) - Number(bal.used);
+  }
+
+  /// The dates a request consumes, honouring the employee's week-offs and
+  /// the tenant's holidays — the same set countLeaveDays() totals.
+  private async countedDatesFor(employeeId: string, fromDate: string, toDate: string) {
+    const holidayRows = await this.db
+      .select({ date: holidays.date })
+      .from(holidays)
+      .where(and(
+        eq(holidays.tenantId, this.tenantId),
+        gte(holidays.date, fromDate),
+        lte(holidays.date, toDate),
+      ));
+    return countedLeaveDates(fromDate, toDate, {
+      holidayDates: new Set(holidayRows.map((r) => r.date)),
+      weeklyOffDays: await this.weeklyOffDaysFor(employeeId, fromDate),
+    });
   }
 
   /// Edit a pending request. Only mutates the fields supplied; recomputes
@@ -234,7 +319,7 @@ export class LeaveRequestService {
       days = countLeaveDays(fromDate, toDate, {
         halfDay,
         holidayDates,
-        weeklyOffDays: [0],
+        weeklyOffDays: await this.weeklyOffDaysFor(req.employeeId, fromDate),
       });
       if (days <= 0) {
         throw new ConflictError('Selected range has no working days (all holidays/week-offs)');
@@ -286,12 +371,67 @@ export class LeaveRequestService {
       .returning();
 
     if (req.status === 'approved') {
-      // Restore balance
+      // Restore balance — only what was drawn from it. Handing back the full
+      // days on a part-unpaid request would credit days that were never
+      // deducted, quietly inflating the quota.
       const year = Number(req.fromDate.slice(0, 4));
+      const paid = Number(req.days) - Number(req.unpaidDays ?? 0);
       const balSvc = new LeaveBalanceService(this.db, this.tenantId);
-      await balSvc.incrementUsed(req.employeeId, req.leaveTypeId, year, -Number(req.days));
+      await balSvc.incrementUsed(req.employeeId, req.leaveTypeId, year, -paid);
     }
     return row;
+  }
+
+  /**
+   * What a request *would* cost before it's submitted: total days, how many
+   * the balance covers, and how many would be unpaid. Backs the warning on
+   * the apply screens so an employee finds out about a shortfall there, not
+   * on their payslip. Read-only — nothing is written.
+   */
+  async preview(input: { employeeId: string; leaveTypeId: string; fromDate: string; toDate: string; halfDay: boolean }) {
+    const year = Number(input.fromDate.slice(0, 4));
+    const [type] = await this.db
+      .select({ overflowUnpaid: leaveTypes.overflowUnpaid, name: leaveTypes.name })
+      .from(leaveTypes)
+      .where(and(eq(leaveTypes.id, input.leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
+      .limit(1);
+    if (!type) throw new NotFoundError('Leave type');
+
+    const days = input.halfDay
+      ? 0.5
+      : (await this.countedDatesFor(input.employeeId, input.fromDate, input.toDate)).length;
+    const available = await this.availableBalance(input.employeeId, input.leaveTypeId, year);
+    const paid = type.overflowUnpaid ? Math.max(0, Math.min(days, available)) : days;
+    return {
+      days,
+      available,
+      paidDays: paid,
+      unpaidDays: Math.round((days - paid) * 100) / 100,
+      leaveTypeName: type.name,
+    };
+  }
+
+  /// Week-offs for an employee on a given date, from the shift they were
+  /// assigned at the time. Falls back to Sunday when they have no shift —
+  /// the assumption this code carried unconditionally before, and still the
+  /// right default for an org that hasn't configured shifts. An org that
+  /// works every day models it as a shift with `weekly_off_days: []`, which
+  /// makes leave on a Sunday count as a leave day instead of being silently
+  /// dropped from the total.
+  private async weeklyOffDaysFor(employeeId: string, onDate: string): Promise<number[]> {
+    const [row] = await this.db
+      .select({ weeklyOffDays: shifts.weeklyOffDays })
+      .from(employeeShifts)
+      .innerJoin(shifts, eq(shifts.id, employeeShifts.shiftId))
+      .where(and(
+        eq(employeeShifts.tenantId, this.tenantId),
+        eq(employeeShifts.employeeId, employeeId),
+        lte(employeeShifts.effectiveFrom, onDate),
+        sql`(${employeeShifts.effectiveTo} IS NULL OR ${employeeShifts.effectiveTo} >= ${onDate})`,
+      ))
+      .orderBy(desc(employeeShifts.effectiveFrom))
+      .limit(1);
+    return row?.weeklyOffDays ?? [0];
   }
 
   /// Resolve a user id to its linked employee row — phone-match (last 10
@@ -320,26 +460,29 @@ export class LeaveRequestService {
 
   private async markAttendanceForLeave(
     employeeId: string, fromDate: string, toDate: string, halfDay: boolean,
+    /// Dates approved as unpaid. Marked `absent` rather than `leave` so
+    /// payroll's existing LOP derivation (working − present − leave) deducts
+    /// them, with no payroll-side knowledge of leave policy.
+    unpaidDates: string[] = [],
   ) {
+    const unpaid = new Set(unpaidDates);
     const start = new Date(fromDate + 'T00:00:00Z');
     const end = new Date(toDate + 'T00:00:00Z');
-    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    for (const d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
+      const status = unpaid.has(iso) ? 'absent' : halfDay ? 'half_day' : 'leave';
       await this.db
         .insert(attendance)
         .values({
           tenantId: this.tenantId,
           employeeId,
           date: iso,
-          status: halfDay ? 'half_day' : 'leave',
+          status,
           source: 'manual',
         })
         .onConflictDoUpdate({
           target: [attendance.employeeId, attendance.date],
-          set: {
-            status: halfDay ? 'half_day' : 'leave',
-            updatedAt: new Date(),
-          },
+          set: { status, updatedAt: new Date() },
         });
     }
   }

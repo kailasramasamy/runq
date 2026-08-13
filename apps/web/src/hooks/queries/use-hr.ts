@@ -449,8 +449,13 @@ export interface LeaveType {
   name: string;
   code: string;
   daysPerYear: string;
+  accrualMode: 'upfront' | 'monthly' | 'quarterly';
   carryForward: boolean;
   maxCarryForward: string | null;
+  /// Ceiling on the available balance for monthly accrual; null = uncapped.
+  maxBalance: string | null;
+  /// Approve past the balance as a paid/unpaid split.
+  overflowUnpaid: boolean;
   encashable: boolean;
   isPaid: boolean;
   isActive: boolean;
@@ -590,6 +595,29 @@ export function useLeaveRequests(filter: { employeeId?: string; status?: LeaveRe
   return useQuery({
     queryKey: LEAVE_KEYS.requests(filter),
     queryFn: () => api.get<ApiSuccess<LeaveRequest[]>>(`/hr/leave-requests${qs ? `?${qs}` : ''}`),
+  });
+}
+
+export interface LeavePreview {
+  days: number;
+  available: number;
+  paidDays: number;
+  unpaidDays: number;
+  leaveTypeName: string;
+}
+
+/// Dry-run of a leave request: how much the balance covers and how much
+/// would be approved unpaid. Enabled only once the form is complete enough
+/// to price, so a half-filled form doesn't spam the endpoint.
+export function useLeaveRequestPreview(input: {
+  employeeId?: string; leaveTypeId?: string; fromDate?: string; toDate?: string; halfDay?: boolean;
+}) {
+  const ready = !!(input.employeeId && input.leaveTypeId && input.fromDate && input.toDate
+    && input.fromDate <= input.toDate);
+  return useQuery({
+    queryKey: ['hr', 'leave', 'preview', input],
+    enabled: ready,
+    queryFn: () => api.post<ApiSuccess<LeavePreview>>('/hr/leave-requests/preview', input),
   });
 }
 

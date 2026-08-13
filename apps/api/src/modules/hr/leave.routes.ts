@@ -135,6 +135,14 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.getById(id) };
   });
 
+  // Dry-run for the apply screens: how much of this request the balance
+  // covers, and how much would be approved unpaid.
+  app.post('/leave-requests/preview', { preHandler: [rbacHook([...ALL])] }, async (req) => {
+    const input = createLeaveRequestSchema.parse(req.body);
+    const svc = new LeaveRequestService(req.server.db, req.tenantId);
+    return { data: await svc.preview(input) };
+  });
+
   app.post('/leave-requests', { preHandler: [rbacHook([...ALL])] }, async (req, reply) => {
     const input = createLeaveRequestSchema.parse(req.body);
     // Submission is self-serve; the service already checks the employee

@@ -6,8 +6,17 @@ export const createLeaveTypeSchema = z.object({
   name: z.string().min(1).max(50),
   code: z.string().min(1).max(10),
   daysPerYear: z.number().nonnegative().default(0),
+  // 'upfront' credits the year's quota at provisioning; 'monthly' lets the
+  // accrual scheduler drip daysPerYear/12 each month.
+  accrualMode: z.enum(['upfront', 'monthly', 'quarterly']).optional(),
   carryForward: z.boolean().default(false),
   maxCarryForward: z.number().nonnegative().nullish(),
+  // Ceiling on the available balance for monthly accrual — accrual pauses
+  // here and resumes as leave is taken. Null/omitted = uncapped.
+  maxBalance: z.number().nonnegative().nullish(),
+  // Approve past the balance as a paid/unpaid split instead of letting the
+  // balance go negative.
+  overflowUnpaid: z.boolean().optional(),
   encashable: z.boolean().default(false),
   isPaid: z.boolean().default(true),
   isActive: z.boolean().optional(),

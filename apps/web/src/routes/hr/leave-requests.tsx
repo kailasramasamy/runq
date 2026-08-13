@@ -7,6 +7,7 @@ import {
 import { StatTile, EmptyState, Avatar } from '@/components/ar/primitives';
 import {
   useLeaveRequests, useCreateLeaveRequest, useReviewLeaveRequest, useCancelLeaveRequest,
+  useLeaveRequestPreview,
   useLeaveTypes, useEmployees, useHrMe,
   type LeaveRequestStatus, type LeaveRequest,
 } from '@/hooks/queries/use-hr';
@@ -251,6 +252,17 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
 
   const effectiveEmployeeId = isSelf ? (me?.employee?.id ?? '') : employeeId;
 
+  // Price the request as it's filled in, so a shortfall shows up here rather
+  // than as an unexplained deduction on the payslip.
+  const { data: previewData } = useLeaveRequestPreview({
+    employeeId: effectiveEmployeeId || undefined,
+    leaveTypeId: leaveTypeId || undefined,
+    fromDate: fromDate || undefined,
+    toDate: (halfDay ? fromDate : toDate) || undefined,
+    halfDay,
+  });
+  const preview = previewData?.data;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     create.mutate({
@@ -291,6 +303,30 @@ function NewLeaveModal({ onClose }: { onClose: () => void }) {
           <input type="checkbox" checked={halfDay} onChange={(e) => setHalfDay(e.target.checked)} />
           Half day (counts as 0.5)
         </label>
+        {preview && preview.days > 0 && (
+          <div
+            className="rounded-md px-3 py-2.5 text-[13px]"
+            style={
+              preview.unpaidDays > 0
+                ? { background: 'var(--warning-bg, #FEF3C7)', color: 'var(--warning-fg, #92400E)' }
+                : { background: 'var(--surface-2)', color: 'var(--text-2)' }
+            }
+          >
+            {preview.unpaidDays > 0 ? (
+              <>
+                <span className="font-medium">
+                  {preview.paidDays} paid, {preview.unpaidDays} unpaid
+                </span>
+                {' — '}only {preview.available} day(s) of {preview.leaveTypeName} left.
+                The unpaid days are deducted as Loss of Pay.
+              </>
+            ) : (
+              <>
+                {preview.days} day(s) · {preview.available} day(s) of {preview.leaveTypeName} available
+              </>
+            )}
+          </div>
+        )}
         <Textarea label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

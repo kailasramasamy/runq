@@ -26,6 +26,17 @@ export const leaveTypes = pgTable('leave_types', {
   applicableGender: varchar('applicable_gender', { length: 10 }).notNull().default('all').$type<'all' | 'male' | 'female'>(),
   carryForward: boolean('carry_forward').notNull().default(false),
   maxCarryForward: decimal('max_carry_forward', { precision: 5, scale: 2 }),
+  // Ceiling on the *available* balance (opening + accrued − used) for
+  // monthly-accrual types: once it's reached, accrual pauses and only
+  // resumes as leave is taken. Stops an employee banking a whole year of
+  // a high-frequency quota and cashing it in as one long absence.
+  // NULL = uncapped, which is every type unless a tenant sets otherwise.
+  maxBalance: decimal('max_balance', { precision: 5, scale: 2 }),
+  // When true, a request beyond the available balance is approved as a
+  // split — paid up to the balance, the remainder unpaid (attendance
+  // marked absent, so payroll's existing LOP derivation deducts it).
+  // False keeps the old behaviour: the balance simply goes negative.
+  overflowUnpaid: boolean('overflow_unpaid').notNull().default(false),
   encashable: boolean('encashable').notNull().default(false),
   isPaid: boolean('is_paid').notNull().default(true),
   isActive: boolean('is_active').notNull().default(true),
@@ -64,6 +75,10 @@ export const leaveRequests = pgTable('leave_requests', {
   toDate: date('to_date').notNull(),
   halfDay: boolean('half_day').notNull().default(false),
   days: decimal('days', { precision: 5, scale: 2 }).notNull(),
+  // Of `days`, how many were beyond the available balance and so approved
+  // unpaid (see leaveTypes.overflowUnpaid). Kept on the request as the
+  // audit trail for why a payslip shows LOP against approved leave.
+  unpaidDays: decimal('unpaid_days', { precision: 5, scale: 2 }).notNull().default('0'),
   reason: text('reason'),
   status: leaveRequestStatusEnum('status').notNull().default('pending'),
   appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),

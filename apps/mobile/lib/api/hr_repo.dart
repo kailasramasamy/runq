@@ -505,6 +505,25 @@ class HrRepo {
     return _dataList(res).map(HrLeaveRequest.fromJson).toList();
   }
 
+  /// Dry-run of a leave request — what the balance covers and what would be
+  /// approved unpaid. Read-only; nothing is created.
+  Future<HrLeavePreview> previewLeave({
+    required String employeeId,
+    required String leaveTypeId,
+    required DateTime fromDate,
+    required DateTime toDate,
+    bool halfDay = false,
+  }) async {
+    final res = await apiClient.post('/hr/leave-requests/preview', {
+      'employeeId': employeeId,
+      'leaveTypeId': leaveTypeId,
+      'fromDate': _isoDate(fromDate),
+      'toDate': _isoDate(toDate),
+      'halfDay': halfDay,
+    });
+    return HrLeavePreview.fromJson(_data(res));
+  }
+
   Future<HrLeaveRequest> applyLeave({
     required String employeeId,
     required String leaveTypeId,

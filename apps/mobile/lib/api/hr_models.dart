@@ -452,6 +452,30 @@ class HrLeaveBalance {
 
 // ─── /hr/leave-requests ────────────────────────────────────────────────────
 
+/// What a leave request would cost, before it's submitted. `unpaidDays` is
+/// non-zero only for leave types configured to approve past the balance as a
+/// paid/unpaid split — otherwise the whole request is paid.
+class HrLeavePreview {
+  final double days, available, paidDays, unpaidDays;
+  final String leaveTypeName;
+
+  const HrLeavePreview({
+    required this.days,
+    required this.available,
+    required this.paidDays,
+    required this.unpaidDays,
+    required this.leaveTypeName,
+  });
+
+  factory HrLeavePreview.fromJson(Map<String, dynamic> j) => HrLeavePreview(
+        days: _num(j['days']),
+        available: _num(j['available']),
+        paidDays: _num(j['paidDays']),
+        unpaidDays: _num(j['unpaidDays']),
+        leaveTypeName: _strOr(j['leaveTypeName'], 'leave'),
+      );
+}
+
 class HrLeaveRequest {
   final String id, employeeId, employeeName, employeeCode;
   final String? employeePhotoUrl;

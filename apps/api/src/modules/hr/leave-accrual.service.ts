@@ -9,6 +9,11 @@ import type { Db } from '@runq/db';
 // safe to re-run on the same day, safe to run after a long downtime
 // (it catches up multiple months in one pass).
 //
+// A type carrying `max_balance` stops accruing once the employee's
+// available balance reaches it, and resumes as they take leave. Months
+// skipped at the cap are forfeited, not banked — `last_accrued_month`
+// still advances — which is the point of the ceiling.
+//
 // Inactive employees are skipped: terminated / on_leave / inactive
 // statuses don't accrue. Joiners get partial-month credit on whatever
 // the join month is; we don't try to pro-rate within a month — Indian
@@ -41,7 +46,9 @@ export class LeaveAccrualService {
       WITH eligible AS (
         SELECT lb.id,
                lb.last_accrued_month,
-               lt.days_per_year::numeric AS dpy
+               lt.days_per_year::numeric AS dpy,
+               lt.max_balance::numeric   AS cap,
+               (lb.opening::numeric + lb.accrued::numeric - lb.used::numeric) AS available
           FROM leave_balances lb
           JOIN leave_types lt ON lt.id = lb.leave_type_id
           JOIN employees e   ON e.id  = lb.employee_id
@@ -52,18 +59,30 @@ export class LeaveAccrualService {
            AND e.status = 'active'
            AND e.deleted_at IS NULL
       ),
+      capped AS (
+        -- max_balance caps the *available* balance, not lifetime accrual: an
+        -- employee at the ceiling stops accruing, and starts again as soon as
+        -- they take leave. GREATEST(...,0) keeps an already-over-cap row
+        -- (a manual adjustment, say) from accruing negative days.
+        SELECT eligible.*,
+               CASE
+                 WHEN eligible.cap IS NULL THEN
+                   (eligible.dpy / 12.0) * (${asOfMonth} - eligible.last_accrued_month)
+                 ELSE LEAST(
+                   (eligible.dpy / 12.0) * (${asOfMonth} - eligible.last_accrued_month),
+                   GREATEST(eligible.cap - eligible.available, 0)
+                 )
+               END AS delta
+          FROM eligible
+      ),
       updated AS (
         UPDATE leave_balances lb
-           SET accrued = ROUND(
-                 lb.accrued::numeric
-                 + (eligible.dpy / 12.0) * (${asOfMonth} - eligible.last_accrued_month),
-                 2
-               ),
+           SET accrued = ROUND(lb.accrued::numeric + capped.delta, 2),
                last_accrued_month = ${asOfMonth},
                updated_at = NOW()
-          FROM eligible
-         WHERE lb.id = eligible.id
-         RETURNING (eligible.dpy / 12.0) * (${asOfMonth} - eligible.last_accrued_month) AS added
+          FROM capped
+         WHERE lb.id = capped.id
+         RETURNING capped.delta AS added
       )
       SELECT COUNT(*)::int            AS rows_updated,
              COALESCE(SUM(added), 0)  AS days_added

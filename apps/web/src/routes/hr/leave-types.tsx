@@ -134,7 +134,17 @@ export function LeaveTypesPage() {
                   {!t.isActive && <Badge variant="outline">Retired</Badge>}
                 </span>
               </TableCell>
-              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>{Number(t.daysPerYear)}</TableCell>
+              <TableCell align="right" className="num" style={{ color: 'var(--text-2)' }}>
+                {Number(t.daysPerYear)}
+                {/* The quota alone is misleading once accrual is monthly and
+                    capped — 48/yr reads as far more than it can ever hold. */}
+                {t.accrualMode === 'monthly' && (
+                  <span className="ml-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
+                    ({Math.round((Number(t.daysPerYear) / 12) * 100) / 100}/mo
+                    {t.maxBalance != null ? `, max ${Number(t.maxBalance)}` : ''})
+                  </span>
+                )}
+              </TableCell>
               <TableCell>{t.carryForward ? <Badge variant="info">{t.maxCarryForward ? `max ${Number(t.maxCarryForward)}` : 'Yes'}</Badge> : <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>
               <TableCell>{t.isPaid ? <Badge variant="success">Paid</Badge> : <Badge variant="outline">Unpaid</Badge>}</TableCell>
               <TableCell>{t.encashable ? <Badge variant="primary">Yes</Badge> : <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>

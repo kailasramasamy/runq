@@ -150,9 +150,22 @@ class _HrLeaveScreenState extends ConsumerState<HrLeaveScreen> {
     final types = await ref.read(hrMyLeaveTypesProvider.future);
     final tlist = types.map((lt) => (id: lt.id, code: lt.code, name: lt.name)).toList();
     if (!mounted) return;
-    final res = await showApplyLeaveSheet(context, leaveTypes: tlist);
-    if (res == null) return;
     final empId = ref.read(hrMeProvider).asData?.value.employee?.id;
+    final res = await showApplyLeaveSheet(
+      context,
+      leaveTypes: tlist,
+      // Only priceable once we know whose leave it is.
+      onPreview: empId == null
+          ? null
+          : (typeId, from, to, halfDay) => hrRepo.previewLeave(
+                employeeId: empId,
+                leaveTypeId: typeId,
+                fromDate: from,
+                toDate: to,
+                halfDay: halfDay,
+              ),
+    );
+    if (res == null) return;
     if (empId == null) {
       if (mounted) showRunqSnack(context, 'No employee record linked', kind: SnackKind.error);
       return;

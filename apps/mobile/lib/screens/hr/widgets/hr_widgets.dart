@@ -14,6 +14,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../api/api_client.dart';
 import '../../../api/api_config.dart';
+import '../../../api/hr_models.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'hr_colors.dart';
@@ -1262,6 +1263,61 @@ class HrPayslipHero extends StatelessWidget {
 
 // ─── Apply leave bottom sheet ─────────────────────────────────────────────
 
+/// The paid/unpaid line under the apply form. Amber when part of the request
+/// would go unpaid — the employee should see that here, not on their payslip.
+class _LeavePreviewNote extends StatelessWidget {
+  final HrLeavePreview preview;
+  const _LeavePreviewNote({required this.preview});
+
+  static String _d(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final short = preview.unpaidDays > 0;
+    final bg = short
+        ? (isDark ? const Color(0x33B45309) : const Color(0xFFFEF3C7))
+        : t.surface;
+    final fg = short
+        ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E))
+        : t.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: short ? fg.withValues(alpha: 0.35) : t.hairline,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            short ? Icons.warning_amber_rounded : Icons.event_available_rounded,
+            size: 16, color: fg,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              short
+                  ? '${_d(preview.paidDays)} paid, ${_d(preview.unpaidDays)} unpaid — '
+                      'only ${_d(preview.available)} day(s) of ${preview.leaveTypeName} left. '
+                      'Unpaid days are deducted as Loss of Pay.'
+                  : '${_d(preview.days)} day(s) · ${_d(preview.available)} day(s) of '
+                      '${preview.leaveTypeName} available',
+              style: RunqText.caption.copyWith(color: fg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ApplyLeaveResult {
   final String leaveTypeId;
   final DateTime fromDate, toDate;
@@ -1279,11 +1335,18 @@ class ApplyLeaveResult {
 /// Same sheet handles both create and edit — pass [initial] when editing
 /// a pending request so the form opens with the existing values; omit
 /// for a fresh "Apply leave".
+/// [onPreview] prices the request as it's filled in — the caller supplies it
+/// because only they know which employee the request is for. Omit it and the
+/// sheet just doesn't show the paid/unpaid line.
+typedef ApplyLeavePreview = Future<HrLeavePreview?> Function(
+  String leaveTypeId, DateTime from, DateTime to, bool halfDay);
+
 Future<ApplyLeaveResult?> showApplyLeaveSheet(
   BuildContext context, {
   required List<({String id, String code, String name})> leaveTypes,
   ApplyLeaveResult? initial,
   String submitLabel = 'Submit request',
+  ApplyLeavePreview? onPreview,
 }) {
   return showModalBottomSheet<ApplyLeaveResult>(
     context: context,
@@ -1293,6 +1356,7 @@ Future<ApplyLeaveResult?> showApplyLeaveSheet(
       leaveTypes: leaveTypes,
       initial: initial,
       submitLabel: submitLabel,
+      onPreview: onPreview,
     ),
   );
 }
@@ -1301,10 +1365,12 @@ class _ApplyLeaveSheet extends StatefulWidget {
   final List<({String id, String code, String name})> leaveTypes;
   final ApplyLeaveResult? initial;
   final String submitLabel;
+  final ApplyLeavePreview? onPreview;
   const _ApplyLeaveSheet({
     required this.leaveTypes,
     this.initial,
     required this.submitLabel,
+    this.onPreview,
   });
 
   @override
@@ -1316,6 +1382,10 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
   DateTime? _from, _to;
   bool _halfDay = false;
   final _reason = TextEditingController();
+  HrLeavePreview? _preview;
+  /// Guards against a slow response for an earlier selection landing after a
+  /// newer one and showing a stale split.
+  int _previewSeq = 0;
 
   @override
   void initState() {
@@ -1329,6 +1399,30 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
       _reason.text = init.reason ?? '';
     } else if (widget.leaveTypes.isNotEmpty) {
       _leaveTypeId = widget.leaveTypes.first.id;
+    }
+    _refreshPreview();
+  }
+
+  /// Re-price whenever the type, dates or half-day flag change. Best-effort:
+  /// a failed preview just leaves the line hidden rather than blocking the
+  /// request — the server is the authority on the split either way.
+  Future<void> _refreshPreview() async {
+    final fn = widget.onPreview;
+    final type = _leaveTypeId;
+    final from = _from;
+    final to = _to;
+    if (fn == null || type == null || from == null || to == null) {
+      if (_preview != null && mounted) setState(() => _preview = null);
+      return;
+    }
+    final seq = ++_previewSeq;
+    try {
+      final res = await fn(type, from, to, _halfDay);
+      if (!mounted || seq != _previewSeq) return;
+      setState(() => _preview = res);
+    } catch (_) {
+      if (!mounted || seq != _previewSeq) return;
+      setState(() => _preview = null);
     }
   }
 
@@ -1361,6 +1455,7 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
         _to = picked;
       }
     });
+    _refreshPreview();
   }
 
   bool get _canSubmit => _leaveTypeId != null && _from != null && _to != null;
@@ -1409,7 +1504,10 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
             children: widget.leaveTypes.map((lt) {
               final active = lt.id == _leaveTypeId;
               return GestureDetector(
-                onTap: () => setState(() => _leaveTypeId = lt.id),
+                onTap: () {
+                  setState(() => _leaveTypeId = lt.id);
+                  _refreshPreview();
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
@@ -1443,7 +1541,10 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
           ),
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => setState(() => _halfDay = !_halfDay),
+            onTap: () {
+              setState(() => _halfDay = !_halfDay);
+              _refreshPreview();
+            },
             child: Row(
               children: [
                 Icon(
@@ -1475,6 +1576,10 @@ class _ApplyLeaveSheetState extends State<_ApplyLeaveSheet> {
               ),
             ),
           ),
+          if (_preview != null && _preview!.days > 0) ...[
+            const SizedBox(height: 12),
+            _LeavePreviewNote(preview: _preview!),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _canSubmit ? _submit : null,
