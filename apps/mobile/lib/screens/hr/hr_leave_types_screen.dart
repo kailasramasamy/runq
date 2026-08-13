@@ -257,6 +257,10 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
   late final TextEditingController _days;
   late final TextEditingController _maxCf;
   late bool _isPaid;
+  late final TextEditingController _maxBalance;
+  late final TextEditingController _maxPaidPerMonth;
+  late bool _monthlyAccrual;
+  late bool _overflowUnpaid;
   late bool _carryForward;
   late bool _encashable;
   late bool _isActive;
@@ -270,6 +274,11 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
     _name = TextEditingController(text: e?.name ?? '');
     _days = TextEditingController(text: e == null ? '' : _fmt(e.daysPerYear));
     _maxCf = TextEditingController(text: e?.maxCarryForward == null ? '' : _fmt(e!.maxCarryForward!));
+    _maxBalance = TextEditingController(text: e?.maxBalance == null ? '' : _fmt(e!.maxBalance!));
+    _maxPaidPerMonth = TextEditingController(
+        text: e?.maxPaidDaysPerMonth == null ? '' : _fmt(e!.maxPaidDaysPerMonth!));
+    _monthlyAccrual = e?.accrualMode == 'monthly';
+    _overflowUnpaid = e?.overflowUnpaid ?? false;
     _isPaid = e?.isPaid ?? true;
     _carryForward = e?.carryForward ?? false;
     _encashable = e?.encashable ?? false;
@@ -282,6 +291,8 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
     _name.dispose();
     _days.dispose();
     _maxCf.dispose();
+    _maxBalance.dispose();
+    _maxPaidPerMonth.dispose();
     super.dispose();
   }
 
@@ -301,6 +312,8 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
     setState(() => _saving = true);
     final days = double.parse(_days.text.trim());
     final maxCf = double.tryParse(_maxCf.text.trim());
+    final maxBal = double.tryParse(_maxBalance.text.trim());
+    final maxPaid = double.tryParse(_maxPaidPerMonth.text.trim());
     try {
       if (widget.existing == null) {
         await hrRepo.createLeaveType(
@@ -309,6 +322,10 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
           daysPerYear: days,
           carryForward: _carryForward,
           maxCarryForward: _carryForward ? maxCf : null,
+          accrualMode: _monthlyAccrual ? 'monthly' : 'upfront',
+          maxBalance: _monthlyAccrual ? maxBal : null,
+          maxPaidDaysPerMonth: maxPaid,
+          overflowUnpaid: _overflowUnpaid,
           encashable: _encashable,
           isPaid: _isPaid,
         );
@@ -319,6 +336,13 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
           daysPerYear: days,
           carryForward: _carryForward,
           maxCarryForward: _carryForward ? maxCf : null,
+          accrualMode: _monthlyAccrual ? 'monthly' : 'upfront',
+          maxBalance: _monthlyAccrual ? maxBal : null,
+          maxPaidDaysPerMonth: maxPaid,
+          // Blank means "no cap" — send the null explicitly so clearing a
+          // field actually removes the limit instead of silently keeping it.
+          clearCaps: true,
+          overflowUnpaid: _overflowUnpaid,
           encashable: _encashable,
           isPaid: _isPaid,
           isActive: _isActive,
@@ -410,6 +434,33 @@ class _LeaveTypeEditorState extends State<_LeaveTypeEditor> {
                       sub: 'When off, the day is treated as LOP in payroll.',
                       value: _isPaid,
                       onChanged: (v) => setState(() => _isPaid = v),
+                    ),
+                    HrToggleField(
+                      label: 'Accrue monthly',
+                      sub: 'Credit days/year ÷ 12 each month instead of the '
+                          'whole quota up front.',
+                      value: _monthlyAccrual,
+                      onChanged: (v) => setState(() => _monthlyAccrual = v),
+                    ),
+                    if (_monthlyAccrual)
+                      HrTextField(
+                        label: 'Max balance (blank = no cap)',
+                        controller: _maxBalance,
+                        keyboard: const TextInputType.numberWithOptions(decimal: true),
+                        formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                      ),
+                    HrTextField(
+                      label: 'Max paid days / month (blank = no limit)',
+                      controller: _maxPaidPerMonth,
+                      keyboard: const TextInputType.numberWithOptions(decimal: true),
+                      formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    ),
+                    HrToggleField(
+                      label: 'Extra days unpaid',
+                      sub: 'Beyond the paid limit, days are approved as loss of pay '
+                          'instead of taking the balance negative.',
+                      value: _overflowUnpaid,
+                      onChanged: (v) => setState(() => _overflowUnpaid = v),
                     ),
                     HrToggleField(
                       label: 'Carry forward unused',

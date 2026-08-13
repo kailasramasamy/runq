@@ -120,6 +120,13 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
   /// attempt so a stale message never sits next to a fresh spinner.
   String? _error;
 
+  /// Server-priced split for the range being marked — how much the balance
+  /// and the monthly cap cover, and how much would land as unpaid. Marking
+  /// leave here approves it on the spot, so the shortfall has to be visible
+  /// before the button is pressed, not after payroll runs.
+  HrLeavePreview? _preview;
+  int _previewSeq = 0;
+
   bool get _isLeave => _status == 'leave' || _status == 'half_day';
 
   /// A half day is one date by server rule (createLeaveRequestSchema
@@ -170,17 +177,23 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
                 const SizedBox(height: 8),
                 HrStatusChips(
                   selected: _status,
-                  onSelect: (s) => setState(() {
-                    _status = s;
-                    if (s == 'half_day') _toDate = widget.date;
-                  }),
+                  onSelect: (s) {
+                    setState(() {
+                      _status = s;
+                      if (s == 'half_day') _toDate = widget.date;
+                    });
+                    _refreshPreview();
+                  },
                 ),
                 const SizedBox(height: 16),
                 HrDateRangeField(
                   from: widget.date,
                   to: _toDate,
                   onPickEnd: _pickEndDate,
-                  onReset: () => setState(() => _toDate = widget.date),
+                  onReset: () {
+                    setState(() => _toDate = widget.date);
+                    _refreshPreview();
+                  },
                   singleDayOnly: _singleDayOnly,
                   lockedNote: 'A half day is always a single date.',
                 ),
@@ -245,10 +258,17 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
           types: types,
           balances: balances,
           selectedId: _leaveTypeId,
-          onSelect: (id) => setState(() => _leaveTypeId = id),
+          onSelect: (id) {
+            setState(() => _leaveTypeId = id);
+            _refreshPreview();
+          },
         ),
         const SizedBox(height: 14),
         _reasonField(),
+        if (_preview != null && _preview!.unpaidDays > 0) ...[
+          const SizedBox(height: 10),
+          HrUnpaidLeaveWarning(preview: _preview!),
+        ],
         const SizedBox(height: 10),
         _balanceNotice(t),
       ],
@@ -330,7 +350,35 @@ class _MarkSheetState extends ConsumerState<_MarkSheet> {
       subtitle: 'Every day from ${hrShortDate(widget.date)} to the day you '
           'pick will be set to ${hrStatusMeta(_status).label.toLowerCase()}.',
     );
-    if (picked != null) setState(() => _toDate = picked);
+    if (picked != null) {
+      setState(() => _toDate = picked);
+      _refreshPreview();
+    }
+  }
+
+  /// Ask the server what this range costs. Best-effort — a failure just hides
+  /// the line; the server still applies the split on save either way.
+  Future<void> _refreshPreview() async {
+    final typeId = _leaveTypeId;
+    if (!_isLeave || typeId == null) {
+      if (_preview != null && mounted) setState(() => _preview = null);
+      return;
+    }
+    final seq = ++_previewSeq;
+    try {
+      final res = await hrRepo.previewLeave(
+        employeeId: widget.employeeId,
+        leaveTypeId: typeId,
+        fromDate: widget.date,
+        toDate: _singleDayOnly ? widget.date : _toDate,
+        halfDay: _status == 'half_day',
+      );
+      if (!mounted || seq != _previewSeq) return;
+      setState(() => _preview = res);
+    } catch (_) {
+      if (!mounted || seq != _previewSeq) return;
+      setState(() => _preview = null);
+    }
   }
 
   int _dayCount() =>

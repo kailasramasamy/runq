@@ -21,6 +21,9 @@ export interface ExportEmployee {
 export interface ExportPayslip {
   employeeId: string;
   gross: string | number;
+  /// Wages actually earned — gross less unpaid days. Statutory registers
+  /// report on this, never on the contracted gross.
+  paidWages?: string | number;
   netPay: string | number;
   pfEmployee: string | number;
   pfEmployer: string | number;
@@ -56,7 +59,7 @@ export function buildPfEcr(employees: ExportEmployee[], payslipsByEmp: Map<strin
     if (n(p.pfEmployee) === 0 && n(p.pfEmployer) === 0) continue;
 
     const name = `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`.toUpperCase();
-    const gross = n(p.gross);
+    const gross = n(p.paidWages ?? p.gross);
     // Find Basic + DA total — these are PF wages
     const pfWages = Math.min(
       15000,
@@ -129,7 +132,7 @@ export function buildEsiReturn(employees: ExportEmployee[], payslipsByEmp: Map<s
       e.esiNumber,
       csvEsc(name),
       n(p.paidDays),
-      n(p.gross),
+      n(p.paidWages ?? p.gross),
       contributing ? 0 : 1,   // reason code: 0 = normal, 1 = on leave (zero days)
       '',                     // last working day — only for exit reason codes
     ].join(','));
@@ -155,7 +158,7 @@ export function buildPtReturn(
     if (n(p.pt) === 0) continue;
 
     const name = `${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`;
-    rows.push([e.employeeCode, csvEsc(name), n(p.gross), n(p.pt)].join(','));
+    rows.push([e.employeeCode, csvEsc(name), n(p.paidWages ?? p.gross), n(p.pt)].join(','));
   }
   return rows.join('\n');
 }

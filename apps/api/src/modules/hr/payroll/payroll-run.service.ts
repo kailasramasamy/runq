@@ -1,6 +1,7 @@
-import { eq, and, or, gte, lte, desc, inArray, sql } from 'drizzle-orm';
+import { eq, and, or, gte, lte, desc, inArray, isNull, sql } from 'drizzle-orm';
 import {
-  payrollRuns, payslips, employees, attendance, holidays, tenants,
+  payrollRuns, payslips, employees, attendance, holidays, tenants, employeeSalary,
+  designations, departments,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { TenantSettings } from '@runq/types';
@@ -15,14 +16,42 @@ import {
 } from './statutory';
 import { EmployeeSalaryService } from './employee-salary.service';
 import { GLService } from '../../gl/gl.service';
+import { resolveWeeklyOffDays, countWorkingDays, countWorkingDaysBetween } from '../work-calendar';
+import {
+  reverseRunRecoveries, applyEmployeeRecoveries, runRecoveryTotals,
+  mergeRecoveryLines,
+} from './recovery';
+import { EmployeeDeductionService } from './deduction.service';
 
 type LineItem = { code: string; name: string; amount: number };
 
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
-function ymd(d: Date): string { return d.toISOString().slice(0, 10); }
 function r2(n: number): number { return Math.round(n * 100) / 100; }
+
+/**
+ * The " (17 Aug)" suffix on a Loss of Pay line. Lists the dates while they
+ * still fit on one line, and falls back to a count beyond that — a month with
+ * a dozen unpaid days would otherwise produce a deduction label longer than
+ * the payslip is wide.
+ *
+ * [lopDays] can exceed [dates] under assume-present, where days outside the
+ * employment window are unpaid but have no attendance row to date.
+ */
+function lopLabel(dates: string[], lopDays: number): string {
+  if (dates.length === 0 || dates.length > 3) {
+    const d = r2(lopDays);
+    return ` (${d} day${d === 1 ? '' : 's'})`;
+  }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const labels = dates.map((iso) => {
+    const d = new Date(iso + 'T00:00:00Z');
+    return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+  });
+  return ` (${labels.join(', ')})`;
+}
 
 export class PayrollRunService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -43,6 +72,41 @@ export class PayrollRunService {
       .limit(1);
     if (!row) throw new NotFoundError('Payroll run');
     return row;
+  }
+
+  /**
+   * Active employees this run cannot pay because they have no salary
+   * assignment as of the run's month. process() skips them silently
+   * (`if (!salary) continue`), so without this a run reporting 2 payslips
+   * across a 10-person workforce looks like a completed payroll rather than
+   * a mostly-empty one.
+   *
+   * Computed on read rather than stored at process time so it reflects the
+   * current state — assign a salary and the warning clears on refresh.
+   */
+  async unpayableEmployees(runId: string) {
+    const run = await this.getById(runId);
+    const monthEnd = `${run.year}-${String(run.month).padStart(2, '0')}-${String(daysInMonth(run.year, run.month)).padStart(2, '0')}`;
+    return this.db
+      .select({
+        id: employees.id,
+        employeeCode: employees.employeeCode,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+      })
+      .from(employees)
+      .where(and(
+        eq(employees.tenantId, this.tenantId),
+        eq(employees.status, 'active'),
+        isNull(employees.deletedAt),
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${employeeSalary} es
+           WHERE es.employee_id = ${employees.id}
+             AND es.effective_from <= ${monthEnd}
+             AND (es.effective_to IS NULL OR es.effective_to >= ${monthEnd})
+        )`,
+      ))
+      .orderBy(employees.employeeCode);
   }
 
   async listPayslips(runId: string) {
@@ -117,7 +181,8 @@ export class PayrollRunService {
       .where(eq(payslips.payrollRunId, runId));
 
     const rows = slips.map((s) => ({
-      esiWages: Number(s.gross),
+      // Contributions are due on wages paid, not the contracted gross.
+      esiWages: Number(s.paidWages),
       esiEmployee: Number(s.esiEmployee),
       esiEmployer: Number(s.esiEmployer),
     }));
@@ -151,6 +216,86 @@ export class PayrollRunService {
       run: { id: run.id, month: run.month, year: run.year, status: run.status },
       ptRegistrationNumber: settings.ptRegistrationNumber ?? null,
       challans: calcPtChallan(rows),
+    };
+  }
+
+  /**
+   * Everything the printed payslip needs in one read: the slip, the employee's
+   * identity and statutory ids, and the issuing company. A payslip is used as
+   * proof of income, so it has to stand on its own — the reader can't be sent
+   * elsewhere for the employer's address or the employee's PAN.
+   */
+  async getPayslipForPrint(runId: string, payslipId: string) {
+    const [row] = await this.db
+      .select({
+        ps: payslips,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        employeeCode: employees.employeeCode,
+        joiningDate: employees.joiningDate,
+        pan: employees.pan,
+        uan: employees.uan,
+        esiNumber: employees.esiNumber,
+        bankAccountNumber: employees.bankAccountNumber,
+        bankName: employees.bankName,
+        designation: designations.name,
+        department: departments.name,
+        runMonth: payrollRuns.month,
+        runYear: payrollRuns.year,
+      })
+      .from(payslips)
+      .innerJoin(employees, eq(employees.id, payslips.employeeId))
+      .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
+      .leftJoin(designations, eq(designations.id, employees.designationId))
+      .leftJoin(departments, eq(departments.id, employees.departmentId))
+      .where(and(
+        eq(payslips.tenantId, this.tenantId),
+        eq(payslips.id, payslipId),
+        eq(payslips.payrollRunId, runId),
+      ))
+      .limit(1);
+    if (!row) throw new NotFoundError('Payslip');
+
+    const [tenant] = await this.db
+      .select({ name: tenants.name, settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const dedSvc = new EmployeeDeductionService(this.db, this.tenantId);
+    const owed = await dedSvc.recoverySummary(row.ps.employeeId);
+
+    return {
+      slip: {
+        employeeCode: row.employeeCode,
+        employeeName: `${row.firstName}${row.lastName ? ' ' + row.lastName : ''}`,
+        designation: row.designation,
+        department: row.department,
+        joiningDate: row.joiningDate,
+        pan: row.pan,
+        uan: row.uan,
+        esiNumber: row.esiNumber,
+        bankAccountNumber: row.bankAccountNumber,
+        bankName: row.bankName,
+        month: row.runMonth,
+        year: row.runYear,
+        workingDays: row.ps.workingDays,
+        paidDays: row.ps.paidDays,
+        lopDays: row.ps.lopDays,
+        lopDates: row.ps.lopDates,
+        earnings: row.ps.earnings ?? [],
+        deductions: row.ps.deductions ?? [],
+        gross: row.ps.gross,
+        totalDeductions: row.ps.totalDeductions,
+        netPay: row.ps.netPay,
+        recoveryBalance: {
+          loans: owed.loanOutstanding,
+          deductions: owed.deductionOutstanding,
+          total: owed.totalOutstanding,
+        },
+      },
+      tenantName: tenant?.name ?? '',
+      settings: (tenant?.settings ?? {}) as TenantSettings,
     };
   }
 
@@ -274,7 +419,7 @@ export class PayrollRunService {
     const slips = await this.db
       .select({
         employeeId: payslips.employeeId,
-        gross: payslips.gross,
+        gross: payslips.paidWages,
         tds: payslips.tds,
       })
       .from(payslips)
@@ -298,7 +443,39 @@ export class PayrollRunService {
 
     const monthStart = `${run.year}-${String(run.month).padStart(2, '0')}-01`;
     const monthEnd = `${run.year}-${String(run.month).padStart(2, '0')}-${String(daysInMonth(run.year, run.month)).padStart(2, '0')}`;
-    const workingDaysInMonth = await this.workingDaysInMonth(run.year, run.month);
+    // Working days are per-employee now: an org that works Sundays models it
+    // as a shift with no week-offs, and its people must be priced against a
+    // 30-day month rather than the 26 a hardcoded Sunday-off assumed. Cached
+    // by week-off pattern — a workforce shares a handful of shifts at most.
+    const settings = await this.statutorySettings();
+    // An operation that runs through public holidays keeps its holiday list
+    // for display but doesn't let it shorten the payroll month.
+    const monthHolidays = settings.payrollHolidaysAreWorkingDays === true
+      ? new Set<string>()
+      : await this.monthHolidaySet(run.year, run.month);
+    const workingDaysByPattern = new Map<string, number>();
+    const workingDaysFor = async (employeeId: string) => {
+      const offs = await resolveWeeklyOffDays(this.db, this.tenantId, employeeId, monthEnd);
+      const key = [...offs].sort().join(',');
+      let days = workingDaysByPattern.get(key);
+      if (days == null) {
+        days = countWorkingDays(run.year, run.month, offs, monthHolidays);
+        workingDaysByPattern.set(key, days);
+      }
+      return days;
+    };
+    // Working days the employee was actually on the books for — the month
+    // clipped to their joining and exit dates. A mid-month joiner is paid for
+    // their part of the month rather than all of it, which matters far more
+    // under assume-present, where nothing else would flag the gap.
+    const employedWorkingDaysFor = async (
+      emp: { id: string; joiningDate: string; exitDate: string | null },
+    ) => {
+      const from = emp.joiningDate > monthStart ? emp.joiningDate : monthStart;
+      const to = emp.exitDate && emp.exitDate < monthEnd ? emp.exitDate : monthEnd;
+      const offs = await resolveWeeklyOffDays(this.db, this.tenantId, emp.id, monthEnd);
+      return countWorkingDaysBetween(from, to, offs, monthHolidays);
+    };
 
     const activeEmps = await this.db
       .select()
@@ -315,10 +492,16 @@ export class PayrollRunService {
     // Professional Tax is a state levy — the establishment's state drives the slab.
     // Statutory toggles let a tenant disable PF/EPS/PT/TDS globally; undefined
     // defaults to enabled for back-compat. EPS only matters when PF is enabled.
-    const settings = await this.statutorySettings();
     const ptStateCode = settings.stateCode;
     const pfEnabled = settings.payrollPfEnabled !== false;
     const ptEnabled = settings.payrollPtEnabled !== false;
+    const esiEnabled = settings.payrollEsiEnabled !== false;
+    // Orgs that don't run a daily muster: an unmarked day means the employee
+    // was working, not absent. Without this every unrecorded day becomes LOP,
+    // and — because the "no attendance at all" fallback only fires on a
+    // completely empty month — taking a single day's leave would drag the
+    // whole month into Loss of Pay.
+    const assumePresent = settings.payrollAttendanceMode === 'assume_present';
     const tdsEnabled = settings.payrollTdsEnabled !== false;
     // EPS toggle is consumed by pfChallan() directly from settings — payslip
     // amounts don't change with EPS on/off, only the A/c 1 vs A/c 10 split.
@@ -335,10 +518,16 @@ export class PayrollRunService {
     return this.db.transaction(async (tx) => {
       // Wipe previous payslips for re-processing
       await tx.delete(payslips).where(eq(payslips.payrollRunId, id));
+      // Loan/deduction recoveries live outside the payslip, so deleting the
+      // slips doesn't undo them — hand back what this run took before it
+      // recalculates, or a re-process would recover the same EMI twice.
+      await reverseRunRecoveries(tx as unknown as Db, this.tenantId, id);
 
       for (const emp of activeEmps) {
         const salary = await salarySvc.getCurrent(emp.id, monthEnd);
         if (!salary) continue;
+
+        const workingDaysInMonth = await workingDaysFor(emp.id);
 
         const ctcMonthly = Number(salary.ctcAnnual) / 12;
         const components = (salary.componentsSnapshot ?? []) as Array<{
@@ -347,7 +536,12 @@ export class PayrollRunService {
 
         // Compute attendance for the month
         const att = await tx
-          .select({ status: attendance.status, hours: attendance.hoursWorked, ot: attendance.otHours })
+          .select({
+            date: attendance.date,
+            status: attendance.status,
+            hours: attendance.hoursWorked,
+            ot: attendance.otHours,
+          })
           .from(attendance)
           .where(and(
             eq(attendance.tenantId, this.tenantId),
@@ -358,19 +552,37 @@ export class PayrollRunService {
 
         let presentDays = 0, halfDays = 0, absentDays = 0, leaveDays = 0;
         let otHours = 0;
+        // The dates behind the LOP count, so a short salary is explainable
+        // from the payslip itself rather than by cross-referencing attendance.
+        const lopDates: string[] = [];
         for (const a of att) {
           if (a.status === 'present') presentDays++;
-          else if (a.status === 'half_day') halfDays++;
-          else if (a.status === 'absent') absentDays++;
+          else if (a.status === 'half_day') { halfDays++; lopDates.push(a.date); }
+          else if (a.status === 'absent') { absentDays++; lopDates.push(a.date); }
           else if (a.status === 'leave') leaveDays++;
           otHours += Number(a.ot ?? 0);
         }
-        // When attendance hasn't been tracked at all for the month, treat as
-        // fully present — practical default for systems just rolling out HR.
-        const noAttendanceTracked = att.length === 0;
-        const presentDaysEffective = noAttendanceTracked ? workingDaysInMonth : presentDays;
-        const paidDays = presentDaysEffective + halfDays * 0.5 + leaveDays;
-        const lop = Math.max(0, workingDaysInMonth - presentDaysEffective - halfDays * 0.5 - leaveDays);
+        let presentDaysEffective: number;
+        let paidDays: number;
+        let lop: number;
+        if (assumePresent) {
+          // Everyone is working unless the day says otherwise. Only two things
+          // reduce pay: a day marked absent (which is how unpaid leave is
+          // recorded), and a day outside the employment window. Approved paid
+          // leave is already paid, so it doesn't deduct.
+          const employedDays = await employedWorkingDaysFor(emp);
+          const notEmployed = Math.max(0, workingDaysInMonth - employedDays);
+          lop = Math.min(workingDaysInMonth, notEmployed + absentDays + halfDays * 0.5);
+          paidDays = workingDaysInMonth - lop;
+          presentDaysEffective = Math.max(0, paidDays - leaveDays);
+        } else {
+          // When attendance hasn't been tracked at all for the month, treat as
+          // fully present — practical default for systems just rolling out HR.
+          const noAttendanceTracked = att.length === 0;
+          presentDaysEffective = noAttendanceTracked ? workingDaysInMonth : presentDays;
+          paidDays = presentDaysEffective + halfDays * 0.5 + leaveDays;
+          lop = Math.max(0, workingDaysInMonth - presentDaysEffective - halfDays * 0.5 - leaveDays);
+        }
 
         // Component computation
         // First pass: compute Basic (so percent_of_basic resolves)
@@ -413,35 +625,68 @@ export class PayrollRunService {
           basic = ba;
         }
 
-        // Pro-rate by attendance
+        // Earning lines stay at their contracted value and the unpaid days come
+        // off as a Loss of Pay deduction — how an Indian payslip reads, and it
+        // keeps "why is this month short?" answerable on the slip itself.
+        // `paidWages` is what was actually earned, and every statutory base
+        // follows that: PF/ESI/PT/TDS are due on wages paid, not contracted.
         const proRateFactor = workingDaysInMonth > 0 ? (workingDaysInMonth - lop) / workingDaysInMonth : 1;
-        for (const e of earnings) e.amount = r2(e.amount * proRateFactor);
         const gross = r2(earnings.reduce((s, e) => s + e.amount, 0));
+        const paidWages = r2(gross * proRateFactor);
+        const lopAmount = r2(gross - paidWages);
         const basicProrated = r2(basic * proRateFactor);
 
         // Statutory — gated by tenant toggles. A disabled component is zeroed
         // out; the per-employee EPS split is rebuilt at challan time, so
         // payslip-level PF stays as the employer's full contribution either way.
         const pf = pfEnabled ? calcPf(basicProrated) : { employee: 0, employer: 0 };
-        const esi = calcEsi(gross, esiCovered.has(emp.id));
-        const pt = ptEnabled ? calcPt(ptStateCode, gross, emp.gender, run.month) : 0;
+        // Disabled ESI zeroes both shares: the wage ceiling inside calcEsi
+        // only exempts individual employees, so without this an unregistered
+        // establishment still deducts from everyone under it.
+        const esi = esiEnabled
+          ? calcEsi(paidWages, esiCovered.has(emp.id))
+          : { employee: 0, employer: 0 };
+        const pt = ptEnabled ? calcPt(ptStateCode, paidWages, emp.gender, run.month) : 0;
         const tdsPrior = tdsHistory.get(emp.id) ?? { grossSoFar: 0, tdsSoFar: 0 };
         const tds = tdsEnabled
           ? calcMonthlyTdsNewRegime({
               fyIncomeSoFar: tdsPrior.grossSoFar,
-              currentMonthGross: gross,
+              currentMonthGross: paidWages,
               futureMonthGross: grossFull,
               remainingMonths,
               tdsPaidSoFar: tdsPrior.tdsSoFar,
             })
           : 0;
 
-        const lopAmt = r2((earnings.reduce((s, e) => s + e.amount, 0) / Math.max(proRateFactor, 0.0001)) - gross);
-        if (lop > 0 && lopAmt > 0) deductions.push({ code: 'LOP', name: 'Loss of Pay', amount: lopAmt });
+        // Deducted exactly once — the earning lines are no longer pro-rated,
+        // so this is the only place the unpaid days come off. The dates ride
+        // on the line itself: the deduction is the part an employee actually
+        // queries, and it should answer "which days?" without them having to
+        // cross-reference anything.
+        if (lop > 0 && lopAmount > 0) {
+          deductions.push({
+            code: 'LOP',
+            name: `Loss of Pay${lopLabel(lopDates, lop)}`,
+            amount: lopAmount,
+          });
+        }
         if (pf.employee > 0) deductions.push({ code: 'PF_EE', name: 'Provident Fund', amount: pf.employee });
         if (esi.employee > 0) deductions.push({ code: 'ESI_EE', name: 'ESI', amount: esi.employee });
         if (pt > 0) deductions.push({ code: 'PT', name: 'Professional Tax', amount: pt });
         if (tds > 0) deductions.push({ code: 'TDS', name: 'TDS', amount: tds });
+
+        // Recoveries come last and only out of what's left, so an advance can
+        // never push a payslip negative — the shortfall carries to next month.
+        const statutoryNet = r2(gross - deductions.reduce((s, d) => s + d.amount, 0));
+        const recoveries = await applyEmployeeRecoveries(tx as unknown as Db, {
+          tenantId: this.tenantId,
+          runId: id,
+          employeeId: emp.id,
+          year: run.year,
+          month: run.month,
+          available: statutoryNet,
+        });
+        for (const r of recoveries) deductions.push(r);
 
         const totalDed = r2(deductions.reduce((s, d) => s + d.amount, 0));
         const netPay = r2(gross - totalDed);
@@ -453,6 +698,8 @@ export class PayrollRunService {
           workingDays: String(workingDaysInMonth),
           presentDays: String(presentDays + halfDays * 0.5),
           lopDays: String(r2(lop)),
+          lopDates: lopDates.sort(),
+          paidWages: String(paidWages),
           paidDays: String(r2(workingDaysInMonth - lop)),
           otHours: String(otHours),
           earnings,
@@ -528,7 +775,9 @@ export class PayrollRunService {
       gross: 0, net: 0, pfEmp: 0, pfEr: 0, esiEmp: 0, esiEr: 0, pt: 0, tds: 0,
     };
     for (const s of slips) {
-      totals.gross += Number(s.gross);
+      // The expense is what was earned — booking the contracted gross would
+      // leave the JE short by the LOP, which is credited to nothing.
+      totals.gross += Number(s.paidWages);
       totals.net += Number(s.netPay);
       totals.pfEmp += Number(s.pfEmployee);
       totals.pfEr += Number(s.pfEmployer);
@@ -551,6 +800,15 @@ export class PayrollRunService {
     if (totals.esiEmp + totals.esiEr > 0) lines.push({ accountCode: '2108', credit: r2(totals.esiEmp + totals.esiEr), description: 'ESI Payable' });
     if (totals.pt > 0) lines.push({ accountCode: '2109', credit: r2(totals.pt), description: 'Professional Tax Payable' });
     if (totals.tds > 0) lines.push({ accountCode: '2104', credit: r2(totals.tds), description: 'TDS Payable' });
+
+    // Recoveries came off net pay, so without these credits the entry is short
+    // by exactly what was recovered. A loan repayment clears the receivable
+    // raised when the advance was disbursed; an ad-hoc deduction was never an
+    // asset, so it credits the recoveries account instead.
+    const recovered = await runRecoveryTotals(this.db, this.tenantId, runId);
+    if (recovered.loans > 0) lines.push({ accountCode: '1122', credit: recovered.loans, description: 'Advance / loan recovery' });
+    if (recovered.deductions > 0) lines.push({ accountCode: '4208', credit: recovered.deductions, description: 'Employee recoveries' });
+
     lines.push({ accountCode: '2110', credit: r2(totals.net), description: 'Net Salary Payable' });
 
     const gl = new GLService(this.db, this.tenantId);
@@ -585,13 +843,15 @@ export class PayrollRunService {
       const gross = r2(input.earnings.reduce((s, e) => s + e.amount, 0));
       updates.gross = String(gross);
     }
-    if (input.deductions) {
-      updates.deductions = input.deductions;
-      updates.totalDeductions = String(r2(input.deductions.reduce((s, d) => s + d.amount, 0)));
+    let deductions = input.deductions;
+    if (deductions) {
+      deductions = await this.keepRecoveryLines(payslipId, deductions);
+      updates.deductions = deductions;
+      updates.totalDeductions = String(r2(deductions.reduce((s, d) => s + d.amount, 0)));
     }
-    if (input.earnings && input.deductions) {
+    if (input.earnings && deductions) {
       const gross = input.earnings.reduce((s, e) => s + e.amount, 0);
-      const ded = input.deductions.reduce((s, d) => s + d.amount, 0);
+      const ded = deductions.reduce((s, d) => s + d.amount, 0);
       updates.netPay = String(r2(gross - ded));
     }
     const [row] = await this.db
@@ -607,12 +867,23 @@ export class PayrollRunService {
     return row;
   }
 
+  private async keepRecoveryLines(
+    payslipId: string, edited: LineItem[],
+  ): Promise<LineItem[]> {
+    const [existing] = await this.db
+      .select({ deductions: payslips.deductions })
+      .from(payslips)
+      .where(and(eq(payslips.tenantId, this.tenantId), eq(payslips.id, payslipId)))
+      .limit(1);
+    return mergeRecoveryLines((existing?.deductions ?? []) as LineItem[], edited);
+  }
+
   /** Mon-Sat minus holidays for the month. */
-  private async workingDaysInMonth(year: number, month: number): Promise<number> {
+  /// Tenant holidays falling in a month, as a date set for countWorkingDays().
+  private async monthHolidaySet(year: number, month: number): Promise<Set<string>> {
     const start = `${year}-${String(month).padStart(2, '0')}-01`;
     const end = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth(year, month)).padStart(2, '0')}`;
-
-    const hRows = await this.db
+    const rows = await this.db
       .select({ date: holidays.date })
       .from(holidays)
       .where(and(
@@ -620,16 +891,7 @@ export class PayrollRunService {
         gte(holidays.date, start),
         lte(holidays.date, end),
       ));
-    const holidaySet = new Set(hRows.map((r) => r.date));
-
-    let count = 0;
-    const last = new Date(Date.UTC(year, month, 0));
-    for (let d = new Date(Date.UTC(year, month - 1, 1)); d <= last; d.setUTCDate(d.getUTCDate() + 1)) {
-      if (d.getUTCDay() === 0) continue;
-      if (holidaySet.has(ymd(d))) continue;
-      count++;
-    }
-    return count;
+    return new Set(rows.map((r) => r.date));
   }
 
 }

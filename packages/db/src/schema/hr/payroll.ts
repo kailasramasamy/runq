@@ -111,6 +111,18 @@ export const payslips = pgTable('payslips', {
   presentDays: decimal('present_days', { precision: 5, scale: 2 }).notNull().default('0'),
   lopDays: decimal('lop_days', { precision: 5, scale: 2 }).notNull().default('0'),
   paidDays: decimal('paid_days', { precision: 5, scale: 2 }).notNull().default('0'),
+  // The actual dates behind lopDays — days marked absent or half-day in the
+  // month. Stored rather than derived so a payslip stays a faithful record of
+  // what was paid, even if attendance is edited afterwards. "Why is my salary
+  // short?" is answerable from the payslip alone.
+  lopDates: jsonb('lop_dates').$type<string[]>().notNull().default([]),
+  // Wages actually earned this month: gross less the unpaid days. `gross` is
+  // the full contracted figure the payslip leads with, and LOP appears as a
+  // deduction beneath it — the conventional Indian payslip. Statutory bases
+  // (PF/ESI/PT/TDS), the GL salary expense and the registers all follow this
+  // column instead, because contributions are due on wages paid, not on the
+  // contracted amount.
+  paidWages: decimal('paid_wages', { precision: 12, scale: 2 }).notNull().default('0'),
   otHours: decimal('ot_hours', { precision: 6, scale: 2 }).notNull().default('0'),
   /** Per-component breakdown: `[{code, name, type, amount}, ...]` */
   earnings: jsonb('earnings').$type<Array<{ code: string; name: string; amount: number }>>().notNull().default([]),

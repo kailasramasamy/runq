@@ -178,18 +178,22 @@ class HrLoanEligibility {
 class HrLoanInstalment {
   final String id;
   final int sequence, dueMonth, dueYear;
-  final double amount;
+  final double amount, paidAmount;
+  final String? paidPayrollRunId;
   final DateTime? paidAt;
-  HrLoanInstalment({required this.id, required this.sequence, required this.dueMonth, required this.dueYear, required this.amount, this.paidAt});
+  HrLoanInstalment({required this.id, required this.sequence, required this.dueMonth, required this.dueYear, required this.amount, this.paidAmount = 0, this.paidPayrollRunId, this.paidAt});
   factory HrLoanInstalment.fromJson(Map<String, dynamic> j) => HrLoanInstalment(
     id: _strOr(j['id'], ''),
     sequence: _int(j['sequence']),
     dueMonth: _int(j['dueMonth']),
     dueYear: _int(j['dueYear']),
     amount: _num(j['amount']),
+    paidAmount: _num(j['paidAmount']),
+    paidPayrollRunId: _str(j['paidPayrollRunId']),
     paidAt: _dt(j['paidAt']),
   );
   bool get isPaid => paidAt != null;
+  bool get isPartPaid => !isPaid && paidAmount > 0;
 }
 
 class HrLoanDetail {

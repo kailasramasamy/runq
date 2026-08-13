@@ -389,6 +389,14 @@ class HrLeaveType {
   final double daysPerYear;
   final bool carryForward;
   final double? maxCarryForward;
+  /// 'upfront' | 'monthly' | 'quarterly'.
+  final String accrualMode;
+  /// Ceiling on the available balance for monthly accrual; null = uncapped.
+  final double? maxBalance;
+  /// Hard cap on paid days within one calendar month; null = no limit.
+  final double? maxPaidDaysPerMonth;
+  /// Approve past the paid limit as a paid/unpaid split.
+  final bool overflowUnpaid;
   final bool encashable;
   final bool isPaid;
   final bool isActive;
@@ -399,6 +407,10 @@ class HrLeaveType {
     required this.daysPerYear,
     required this.carryForward,
     this.maxCarryForward,
+    this.accrualMode = 'upfront',
+    this.maxBalance,
+    this.maxPaidDaysPerMonth,
+    this.overflowUnpaid = false,
     required this.encashable,
     required this.isPaid,
     required this.isActive,
@@ -411,6 +423,10 @@ class HrLeaveType {
         daysPerYear: _num(j['daysPerYear']),
         carryForward: _bool(j['carryForward']),
         maxCarryForward: _numOrNull(j['maxCarryForward']),
+        accrualMode: _strOr(j['accrualMode'], 'upfront'),
+        maxBalance: _numOrNull(j['maxBalance']),
+        maxPaidDaysPerMonth: _numOrNull(j['maxPaidDaysPerMonth']),
+        overflowUnpaid: _bool(j['overflowUnpaid']),
         encashable: _bool(j['encashable']),
         isPaid: _bool(j['isPaid']),
         isActive: j['isActive'] == null ? true : _bool(j['isActive']),
@@ -1354,6 +1370,8 @@ class HrPayslip {
   final int month, year;
   final String runStatus; // draft | processed | approved | closed
   final double workingDays, presentDays, paidDays, lopDays, otHours;
+  /// ISO dates behind [lopDays] — the days marked absent or half-day.
+  final List<String> lopDates;
   final double gross, totalDeductions, netPay;
   final List<HrPayslipLine> earnings, deductions;
 
@@ -1370,6 +1388,7 @@ class HrPayslip {
     required this.presentDays,
     required this.paidDays,
     required this.lopDays,
+    this.lopDates = const [],
     required this.otHours,
     required this.gross,
     required this.totalDeductions,
@@ -1394,6 +1413,7 @@ class HrPayslip {
       presentDays: _num(j['presentDays']),
       paidDays: _num(j['paidDays']),
       lopDays: _num(j['lopDays']),
+      lopDates: (j['lopDates'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       otHours: _num(j['otHours']),
       gross: _num(j['gross']),
       totalDeductions: _num(j['totalDeductions']),

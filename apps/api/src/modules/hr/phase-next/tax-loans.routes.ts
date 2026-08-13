@@ -15,6 +15,7 @@ import {
 import { rbacHook } from '../../../hooks/rbac';
 import { NotFoundError, ConflictError, ForbiddenError } from '../../../utils/errors';
 import { resolveSelfEmployee } from './self-employee';
+import { EmployeeLoanService } from '../payroll/loan.service';
 import { HrNotifier } from '../hr-notifier';
 
 const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
@@ -223,13 +224,27 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
         firstName: employees.firstName,
         lastName: employees.lastName,
         employeeCode: employees.employeeCode,
+        // Lets the UI hide "Disburse" on a loan already paid out, instead of
+        // offering the action and relying on the 409 to catch it.
+        isDisbursed: sql<boolean>`exists (
+          select 1 from employee_payments ep
+          where ep.employee_loan_id = ${employeeLoans.id} and ep.status = 'paid'
+        )`,
       })
       .from(employeeLoans)
       .innerJoin(employees, eq(employees.id, employeeLoans.employeeId))
       .where(and(...conds))
       .orderBy(desc(employeeLoans.createdAt))
       .limit(500);
-    return { data: rows.map((r) => ({ ...r.l, firstName: r.firstName, lastName: r.lastName, employeeCode: r.employeeCode })) };
+    return {
+      data: rows.map((r) => ({
+        ...r.l,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        employeeCode: r.employeeCode,
+        isDisbursed: r.isDisbursed,
+      })),
+    };
   });
 
   app.get('/loans/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
@@ -395,22 +410,14 @@ export const taxLoansRoutes: FastifyPluginAsync = async (app) => {
     return { data: row };
   });
 
+  // Delegates to EmployeeLoanService, which refuses to delete anything that
+  // has been disbursed or partly recovered — those would strand a journal
+  // entry against 1122 and erase a recovery the employee saw on a payslip.
+  // The escape hatch for those is PUT /loans/:id/write-off.
   app.delete('/loans/:id', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const svc = new EmployeeLoanService(req.server.db, req.tenantId);
     const { id } = uuidParamSchema.parse(req.params);
-    const [loan] = await req.server.db
-      .select()
-      .from(employeeLoans)
-      .where(and(eq(employeeLoans.id, id), eq(employeeLoans.tenantId, req.tenantId)))
-      .limit(1);
-    if (!loan) throw new NotFoundError('Loan');
-    if (loan.status === 'active' && Number(loan.outstanding) > 0) {
-      throw new ConflictError('Cannot delete an active loan with outstanding balance');
-    }
-    const [row] = await req.server.db
-      .delete(employeeLoans)
-      .where(eq(employeeLoans.id, id))
-      .returning();
-    return { data: row };
+    return { data: await svc.remove(id) };
   });
 
   // Employee submits a loan request. Server enforces the tenant loan policy

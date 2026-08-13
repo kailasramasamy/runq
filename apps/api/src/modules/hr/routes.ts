@@ -24,6 +24,7 @@ import { leaveRoutes } from './leave.routes';
 import { payrollRoutes } from './payroll.routes';
 import { payrollStatutoryRoutes } from './payroll-statutory.routes';
 import { employeePaymentRoutes } from './payroll/employee-payment.routes';
+import { deductionRoutes } from './payroll/deduction.routes';
 import { tdsRoutes } from './tds/tds.routes';
 import { wageRegisterRoutes } from './wage-register.routes';
 import { hrDashboardRoutes } from './dashboard.routes';
@@ -71,6 +72,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   await app.register(hrRecentActivityRoutes);
   await app.register(geoAttendanceRoutes);
   await app.register(taxLoansRoutes);
+  await app.register(deductionRoutes);
   await app.register(lifecycleRoutes);
   await app.register(helpdeskPerformanceRoutes);
   await app.register(rewardRoutes);

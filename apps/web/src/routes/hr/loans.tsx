@@ -1,34 +1,26 @@
 import { useState } from 'react';
-import { CreditCard, Plus, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, Banknote } from 'lucide-react';
 import {
   PageHeader, Badge, Button, Input, Select, Modal, Combobox,
   Table, TableHeader, TableBody, TableRow, TableCell, Th, useToast, ConfirmationDialog,
 } from '@/components/ui';
 import { EmptyState, ListToolbar, Select as FilterSelect } from '@/components/ar/primitives';
-import { useLoans, useCreateLoan, useApproveLoan, useRejectLoan, useDeleteLoan } from '@/hooks/queries/use-hr-phase-next';
+import { useLoans, useCreateLoan, useApproveLoan, useRejectLoan, useDeleteLoan, type EmployeeLoan } from '@/hooks/queries/use-hr-phase-next';
 import { useEmployees } from '@/hooks/queries/use-hr';
-import { useIsReadOnly } from '@/providers/auth-provider';
-
-const STATUS_VARIANT: Record<string, any> = {
-  draft: 'outline', requested: 'warning', manager_approved: 'info',
-  active: 'success', rejected: 'danger', closed: 'info', written_off: 'danger',
-};
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft', requested: 'Pending manager', manager_approved: 'Pending HR',
-  active: 'Active', rejected: 'Rejected', closed: 'Closed', written_off: 'Written off',
-};
-const KIND_LABEL: Record<string, string> = {
-  advance: 'Salary advance', personal: 'Personal', festival: 'Festival', education: 'Education', other: 'Other',
-};
-
-function fmt(n: string | number) {
-  return Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-}
+import { useAuth, useIsReadOnly, canAccessFinanceModule } from '@/providers/auth-provider';
+import { QuickAdvanceModal } from './_advance-modal';
+import {
+  STATUS_VARIANT, STATUS_LABEL, KIND_LABEL, fmt,
+  DisburseModal, EditLoanModal, WriteOffModal, LoanRowActions,
+} from './_loan-modals';
 
 export function LoansPage() {
   const readOnly = useIsReadOnly();
+  const { user } = useAuth();
+  const canQuickAdvance = canAccessFinanceModule(user?.role);
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
+  const [showQuickAdvance, setShowQuickAdvance] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
   const [kind, setKind] = useState<'advance' | 'personal' | 'festival' | 'education' | 'other'>('advance');
   const [principal, setPrincipal] = useState('');
@@ -44,6 +36,9 @@ export function LoansPage() {
   const [approveFirstMonth, setApproveFirstMonth] = useState('');
   const [approveFirstYear, setApproveFirstYear] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [disburseTarget, setDisburseTarget] = useState<any | null>(null);
+  const [editTarget, setEditTarget] = useState<EmployeeLoan | null>(null);
+  const [writeOffTarget, setWriteOffTarget] = useState<EmployeeLoan | null>(null);
 
   const { data: empData } = useEmployees({ limit: 200, status: 'active' });
   const employees = empData?.data ?? [];
@@ -121,7 +116,14 @@ export function LoansPage() {
         title="Employee loans & advances"
         description="Salary advances and loans with EMI auto-deducted in payroll."
         actions={!readOnly && (
-          <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4 mr-1" />New loan</Button>
+          <div className="flex gap-2">
+            {canQuickAdvance && (
+              <Button variant="outline" onClick={() => setShowQuickAdvance(true)}>
+                <Banknote className="h-4 w-4 mr-1" />Quick advance
+              </Button>
+            )}
+            <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4 mr-1" />New loan</Button>
+          </div>
         )}
       />
 
@@ -173,11 +175,26 @@ export function LoansPage() {
                 <TableCell>{l.disbursedOn}</TableCell>
                 <TableCell><Badge variant={STATUS_VARIANT[l.status]}>{STATUS_LABEL[l.status] ?? l.status}</Badge></TableCell>
                 <TableCell className="text-right">
-                  {!readOnly && (l.status === 'draft' || l.status === 'requested' || l.status === 'manager_approved') && (
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" onClick={() => openApprove(l)}>Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => openReject(l)}>Reject</Button>
-                      <Button size="sm" variant="outline" onClick={() => setDeleteId(l.id)}><Trash2 className="h-4 w-4" /></Button>
+                  {!readOnly && (
+                    <div className="flex justify-end items-center gap-2">
+                      {(l.status === 'draft' || l.status === 'requested' || l.status === 'manager_approved') && (
+                        <>
+                          <Button size="sm" onClick={() => openApprove(l)}>Approve</Button>
+                          <Button size="sm" variant="outline" onClick={() => openReject(l)}>Reject</Button>
+                        </>
+                      )}
+                      {l.status === 'active' && !l.isDisbursed && (
+                        <Button size="sm" variant="outline" onClick={() => setDisburseTarget(l)}>
+                          <Banknote className="h-4 w-4 mr-1" />Disburse
+                        </Button>
+                      )}
+                      <LoanRowActions
+                        loan={l}
+                        canWriteOff={canQuickAdvance}
+                        onEdit={() => setEditTarget(l)}
+                        onWriteOff={() => setWriteOffTarget(l)}
+                        onDelete={() => setDeleteId(l.id)}
+                      />
                     </div>
                   )}
                 </TableCell>
@@ -345,6 +362,15 @@ export function LoansPage() {
         confirmLabel="Delete"
         variant="danger"
       />
+
+      {disburseTarget && (
+        <DisburseModal loan={disburseTarget} onClose={() => setDisburseTarget(null)} />
+      )}
+
+      {editTarget && <EditLoanModal loan={editTarget} onClose={() => setEditTarget(null)} />}
+      {writeOffTarget && <WriteOffModal loan={writeOffTarget} onClose={() => setWriteOffTarget(null)} />}
+
+      {showQuickAdvance && <QuickAdvanceModal onClose={() => setShowQuickAdvance(false)} />}
     </div>
   );
 }

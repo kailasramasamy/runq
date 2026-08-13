@@ -32,14 +32,23 @@ export interface PayrollRun {
   id: string; month: number; year: number; status: PayrollRunStatus;
   totalEmployees: number; totalGross: string; totalDeductions: string; totalNet: string;
   processedAt: string | null; approvedAt: string | null; notes: string | null;
+  /// Active employees this run can't pay — no salary assignment for the
+  /// month, so process() skips them. Only present on the detail fetch.
+  unpayableEmployees?: Array<{
+    id: string; employeeCode: string; firstName: string; lastName: string | null;
+  }>;
 }
 
 export interface Payslip {
   id: string; payrollRunId: string; employeeId: string;
   workingDays: string; presentDays: string; lopDays: string; paidDays: string; otHours: string;
+  /// ISO dates behind lopDays — the days marked absent or half-day.
+  lopDates?: string[];
   earnings: Array<{ code: string; name: string; amount: number }>;
   deductions: Array<{ code: string; name: string; amount: number }>;
   gross: string; totalDeductions: string; netPay: string;
+  /// Wages actually earned — gross less unpaid days. The statutory base.
+  paidWages?: string;
   pfEmployee: string; pfEmployer: string; esiEmployee: string; esiEmployer: string;
   tds: string; pt: string;
   employeeCode: string; employeeName: string;

@@ -70,6 +70,24 @@ export interface TenantSettings {
   payrollEpsEnabled?: boolean;
   payrollPtEnabled?: boolean;
   payrollTdsEnabled?: boolean;
+  // ESI is otherwise gated only by the ₹21,000 wage ceiling, which switches it
+  // off per employee but never org-wide — leaving an establishment below the
+  // ESI registration threshold deducting a contribution it can't remit.
+  payrollEsiEnabled?: boolean;
+  // How payroll reads an unmarked day.
+  //   'tracked'        — only days marked present are paid (the default; an
+  //                      employee with no attendance at all is treated as
+  //                      fully present so a rollout isn't punished)
+  //   'assume_present' — everyone is working unless the day says otherwise.
+  //                      Only unpaid leave and days outside the employment
+  //                      window reduce pay. For orgs that don't run a daily
+  //                      muster, where unmarked days would otherwise all
+  //                      become Loss of Pay.
+  payrollAttendanceMode?: 'tracked' | 'assume_present';
+  // Ignore the holiday calendar when counting working days. For operations
+  // that run through public holidays — the holiday list stays for display,
+  // it just stops shortening the payroll month.
+  payrollHolidaysAreWorkingDays?: boolean;
   // Chosen at signup from a fixed list (Manufacturing, Trading / Distribution,
   // Retail, Services, Construction, Food & Beverage, Healthcare, Hospitality,
   // Education, IT / Software, Other). Drives catalogue attribute seeding.

@@ -76,6 +76,8 @@ export const employeeLoanInstalments = pgTable('employee_loan_instalments', {
   dueMonth: integer('due_month').notNull(),
   dueYear: integer('due_year').notNull(),
   amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+  /** May be less than `amount` — a heavy-LOP month can only part-recover. */
+  paidAmount: decimal('paid_amount', { precision: 15, scale: 2 }).notNull().default('0'),
   paidPayrollRunId: uuid('paid_payroll_run_id').references(() => payrollRuns.id),
   paidAt: timestamp('paid_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

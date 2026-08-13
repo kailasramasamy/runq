@@ -102,7 +102,7 @@ class HrMoreScreen extends ConsumerWidget {
             rows: [
               _Row(Icons.event_busy_outlined, 'Regularize attendance', onTap: () => context.push('/hr/regularizations')),
               _Row(Icons.account_balance_outlined, 'Tax declarations (12BB)', onTap: () => context.push('/hr/tax-declarations')),
-              _Row(Icons.credit_card_outlined, 'My loans', onTap: () => context.push('/hr/loans')),
+              _Row(Icons.credit_card_outlined, 'My advances & loans', onTap: () => context.push('/hr/loans')),
               _Row(Icons.assignment_turned_in_outlined, 'My onboarding', onTap: () => context.push('/hr/onboarding')),
               _Row(Icons.contact_page_outlined, 'My resume', onTap: () => context.push('/hr/my-resume')),
               _Row(Icons.article_outlined, 'My letters', onTap: () => context.push('/hr/letters')),
@@ -128,6 +128,8 @@ class HrMoreScreen extends ConsumerWidget {
                 // engagement, advances and settlement all live here.
                 _Row(Icons.assignment_ind_outlined, 'Contracts',
                     onTap: () => context.push('/hr/contracts')),
+                _Row(Icons.request_quote_outlined, 'Advances & deductions',
+                    onTap: () => context.push('/hr/recoveries')),
                 _Row(Icons.event_note_outlined, 'Leave types', onTap: () => context.push('/hr/leave-types')),
                 _Row(Icons.tune_outlined, 'Adjust leave balance',
                     onTap: () => context.push('/hr/adjust-leave-balance')),

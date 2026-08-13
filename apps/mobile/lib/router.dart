@@ -122,6 +122,7 @@ import 'screens/hr/hr_tax_declaration_screen.dart';
 import 'screens/hr/hr_contract_detail_screen.dart';
 import 'screens/hr/hr_contracts_screen.dart';
 import 'screens/hr/hr_loans_screen.dart';
+import 'screens/hr/hr_recoveries_screen.dart';
 import 'screens/hr/hr_onboarding_screen.dart';
 import 'screens/hr/hr_letters_screen.dart';
 import 'screens/hr/hr_helpdesk_screen.dart';
@@ -780,6 +781,8 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (c, s) => _slidePage(const HrTaxDeclarationScreen(), key: s.pageKey)),
         GoRoute(path: '/hr/loans', parentNavigatorKey: rootKey,
           pageBuilder: (c, s) => _slidePage(const HrLoansScreen(), key: s.pageKey)),
+        GoRoute(path: '/hr/recoveries', parentNavigatorKey: rootKey,
+          pageBuilder: (c, s) => _slidePage(const HrRecoveriesScreen(), key: s.pageKey)),
         GoRoute(path: '/hr/contracts', parentNavigatorKey: rootKey,
           pageBuilder: (c, s) => _slidePage(const HrContractsScreen(), key: s.pageKey)),
         GoRoute(path: '/hr/contracts/:id', parentNavigatorKey: rootKey,

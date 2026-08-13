@@ -162,6 +162,7 @@ import { AttendancePunchesPage } from './hr/attendance-punches';
 import { RegularizationsPage } from './hr/regularizations';
 import { TaxDeclarationsPage } from './hr/tax-declarations';
 import { LoansPage } from './hr/loans';
+import { DeductionsPage } from './hr/deductions';
 import { LoanPolicyPage } from './hr/loan-policy';
 import { FnfPage } from './hr/fnf';
 import { OnboardingPage } from './hr/onboarding';
@@ -1996,6 +1997,7 @@ const hrRegularizationsRoute = createRoute({ getParentRoute: () => hrRoute, path
 const hrTaxDeclRoute = createRoute({ getParentRoute: () => hrRoute, path: '/tax-declarations', component: TaxDeclarationsPage });
 const hrLoansRoute = createRoute({ getParentRoute: () => hrRoute, path: '/loans', component: LoansPage });
 const hrLoanPolicyRoute = createRoute({ getParentRoute: () => hrRoute, path: '/loan-policy', component: LoanPolicyPage });
+const hrDeductionsRoute = createRoute({ getParentRoute: () => hrRoute, path: '/deductions', component: DeductionsPage });
 const hrFnfRoute = createRoute({ getParentRoute: () => hrRoute, path: '/fnf', component: FnfPage });
 const hrOnboardingRoute = createRoute({ getParentRoute: () => hrRoute, path: '/onboarding', component: OnboardingPage });
 const hrLettersRoute = createRoute({ getParentRoute: () => hrRoute, path: '/letters', component: LettersPage });
@@ -3096,6 +3098,7 @@ export const routeTree = rootRoute.addChildren([
       hrTaxDeclRoute,
       hrLoansRoute,
       hrLoanPolicyRoute,
+      hrDeductionsRoute,
       hrFnfRoute,
       hrOnboardingRoute,
       hrLettersRoute,

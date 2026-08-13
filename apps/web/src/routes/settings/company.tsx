@@ -138,6 +138,9 @@ export function CompanySettingsPage() {
   // legacy "everything enabled" behaviour.
   const [payrollPfEnabled, setPayrollPfEnabled] = useState(true);
   const [payrollEpsEnabled, setPayrollEpsEnabled] = useState(true);
+  const [payrollEsiEnabled, setPayrollEsiEnabled] = useState(true);
+  const [payrollAssumePresent, setPayrollAssumePresent] = useState(false);
+  const [payrollHolidaysAreWorkingDays, setPayrollHolidaysAreWorkingDays] = useState(false);
   const [payrollPtEnabled, setPayrollPtEnabled] = useState(true);
   const [payrollTdsEnabled, setPayrollTdsEnabled] = useState(true);
 
@@ -183,6 +186,9 @@ export function CompanySettingsPage() {
       setCompanyLogoUrl((data.data as any).companyLogoUrl ?? '');
       setPayrollPfEnabled((data.data as any).payrollPfEnabled !== false);
       setPayrollEpsEnabled((data.data as any).payrollEpsEnabled !== false);
+      setPayrollEsiEnabled((data.data as any).payrollEsiEnabled !== false);
+      setPayrollAssumePresent((data.data as any).payrollAttendanceMode === 'assume_present');
+      setPayrollHolidaysAreWorkingDays((data.data as any).payrollHolidaysAreWorkingDays === true);
       setPayrollPtEnabled((data.data as any).payrollPtEnabled !== false);
       setPayrollTdsEnabled((data.data as any).payrollTdsEnabled !== false);
     }
@@ -237,6 +243,9 @@ export function CompanySettingsPage() {
         },
         payrollPfEnabled,
         payrollEpsEnabled,
+        payrollEsiEnabled,
+        payrollAttendanceMode: payrollAssumePresent ? 'assume_present' as const : 'tracked' as const,
+        payrollHolidaysAreWorkingDays,
         payrollPtEnabled,
         payrollTdsEnabled,
       });
@@ -334,6 +343,27 @@ export function CompanySettingsPage() {
                   description="Raises and posts the delivery note automatically, picking batches FEFO — for businesses that ship what they bill the same day. Issuing never fails on stock: if the warehouse can't cover a line, the invoice still goes out and a draft delivery note is left in Inventory › Sales dispatch. Off means stock moves only when you confirm it there."
                   checked={autoDispatchOnInvoice}
                   onChange={setAutoDispatchOnInvoice}
+                />
+              </div>
+
+              {/* How the payroll month is counted. Separate from the statutory
+                  toggles above — these decide which days are payable at all,
+                  before any deduction is computed. */}
+              <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 pt-3">
+                  Working Days &amp; Attendance
+                </div>
+                <StatutoryToggle
+                  label="Assume present unless marked otherwise"
+                  description="For orgs that don't run a daily muster. Only unpaid leave and days outside employment reduce pay — unmarked days are paid. Off: only days marked present are paid."
+                  checked={payrollAssumePresent}
+                  onChange={setPayrollAssumePresent}
+                />
+                <StatutoryToggle
+                  label="Holidays are working days"
+                  description="Ignore the holiday calendar when counting payroll working days. The holiday list stays for display; it just stops shortening the month."
+                  checked={payrollHolidaysAreWorkingDays}
+                  onChange={setPayrollHolidaysAreWorkingDays}
                 />
               </div>
             </CardContent>
@@ -518,6 +548,12 @@ export function CompanySettingsPage() {
                   checked={payrollEpsEnabled}
                   onChange={setPayrollEpsEnabled}
                   disabled={!payrollPfEnabled}
+                />
+                <StatutoryToggle
+                  label="Employees' State Insurance (ESI)"
+                  description="0.75% employee + 3.25% employer, for wages up to ₹21,000. Turn off if the establishment isn't ESI-registered."
+                  checked={payrollEsiEnabled}
+                  onChange={setPayrollEsiEnabled}
                 />
                 <StatutoryToggle
                   label="Professional Tax (PT)"

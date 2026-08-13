@@ -158,6 +158,7 @@ export class LeaveTypeService {
     if (out.daysPerYear != null) out.daysPerYear = String(out.daysPerYear);
     if (out.maxCarryForward != null) out.maxCarryForward = String(out.maxCarryForward);
     if (out.maxBalance != null) out.maxBalance = String(out.maxBalance);
+    if (out.maxPaidDaysPerMonth != null) out.maxPaidDaysPerMonth = String(out.maxPaidDaysPerMonth);
     return out;
   }
 }

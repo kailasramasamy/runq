@@ -153,6 +153,9 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '4206', name: 'Miscellaneous Income', type: 'revenue', parent: '4200' },
   // Inventory: stock-take "found" / over-count surfacing — counterpart to 5104
   { code: '4207', name: 'Inventory Gain', type: 'revenue', parent: '4200', system: true },
+  // Non-loan payroll recoveries — canteen, goods bought from the company,
+  // damages. Loan/advance recovery credits 1122 Employee Advances instead.
+  { code: '4208', name: 'Employee Recoveries', type: 'revenue', parent: '4200', system: true },
 
   // ═══════════════════════════════════════════════════════════════════
   // EXPENSES (5xxx)

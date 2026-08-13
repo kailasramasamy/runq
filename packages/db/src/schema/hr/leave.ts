@@ -32,6 +32,12 @@ export const leaveTypes = pgTable('leave_types', {
   // a high-frequency quota and cashing it in as one long absence.
   // NULL = uncapped, which is every type unless a tenant sets otherwise.
   maxBalance: decimal('max_balance', { precision: 5, scale: 2 }),
+  // Hard ceiling on *paid* days in one calendar month, independent of the
+  // balance. A banked balance says how much leave is available in total; this
+  // says how much of it can be spent at once. Without it an employee sitting
+  // on the maximum balance can take it all in a single month, which is the
+  // behaviour the balance cap exists to prevent. NULL = no monthly limit.
+  maxPaidDaysPerMonth: decimal('max_paid_days_per_month', { precision: 5, scale: 2 }),
   // When true, a request beyond the available balance is approved as a
   // split — paid up to the balance, the remainder unpaid (attendance
   // marked absent, so payroll's existing LOP derivation deducts it).

@@ -133,12 +133,33 @@ class _GradientHeader extends ConsumerWidget {
                     _stat('Loss of pay', ps.lopDays.toStringAsFixed(ps.lopDays % 1 == 0 ? 0 : 1)),
                   ],
                 ),
+                // Name the unpaid days. A bare "1" leaves the employee to
+                // work out which day their salary was short for.
+                if (ps.lopDates.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Unpaid: ${ps.lopDates.map(_shortDate).join(', ')}',
+                    // Sits on the teal hero, so it matches the period label
+                    // rather than the body-surface muted token.
+                    style: RunqText.caption.copyWith(color: Colors.white70),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// "2026-08-17" → "17 Aug". The payslip header already carries the month,
+  /// so day + month is enough to place it.
+  static String _shortDate(String iso) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day} ${months[d.month - 1]}';
   }
 
   Widget _stat(String label, String value) => Column(

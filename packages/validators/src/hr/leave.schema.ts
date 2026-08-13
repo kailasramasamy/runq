@@ -14,6 +14,8 @@ export const createLeaveTypeSchema = z.object({
   // Ceiling on the available balance for monthly accrual — accrual pauses
   // here and resumes as leave is taken. Null/omitted = uncapped.
   maxBalance: z.number().nonnegative().nullish(),
+  // Hard cap on paid days in a calendar month, independent of the balance.
+  maxPaidDaysPerMonth: z.number().nonnegative().nullish(),
   // Approve past the balance as a paid/unpaid split instead of letting the
   // balance go negative.
   overflowUnpaid: z.boolean().optional(),

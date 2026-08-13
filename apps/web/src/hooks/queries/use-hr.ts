@@ -355,6 +355,20 @@ export function useDeleteShift() {
     onSuccess: () => qc.invalidateQueries({ queryKey: HR_KEYS.shifts }),
   });
 }
+/// Put an employee on a shift from a date. The endpoint existed long before
+/// anything called it — until now nothing in the app could assign a shift, so
+/// week-offs fell back to the default for everyone.
+export function useAssignShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (d: { employeeId: string; shiftId: string; effectiveFrom: string }) =>
+      api.post<ApiSuccess<unknown>>(`/hr/shifts/assign`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: HR_KEYS.shifts });
+      qc.invalidateQueries({ queryKey: ['hr', 'employees'] });
+    },
+  });
+}
 
 // ─── Holidays ────────────────────────────────────────────────────────────
 
@@ -454,6 +468,8 @@ export interface LeaveType {
   maxCarryForward: string | null;
   /// Ceiling on the available balance for monthly accrual; null = uncapped.
   maxBalance: string | null;
+  /// Hard cap on paid days within one calendar month; null = no limit.
+  maxPaidDaysPerMonth: string | null;
   /// Approve past the balance as a paid/unpaid split.
   overflowUnpaid: boolean;
   encashable: boolean;

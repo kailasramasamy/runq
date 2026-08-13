@@ -17,6 +17,7 @@ import { SalaryStructureService } from './payroll/salary-structure.service';
 import { generateDefaultStructure } from './payroll/salary-structure-generator';
 import { EmployeeSalaryService } from './payroll/employee-salary.service';
 import { PayrollRunService } from './payroll/payroll-run.service';
+import { renderPayslipHTML } from './payroll/payslip-template';
 import { HrNotifier } from './hr-notifier';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -193,13 +194,43 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   app.get('/payroll-runs/:id', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
-    return { data: await svc.getById(id) };
+    // Ship the unpayable list with the run itself — the warning has to be on
+    // screen wherever the run is, not behind a second call the UI might skip.
+    const [run, unpayable] = await Promise.all([
+      svc.getById(id),
+      svc.unpayableEmployees(id),
+    ]);
+    return { data: { ...run, unpayableEmployees: unpayable } };
   });
   app.get('/payroll-runs/:id/payslips', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);
     return { data: await svc.listPayslips(id) };
   });
+  // Payslip as a document — `?format=pdf` downloads, otherwise HTML preview.
+  // Same template either way, so what the employee receives is what payroll
+  // reviewed.
+  app.get('/payroll-runs/:id/payslips/:payslipId/print', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
+    const { id, payslipId } = payslipParams.parse(req.params);
+    const svc = new PayrollRunService(req.server.db, req.tenantId);
+    const { slip, tenantName, settings } = await svc.getPayslipForPrint(id, payslipId);
+    const html = renderPayslipHTML(slip, tenantName, settings);
+
+    if ((req.query as { format?: string } | undefined)?.format !== 'pdf') {
+      return reply.type('text/html').send(html);
+    }
+    // Lazy import: puppeteer pulls ~300MB of Chromium, so it only loads when
+    // a PDF is actually asked for.
+    const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
+    const pdf = await renderHtmlToPdf(html);
+    const safeName = slip.employeeName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, '-').slice(0, 60);
+    const fileName = `Payslip-${slip.year}-${String(slip.month).padStart(2, '0')}-${safeName || slip.employeeCode}.pdf`;
+    return reply
+      .type('application/pdf')
+      .header('Content-Disposition', `attachment; filename="${fileName}"`)
+      .send(pdf);
+  });
+
   app.get('/payroll-runs/:id/payslips/:payslipId', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
     const { id, payslipId } = payslipParams.parse(req.params);
     const svc = new PayrollRunService(req.server.db, req.tenantId);

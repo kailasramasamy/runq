@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/hr_phase_next.dart';
+import '../../api/hr_recovery.dart';
 import '../../theme/runq_theme.dart';
 import '../../widgets/runq_snack.dart';
 
@@ -68,6 +69,7 @@ class _HrLoansScreenState extends ConsumerState<HrLoansScreen> {
       ref.invalidate(myLoansProvider);
       ref.invalidate(loanEligibilityProvider);
       ref.invalidate(teamLoanRequestsProvider);
+      ref.invalidate(hrMyRecoverySummaryProvider);
     });
   }
 
@@ -76,6 +78,7 @@ class _HrLoansScreenState extends ConsumerState<HrLoansScreen> {
     final loansAsync = ref.watch(myLoansProvider);
     final eligAsync = ref.watch(loanEligibilityProvider);
     final teamAsync = ref.watch(teamLoanRequestsProvider);
+    final summaryAsync = ref.watch(hrMyRecoverySummaryProvider);
 
     final canRequest = eligAsync.maybeWhen(
       data: (e) => e.policy.employeeRequestsEnabled,
@@ -98,6 +101,7 @@ class _HrLoansScreenState extends ConsumerState<HrLoansScreen> {
           ref.invalidate(myLoansProvider);
           ref.invalidate(loanEligibilityProvider);
           ref.invalidate(teamLoanRequestsProvider);
+          ref.invalidate(hrMyRecoverySummaryProvider);
         },
         child: ListView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -111,6 +115,10 @@ class _HrLoansScreenState extends ConsumerState<HrLoansScreen> {
               loading: () => const SizedBox.shrink(),
               error: (e, _) => const SizedBox.shrink(),
               data: (elig) => _EligibilityBanner(elig: elig),
+            ),
+            summaryAsync.maybeWhen(
+              data: (s) => _NextRunSection(summary: s),
+              orElse: () => const SizedBox.shrink(),
             ),
             loansAsync.when(
               loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
@@ -210,6 +218,93 @@ class _EligibilityBanner extends StatelessWidget {
               style: RunqText.body,
             ),
           ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// "What's coming off your next payslip" — combined loan + deduction
+/// outstanding, an estimate of the next payroll run's total recovery, and
+/// the list of active deductions (active loans already render below via
+/// [myLoansProvider], so this section doesn't repeat them).
+class _NextRunSection extends StatelessWidget {
+  const _NextRunSection({required this.summary});
+  final HrRecoverySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeDeductions = summary.deductions.where((d) => d.status == 'active').toList();
+    if (summary.totalOutstanding <= 0 && activeDeductions.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          color: _cardTint(context),
+          surfaceTintColor: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Total outstanding', style: RunqText.caption.copyWith(color: theme.hintColor)),
+                  const SizedBox(height: 2),
+                  Text('₹${_money.format(summary.totalOutstanding)}', style: RunqText.numberLg),
+                ]),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('Next run estimate', style: RunqText.caption.copyWith(color: theme.hintColor)),
+                const SizedBox(height: 2),
+                Text('₹${_money.format(summary.nextRunEstimate)}',
+                    style: RunqText.tabular(size: 16, color: _hrAccent)),
+              ]),
+            ]),
+          ),
+        ),
+        if (activeDeductions.isNotEmpty) ...[
+          const _SectionHeader(icon: Icons.remove_circle_outline, label: 'Active deductions'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+            child: Column(children: [for (final d in activeDeductions) _DeductionSummaryRow(deduction: d)]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DeductionSummaryRow extends StatelessWidget {
+  const _DeductionSummaryRow({required this.deduction});
+  final HrDeduction deduction;
+
+  static const _labels = <String, String>{
+    'goods_purchase': 'Goods purchase',
+    'canteen': 'Canteen',
+    'damage': 'Damage',
+    'uniform': 'Uniform',
+    'fine': 'Fine',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      color: _cardTint(context),
+      surfaceTintColor: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_labels[deduction.category] ?? 'Other', style: RunqText.bodyStrong),
+              if (deduction.description != null && deduction.description!.isNotEmpty)
+                Text(deduction.description!, style: RunqText.caption.copyWith(color: theme.hintColor)),
+            ]),
+          ),
+          Text('₹${_money.format(deduction.outstanding)}', style: RunqText.tabular(size: 14)),
         ]),
       ),
     );
@@ -390,7 +485,7 @@ class _LoanCard extends ConsumerWidget {
                   ]),
                   const Spacer(),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('Paid ${paidInstalments}/${loan.totalInstalments}',
+                    Text('Paid $paidInstalments/${loan.totalInstalments}',
                         style: RunqText.caption.copyWith(color: theme.hintColor)),
                     const SizedBox(height: 2),
                     Text('₹${_money.format(paid)}',

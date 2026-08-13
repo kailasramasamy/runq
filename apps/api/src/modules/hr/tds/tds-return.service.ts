@@ -222,7 +222,8 @@ export class TdsReturnService {
       .select({
         employeeId: payslips.employeeId,
         payrollRunId: payslips.payrollRunId,
-        gross: payslips.gross,
+        // Salary chargeable to tax is what was paid, not the contracted gross.
+        gross: payslips.paidWages,
         tds: payslips.tds,
         employeeCode: employees.employeeCode,
         firstName: employees.firstName,

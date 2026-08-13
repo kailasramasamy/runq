@@ -10,6 +10,7 @@ import { NotFoundError, ConflictError } from '../../utils/errors';
 import { normalisePhone } from '../../utils/phone';
 import { applyHrScope } from './access-scope';
 import { LeaveBalanceService } from './leave-balance.service';
+import { EmployeeSalaryService } from './payroll/employee-salary.service';
 
 type EmployeeRow = typeof employees.$inferSelect;
 
@@ -141,6 +142,7 @@ export class EmployeeService {
     await new LeaveBalanceService(this.db, this.tenantId)
       .provisionForEmployee(row.id, new Date().getFullYear());
 
+    await this.syncSalaryAssignment(row.id, input.ctcAnnual, row.joiningDate);
     return row;
   }
 
@@ -155,7 +157,48 @@ export class EmployeeService {
       )))
       .returning();
     if (!row) throw new NotFoundError('Employee');
+    await this.syncSalaryAssignment(id, input.ctcAnnual, row.joiningDate);
     return row;
+  }
+
+  /**
+   * Keep the salary the form captured and the salary payroll pays in step.
+   *
+   * `employees.ctc_annual` is display state — it's what the profile shows —
+   * while payroll reads the effective-dated `employee_salary` assignment via
+   * getCurrent(). assign() mirrors CTC *down* onto the employee row, but the
+   * employee form never wrote back up, so a CTC typed here left payroll with
+   * nothing: the employee was silently skipped by process() (`if (!salary)
+   * continue`) while their profile showed a monthly salary.
+   *
+   * No structure is picked here — process() already derives a 40/40/20 split
+   * from CTC when a snapshot is empty, which is the same thing an unstructured
+   * manual assignment produces.
+   *
+   * Best-effort: a failure here must not fail the employee write. The backfill
+   * migration and the payroll run's own "skipped" warning both catch a miss.
+   */
+  private async syncSalaryAssignment(
+    employeeId: string, ctcAnnual: number | null | undefined, joiningDate: string,
+  ) {
+    if (ctcAnnual == null || ctcAnnual <= 0) return;
+    try {
+      const svc = new EmployeeSalaryService(this.db, this.tenantId);
+      const today = new Date().toISOString().slice(0, 10);
+      const current = await svc.getCurrent(employeeId, today);
+      if (current && Number(current.ctcAnnual) === Number(ctcAnnual)) return;
+      // A first assignment backdates to the joining date so historical runs
+      // price correctly; a later change takes effect today, leaving the
+      // superseded row intact as the record of what was paid before.
+      await svc.assign({
+        employeeId,
+        salaryStructureId: current?.salaryStructureId ?? null,
+        ctcAnnual: Number(ctcAnnual),
+        effectiveFrom: current ? today : (joiningDate ?? today),
+      });
+    } catch (err) {
+      console.error('[hr] salary assignment sync failed:', err);
+    }
   }
 
   async remove(id: string) {

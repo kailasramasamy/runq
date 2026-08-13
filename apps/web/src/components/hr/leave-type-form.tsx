@@ -10,6 +10,7 @@ export interface LeaveTypeFormValues {
   carryForward: boolean;
   maxCarryForward: number | null;
   maxBalance: number | null;
+  maxPaidDaysPerMonth: number | null;
   overflowUnpaid: boolean;
   encashable: boolean;
   isPaid: boolean;
@@ -36,6 +37,8 @@ export function LeaveTypeForm({ initial, onSubmit, onCancel, pending }: Props) {
     initial?.maxCarryForward != null ? String(Number(initial.maxCarryForward)) : '');
   const [maxBalance, setMaxBalance] = useState(
     initial?.maxBalance != null ? String(Number(initial.maxBalance)) : '');
+  const [maxPaidPerMonth, setMaxPaidPerMonth] = useState(
+    initial?.maxPaidDaysPerMonth != null ? String(Number(initial.maxPaidDaysPerMonth)) : '');
   const [overflowUnpaid, setOverflowUnpaid] = useState(initial?.overflowUnpaid ?? false);
   const [encashable, setEncashable] = useState(initial?.encashable ?? false);
   const [isPaid, setIsPaid] = useState(initial?.isPaid ?? true);
@@ -53,6 +56,7 @@ export function LeaveTypeForm({ initial, onSubmit, onCancel, pending }: Props) {
       maxCarryForward: carryForward && maxCarryForward !== '' ? Number(maxCarryForward) : null,
       // Blank means uncapped — the default for every type.
       maxBalance: accrualMode === 'monthly' && maxBalance !== '' ? Number(maxBalance) : null,
+      maxPaidDaysPerMonth: maxPaidPerMonth !== '' ? Number(maxPaidPerMonth) : null,
       overflowUnpaid,
       encashable,
       isPaid,
@@ -91,6 +95,15 @@ export function LeaveTypeForm({ initial, onSubmit, onCancel, pending }: Props) {
             placeholder="No cap"
           />
         )}
+        <Input
+          label="Max paid days / month"
+          type="number"
+          min="0"
+          step="0.5"
+          value={maxPaidPerMonth}
+          onChange={(e) => setMaxPaidPerMonth(e.target.value)}
+          placeholder="No limit"
+        />
       </div>
       <div className="flex flex-wrap items-center gap-4 text-[13px]" style={{ color: 'var(--text-2)' }}>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={carryForward} onChange={(e) => setCarryForward(e.target.checked)} /> Carry forward</label>

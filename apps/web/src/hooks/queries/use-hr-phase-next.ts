@@ -108,6 +108,8 @@ export interface EmployeeLoan {
   firstName?: string;
   lastName?: string | null;
   employeeCode?: string;
+  /** True once a payment has been recorded against this loan (list route only). */
+  isDisbursed?: boolean;
 }
 
 export type FnfStatus = 'draft' | 'approved' | 'paid' | 'cancelled';

@@ -233,6 +233,17 @@ class HrMyLeaveRow extends ConsumerWidget {
       context,
       leaveTypes: tlist,
       submitLabel: 'Save changes',
+      // Editing can push a request past the paid limit just as easily as
+      // creating one — stretch the end date by two days and the tail becomes
+      // unpaid. Exclude nothing: the request is still pending, so it hasn't
+      // drawn on the balance or the monthly cap yet.
+      onPreview: (typeId, from, to, halfDay) => hrRepo.previewLeave(
+        employeeId: req.employeeId,
+        leaveTypeId: typeId,
+        fromDate: from,
+        toDate: to,
+        halfDay: halfDay,
+      ),
       initial: ApplyLeaveResult(
         leaveTypeId: req.leaveTypeId,
         fromDate: req.fromDate,

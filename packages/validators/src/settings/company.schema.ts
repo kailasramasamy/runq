@@ -59,6 +59,9 @@ export const companySettingsSchema = z.object({
   // sub-toggle of PF (employer's 8.33% diversion to A/c 10).
   payrollPfEnabled: z.boolean().nullish(),
   payrollEpsEnabled: z.boolean().nullish(),
+  payrollEsiEnabled: z.boolean().nullish(),
+  payrollAttendanceMode: z.enum(['tracked', 'assume_present']).nullish(),
+  payrollHolidaysAreWorkingDays: z.boolean().nullish(),
   payrollPtEnabled: z.boolean().nullish(),
   payrollTdsEnabled: z.boolean().nullish(),
 });

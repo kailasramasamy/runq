@@ -96,6 +96,7 @@ export const HR_NAV_GROUPS: NavGroup[] = [
       { key: 'hr-tax-declarations', label: 'Tax declarations (12BB)', icon: FileCheck2, path: '/hr/tax-declarations' },
       { key: 'hr-loans', label: 'Loans & advances', icon: CreditCard, path: '/hr/loans' },
       { key: 'hr-loan-policy', label: 'Loan policy', icon: ShieldCheck, path: '/hr/loan-policy' },
+      { key: 'hr-deductions', label: 'Deductions', icon: Wallet, path: '/hr/deductions' },
       { key: 'hr-tds-challans', label: 'TDS challans', icon: Landmark, path: '/hr/tds-challans' },
       { key: 'hr-form-24q', label: 'Form 24Q (TDS)', icon: Receipt, path: '/hr/form-24q' },
       { key: 'hr-form-16', label: 'Form 16', icon: FileText, path: '/hr/form-16' },

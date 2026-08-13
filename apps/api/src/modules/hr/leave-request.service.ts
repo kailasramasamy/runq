@@ -1,7 +1,6 @@
 import { eq, and, gte, lte, desc, inArray, sql } from 'drizzle-orm';
 import {
-  leaveRequests, leaveTypes, leaveBalances, employees, holidays, attendance, users,
-  shifts, employeeShifts,
+  leaveRequests, leaveTypes, leaveBalances, employees, attendance, users,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
@@ -10,6 +9,7 @@ import type {
 } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { countLeaveDays, countedLeaveDates } from './leave-days';
+import { resolveWeeklyOffDays, resolveHolidayDates } from './work-calendar';
 import { LeaveBalanceService } from './leave-balance.service';
 import { applyHrScope, type HrAccessScope } from './access-scope';
 
@@ -87,17 +87,9 @@ export class LeaveRequestService {
     const yearTo = Number(input.toDate.slice(0, 4));
     const years = yearFrom === yearTo ? [yearFrom] : [yearFrom, yearTo];
 
-    const holidayRows = await this.db
-      .select({ date: holidays.date })
-      .from(holidays)
-      .where(and(
-        eq(holidays.tenantId, this.tenantId),
-        inArray(
-          sql`EXTRACT(YEAR FROM ${holidays.date})::int`,
-          years,
-        ),
-      ));
-    const holidayDates = new Set(holidayRows.map((r) => r.date));
+    const holidayDates = await resolveHolidayDates(
+      this.db, this.tenantId, `${years[0]}-01-01`, `${years[years.length - 1]}-12-31`,
+    );
 
     const days = countLeaveDays(input.fromDate, input.toDate, {
       halfDay: input.halfDay,
@@ -211,7 +203,7 @@ export class LeaveRequestService {
    * through their quota gets the front of the leave paid and the tail unpaid,
    * which is what both they and payroll expect.
    */
-  private async splitPaidUnpaid(req: { employeeId: string; leaveTypeId: string; fromDate: string; toDate: string; halfDay: boolean; days: string }) {
+  private async splitPaidUnpaid(req: { id: string; employeeId: string; leaveTypeId: string; fromDate: string; toDate: string; halfDay: boolean; days: string }) {
     const days = Number(req.days);
     const [type] = await this.db
       .select({ overflowUnpaid: leaveTypes.overflowUnpaid })
@@ -220,10 +212,9 @@ export class LeaveRequestService {
       .limit(1);
     if (!type?.overflowUnpaid) return { paid: days, unpaid: 0, unpaidDates: [] as string[] };
 
-    const available = await this.availableBalance(
-      req.employeeId, req.leaveTypeId, Number(req.fromDate.slice(0, 4)),
+    const paid = await this.payableDays(
+      req.employeeId, req.leaveTypeId, req.fromDate, days, req.id,
     );
-    const paid = Math.max(0, Math.min(days, available));
     const unpaid = Math.round((days - paid) * 100) / 100;
     if (unpaid <= 0) return { paid, unpaid: 0, unpaidDates: [] as string[] };
 
@@ -234,6 +225,61 @@ export class LeaveRequestService {
     }
     const dates = await this.countedDatesFor(req.employeeId, req.fromDate, req.toDate);
     return { paid, unpaid, unpaidDates: dates.slice(Math.floor(paid)) };
+  }
+
+  /**
+   * How many of `days` can be paid, given both limits a leave type can carry:
+   *
+   *   * the balance — what's been accrued and not yet spent
+   *   * maxPaidDaysPerMonth — how much of that balance may be spent inside one
+   *     calendar month
+   *
+   * The second exists because the first doesn't constrain timing: an employee
+   * sitting on a full balance could take the lot at once, which is exactly
+   * what a banked-leave cap is meant to prevent. A request is attributed to
+   * the month it starts in.
+   *
+   * [excludeRequestId] keeps a request from counting against itself when it's
+   * being re-priced.
+   */
+  private async payableDays(
+    employeeId: string, leaveTypeId: string, fromDate: string, days: number,
+    excludeRequestId?: string,
+  ): Promise<number> {
+    const available = await this.availableBalance(
+      employeeId, leaveTypeId, Number(fromDate.slice(0, 4)),
+    );
+    let payable = Math.max(0, Math.min(days, available));
+
+    const [type] = await this.db
+      .select({ maxPaidDaysPerMonth: leaveTypes.maxPaidDaysPerMonth })
+      .from(leaveTypes)
+      .where(and(eq(leaveTypes.id, leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
+      .limit(1);
+    const cap = type?.maxPaidDaysPerMonth != null ? Number(type.maxPaidDaysPerMonth) : null;
+    if (cap == null) return payable;
+
+    const monthStart = `${fromDate.slice(0, 7)}-01`;
+    const nextMonth = new Date(Date.UTC(
+      Number(fromDate.slice(0, 4)), Number(fromDate.slice(5, 7)), 1,
+    )).toISOString().slice(0, 10);
+    const [taken] = await this.db
+      .select({
+        // days − unpaid_days is what each earlier request actually drew as paid.
+        paid: sql<string>`COALESCE(SUM(${leaveRequests.days} - ${leaveRequests.unpaidDays}), 0)`,
+      })
+      .from(leaveRequests)
+      .where(and(
+        eq(leaveRequests.tenantId, this.tenantId),
+        eq(leaveRequests.employeeId, employeeId),
+        eq(leaveRequests.leaveTypeId, leaveTypeId),
+        eq(leaveRequests.status, 'approved'),
+        gte(leaveRequests.fromDate, monthStart),
+        sql`${leaveRequests.fromDate} < ${nextMonth}`,
+        excludeRequestId ? sql`${leaveRequests.id} <> ${excludeRequestId}` : undefined,
+      ));
+    const alreadyPaid = Number(taken?.paid ?? 0);
+    return Math.max(0, Math.min(payable, cap - alreadyPaid));
   }
 
   /// opening + accrued − used for one (employee, type, year). 0 when no row
@@ -260,16 +306,8 @@ export class LeaveRequestService {
   /// The dates a request consumes, honouring the employee's week-offs and
   /// the tenant's holidays — the same set countLeaveDays() totals.
   private async countedDatesFor(employeeId: string, fromDate: string, toDate: string) {
-    const holidayRows = await this.db
-      .select({ date: holidays.date })
-      .from(holidays)
-      .where(and(
-        eq(holidays.tenantId, this.tenantId),
-        gte(holidays.date, fromDate),
-        lte(holidays.date, toDate),
-      ));
     return countedLeaveDates(fromDate, toDate, {
-      holidayDates: new Set(holidayRows.map((r) => r.date)),
+      holidayDates: await resolveHolidayDates(this.db, this.tenantId, fromDate, toDate),
       weeklyOffDays: await this.weeklyOffDaysFor(employeeId, fromDate),
     });
   }
@@ -307,15 +345,8 @@ export class LeaveRequestService {
     // Recompute days if dates / halfDay changed; otherwise reuse.
     let days = Number(req.days);
     if (input.fromDate || input.toDate || input.halfDay != null) {
-      const holidayRows = await this.db
-        .select({ date: holidays.date })
-        .from(holidays)
-        .where(and(
-          eq(holidays.tenantId, this.tenantId),
-          gte(holidays.date, fromDate),
-          lte(holidays.date, toDate),
-        ));
-      const holidayDates = new Set(holidayRows.map((r) => r.date));
+      const holidayDates = await resolveHolidayDates(
+        this.db, this.tenantId, fromDate, toDate);
       days = countLeaveDays(fromDate, toDate, {
         halfDay,
         holidayDates,
@@ -401,7 +432,9 @@ export class LeaveRequestService {
       ? 0.5
       : (await this.countedDatesFor(input.employeeId, input.fromDate, input.toDate)).length;
     const available = await this.availableBalance(input.employeeId, input.leaveTypeId, year);
-    const paid = type.overflowUnpaid ? Math.max(0, Math.min(days, available)) : days;
+    const paid = type.overflowUnpaid
+      ? await this.payableDays(input.employeeId, input.leaveTypeId, input.fromDate, days)
+      : days;
     return {
       days,
       available,
@@ -411,27 +444,10 @@ export class LeaveRequestService {
     };
   }
 
-  /// Week-offs for an employee on a given date, from the shift they were
-  /// assigned at the time. Falls back to Sunday when they have no shift —
-  /// the assumption this code carried unconditionally before, and still the
-  /// right default for an org that hasn't configured shifts. An org that
-  /// works every day models it as a shift with `weekly_off_days: []`, which
-  /// makes leave on a Sunday count as a leave day instead of being silently
-  /// dropped from the total.
-  private async weeklyOffDaysFor(employeeId: string, onDate: string): Promise<number[]> {
-    const [row] = await this.db
-      .select({ weeklyOffDays: shifts.weeklyOffDays })
-      .from(employeeShifts)
-      .innerJoin(shifts, eq(shifts.id, employeeShifts.shiftId))
-      .where(and(
-        eq(employeeShifts.tenantId, this.tenantId),
-        eq(employeeShifts.employeeId, employeeId),
-        lte(employeeShifts.effectiveFrom, onDate),
-        sql`(${employeeShifts.effectiveTo} IS NULL OR ${employeeShifts.effectiveTo} >= ${onDate})`,
-      ))
-      .orderBy(desc(employeeShifts.effectiveFrom))
-      .limit(1);
-    return row?.weeklyOffDays ?? [0];
+  /// Week-offs for an employee on a given date. Shared with payroll's
+  /// working-day count so the two can't disagree about which days are worked.
+  private weeklyOffDaysFor(employeeId: string, onDate: string): Promise<number[]> {
+    return resolveWeeklyOffDays(this.db, this.tenantId, employeeId, onDate);
   }
 
   /// Resolve a user id to its linked employee row — phone-match (last 10

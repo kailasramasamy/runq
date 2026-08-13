@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Printer, Landmark, HeartPulse, Coins, Wallet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Landmark, HeartPulse, Coins, Wallet } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal, Input, Combobox,
@@ -7,6 +7,7 @@ import {
 } from '@/components/ui';
 import { StatTile, EmptyState, StatusPipeline, ListToolbar } from '@/components/ar/primitives';
 import { formatINR } from '@/lib/utils';
+
 import { downloadCSV } from '@/lib/csv-export';
 import {
   usePayrollRun, usePayslips, useProcessPayrollRun, useApprovePayrollRun, useClosePayrollRun,
@@ -178,6 +179,28 @@ export function PayrollRunDetailPage({ runId }: Props) {
         <StatTile label="Net pay" value={formatINR(Number(run.totalNet))} accentColor="#16a34a" />
       </div>
 
+      {/* Processing skips anyone without a salary assignment, so a run can
+          report a tidy total while covering a fraction of the workforce.
+          Say so before it gets approved and posted to the GL. */}
+      {(run.unpayableEmployees?.length ?? 0) > 0 && (
+        <div
+          className="mb-5 rounded-md px-3.5 py-3 text-[13px]"
+          style={{ background: 'var(--warning-bg, #FEF3C7)', color: 'var(--warning-fg, #92400E)' }}
+        >
+          <div className="font-medium">
+            {run.unpayableEmployees!.length} active employee
+            {run.unpayableEmployees!.length === 1 ? '' : 's'} not included — no salary assigned
+          </div>
+          <div className="mt-1 text-[12px]">
+            {run.unpayableEmployees!.map((e) =>
+              `${e.employeeCode} ${e.firstName}${e.lastName ? ' ' + e.lastName : ''}`).join(', ')}
+          </div>
+          <div className="mt-1.5 text-[12px]">
+            Assign a salary, then re-process this run to include them.
+          </div>
+        </div>
+      )}
+
       {slips.length > 0 && (
         <ListToolbar
           search={search}
@@ -234,7 +257,9 @@ export function PayrollRunDetailPage({ runId }: Props) {
         </TableBody>
       </Table>
 
-      {viewPayslip && <PayslipModal payslip={viewPayslip} period={period} onClose={() => setViewPayslip(null)} />}
+      {viewPayslip && (
+        <PayslipModal payslip={viewPayslip} period={period} runId={runId} onClose={() => setViewPayslip(null)} />
+      )}
       {showPfChallan && <PfChallanModal runId={runId} period={period} onClose={() => setShowPfChallan(false)} />}
       {showEsiChallan && <EsiChallanModal runId={runId} period={period} onClose={() => setShowEsiChallan(false)} />}
       {showPtChallan && <PtChallanModal runId={runId} period={period} onClose={() => setShowPtChallan(false)} />}
@@ -690,105 +715,71 @@ function RecordStatutoryDepositModal({
   );
 }
 
-function PayslipModal({ payslip: s, period, onClose }: { payslip: Payslip; period: string; onClose: () => void }) {
-  function handlePrint() {
-    const w = window.open('', '_blank', 'width=700,height=900');
-    if (!w) return;
-    w.document.write(buildPayslipHtml(s, period));
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 200);
+function PayslipModal({ payslip: s, period, runId, onClose }: {
+  payslip: Payslip; period: string; runId: string; onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+  const [html, setHtml] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  // Preview the server-rendered document rather than a second React layout of
+  // the same numbers: what's on screen is then identical to the PDF the
+  // employee receives, and there's one template to maintain.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/v1/hr/payroll-runs/${runId}/payslips/${s.id}/print`, {
+      headers: api.authHeaders(),
+    })
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then((t) => { if (!cancelled) setHtml(t); })
+      .catch(() => { if (!cancelled) setLoadError(true); });
+    return () => { cancelled = true; };
+  }, [runId, s.id]);
+
+  // The PDF comes from that same template, so the download is the document of
+  // record — not a browser print dialogue whose output varies by machine.
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const safe = s.employeeName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+      await api.download(
+        `/hr/payroll-runs/${runId}/payslips/${s.id}/print?format=pdf`,
+        `Payslip-${period.replace(' ', '-')}-${safe}.pdf`,
+      );
+    } catch (e: any) {
+      toast(e?.message ?? 'Could not download the payslip', 'error');
+    } finally {
+      setDownloading(false);
+    }
   }
+
   return (
     <Modal open onClose={onClose} title={`Payslip — ${s.employeeName} (${period})`} size="lg">
       <div className="mb-2 flex items-center justify-end">
-        <Button size="sm" variant="outline" onClick={handlePrint}><Printer size={13} /> Print</Button>
+        <Button size="sm" variant="outline" onClick={handleDownload} disabled={downloading}>
+          <Download size={13} /> {downloading ? 'Preparing…' : 'Download PDF'}
+        </Button>
       </div>
-      <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2 text-[12px]">
-          <div><div style={{ color: 'var(--text-3)' }}>Working days</div><div className="num">{Number(s.workingDays)}</div></div>
-          <div><div style={{ color: 'var(--text-3)' }}>Paid days</div><div className="num">{Number(s.paidDays)}</div></div>
-          <div><div style={{ color: 'var(--text-3)' }}>LOP days</div><div className="num">{Number(s.lopDays)}</div></div>
+      {loadError ? (
+        <div className="rounded-md px-3 py-6 text-center text-[13px]" style={{ color: 'var(--text-3)' }}>
+          Could not load the payslip preview. The PDF download still works.
         </div>
-
-        <Card>
-          <CardHeader>Earnings</CardHeader>
-          <CardContent>
-            <table className="w-full text-[13px]">
-              <tbody>
-                {s.earnings.map((e, i) => (
-                  <tr key={i} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
-                    <td className="py-1.5" style={{ color: 'var(--text-2)' }}>{e.name}</td>
-                    <td className="num py-1.5 text-right">{formatINR(e.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="font-medium">
-                  <td className="py-1.5">Gross</td>
-                  <td className="num py-1.5 text-right">{formatINR(Number(s.gross))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>Deductions</CardHeader>
-          <CardContent>
-            <table className="w-full text-[13px]">
-              <tbody>
-                {s.deductions.map((d, i) => (
-                  <tr key={i} className="border-b last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
-                    <td className="py-1.5" style={{ color: 'var(--text-2)' }}>{d.name}</td>
-                    <td className="num py-1.5 text-right">{formatINR(d.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="font-medium">
-                  <td className="py-1.5">Total deductions</td>
-                  <td className="num py-1.5 text-right">{formatINR(Number(s.totalDeductions))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-
-        <div className="flex items-center justify-between rounded-md p-3" style={{ background: 'var(--accent-soft)' }}>
-          <span className="font-medium" style={{ color: 'var(--accent-text)' }}>Net pay</span>
-          <span className="num text-[15px] font-semibold" style={{ color: 'var(--accent-text)' }}>{formatINR(Number(s.netPay))}</span>
+      ) : html === null ? (
+        <div className="px-3 py-10 text-center text-[13px]" style={{ color: 'var(--text-3)' }}>
+          Loading payslip…
         </div>
-
-        <div className="grid grid-cols-2 gap-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
-          <div>PF: employee {Number(s.pfEmployee)} · employer {Number(s.pfEmployer)}</div>
-          <div>ESI: employee {Number(s.esiEmployee)} · employer {Number(s.esiEmployer)}</div>
-        </div>
-      </div>
+      ) : (
+        // White-on-white regardless of app theme: it's a document, and it
+        // should look on screen exactly as it will on paper.
+        <iframe
+          title="Payslip"
+          srcDoc={html}
+          className="w-full rounded-md border"
+          style={{ height: '70vh', background: '#fff', borderColor: 'var(--border)' }}
+        />
+      )}
     </Modal>
   );
 }
 
-function buildPayslipHtml(s: Payslip, period: string): string {
-  const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
-  const row = (label: string, amount: number) =>
-    `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e5e5">${label}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e5e5e5">${fmt(amount)}</td></tr>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Payslip ${s.employeeName} ${period}</title>
-  <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111;padding:24px;max-width:680px;margin:0 auto}
-  h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:18px 0 8px;letter-spacing:.05em;text-transform:uppercase;color:#666}
-  table{width:100%;border-collapse:collapse;font-size:13px}.muted{color:#666;font-size:12px}
-  .net{background:#eef2ff;padding:10px;margin-top:18px;display:flex;justify-content:space-between;border-radius:6px;font-weight:600}
-  </style></head><body>
-  <h1>Payslip — ${period}</h1>
-  <div class="muted">${s.employeeName} · ${s.employeeCode}</div>
-  <div class="muted" style="margin-top:6px">Working ${Number(s.workingDays)} · Paid ${Number(s.paidDays)} · LOP ${Number(s.lopDays)}</div>
-  <h2>Earnings</h2>
-  <table><tbody>
-  ${s.earnings.map((e) => row(e.name, e.amount)).join('')}
-  <tr style="font-weight:600"><td style="padding:6px 8px">Gross</td><td style="padding:6px 8px;text-align:right">${fmt(Number(s.gross))}</td></tr>
-  </tbody></table>
-  <h2>Deductions</h2>
-  <table><tbody>
-  ${s.deductions.map((d) => row(d.name, d.amount)).join('')}
-  <tr style="font-weight:600"><td style="padding:6px 8px">Total deductions</td><td style="padding:6px 8px;text-align:right">${fmt(Number(s.totalDeductions))}</td></tr>
-  </tbody></table>
-  <div class="net"><span>Net pay</span><span>${fmt(Number(s.netPay))}</span></div>
-  <div class="muted" style="margin-top:20px">Generated by runQ — keep for records</div>
-  </body></html>`;
-}

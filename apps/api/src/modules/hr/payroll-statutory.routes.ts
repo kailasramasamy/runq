@@ -55,6 +55,7 @@ async function loadRunExportData(db: any, tenantId: string, runId: string) {
     payslipsByEmp.set(emp.employeeCode, {
       employeeId: s.employeeId,
       gross: s.gross,
+      paidWages: s.paidWages,
       netPay: s.netPay,
       pfEmployee: s.pfEmployee,
       pfEmployer: s.pfEmployer,

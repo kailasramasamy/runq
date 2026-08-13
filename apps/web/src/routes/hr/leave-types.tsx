@@ -144,6 +144,11 @@ export function LeaveTypesPage() {
                     {t.maxBalance != null ? `, max ${Number(t.maxBalance)}` : ''})
                   </span>
                 )}
+                {t.maxPaidDaysPerMonth != null && (
+                  <span className="ml-1 text-[11px]" style={{ color: 'var(--text-3)' }}>
+                    · {Number(t.maxPaidDaysPerMonth)} paid/mo
+                  </span>
+                )}
               </TableCell>
               <TableCell>{t.carryForward ? <Badge variant="info">{t.maxCarryForward ? `max ${Number(t.maxCarryForward)}` : 'Yes'}</Badge> : <span style={{ color: 'var(--text-3)' }}>—</span>}</TableCell>
               <TableCell>{t.isPaid ? <Badge variant="success">Paid</Badge> : <Badge variant="outline">Unpaid</Badge>}</TableCell>

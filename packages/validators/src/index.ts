@@ -59,6 +59,7 @@ export * from './hr/leave.schema';
 export * from './hr/payroll.schema';
 export * from './hr/tds.schema';
 export * from './hr/employee-payment.schema';
+export * from './hr/deduction.schema';
 export * from './hr/phase-next.schema';
 export * from './hr/resume.schema';
 export * from './hr/reward.schema';

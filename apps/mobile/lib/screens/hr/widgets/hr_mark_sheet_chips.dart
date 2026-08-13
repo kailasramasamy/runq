@@ -130,6 +130,47 @@ class HrNoLeaveTypesNotice extends StatelessWidget {
   }
 }
 
+/// Amber note when part of a leave range would be approved unpaid — the
+/// balance is exhausted, or the type's monthly paid-day cap is. Marking leave
+/// from this sheet approves it immediately, so this is the only moment the
+/// employee (or their manager) can see the shortfall before payroll does.
+class HrUnpaidLeaveWarning extends StatelessWidget {
+  final HrLeavePreview preview;
+  const HrUnpaidLeaveWarning({super.key, required this.preview});
+
+  static String _d(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0x33B45309) : const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+        border: Border.all(color: fg.withValues(alpha: 0.35), width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 16, color: fg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${_d(preview.paidDays)} paid, ${_d(preview.unpaidDays)} unpaid. '
+              'Beyond the paid limit for ${preview.leaveTypeName}, so the extra '
+              '${_d(preview.unpaidDays)} day(s) will be loss of pay.',
+              style: RunqText.caption.copyWith(color: fg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Chip extends StatelessWidget {
   final bool on;
   final Color fill, accent;

@@ -1,11 +1,12 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import {
   employeePayments, payrollRuns, payslips, expenseClaims, employeeRewards,
-  bankAccounts, accounts,
+  employeeLoans, bankAccounts, accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
   RecordSalaryPaymentInput, RecordReimbursementPaymentInput, PayRewardInput,
+  DisburseLoanInput,
 } from '@runq/validators';
 import { GLService } from '../../gl/gl.service';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
@@ -291,6 +292,89 @@ export class EmployeePaymentService {
         .set({ status: 'paid', updatedAt: new Date() })
         .where(eq(employeeRewards.id, reward.id));
 
+      return updated;
+    });
+  }
+
+  /**
+   * Pay out an approved advance / loan. Unlike the other settlements here this
+   * one does not clear a payable — it raises an asset: the company is now owed
+   * the money, and payroll works that receivable back down via 1122 as it
+   * recovers each instalment.
+   */
+  async recordLoanDisbursement(loanId: string, input: DisburseLoanInput, userId: string) {
+    const [loan] = await this.db
+      .select()
+      .from(employeeLoans)
+      .where(and(eq(employeeLoans.id, loanId), eq(employeeLoans.tenantId, this.tenantId)))
+      .limit(1);
+    if (!loan) throw new NotFoundError('Loan');
+    if (loan.status !== 'active') {
+      throw new ConflictError('Loan must be approved before it can be disbursed');
+    }
+
+    const [existing] = await this.db
+      .select({ id: employeePayments.id })
+      .from(employeePayments)
+      .where(and(
+        eq(employeePayments.tenantId, this.tenantId),
+        eq(employeePayments.employeeLoanId, loanId),
+        eq(employeePayments.status, 'paid'),
+      ))
+      .limit(1);
+    if (existing) throw new ConflictError('This loan is already disbursed');
+
+    const amount = r2(Number(loan.principal));
+    const creditCode = input.bankAccountId
+      ? await this.bankGlAccountCode(input.bankAccountId)
+      : '1102'; // cash-in-hand payout, no bank account named
+    return this.postLoanDisbursement(loan, amount, creditCode, input, userId);
+  }
+
+  private async postLoanDisbursement(
+    loan: typeof employeeLoans.$inferSelect,
+    amount: number,
+    creditCode: string,
+    input: DisburseLoanInput,
+    userId: string,
+  ) {
+    return this.db.transaction(async (tx) => {
+      const [payment] = await tx
+        .insert(employeePayments)
+        .values({
+          tenantId: this.tenantId,
+          sourceType: 'employee_loan',
+          employeeLoanId: loan.id,
+          employeeId: loan.employeeId,
+          paymentDate: input.paymentDate,
+          amount: String(amount),
+          bankAccountId: input.bankAccountId ?? null,
+          paymentMethod: input.paymentMethod ?? 'bank_transfer',
+          reference: input.reference ?? null,
+          status: 'paid',
+          notes: input.notes ?? null,
+          createdBy: userId,
+        })
+        .returning();
+
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      const je = await gl.createJournalEntry({
+        date: input.paymentDate,
+        description: `Advance / loan disbursement — ${loan.kind}`,
+        sourceType: 'employee_payment',
+        sourceId: payment.id,
+        lines: [
+          { accountCode: '1122', debit: amount, description: 'Employee advance receivable' },
+          { accountCode: creditCode, credit: amount, description: 'Advance / loan paid out' },
+        ],
+        createdBy: userId,
+      });
+
+      const [updated] = await tx
+        .update(employeePayments)
+        .set({ journalEntryId: je.id, updatedAt: new Date() })
+        .where(eq(employeePayments.id, payment.id))
+        .returning();
       return updated;
     });
   }
