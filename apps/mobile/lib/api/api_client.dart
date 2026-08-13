@@ -33,6 +33,24 @@ class NetworkException extends ApiException {
 
 typedef OnUnauthorized = void Function();
 
+// Pull the human-readable message out of an error body, falling back to
+// [fallback]. A blank string counts as absent: Fastify serialises a 500 raised
+// from a pg AggregateError as {"message": ""}, and taking that at face value
+// paints an empty error banner with nothing for the user to act on.
+String _pickMessage(Object? decoded, String fallback) {
+  if (decoded is! Map<String, dynamic>) return fallback;
+  final err = decoded['error'];
+  final raw = err is Map<String, dynamic> ? err['message'] : decoded['message'];
+  return raw is String && raw.trim().isNotEmpty ? raw : fallback;
+}
+
+// What to show when the server sends no usable message of its own. A 5xx is
+// never something the user typed wrong, so say that plainly rather than
+// leaving them staring at a bare status code.
+String _fallbackMessage(int statusCode, String action) => statusCode >= 500
+    ? 'Something went wrong on our end. Please try again in a moment.'
+    : '$action failed ($statusCode)';
+
 class ApiClient {
   ApiClient({http.Client? inner}) : _inner = inner ?? http.Client();
 
@@ -86,17 +104,9 @@ class ApiClient {
       _onUnauthorized?.call();
     }
     if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
-    String message = 'Download failed (${res.statusCode})';
+    String message = _fallbackMessage(res.statusCode, 'Download');
     try {
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
-      if (decoded is Map<String, dynamic>) {
-        final err = decoded['error'];
-        if (err is Map<String, dynamic> && err['message'] is String) {
-          message = err['message'] as String;
-        } else if (decoded['message'] is String) {
-          message = decoded['message'] as String;
-        }
-      }
+      message = _pickMessage(jsonDecode(utf8.decode(res.bodyBytes)), message);
     } catch (_) {}
     throw ApiException(statusCode: res.statusCode, message: message);
   }
@@ -134,19 +144,15 @@ class ApiClient {
       return jsonDecode(res.body);
     }
     Map<String, dynamic>? errBody;
-    String message = 'Upload failed (${res.statusCode})';
+    String message = _fallbackMessage(res.statusCode, 'Upload');
     String? code;
     try {
       final decoded = jsonDecode(res.body);
+      message = _pickMessage(decoded, message);
       if (decoded is Map<String, dynamic>) {
         errBody = decoded;
         final err = decoded['error'];
-        if (err is Map<String, dynamic>) {
-          message = (err['message'] as String?) ?? message;
-          code = err['code'] as String?;
-        } else if (decoded['message'] is String) {
-          message = decoded['message'] as String;
-        }
+        if (err is Map<String, dynamic>) code = err['code'] as String?;
       }
     } catch (_) {}
     throw ApiException(statusCode: res.statusCode, message: message, code: code, body: errBody);
@@ -177,19 +183,15 @@ class ApiClient {
     }
 
     Map<String, dynamic>? errBody;
-    String message = 'Request failed (${res.statusCode})';
+    String message = _fallbackMessage(res.statusCode, 'Request');
     String? code;
     try {
       final decoded = jsonDecode(res.body);
+      message = _pickMessage(decoded, message);
       if (decoded is Map<String, dynamic>) {
         errBody = decoded;
         final err = decoded['error'];
-        if (err is Map<String, dynamic>) {
-          message = (err['message'] as String?) ?? message;
-          code = err['code'] as String?;
-        } else if (decoded['message'] is String) {
-          message = decoded['message'] as String;
-        }
+        if (err is Map<String, dynamic>) code = err['code'] as String?;
       }
     } catch (_) {}
     throw ApiException(statusCode: res.statusCode, message: message, code: code, body: errBody);

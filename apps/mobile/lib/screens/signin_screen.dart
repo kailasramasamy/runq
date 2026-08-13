@@ -154,11 +154,13 @@ const _resendCooldown = 30;
 class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerProviderStateMixin {
   final _phone = TextEditingController();
   final _otp = TextEditingController();
+  final _scroll = ScrollController();
   _Step _step = _Step.phone;
   bool _loading = false;
   String? _error;
   Timer? _resendTimer;
   int _resendIn = 0;
+  double _lastInset = 0;
 
   late final AnimationController _enter;
   late final Animation<double> _logoFade;
@@ -185,6 +187,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   void dispose() {
     _phone.dispose();
     _otp.dispose();
+    _scroll.dispose();
     _resendTimer?.cancel();
     _enter.dispose();
     super.dispose();
@@ -299,9 +302,33 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
     context.go(landing);
   }
 
+  // The code step's card is taller than the number step (six boxes, verify
+  // button, resend row), so on shorter phones "Verify & sign in" ends up
+  // behind the keypad. The viewport runs full-height (resizeToAvoidBottomInset
+  // is false) and nothing re-scrolls on its own, so once the keyboard is up we
+  // slide the content up to the scroll extent — which parks the card's bottom
+  // just above the keypad, since the scroll padding already carries the
+  // keyboard inset. Driven off inset changes so it tracks the keyboard's rise
+  // animation rather than guessing at a delay.
+  void _alignCodeStep(BuildContext context) {
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    if (inset == _lastInset) return;
+    _lastInset = inset;
+    if (_step != _Step.otp || inset == 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
+    _alignCodeStep(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: RunqSystemBars.forBrightness(
         p.statusBarIconBrightness == Brightness.light ? Brightness.dark : Brightness.light,
@@ -319,6 +346,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
             Positioned.fill(child: _GlowBlobs(palette: p)),
             SafeArea(
               child: SingleChildScrollView(
+                controller: _scroll,
                 physics: const ClampingScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(
                   24, 32, 24, 32 + MediaQuery.of(context).viewInsets.bottom),
