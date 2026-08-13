@@ -306,10 +306,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   // button, resend row), so on shorter phones "Verify & sign in" ends up
   // behind the keypad. The viewport runs full-height (resizeToAvoidBottomInset
   // is false) and nothing re-scrolls on its own, so once the keyboard is up we
-  // slide the content up to the scroll extent — which parks the card's bottom
-  // just above the keypad, since the scroll padding already carries the
-  // keyboard inset. Driven off inset changes so it tracks the keyboard's rise
-  // animation rather than guessing at a delay.
+  // slide the content up to the scroll extent. The bottom padding carries the
+  // keyboard inset, so the end of the scroll is exactly the card's bottom
+  // sitting 32pt above the keypad — but only because the minHeight constraint
+  // below is dropped while the keypad is up; leave it in and the extent is a
+  // screenful of empty space instead. Driven off inset changes so it tracks
+  // the keyboard's rise animation rather than guessing at a delay.
   void _alignCodeStep(BuildContext context) {
     final inset = MediaQuery.of(context).viewInsets.bottom;
     if (inset == _lastInset) return;
@@ -328,6 +330,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
+    final inset = MediaQuery.of(context).viewInsets.bottom;
+    final keypadUp = inset > 0;
     _alignCodeStep(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: RunqSystemBars.forBrightness(
@@ -348,12 +352,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
               child: SingleChildScrollView(
                 controller: _scroll,
                 physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(
-                  24, 32, 24, 32 + MediaQuery.of(context).viewInsets.bottom),
+                // The trailing gap doubles as the card's clearance above the
+                // keypad once scrolled to the end, so keep it tight there —
+                // 32 leaves the card floating well clear of the keys.
+                padding: EdgeInsets.fromLTRB(24, 32, 24, keypadUp ? 10 + inset : 32),
                 child: ConstrainedBox(
+                  // Fill the screen so the gradient has no seam — but only
+                  // while the keypad is down. With it up this padding stretches
+                  // the content to a full screen of mostly empty space below
+                  // the card, and scrolling to the end then parks that empty
+                  // tail on screen instead of the card.
                   constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
-                        MediaQuery.of(context).padding.vertical - 64,
+                    minHeight: keypadUp
+                        ? 0
+                        : MediaQuery.of(context).size.height -
+                            MediaQuery.of(context).padding.vertical - 64,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -388,7 +401,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      // Stacks on top of the scroll padding, so it would
+                      // double the card's clearance above the keypad.
+                      SizedBox(height: keypadUp ? 0 : 24),
                     ],
                   ),
                 ),
