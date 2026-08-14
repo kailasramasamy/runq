@@ -1,8 +1,9 @@
 import { and, eq, desc, sql, ilike, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { boms, bomLines, workOrders, woConsumption, woOutput } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
-import { items } from '@runq/db';
+import { items, categories } from '@runq/db';
 import type { BomListRow, BomWithLines, BomLine } from '@runq/types';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
@@ -12,6 +13,24 @@ export interface BomListResult {
   data: BomListRow[];
   meta: PaginationMeta;
 }
+
+// The output item's place in the category tree. Same two-alias join the items
+// master uses, so "category" means the same thing on both screens.
+const catLeaf = alias(categories, 'bom_cat_leaf');
+const catParent = alias(categories, 'bom_cat_parent');
+
+/**
+ * Category-tree order: root name, then leaf name, uncategorised last.
+ *
+ * The list is paginated, so grouping only holds if the server orders by
+ * category — otherwise a category straddles a page boundary and the app
+ * renders the same section header twice as you scroll.
+ */
+const BOM_CATEGORY_ASC = [
+  sql`COALESCE(${catParent.name}, ${catLeaf.name}) ASC NULLS LAST`,
+  sql`CASE WHEN ${catLeaf.parentId} IS NULL THEN NULL ELSE ${catLeaf.name} END ASC NULLS FIRST`,
+  sql`${items.name} ASC`,
+];
 
 export class BomService {
   constructor(
@@ -32,12 +51,18 @@ export class BomService {
         .select({
           bom: boms,
           outputItemName: items.name,
+          outputCategoryId: items.categoryId,
+          catLeafName: catLeaf.name,
+          catLeafParentId: catLeaf.parentId,
+          catParentName: catParent.name,
           lineCount: sql<number>`(SELECT count(*)::int FROM ${bomLines} WHERE ${bomLines.bomId} = ${boms.id})`,
         })
         .from(boms)
         .innerJoin(items, eq(items.id, boms.outputItemId))
+        .leftJoin(catLeaf, eq(catLeaf.id, items.categoryId))
+        .leftJoin(catParent, eq(catParent.id, catLeaf.parentId))
         .where(where)
-        .orderBy(desc(boms.createdAt))
+        .orderBy(...(filters.sort === 'category' ? BOM_CATEGORY_ASC : [desc(boms.createdAt)]))
         .limit(limit)
         .offset(offset),
       this.db
@@ -51,6 +76,11 @@ export class BomService {
       data: rows.map((r) => ({
         ...this.toBom(r.bom),
         outputItemName: r.outputItemName,
+        outputCategoryId: r.outputCategoryId ?? null,
+        // Mirrors ItemService.toItem(): a root-level leaf IS the category and
+        // has no subcategory; a child leaf is the subcategory of its parent.
+        outputCategory: r.catLeafParentId === null ? r.catLeafName : r.catParentName,
+        outputSubcategory: r.catLeafParentId === null ? null : r.catLeafName,
         lineCount: r.lineCount,
       })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },

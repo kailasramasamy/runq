@@ -13,6 +13,7 @@ class ManufacturingRepo {
     String? outputItemId,
     bool? isActive,
     String? search,
+    String? sort,
     int page = 1,
     int limit = 25,
   }) async {
@@ -20,6 +21,7 @@ class ManufacturingRepo {
     if (outputItemId != null && outputItemId.isNotEmpty) qp['outputItemId'] = outputItemId;
     if (isActive != null) qp['isActive'] = '$isActive';
     if (search != null && search.isNotEmpty) qp['search'] = search;
+    if (sort != null && sort.isNotEmpty) qp['sort'] = sort;
     final qs = qp.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');

@@ -30,6 +30,12 @@ class BomListRow {
   final String name;
   final String outputItemId;
   final String outputItemName;
+
+  /// Where the output product sits in the category tree — drives the list's
+  /// section headers. A product filed on a root category has a category but
+  /// no subcategory, so [outputSubcategory] is often null.
+  final String? outputCategory;
+  final String? outputSubcategory;
   final double outputQty;
   final String outputUom;
   final int version;
@@ -45,6 +51,8 @@ class BomListRow {
     required this.name,
     required this.outputItemId,
     required this.outputItemName,
+    this.outputCategory,
+    this.outputSubcategory,
     required this.outputQty,
     required this.outputUom,
     required this.version,
@@ -61,6 +69,8 @@ class BomListRow {
         name: j['name'] as String,
         outputItemId: j['outputItemId'] as String,
         outputItemName: (j['outputItemName'] as String?) ?? '',
+        outputCategory: j['outputCategory'] as String?,
+        outputSubcategory: j['outputSubcategory'] as String?,
         outputQty: _num(j['outputQty']),
         outputUom: (j['outputUom'] as String?) ?? '',
         version: _int(j['version']),

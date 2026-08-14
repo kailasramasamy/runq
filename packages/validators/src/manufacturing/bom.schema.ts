@@ -50,6 +50,10 @@ export const bomFilterSchema = z.object({
     .transform((v) => (typeof v === 'boolean' ? v : v === 'true'))
     .optional(),
   search: z.string().optional(),
+  /** 'category' orders by the output product's category tree so a paginated
+   *  list can be sectioned without a group straddling a page boundary.
+   *  Defaults to newest-first. */
+  sort: z.enum(['recent', 'category']).optional(),
 });
 
 export type CreateBomInput = z.infer<typeof createBomSchema>;

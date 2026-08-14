@@ -5,6 +5,7 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/mfg_bom_grouping.dart';
 import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
@@ -86,22 +87,18 @@ class _BomListScreenState extends ConsumerState<BomListScreen> {
                       description: 'Create your first Bill of Materials.',
                     );
                   }
-                  // One card, hairline-separated rows — same treatment as the
-                  // work-order list. A floating card per BOM turned a plain
-                  // list into a stack of objects to parse one at a time.
+                  // Grouped by the output product's category, then its
+                  // subcategory. Within a group: one card, hairline-separated
+                  // rows — same treatment as the work-order list. A floating
+                  // card per BOM turned a plain list into a stack of objects
+                  // to parse one at a time.
                   return RefreshIndicator(
                     onRefresh: () async => ref.invalidate(bomListProvider(params)),
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
-                      children: [
-                        MfgDividedCard(
-                          children: [
-                            for (final bom in res.data) _BomTile(bom: bom),
-                          ],
-                        ),
-                      ],
+                      children: _sectioned(res.data),
                     ),
                   );
                 },
@@ -112,6 +109,39 @@ class _BomListScreenState extends ConsumerState<BomListScreen> {
       ),
     );
   }
+}
+
+/// Category header, then a card per subcategory bucket. The category header
+/// is emitted only when the category changes, so its subcategories sit
+/// underneath it rather than each repeating the parent name.
+List<Widget> _sectioned(List<BomListRow> rows) {
+  final groups = groupBomsByCategory(rows);
+  final out = <Widget>[];
+  String? currentCategory;
+
+  for (final g in groups) {
+    if (g.category != currentCategory) {
+      currentCategory = g.category;
+      out.add(MfgCategoryHeader(
+        label: g.category,
+        count: bomCategoryCount(groups, g.category),
+      ));
+    }
+    if (g.subcategory != null) {
+      out.add(MfgCategoryHeader(
+        label: g.subcategory!,
+        count: g.rows.length,
+        nested: true,
+      ));
+    }
+    out.add(Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: MfgDividedCard(
+        children: [for (final bom in g.rows) _BomTile(bom: bom)],
+      ),
+    ));
+  }
+  return out;
 }
 
 class _BomTile extends StatelessWidget {

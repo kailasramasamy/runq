@@ -47,5 +47,10 @@ export interface BomWithLines extends Bom {
 
 export interface BomListRow extends Bom {
   outputItemName: string;
+  /** The output item's place in the category tree, for grouping the list.
+   *  A product filed on a root category has a category but no subcategory. */
+  outputCategoryId: string | null;
+  outputCategory: string | null;
+  outputSubcategory: string | null;
   lineCount: number;
 }

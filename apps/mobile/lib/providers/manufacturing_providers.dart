@@ -43,6 +43,12 @@ final bomListProvider =
     outputItemId: p.outputItemId,
     isActive: p.isActive,
     search: p.search,
+    // Category-ordered so the screen can section the list without a group
+    // reappearing further down. The screen has no load-more, so it asks for
+    // the whole set in one page rather than silently stopping at 25 — BOM
+    // counts are in the tens even for a busy plant.
+    sort: 'category',
+    limit: 200,
   );
   return BomListResult(r.data, r.total, r.totalPages);
 });
