@@ -278,7 +278,10 @@ class _RecordAdvanceSheetState extends ConsumerState<_RecordAdvanceSheet> {
     if (!_canSave) return;
     setState(() => _saving = true);
     final months = _monthsValue;
-    final firstEmi = DateTime(_paidOn.year, _paidOn.month + 1, 1);
+    // Recovery starts in the month the advance was paid: the payroll run that
+    // covers this month is the first chance to take it back, and an advance
+    // paid mid-month is repaid out of that same month's salary.
+    final firstEmi = DateTime(_paidOn.year, _paidOn.month, 1);
     try {
       await hrRecoveryRepo.recordAdvance(
         employeeId: _employee!.id,
@@ -332,9 +335,12 @@ class _AddDeductionSheetState extends ConsumerState<_AddDeductionSheet> {
   @override
   void initState() {
     super.initState();
-    final next = DateTime(DateTime.now().year, DateTime.now().month + 1, 1);
-    _startMonth = next.month;
-    _startYear = next.year;
+    // This month, not next: a deduction keyed today is meant to come out of
+    // the payroll being run for the month it was incurred in. Later is still
+    // one tap away on the pickers below.
+    final now = DateTime.now();
+    _startMonth = now.month;
+    _startYear = now.year;
   }
 
   @override

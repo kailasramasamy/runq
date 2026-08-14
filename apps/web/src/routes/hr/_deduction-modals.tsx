@@ -43,11 +43,14 @@ function yearOptions() {
   });
 }
 
-/** Next calendar month, used as the default recovery start period. */
-function nextMonthYear(): { month: number; year: number } {
+/**
+ * A deduction keyed today is meant to come out of the payroll being run for
+ * the month it was incurred in, so recovery defaults to this month. Pushing
+ * it later is one pick away.
+ */
+function thisMonthYear(): { month: number; year: number } {
   const d = new Date();
-  const month = d.getMonth() + 2; // getMonth() is 0-based; +1 for 1-based, +1 for "next"
-  return month > 12 ? { month: month - 12, year: d.getFullYear() + 1 } : { month, year: d.getFullYear() };
+  return { month: d.getMonth() + 1, year: d.getFullYear() };
 }
 
 // ─── Add / Edit modal ────────────────────────────────────────────────────────
@@ -65,15 +68,15 @@ export function DeductionFormModal({
   const create = useCreateDeduction();
   const update = useUpdateDeduction();
   const isEdit = !!deduction;
-  const next = nextMonthYear();
+  const start = thisMonthYear();
 
   const [employeeId, setEmployeeId] = useState(deduction?.employeeId ?? '');
   const [category, setCategory] = useState<DeductionCategory>(deduction?.category ?? 'other');
   const [description, setDescription] = useState(deduction?.description ?? '');
   const [amount, setAmount] = useState(deduction?.amount ?? '');
   const [months, setMonths] = useState('');
-  const [startMonth, setStartMonth] = useState(String(deduction?.startMonth ?? next.month));
-  const [startYear, setStartYear] = useState(String(deduction?.startYear ?? next.year));
+  const [startMonth, setStartMonth] = useState(String(deduction?.startMonth ?? start.month));
+  const [startYear, setStartYear] = useState(String(deduction?.startYear ?? start.year));
 
   const employeeOptions = employees.map((e) => ({
     value: e.id,
