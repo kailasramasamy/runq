@@ -5,6 +5,7 @@ import {
   TableSkeleton, EmptyState, Badge, Button,
 } from '@/components/ui';
 import { usePendingDispatches, type PendingInvoice } from '@/hooks/queries/use-sales-dispatch';
+import { BulkDispatchActions } from './_bulk-dispatch';
 
 /**
  * "Awaiting dispatch" — issued invoices whose goods haven't left yet.
@@ -16,6 +17,9 @@ import { usePendingDispatches, type PendingInvoice } from '@/hooks/queries/use-s
 export function PendingDispatchTab({ from, q }: { from?: string; q?: string }) {
   const { data, isLoading } = usePendingDispatches({ from, q, limit: 100 });
   const rows = data?.data ?? [];
+  // The queue behind the page, not the rows on it — the bulk run works the
+  // whole thing, and the count is what it reports progress against.
+  const total = data?.total ?? rows.length;
 
   if (isLoading) return <TableSkeleton rows={6} cols={5} />;
   if (rows.length === 0) {
@@ -29,21 +33,30 @@ export function PendingDispatchTab({ from, q }: { from?: string; q?: string }) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <Th>Invoice</Th>
-          <Th>Date</Th>
-          <Th>Customer</Th>
-          <Th>Lines</Th>
-          <Th className="text-right">Value</Th>
-          <Th className="text-right">Action</Th>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((r) => <PendingRow key={r.id} row={r} />)}
-      </TableBody>
-    </Table>
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
+          {total} awaiting{rows.length < total && ` · showing ${rows.length}`}
+        </span>
+        <div className="flex-1" />
+        <BulkDispatchActions from={from} total={total} />
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <Th>Invoice</Th>
+            <Th>Date</Th>
+            <Th>Customer</Th>
+            <Th>Lines</Th>
+            <Th className="text-right">Value</Th>
+            <Th className="text-right">Action</Th>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => <PendingRow key={r.id} row={r} />)}
+        </TableBody>
+      </Table>
+    </>
   );
 }
 

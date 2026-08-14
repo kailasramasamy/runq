@@ -105,6 +105,41 @@ export function usePendingDispatches(filter: Record<string, unknown> = {}) {
   });
 }
 
+export interface PendingPage {
+  data: PendingInvoice[]; page: number; limit: number; total: number; totalPages: number;
+}
+
+/**
+ * The queue as the server sees it, for the bulk loop — which pages past the
+ * 100 rows the tab renders and so cannot use the cached hook.
+ */
+export function fetchPendingDispatches(filter: Record<string, unknown>) {
+  return api.get<PendingPage>(`/inventory/sales-dispatch/pending${qs(filter)}`);
+}
+
+/** What the bulk endpoint did with one invoice. */
+export type DispatchOutcome =
+  | { status: 'off' }
+  | { status: 'skipped'; reason: string }
+  | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
+  | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
+
+export interface BulkDispatchResult { invoiceId: string; outcome: DispatchOutcome }
+
+/** Capped at 25 server-side — the caller chunks and reports progress. */
+export function bulkDispatch(invoiceIds: string[], dateMode: 'invoice' | 'today' = 'invoice') {
+  return api.post<{ data: BulkDispatchResult[] }>(
+    '/inventory/sales-dispatch/bulk', { invoiceIds, dateMode },
+  ).then(get);
+}
+
+/** The cut-over: leaves the queue without moving stock. Returns the count. */
+export function waiveDispatch(upto: string) {
+  return api.post<{ data: { waived: number } }>(
+    '/inventory/sales-dispatch/waive', { upto },
+  ).then(get);
+}
+
 export function useDispatchPreview(invoiceId: string, warehouseId: string) {
   return useQuery({
     queryKey: DISPATCH_KEYS.preview(invoiceId, warehouseId),
