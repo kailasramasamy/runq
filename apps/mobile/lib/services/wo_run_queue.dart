@@ -144,7 +144,12 @@ class WoRunQueue {
         outcome: EnqueueOutcome.sent,
         response: (res as Map).cast<String, dynamic>(),
       );
-    } catch (_) {
+    } on NetworkException catch (_) {
+      // Only a request that never reached the server may be queued. A server
+      // rejection — a shortage, a missing batch, a validation error — has to
+      // reach the caller: queueing it reports "saved offline" for something
+      // the server refused, and the retry then fails identically forever
+      // while the operator believes production was recorded.
       await _box!.put(entry.key, entry.toBox());
       _bump();
       return ProductionPostResult(outcome: EnqueueOutcome.queued);
@@ -232,11 +237,12 @@ class WoRunQueue {
       return EnqueueOutcome.queued;
     }
 
-    // Online: try immediate send. On failure, fall back to queue.
+    // Online: try immediate send. Only an unreachable server falls back to
+    // the queue — see recordProduction for why a rejection must not.
     try {
       await _send(entry);
       return EnqueueOutcome.sent;
-    } catch (_) {
+    } on NetworkException catch (_) {
       await _box!.put(entry.key, entry.toBox());
       _bump();
       // Caller still surfaces a soft warning; row is recoverable.
