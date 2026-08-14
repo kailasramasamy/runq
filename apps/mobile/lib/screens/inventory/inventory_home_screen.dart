@@ -38,11 +38,19 @@ class InventoryHomeScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: InvColors.brand(context),
           onRefresh: () async {
-            ref.invalidate(invKpisProvider);
-            ref.invalidate(invRecentActivityProvider);
-            ref.invalidate(invWarehouseValuesProvider);
+            // The strips render from a keyed family, so they're invalidated
+            // rather than awaited — their own widgets re-fetch.
             ref.invalidate(invStockHighlightsProvider);
-            await Future<void>.delayed(const Duration(milliseconds: 200));
+            // Await the real fetches. A fixed 200ms delay used to end the
+            // spinner before any data arrived, so a refresh that worked was
+            // indistinguishable from one that did nothing.
+            // Failures surface through the providers' own error state
+            // (_HomeError) — this only needs the indicator to stop.
+            await Future.wait<Object?>([
+              ref.refresh(invKpisProvider.future),
+              ref.refresh(invRecentActivityProvider.future),
+              ref.refresh(invWarehouseValuesProvider.future),
+            ]).catchError((Object _) => const <Object?>[]);
           },
           child: kpisAsync.when(
             loading: () => const _HomeSkeleton(),
@@ -63,6 +71,12 @@ class _HomeBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      // Without this, a quiet day — no alerts, empty warehouses, nothing in
+      // stock — leaves the content shorter than the viewport, and a list that
+      // can't scroll never reports the overscroll RefreshIndicator waits for.
+      // Pull-to-refresh then does nothing precisely when there's least on
+      // screen to tell you so.
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         const SliverToBoxAdapter(child: _TopBar()),
         const SliverToBoxAdapter(child: _Greeting()),
@@ -708,6 +722,7 @@ class _HomeSkeleton extends StatelessWidget {
           ),
         );
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 64),
       children: [
         block(56),
@@ -726,13 +741,24 @@ class _HomeError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Failed to load inventory: $error',
-          style: RunqText.caption.copyWith(color: t.muted),
-          textAlign: TextAlign.center,
+    // Scrollable, not a bare Center: a failed load is exactly when you reach
+    // for pull-to-refresh, and RefreshIndicator can't fire over a widget that
+    // doesn't scroll. The ConstrainedBox keeps the message centred anyway.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Failed to load inventory: $error\n\nPull down to retry.',
+                style: RunqText.caption.copyWith(color: t.muted),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         ),
       ),
     );
