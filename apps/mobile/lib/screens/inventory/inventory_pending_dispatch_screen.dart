@@ -21,8 +21,8 @@ import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/list_filter_kit.dart';
-import 'inventory_bulk_dispatch.dart';
 import 'widgets/inv_colors.dart';
+import 'widgets/queue_actions_sheet.dart';
 import 'widgets/inv_primitives.dart';
 
 class InventoryPendingDispatchScreen extends ConsumerStatefulWidget {
@@ -316,48 +316,18 @@ class _Chip extends StatelessWidget {
   }
 }
 
-/// The two ways to empty this queue, which are not variations of each other:
-/// one ships the goods, the other says they left before inventory existed.
-/// Putting them behind the same menu keeps the destructive one from sitting
-/// under a thumb on the app bar.
+/// Opens the queue actions — see [showQueueActionsSheet] for why the two
+/// live behind one entry point rather than sitting on the app bar.
 class _QueueMenu extends ConsumerWidget {
   const _QueueMenu({required this.total});
   final int total;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = RT(context);
-    return PopupMenuButton<String>(
+    return IconButton(
       icon: Icon(Icons.more_vert, color: InvColors.brand(context)),
-      onSelected: (v) => switch (v) {
-        'dispatch' => runBulkDispatch(
-            context, ref, pendingTotal: total, from: invPendingDispatchFrom()),
-        _ => runWaiveDispatch(context, ref, pendingTotal: total),
-      },
-      itemBuilder: (_) => [
-        PopupMenuItem(
-          value: 'dispatch',
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.local_shipping_outlined, size: 20),
-            title: Text('Dispatch all',
-                style: RunqText.body.copyWith(color: t.ink)),
-            subtitle: Text('Moves stock, posts cost',
-                style: RunqText.micro.copyWith(color: t.muted)),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'waive',
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.playlist_remove, size: 20),
-            title: Text('Clear without stock',
-                style: RunqText.body.copyWith(color: t.ink)),
-            subtitle: Text('For invoices raised before you tracked stock',
-                style: RunqText.micro.copyWith(color: t.muted)),
-          ),
-        ),
-      ],
+      tooltip: 'Queue actions',
+      onPressed: () => showQueueActionsSheet(context, ref, pendingTotal: total),
     );
   }
 }
