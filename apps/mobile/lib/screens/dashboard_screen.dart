@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/app_role_provider.dart';
+import '../providers/app_module_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_providers.dart';
 import '../theme/runq_theme.dart';
@@ -124,7 +124,6 @@ class _Header extends ConsumerWidget {
       data: (l) => l.isNotEmpty,
       orElse: () => false,
     );
-    final role = ref.watch(appRoleProvider);
 
     const months = [
       'January',
@@ -152,7 +151,7 @@ class _Header extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (role.canSwitchModule) const ModuleSwitcher(),
+              if (ref.watch(canSwitchModuleProvider)) const ModuleSwitcher(),
               const Spacer(),
               _IconButton(
                 icon: Icons.search_rounded,

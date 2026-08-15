@@ -161,10 +161,10 @@ class HrMoreScreen extends ConsumerWidget {
                   onTap: () => context.push('/profile/notifications')),
               _Row(Icons.translate_outlined, 'Language',
                   onTap: () => context.push('/profile/language')),
-              // Module switch is admin-only — managers + employees have no
-              // Finance surfaces, so the row would route them to a screen
-              // the redirect immediately bounces back from.
-              if (role.canSwitchModule)
+              // Only offered to users whose module grant actually covers
+              // Finance — otherwise the row routes to a screen the redirect
+              // immediately bounces back from.
+              if (ref.watch(allowedModulesProvider).contains(AppModule.finance))
                 _Row(Icons.swap_horiz_rounded, 'Switch to Finance', onTap: () async {
                   await ref.read(appModuleProvider.notifier).setModule(AppModule.finance);
                   if (context.mounted) context.go('/home');

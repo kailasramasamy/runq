@@ -32,8 +32,6 @@ extension AppRoleX on AppRole {
   /// Manager dashboards + persona toggle — admins, HR, and team managers.
   bool get canSeeManagerPersona =>
       this == AppRole.admin || this == AppRole.hr || this == AppRole.manager;
-  /// Only admins have a Finance module to flip into. HR is HR-only.
-  bool get canSwitchModule => this == AppRole.admin;
   /// HR setup + payroll configuration screens (departments, leave types,
   /// salary structures, payroll runs). Managers can approve leave but don't
   /// configure the system — only admins and HR personnel see these surfaces.

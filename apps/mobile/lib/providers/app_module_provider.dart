@@ -91,3 +91,12 @@ final allowedModulesProvider = Provider<List<AppModule>>((ref) {
   if (auth.isLoading) return AppModule.values;
   return AppModule.values.where((m) => auth.modules.contains(m.name)).toList();
 });
+
+/// True when there is somewhere to switch to. The *module grant* decides this,
+/// never the role: an ordinary employee granted Inventory + Manufacturing needs
+/// the switcher just as much as an owner does. False while the session loads so
+/// the pill doesn't flash for HR-only users.
+final canSwitchModuleProvider = Provider<bool>((ref) {
+  if (ref.watch(authProvider).isLoading) return false;
+  return ref.watch(allowedModulesProvider).length > 1;
+});

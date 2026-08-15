@@ -302,8 +302,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           '/home', '/sales', '/purchases', '/money',
           '/banking', '/invoices', '/bills', '/expenses',
           '/agent', '/approvals', '/inbox',
-          '/quick-invoice', '/manufacturing',
+          '/quick-invoice',
         };
+        // `/manufacturing` is deliberately absent: it is module-gated above by
+        // `_modulePrefixes`, so a non-admin holding the Manufacturing grant
+        // reaches it. Listing it here bounced every such user to /hr/home.
         final inFinanceRoot = financeRoots.any(loc.startsWith);
         if (inFinanceRoot && !role.canAccessFinance) {
           return '/hr/home';

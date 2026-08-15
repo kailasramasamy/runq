@@ -89,7 +89,7 @@ class _HrHomeScreenState extends ConsumerState<HrHomeScreen> {
               me: meAsync.asData?.value,
               persona: persona,
               canSwitchPersona: role.canSeeManagerPersona,
-              canSwitchModule: role.canSwitchModule,
+              canSwitchModule: ref.watch(canSwitchModuleProvider),
               onPersonaChange: (p) => ref.read(hrPersonaProvider.notifier).setPersona(p),
               onSwitchModule: () => _switchToFinance(context, ref),
               onAvatarTap: () => context.push('/hr/more'),
@@ -128,9 +128,8 @@ class _DarkHeader extends ConsumerWidget {
   final HrMe? me;
   final HrPersona persona;
   final bool canSwitchPersona;
-  /// Admins see the module pill; managers/employees don't have a Finance
-  /// module to flip into. Hidden entirely (rather than disabled) so the
-  /// header stays clean.
+  /// Shown when the user's module grant covers more than HR. Hidden entirely
+  /// (rather than disabled) so the header stays clean for HR-only staff.
   final bool canSwitchModule;
   final ValueChanged<HrPersona> onPersonaChange;
   final VoidCallback onSwitchModule;
@@ -374,10 +373,6 @@ class _EmployeeBodyState extends ConsumerState<_EmployeeBody> {
                   () => context.push('/hr/pay')),
               _QA(Icons.receipt_outlined, 'Expenses', const Color(0xFFD97706),
                   () => context.push('/hr/pay?tab=expenses')),
-              _QA(Icons.receipt_long_outlined, 'My Claims', const Color(0xFF16A34A),
-                  () => context.push('/hr/pay?tab=expenses')),
-              _QA(Icons.help_outline, 'Helpdesk', const Color(0xFFEC4899),
-                  () => context.push('/hr/helpdesk')),
             ],
           ),
           balances.when(
