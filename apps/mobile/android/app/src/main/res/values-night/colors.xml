@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- RunqTokens.bgWarm (dark) — the scaffold background, so the
+         status bar matches the screen behind it. -->
+    <color name="runq_bg">#0F0E0C</color>
+</resources>

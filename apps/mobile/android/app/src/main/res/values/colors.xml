@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#6366F1</color>
+    <!-- RunqTokens.bgWarm (light). The -night folder carries the dark value;
+         lintVital fails the release build unless the base folder declares it. -->
+    <color name="runq_bg">#F7F5F1</color>
 </resources>
