@@ -337,15 +337,21 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           onOpenSlot: _goToSlot,
         ),
         DateStepper(date: _date, onChanged: _onDateChanged),
+        // The shift picker is navigation, not part of availability: it scopes the
+        // whole screen. Hiding it inside the availability block stranded a
+        // per-shift operator on whichever shift happened to be selected — the
+        // other shift's dispatch was screen-less, not missing. Full width so
+        // the slot being worked on reads at a glance, next to the date above.
+        if (_perShift) ...[
+          const SizedBox(height: DhenuSpacing.md),
+          ShiftToggle(value: _shift, onChanged: _onShiftChanged, expand: true),
+        ],
         const SizedBox(height: DhenuSpacing.lg),
         // Availability only earns its place while there is still something to
         // send. Once the window is out the door it reads "0 / 627.1" — a
         // progress bar for work already finished.
         if (canDispatch) ...[
-        Row(children: [
-          Expanded(child: Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink))),
-          if (_perShift) ShiftToggle(value: _shift, onChanged: _onShiftChanged),
-        ]),
+        Text(l.dispatchAvailability, style: DhenuText.title.copyWith(color: t.ink)),
         const SizedBox(height: DhenuSpacing.sm),
         _availCard(t, l, availAsync, null),
         _closeControl(t, l, availAsync, closeRequired),
@@ -378,17 +384,6 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
           loading: _saving,
         ),
         ] else ...[
-          // The shift picker is navigation, not part of availability. Hiding it
-          // with the availability block stranded a per-shift operator on
-          // whichever shift happened to be selected — the other shift's
-          // dispatch was on screen-less, not missing.
-          if (_perShift) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: ShiftToggle(value: _shift, onChanged: _onShiftChanged),
-            ),
-            const SizedBox(height: DhenuSpacing.md),
-          ],
           // Everything the removed Outbound list carried — destination, status,
           // consignment no — now lives on this one card, so the screen states
           // the day's dispatch once instead of twice.

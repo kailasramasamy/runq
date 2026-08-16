@@ -15,18 +15,44 @@ import puppeteer, { type Browser } from 'puppeteer';
 
 let browserPromise: Promise<Browser> | null = null;
 
-function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      // In production we use the Alpine-installed system Chromium (set via
-      // PUPPETEER_EXECUTABLE_PATH in the Dockerfile). In dev we let puppeteer
-      // find its own bundled binary.
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    });
+function launch(): Promise<Browser> {
+  const launching = puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    // In production we use the Alpine-installed system Chromium (set via
+    // PUPPETEER_EXECUTABLE_PATH in the Dockerfile). In dev we let puppeteer
+    // find its own bundled binary.
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  });
+  browserPromise = launching;
+  // A failed launch must not be cached: a rejected promise would be replayed to
+  // every later request, so one bad start would kill PDFs for the process's
+  // whole life.
+  launching.catch(() => { if (browserPromise === launching) browserPromise = null; });
+  return launching;
+}
+
+/**
+ * The shared Chromium, relaunched if it has gone away.
+ *
+ * Chromium dies for reasons outside this process — a crash, an OOM kill, the
+ * machine sleeping. The cached promise then keeps handing out a dead Browser
+ * and every PDF fails instantly with "Connection closed." until the API is
+ * restarted, which is exactly what happened to statement downloads. Checking
+ * `connected` before reuse makes that self-healing.
+ */
+async function getBrowser(): Promise<Browser> {
+  const existing = browserPromise;
+  if (existing) {
+    try {
+      const browser = await existing;
+      if (browser.connected) return browser;
+    } catch {
+      // Launch failed; the catch above already cleared the cache — relaunch.
+    }
+    if (browserPromise === existing) browserPromise = null;
   }
-  return browserPromise;
+  return launch();
 }
 
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {

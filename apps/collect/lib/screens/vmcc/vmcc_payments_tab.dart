@@ -4,6 +4,7 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
+import '../../providers/mp_context_provider.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -17,25 +18,37 @@ import '../../widgets/section_header.dart';
 import '../../widgets/sheet_grabber.dart';
 import '../../widgets/source_row.dart';
 import 'cycle_detail_screen.dart';
+import 'farmer_payouts.dart';
 
-/// VMCC Payments tab — list this node's payout cycles + start a new one.
-/// A cycle aggregates recorded pours in a period into per-farmer payouts.
-class VmccPaymentsTab extends ConsumerWidget {
+/// VMCC Payments tab — the node's payout cycles (and starting one), plus the
+/// same money read per farmer. Two views of one ledger: a cycle says who is
+/// still owed this fortnight, a farmer says what they have earned all year.
+class VmccPaymentsTab extends ConsumerStatefulWidget {
   const VmccPaymentsTab({super.key, required this.node});
   final MpNode node;
 
-  Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(nodeCyclesProvider(node.id));
-    await ref.read(nodeCyclesProvider(node.id).future);
+  @override
+  ConsumerState<VmccPaymentsTab> createState() => _VmccPaymentsTabState();
+}
+
+class _VmccPaymentsTabState extends ConsumerState<VmccPaymentsTab> {
+  bool _byFarmer = false;
+
+  MpNode get node => widget.node;
+
+  Future<void> _refresh() async {
+    ref.invalidate(nodeCyclesProvider(node.payoutScopeNodeId));
+    ref.invalidate(nodeFarmersProvider(node.id));
+    await ref.read(nodeCyclesProvider(node.payoutScopeNodeId).future);
   }
 
-  void _open(BuildContext context, String cycleId) {
+  void _open(String cycleId) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CycleDetailScreen(node: node, cycleId: cycleId),
     ));
   }
 
-  Future<void> _newCycle(BuildContext context, WidgetRef ref) async {
+  Future<void> _newCycle() async {
     final period = await showModalBottomSheet<MpCyclePeriod>(
       context: context,
       isScrollControlled: true,
@@ -47,61 +60,50 @@ class VmccPaymentsTab extends ConsumerWidget {
       final cycle = await mpRepo.createCycle(
         periodStart: period.start,
         periodEnd: period.end,
-        scopeNodeId: node.id,
+        scopeNodeId: node.payoutScopeNodeId,
       );
-      ref.invalidate(nodeCyclesProvider(node.id));
-      if (context.mounted && cycle != null) _open(context, cycle.id);
+      ref.invalidate(nodeCyclesProvider(node.payoutScopeNodeId));
+      if (mounted && cycle != null) _open(cycle.id);
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         showDhenuToast(context, '$e', type: DhenuToastType.error);
       }
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final cyclesAsync = ref.watch(nodeCyclesProvider(node.id));
+    final cyclesAsync = ref.watch(nodeCyclesProvider(node.payoutScopeNodeId));
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: () => _refresh(ref),
+        onRefresh: _refresh,
         child: cyclesAsync.when(
           loading: () => const DhenuLoadingList(rows: 4),
           error: (e, _) => ListView(children: [
             const SizedBox(height: DhenuSpacing.x4),
             DhenuEmptyState(icon: DhenuIcons.cloudOff, title: l.paymentsCouldNotLoadCycles, subtitle: '$e'),
           ]),
-          data: (cycles) => _list(t, l, context, cycles),
+          data: (cycles) => _list(t, l, cycles),
         ),
       ),
-      bottomSheet: Padding(
-        padding: const EdgeInsets.all(DhenuSpacing.screen),
-        child: PrimaryAction(
-          label: l.paymentsStartNewCycle,
-          icon: DhenuIcons.add,
-          onPressed: () => _newCycle(context, ref),
-        ),
-      ),
+      // Starting a cycle acts on the cycles list; under the farmer view it
+      // would be a button for a screen the operator isn't looking at.
+      bottomSheet: _byFarmer
+          ? null
+          : Padding(
+              padding: const EdgeInsets.all(DhenuSpacing.screen),
+              child: PrimaryAction(
+                label: l.paymentsStartNewCycle,
+                icon: DhenuIcons.add,
+                onPressed: _newCycle,
+              ),
+            ),
     );
   }
 
-  Widget _list(DhenuTokens t, AppLocalizations l, BuildContext context, List<MpPayoutCycle> cycles) {
-    if (cycles.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(
-            DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, 120),
-        children: [
-          DhenuSectionHeader(l.navPayments),
-          const SizedBox(height: DhenuSpacing.x4),
-          DhenuEmptyState(
-            icon: DhenuIcons.payments,
-            title: l.paymentsNoCyclesTitle,
-            subtitle: l.paymentsNoCyclesSubtitle,
-          ),
-        ],
-      );
-    }
+  Widget _list(DhenuTokens t, AppLocalizations l, List<MpPayoutCycle> cycles) {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
@@ -110,22 +112,67 @@ class VmccPaymentsTab extends ConsumerWidget {
         DhenuSectionHeader(l.navPayments),
         const SizedBox(height: DhenuSpacing.xs),
         Text(l.paymentsCyclesDisbursements, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        const SizedBox(height: DhenuSpacing.md),
+        _viewTabs(t, l),
         const SizedBox(height: DhenuSpacing.lg),
-        _summary(context, t, l, cycles),
-        const SizedBox(height: DhenuSpacing.xl),
-        Text(l.paymentsCyclesTitle, style: DhenuText.title.copyWith(color: t.ink)),
-        const SizedBox(height: DhenuSpacing.sm),
-        for (final c in cycles) ...[
-          _cycleCard(t, l, context, c),
-          const SizedBox(height: DhenuSpacing.md),
+        if (_byFarmer)
+          FarmerPayoutsList(node: node)
+        else if (cycles.isEmpty)
+          DhenuEmptyState(
+            icon: DhenuIcons.payments,
+            title: l.paymentsNoCyclesTitle,
+            subtitle: l.paymentsNoCyclesSubtitle,
+          )
+        else ...[
+          _summary(t, l, cycles),
+          const SizedBox(height: DhenuSpacing.xl),
+          Text(l.paymentsCyclesTitle, style: DhenuText.title.copyWith(color: t.ink)),
+          const SizedBox(height: DhenuSpacing.sm),
+          for (final c in cycles) ...[
+            _cycleCard(t, l, c),
+            const SizedBox(height: DhenuSpacing.md),
+          ],
         ],
       ],
     );
   }
 
+  /// Cycles ⇄ Farmers — the same payouts down two axes, so this is a view
+  /// switch rather than two screens.
+  Widget _viewTabs(DhenuTokens t, AppLocalizations l) => Container(
+        decoration: BoxDecoration(
+          color: t.hairline,
+          borderRadius: BorderRadius.circular(DhenuRadii.pill),
+        ),
+        padding: const EdgeInsets.all(3),
+        child: Row(children: [
+          Expanded(child: _viewTab(t, l.paymentsCyclesTitle, !_byFarmer, false)),
+          Expanded(child: _viewTab(t, l.homeFarmers, _byFarmer, true)),
+        ]),
+      );
+
+  Widget _viewTab(DhenuTokens t, String label, bool selected, bool byFarmer) => GestureDetector(
+        onTap: () => setState(() => _byFarmer = byFarmer),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          height: DhenuSpacing.minTap,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? t.brand.withValues(alpha: 0.18) : Colors.transparent,
+            borderRadius: BorderRadius.circular(DhenuRadii.pill),
+            border: selected
+                ? Border.all(color: t.brand.withValues(alpha: 0.4), width: 1.5)
+                : null,
+          ),
+          child: Text(label,
+              style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft)),
+        ),
+      );
+
   /// At-a-glance: rupees still owed to farmers vs rupees already disbursed,
   /// summed across every live (non-reversed) cycle.
-  Widget _summary(BuildContext context, DhenuTokens t, AppLocalizations l, List<MpPayoutCycle> cycles) {
+  Widget _summary(DhenuTokens t, AppLocalizations l, List<MpPayoutCycle> cycles) {
     final live = cycles.where((c) => c.status != 'reversed');
     final pendingRs = live.fold<double>(0, (a, c) => a + c.pendingTotal);
     final pendingFarmers = live.fold<int>(0, (a, c) => a + c.pendingCount);
@@ -135,11 +182,11 @@ class VmccPaymentsTab extends ConsumerWidget {
     // stretch to equal height inside the (vertically-unbounded) ListView.
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(child: _statCard(context, paid: false, label: l.paymentsPendingToPayLabel,
+        Expanded(child: _statCard(paid: false, label: l.paymentsPendingToPayLabel,
             value: rupees(pendingRs), sub: l.paymentsPendingFarmersSub(pendingFarmers, openCount),
             icon: DhenuIcons.clock)),
         const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _statCard(context, paid: true, label: l.paymentsPaidLabel,
+        Expanded(child: _statCard(paid: true, label: l.paymentsPaidLabel,
             value: rupees(paidRs), sub: l.paymentsPaidCyclesSub(cycles.length),
             icon: DhenuIcons.checkCircle)),
       ]),
@@ -149,8 +196,7 @@ class VmccPaymentsTab extends ConsumerWidget {
   // Two distinct gradient surfaces: Paid in brand emerald (white text), Pending
   // in amber (dark text — the app's convention for text on amber, since
   // white-on-amber fails contrast). Both flip correctly in dark mode.
-  Widget _statCard(
-    BuildContext context, {
+  Widget _statCard({
     required bool paid,
     required String label,
     required String value,
@@ -192,7 +238,7 @@ class VmccPaymentsTab extends ConsumerWidget {
     );
   }
 
-  Widget _cycleCard(DhenuTokens t, AppLocalizations l, BuildContext context, MpPayoutCycle c) {
+  Widget _cycleCard(DhenuTokens t, AppLocalizations l, MpPayoutCycle c) {
     final (label, color) = switch (c.status) {
       'open' => (l.paymentsCycleStatusOpen, t.gradeB),
       'locked' => (l.paymentsCycleStatusLocked, t.brand),
@@ -201,7 +247,7 @@ class VmccPaymentsTab extends ConsumerWidget {
     };
     final net = c.netTotal > 0 ? c.netTotal : c.totalNet;
     return DhenuCard(
-      onTap: () => _open(context, c.id),
+      onTap: () => _open(c.id),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text(c.cycleNo, style: DhenuText.title.copyWith(color: t.ink)),

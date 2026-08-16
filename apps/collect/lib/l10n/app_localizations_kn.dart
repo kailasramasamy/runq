@@ -590,12 +590,6 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
-  String get homeYesterday => 'ನಿನ್ನೆ';
-
-  @override
-  String get homeNoCollectionYesterday => 'ನಿನ್ನೆ ಸಂಗ್ರಹವಿಲ್ಲ';
-
-  @override
   String get homeSeeFullHistory => 'ಪೂರ್ಣ ಇತಿಹಾಸ ನೋಡಿ';
 
   @override
@@ -611,10 +605,22 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeHeroToday => 'ಇಂದು';
 
   @override
-  String get homeHeroTodayAm => 'ಇಂದು ☀️ ಬೆಳಿಗ್ಗೆ';
+  String get homeHeroTotalToday => 'ಇಂದಿನ ಒಟ್ಟು';
 
   @override
-  String get homeHeroTodayPm => 'ಇಂದು ☾ ಸಂಜೆ';
+  String get homeShiftNotStarted => 'ಇನ್ನೂ ಆರಂಭವಾಗಿಲ್ಲ';
+
+  @override
+  String get homeShiftCollecting => 'ಸಂಗ್ರಹಣೆ ನಡೆಯುತ್ತಿದೆ';
+
+  @override
+  String get homeShiftToDispatch => 'ರವಾನಿಸಬೇಕಿದೆ';
+
+  @override
+  String get homeShiftInTransit => 'ಸಾಗಣೆಯಲ್ಲಿ';
+
+  @override
+  String get homeShiftAtCc => 'CC ನಲ್ಲಿ ಸ್ವೀಕೃತ';
 
   @override
   String homeFarmerCount(Object count) {
@@ -622,24 +628,7 @@ class AppLocalizationsKn extends AppLocalizations {
   }
 
   @override
-  String homeShiftDone(Object shift, Object litres) {
-    return '$shift ಮುಗಿದಿದೆ · $litres ಸಂಗ್ರಹ';
-  }
-
-  @override
-  String get homeToDispatch => 'ರವಾನಿಸಬೇಕಾದದ್ದು';
-
-  @override
   String get homeAllDispatched => 'ಎಲ್ಲವನ್ನೂ ರವಾನಿಸಲಾಗಿದೆ';
-
-  @override
-  String get homeNothingYet => 'ಇನ್ನೂ ಏನೂ ಇಲ್ಲ';
-
-  @override
-  String get homeCollected => 'ಸಂಗ್ರಹಿಸಲಾಗಿದೆ';
-
-  @override
-  String get homeBmcTank => 'BMC ತೊಟ್ಟಿ';
 
   @override
   String get homeLoadError => 'ನಮೂದುಗಳನ್ನು ಲೋಡ್ ಮಾಡಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ';
@@ -782,6 +771,85 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get paymentsCyclesTitle => 'ಚಕ್ರಗಳು';
+
+  @override
+  String payoutsLatestCycle(Object period) {
+    return 'ಇತ್ತೀಚಿನ ಚಕ್ರ · $period';
+  }
+
+  @override
+  String get payoutsLoadError => 'ಪಾವತಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get payoutsCycleHistory => 'ಚಕ್ರಗಳ ಇತಿಹಾಸ';
+
+  @override
+  String get payoutLineQty => 'ಪೂರೈಸಿದ ಹಾಲು';
+
+  @override
+  String get payoutLineGross => 'ಒಟ್ಟು ಮೊತ್ತ';
+
+  @override
+  String get payoutLineBonus => 'ಗುಣಮಟ್ಟ ಬೋನಸ್';
+
+  @override
+  String get payoutLineDeductions => 'ಕಡಿತಗಳು';
+
+  @override
+  String get payoutLineOtherDeduction => 'ಇತರ ಕಡಿತ';
+
+  @override
+  String get payoutLineStatementNo => 'ಸ್ಟೇಟ್‌ಮೆಂಟ್';
+
+  @override
+  String payoutLinePaidOn(Object date) {
+    return '$date ರಂದು ಪಾವತಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String get payoutLineNotPaid => 'ಇನ್ನೂ ಪಾವತಿಸಿಲ್ಲ';
+
+  @override
+  String get payoutLineMarkPaid => 'ಪಾವತಿಸಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಿ';
+
+  @override
+  String get payoutLineMarkUnpaid => 'ಪಾವತಿಸಿಲ್ಲ ಎಂದು ಗುರುತಿಸಿ';
+
+  @override
+  String get payoutsEmptyTitle => 'ಇನ್ನೂ ಪಾವತಿಗಳಿಲ್ಲ';
+
+  @override
+  String get payoutsEmptySubtitle =>
+      'ಈ ರೈತರನ್ನು ಒಳಗೊಂಡ ಚಕ್ರ ಬಂದ ನಂತರ ಪಾವತಿಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String payoutsEarnedLabel(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಚಕ್ರಗಳು',
+      one: '$count ಚಕ್ರ',
+    );
+    return 'ಗಳಿಕೆ · $_temp0';
+  }
+
+  @override
+  String payoutsPaidAmount(Object amount) {
+    return '$amount ಪಾವತಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String payoutsDueAmount(Object amount) {
+    return '$amount ಬಾಕಿ';
+  }
+
+  @override
+  String get payoutsCycleFallback => 'ಚಕ್ರ';
+
+  @override
+  String payoutsGrossLessDeductions(Object gross, Object deductions) {
+    return '$gross ಒಟ್ಟು − $deductions ಕಡಿತ';
+  }
 
   @override
   String get paymentsPendingToPayLabel => 'ಪಾವತಿ ಬಾಕಿ';

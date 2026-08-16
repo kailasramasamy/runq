@@ -1072,18 +1072,6 @@ abstract class AppLocalizations {
   /// **'{count} failed — needs attention'**
   String syncFailedLabel(Object count);
 
-  /// No description provided for @homeYesterday.
-  ///
-  /// In en, this message translates to:
-  /// **'Yesterday'**
-  String get homeYesterday;
-
-  /// No description provided for @homeNoCollectionYesterday.
-  ///
-  /// In en, this message translates to:
-  /// **'No collection yesterday'**
-  String get homeNoCollectionYesterday;
-
   /// No description provided for @homeSeeFullHistory.
   ///
   /// In en, this message translates to:
@@ -1114,17 +1102,41 @@ abstract class AppLocalizations {
   /// **'TODAY'**
   String get homeHeroToday;
 
-  /// No description provided for @homeHeroTodayAm.
+  /// No description provided for @homeHeroTotalToday.
   ///
   /// In en, this message translates to:
-  /// **'TODAY ☀️ AM'**
-  String get homeHeroTodayAm;
+  /// **'Total today'**
+  String get homeHeroTotalToday;
 
-  /// No description provided for @homeHeroTodayPm.
+  /// No description provided for @homeShiftNotStarted.
   ///
   /// In en, this message translates to:
-  /// **'TODAY ☾ PM'**
-  String get homeHeroTodayPm;
+  /// **'Not started'**
+  String get homeShiftNotStarted;
+
+  /// No description provided for @homeShiftCollecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection active'**
+  String get homeShiftCollecting;
+
+  /// No description provided for @homeShiftToDispatch.
+  ///
+  /// In en, this message translates to:
+  /// **'To dispatch'**
+  String get homeShiftToDispatch;
+
+  /// No description provided for @homeShiftInTransit.
+  ///
+  /// In en, this message translates to:
+  /// **'In transit'**
+  String get homeShiftInTransit;
+
+  /// No description provided for @homeShiftAtCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Received at CC'**
+  String get homeShiftAtCc;
 
   /// No description provided for @homeFarmerCount.
   ///
@@ -1132,41 +1144,11 @@ abstract class AppLocalizations {
   /// **'{count} farmers'**
   String homeFarmerCount(Object count);
 
-  /// No description provided for @homeShiftDone.
-  ///
-  /// In en, this message translates to:
-  /// **'{shift} done · {litres} collected'**
-  String homeShiftDone(Object shift, Object litres);
-
-  /// No description provided for @homeToDispatch.
-  ///
-  /// In en, this message translates to:
-  /// **'To dispatch'**
-  String get homeToDispatch;
-
   /// No description provided for @homeAllDispatched.
   ///
   /// In en, this message translates to:
   /// **'All dispatched'**
   String get homeAllDispatched;
-
-  /// No description provided for @homeNothingYet.
-  ///
-  /// In en, this message translates to:
-  /// **'Nothing yet'**
-  String get homeNothingYet;
-
-  /// No description provided for @homeCollected.
-  ///
-  /// In en, this message translates to:
-  /// **'Collected'**
-  String get homeCollected;
-
-  /// No description provided for @homeBmcTank.
-  ///
-  /// In en, this message translates to:
-  /// **'BMC tank'**
-  String get homeBmcTank;
 
   /// No description provided for @homeLoadError.
   ///
@@ -1413,6 +1395,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cycles'**
   String get paymentsCyclesTitle;
+
+  /// No description provided for @payoutsLatestCycle.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest cycle · {period}'**
+  String payoutsLatestCycle(Object period);
+
+  /// No description provided for @payoutsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load payouts'**
+  String get payoutsLoadError;
+
+  /// No description provided for @payoutsCycleHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle history'**
+  String get payoutsCycleHistory;
+
+  /// No description provided for @payoutLineQty.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk supplied'**
+  String get payoutLineQty;
+
+  /// No description provided for @payoutLineGross.
+  ///
+  /// In en, this message translates to:
+  /// **'Gross'**
+  String get payoutLineGross;
+
+  /// No description provided for @payoutLineBonus.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality bonus'**
+  String get payoutLineBonus;
+
+  /// No description provided for @payoutLineDeductions.
+  ///
+  /// In en, this message translates to:
+  /// **'Deductions'**
+  String get payoutLineDeductions;
+
+  /// No description provided for @payoutLineOtherDeduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Other deduction'**
+  String get payoutLineOtherDeduction;
+
+  /// No description provided for @payoutLineStatementNo.
+  ///
+  /// In en, this message translates to:
+  /// **'Statement'**
+  String get payoutLineStatementNo;
+
+  /// No description provided for @payoutLinePaidOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid on {date}'**
+  String payoutLinePaidOn(Object date);
+
+  /// No description provided for @payoutLineNotPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not paid yet'**
+  String get payoutLineNotPaid;
+
+  /// No description provided for @payoutLineMarkPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as paid'**
+  String get payoutLineMarkPaid;
+
+  /// No description provided for @payoutLineMarkUnpaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as unpaid'**
+  String get payoutLineMarkUnpaid;
+
+  /// No description provided for @payoutsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No payouts yet'**
+  String get payoutsEmptyTitle;
+
+  /// No description provided for @payoutsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payouts appear here once a cycle covers this farmer'**
+  String get payoutsEmptySubtitle;
+
+  /// No description provided for @payoutsEarnedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Earned · {count, plural, one{{count} cycle} other{{count} cycles}}'**
+  String payoutsEarnedLabel(num count);
+
+  /// No description provided for @payoutsPaidAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} paid'**
+  String payoutsPaidAmount(Object amount);
+
+  /// No description provided for @payoutsDueAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} due'**
+  String payoutsDueAmount(Object amount);
+
+  /// No description provided for @payoutsCycleFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle'**
+  String get payoutsCycleFallback;
+
+  /// No description provided for @payoutsGrossLessDeductions.
+  ///
+  /// In en, this message translates to:
+  /// **'{gross} gross − {deductions} deducted'**
+  String payoutsGrossLessDeductions(Object gross, Object deductions);
 
   /// No description provided for @paymentsPendingToPayLabel.
   ///

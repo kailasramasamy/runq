@@ -17,6 +17,15 @@ final cycleDetailProvider =
   return mpRepo.payoutCycle(cycleId);
 });
 
+/// Every payout line for one farmer, newest cycle first, each joined with its
+/// cycle window and status (GET /payouts/my-lines). Readable by an operator for
+/// a farmer at a node they hold — the server enforces that, so the operator and
+/// farmer personas share the one endpoint.
+final payoutLinesForFarmerProvider =
+    FutureProvider.family<List<MpPayoutLine>, String>((ref, farmerId) async {
+  return mpRepo.farmerPayoutLines(farmerId: farmerId);
+});
+
 /// A single farmer's ledger balance + entries (advances / loans / repayments).
 final farmerLedgerProvider =
     FutureProvider.family<({double balance, List<MpLedgerEntry> entries}), String>(

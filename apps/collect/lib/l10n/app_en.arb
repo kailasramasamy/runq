@@ -341,33 +341,24 @@
       "count": {}
     }
   },
-  "homeYesterday": "Yesterday",
-  "homeNoCollectionYesterday": "No collection yesterday",
   "homeSeeFullHistory": "See full history",
   "homeAmShiftInProgress": "☀️ AM shift · in progress",
   "homePmShiftInProgress": "☾ PM shift · in progress",
   "homeJustNow": "just now",
   "homeHeroToday": "TODAY",
-  "homeHeroTodayAm": "TODAY ☀️ AM",
-  "homeHeroTodayPm": "TODAY ☾ PM",
+  "homeHeroTotalToday": "Total today",
+  "homeShiftNotStarted": "Not started",
+  "homeShiftCollecting": "Collection active",
+  "homeShiftToDispatch": "To dispatch",
+  "homeShiftInTransit": "In transit",
+  "homeShiftAtCc": "Received at CC",
   "homeFarmerCount": "{count} farmers",
   "@homeFarmerCount": {
     "placeholders": {
       "count": {}
     }
   },
-  "homeShiftDone": "{shift} done · {litres} collected",
-  "@homeShiftDone": {
-    "placeholders": {
-      "shift": {},
-      "litres": {}
-    }
-  },
-  "homeToDispatch": "To dispatch",
   "homeAllDispatched": "All dispatched",
-  "homeNothingYet": "Nothing yet",
-  "homeCollected": "Collected",
-  "homeBmcTank": "BMC tank",
   "homeLoadError": "Could not load entries",
   "homeNoCollectionToday": "No collection yet today",
   "homeNoCollectionSubtitle": "Tap Record Collection to start",
@@ -455,6 +446,57 @@
   "paymentsNoCyclesSubtitle": "Start a cycle to pay farmers for a period",
   "paymentsCyclesDisbursements": "Cycles & farmer disbursements",
   "paymentsCyclesTitle": "Cycles",
+  "payoutsLatestCycle": "Latest cycle · {period}",
+  "@payoutsLatestCycle": {
+    "placeholders": {
+      "period": {}
+    }
+  },
+  "payoutsLoadError": "Could not load payouts",
+  "payoutsCycleHistory": "Cycle history",
+  "payoutLineQty": "Milk supplied",
+  "payoutLineGross": "Gross",
+  "payoutLineBonus": "Quality bonus",
+  "payoutLineDeductions": "Deductions",
+  "payoutLineOtherDeduction": "Other deduction",
+  "payoutLineStatementNo": "Statement",
+  "payoutLinePaidOn": "Paid on {date}",
+  "@payoutLinePaidOn": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "payoutLineNotPaid": "Not paid yet",
+  "payoutLineMarkPaid": "Mark as paid",
+  "payoutLineMarkUnpaid": "Mark as unpaid",
+  "payoutsEmptyTitle": "No payouts yet",
+  "payoutsEmptySubtitle": "Payouts appear here once a cycle covers this farmer",
+  "payoutsEarnedLabel": "Earned · {count, plural, one{{count} cycle} other{{count} cycles}}",
+  "@payoutsEarnedLabel": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "payoutsPaidAmount": "{amount} paid",
+  "@payoutsPaidAmount": {
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "payoutsDueAmount": "{amount} due",
+  "@payoutsDueAmount": {
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "payoutsCycleFallback": "Cycle",
+  "payoutsGrossLessDeductions": "{gross} gross − {deductions} deducted",
+  "@payoutsGrossLessDeductions": {
+    "placeholders": {
+      "gross": {},
+      "deductions": {}
+    }
+  },
   "paymentsPendingToPayLabel": "Pending to pay",
   "paymentsPendingFarmersSub": "{farmers} farmers · {open} open",
   "@paymentsPendingFarmersSub": {

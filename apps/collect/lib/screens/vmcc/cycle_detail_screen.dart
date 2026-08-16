@@ -16,6 +16,7 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/source_row.dart';
+import 'payout_line_sheet.dart';
 
 enum _PaidFilter { all, unpaid, paid }
 
@@ -55,7 +56,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         await mpRepo.payCycle(widget.cycleId);
       }
       ref.invalidate(cycleDetailProvider(widget.cycleId));
-      ref.invalidate(nodeCyclesProvider(widget.node.id));
+      ref.invalidate(nodeCyclesProvider(widget.node.payoutScopeNodeId));
     } catch (e) {
       if (mounted) {
         showDhenuToast(context, '$e', type: DhenuToastType.error);
@@ -86,17 +87,21 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
   bool _isPaid(MpPayoutLine l) => _override[l.id] ?? l.isPaid;
 
   /// Toggle one farmer's disbursement flag — optimistic, reverts on error.
-  Future<void> _togglePaid(MpPayoutLine l) async {
+  /// Returns where the flag actually ended up, so a caller showing its own copy
+  /// of the state (the detail sheet) follows the revert instead of the intent.
+  Future<bool> _togglePaid(MpPayoutLine l) async {
     final next = !_isPaid(l);
     setState(() => _override[l.id] = next);
     try {
       await mpRepo.markLinePaid(widget.cycleId, l.id, next);
       ref.invalidate(cycleDetailProvider(widget.cycleId));
-      ref.invalidate(nodeCyclesProvider(widget.node.id));
+      ref.invalidate(nodeCyclesProvider(widget.node.payoutScopeNodeId));
+      return next;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return !next;
       setState(() => _override[l.id] = !next);
       showDhenuToast(context, '$e', type: DhenuToastType.error);
+      return !next;
     }
   }
 
@@ -106,7 +111,7 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
       await mpRepo.markAllPaid(widget.cycleId, paid);
       _override.clear();
       ref.invalidate(cycleDetailProvider(widget.cycleId));
-      ref.invalidate(nodeCyclesProvider(widget.node.id));
+      ref.invalidate(nodeCyclesProvider(widget.node.payoutScopeNodeId));
     } catch (e) {
       if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
     } finally {
@@ -305,6 +310,10 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     return f.name.toLowerCase().contains(_query) || f.code.toLowerCase().contains(_query);
   }
 
+  /// Tap opens the payment detail (breakdown, statement, mark-paid); the tick
+  /// itself stays a one-tap toggle for working down the list at the counter.
+  /// The row tap used to be the toggle — an accidental brush marked a farmer
+  /// paid with nothing on screen to say what they were owed.
   Widget _lineRow(DhenuTokens t, MpPayoutCycle c, MpPayoutLine ln, MpFarmer? farmer, AppLocalizations l) {
     final paid = _isPaid(ln);
     final hasDed = ln.deductionTotal > 0;
@@ -317,13 +326,24 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
       litres: litres(ln.qtyLitres, unit: true),
       amount: rupees(ln.netAmount),
       amountFirst: true,
-      onTap: toggleable ? () => _togglePaid(ln) : null,
+      onTap: () => showPayoutLineSheet(
+        context,
+        cycle: c,
+        line: ln,
+        farmer: farmer,
+        paid: paid,
+        onTogglePaid: () => _togglePaid(ln),
+      ),
       trailingStatus: Row(mainAxisSize: MainAxisSize.min, children: [
         if (hasDed) ...[
           Text('− ${rupees(ln.deductionTotal)}', style: DhenuText.caption.copyWith(color: t.gradeC)),
           const SizedBox(width: DhenuSpacing.sm),
         ],
-        _paidToggle(t, paid),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: toggleable ? () => _togglePaid(ln) : null,
+          child: _paidToggle(t, paid),
+        ),
       ]),
     );
   }

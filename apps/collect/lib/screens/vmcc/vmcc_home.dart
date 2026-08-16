@@ -12,24 +12,22 @@ import '../../utils/format.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
-import '../../widgets/hero_number_card.dart';
 import '../../services/pour_queue.dart';
 import '../../widgets/pending_pours_strip.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/sync_queue_sheet.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
-import '../../widgets/quality_badge.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/pending_dispatch_alert.dart';
 import '../shared/pending_work.dart';
-import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
 import 'vmcc_dispatch_tab.dart';
 import 'vmcc_collection_history.dart';
 import 'vmcc_farmers_tab.dart';
 import 'vmcc_reports_tab.dart';
+import 'vmcc_shift_hero.dart';
 
 /// VMCC operator home tab — the capture-centric dashboard (spec §5.2). Rendered
 /// as the Home tab inside [VmccShell]; the capture action is the bottom-nav ➕.
@@ -40,9 +38,7 @@ class VmccHome extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeTodaySummaryProvider(node.id));
     ref.invalidate(nodeTodayPoursProvider(node.id));
-    ref.invalidate(nodeSummaryForDateProvider(_yesterdayKey));
-    ref.invalidate(nodePoursForDateProvider(_yesterdayKey));
-    ref.invalidate(nodeAvailabilityProvider);
+    ref.invalidate(nodeOutboundConsignmentsProvider(node.id));
     ref.invalidate(shiftStatusProvider(node.id));
     ref.invalidate(pendingDispatchProvider(node.id));
     await Future.wait([
@@ -50,8 +46,6 @@ class VmccHome extends ConsumerWidget {
       ref.read(nodeTodayPoursProvider(node.id).future),
     ]);
   }
-
-  NodeDateKey get _yesterdayKey => (nodeId: node.id, date: isoDaysAgo(1));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,9 +65,13 @@ class VmccHome extends ConsumerWidget {
           ..._unclosedShiftNudge(context, ref, t, l, summary.asData?.value),
           const SizedBox(height: DhenuSpacing.lg),
           PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
-          _hero(context, t, l, summary, bands),
-          const SizedBox(height: DhenuSpacing.md),
-          _statsRow(ref, t, l, summary),
+          summary.when(
+            loading: () => const DhenuLoadingList(rows: 2),
+            error: (e, _) => DhenuCard(
+                child: Text(friendlyError(context, e),
+                    style: DhenuText.caption.copyWith(color: t.gradeC))),
+            data: (s) => VmccShiftHero(node: node, summary: s, bands: bands),
+          ),
           const SizedBox(height: DhenuSpacing.lg),
           _primaryAction(context, ref, t, l),
           const SizedBox(height: DhenuSpacing.lg),
@@ -83,10 +81,6 @@ class VmccHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.sm),
           _recent(context, t, l, ref),
           const SizedBox(height: DhenuSpacing.xl),
-          Text(l.homeYesterday, style: DhenuText.title.copyWith(color: t.ink)),
-          const SizedBox(height: DhenuSpacing.sm),
-          _YesterdayCollection(node: node),
-          const SizedBox(height: DhenuSpacing.md),
           _historyLink(context, t, l),
         ],
       ),
@@ -267,119 +261,6 @@ class VmccHome extends ConsumerWidget {
     ];
   }
 
-  Widget _hero(BuildContext context, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary, QualityBands? bands) {
-    return summary.when(
-      loading: () => const DhenuLoadingList(rows: 2),
-      error: (e, _) => HeroNumberCard(label: l.homeHeroToday, primaryValue: '—', footer: Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC))),
-      data: (s) {
-        final isAm = shiftFrom(currentShift()) == Shift.am;
-        final qty = s == null ? 0.0 : (isAm ? s.amQty : s.pmQty);
-        return HeroNumberCard(
-          label: isAm ? l.homeHeroTodayAm : l.homeHeroTodayPm,
-          primaryValue: litres(qty, unit: true),
-          gradient: const LinearGradient(
-            colors: [DhenuColors.brand, DhenuColors.brandDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          footer: _heroFooter(l, s, isAm, bands),
-        );
-      },
-    );
-  }
-
-  /// Footer for the shift-scoped hero. The headline is the *current* shift, so
-  /// the footer carries cross-shift context: once the other shift has milk it
-  /// reads "AM done · 147.8 L collected". Farmer count + quality show only while
-  /// the other shift is empty — there the whole day's data is this shift, so the
-  /// day-level figures match the headline. Hidden before any collection today.
-  Widget? _heroFooter(AppLocalizations l, MpCollectionSummary? s, bool isAm, QualityBands? bands) {
-    if (s == null) return null;
-    final otherQty = isAm ? s.pmQty : s.amQty;
-    if (otherQty > 0.05) {
-      return Text(
-        l.homeShiftDone(isAm ? l.shiftPm : l.shiftAm, litres(otherQty, unit: true)),
-        style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82)),
-      );
-    }
-    if (s.totalQty <= 0.05) return null;
-    final milkType = node.effectiveMilkType;
-    return Row(children: [
-      Text(l.homeFarmerCount(s.farmerCount),
-          style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82))),
-      const Spacer(),
-      _qualityText(s, bands, milkType),
-    ]);
-  }
-
-  /// Quality readout for the brand-gradient hero.
-  ///
-  /// Band COLOUR cannot be used on this surface: against the gradient every
-  /// band step fails contrast — 1.06:1 at worst, and even a 65% black scrim
-  /// only lifts the red band to 4.08:1. So the values stay white on a
-  /// translucent scrim (~5:1) and a breach is signalled by an icon instead,
-  /// which survives any background.
-  Widget _qualityText(MpCollectionSummary s, QualityBands? bands, MilkType milkType) {
-    final breached = QualityBadge.anyOutOfBand(
-        bands, milkType, {'fat': s.avgFat, 'snf': s.avgSnf});
-    return Builder(builder: (ctx) {
-      return Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.sm, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.28),
-          borderRadius: BorderRadius.circular(DhenuRadii.pill),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (breached) ...[
-            const Icon(DhenuIcons.warning, size: 12, color: Colors.white),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            'FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}'
-            '${s.avgWater > 0 ? ' · W ${s.avgWater.toStringAsFixed(1)}' : ''}',
-            style: DhenuText.caption.copyWith(color: Colors.white),
-          ),
-        ]),
-      );
-    });
-  }
-
-  Widget _statsRow(WidgetRef ref, DhenuTokens t, AppLocalizations l, AsyncValue<MpCollectionSummary?> summary) {
-    final total = summary.asData?.value?.totalQty ?? 0;
-    // Milk still at the VMCC awaiting dispatch = today's collected − dispatched,
-    // across both shifts (decrements as each shift's consignment goes out).
-    final pending = ref.watch(nodeAvailabilityProvider((nodeId: node.id, shift: null)))
-        .asData?.value?.available ?? 0;
-    final allSent = pending <= 0.05;
-    return Row(children: [
-      // Neutral while milk is still on hand: mid-collection that is the normal
-      // state, not a warning. Anything genuinely overdue is called out by
-      // [PendingDispatchAlert] above, which only fires once a slot is closed or
-      // its day has passed.
-      Expanded(child: _miniCard(t, l.homeToDispatch,
-          allSent ? (total > 0 ? l.homeAllDispatched : l.homeNothingYet) : litres(pending, unit: true),
-          color: allSent ? t.gradeA : t.ink)),
-      const SizedBox(width: DhenuSpacing.md),
-      Expanded(
-        child: node.capacityLitres == null
-            ? _miniCard(t, l.homeCollected, litres(total, unit: true))
-            : DhenuCard(
-                child: TankGauge(current: total, capacity: node.capacityLitres!, label: l.homeBmcTank),
-              ),
-      ),
-    ]);
-  }
-
-  Widget _miniCard(DhenuTokens t, String label, String value, {Color? color}) => DhenuCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label.toUpperCase(), style: DhenuText.label.copyWith(color: t.inkSoft)),
-          const SizedBox(height: DhenuSpacing.xs),
-          Text(value, style: DhenuText.title.copyWith(color: color ?? t.ink)),
-        ]),
-      );
-
-
   /// Full-width tappable row into the collection history screen.
   Widget _historyLink(BuildContext context, DhenuTokens t, AppLocalizations l) => DhenuCard(
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -448,105 +329,5 @@ class VmccHome extends ConsumerWidget {
         );
       },
     );
-  }
-}
-
-/// Yesterday's collection: a rollup card (litres, farmer count, AM/PM split,
-/// qty-weighted FAT/SNF) that expands into every farmer's pours, PM then AM.
-/// Its own widget so Home stays a [ConsumerWidget] and only this card rebuilds
-/// on expand; the pour list is watched lazily, so an operator who never opens it
-/// still costs Home a single summary call.
-class _YesterdayCollection extends ConsumerStatefulWidget {
-  const _YesterdayCollection({required this.node});
-
-  final MpNode node;
-
-  @override
-  ConsumerState<_YesterdayCollection> createState() => _YesterdayCollectionState();
-}
-
-class _YesterdayCollectionState extends ConsumerState<_YesterdayCollection> {
-  bool _expanded = false;
-
-  NodeDateKey get _key => (nodeId: widget.node.id, date: isoDaysAgo(1));
-
-  @override
-  Widget build(BuildContext context) {
-    final t = DT(context);
-    final l = AppLocalizations.of(context);
-    return ref.watch(nodeSummaryForDateProvider(_key)).when(
-          loading: () => const DhenuLoadingList(rows: 1),
-          error: (e, _) =>
-              Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
-          data: (s) {
-            // Nothing to expand into on a dry day — stay a plain caption.
-            if (s == null || s.totalQty <= 0.05) {
-              return Text(l.homeNoCollectionYesterday,
-                  style: DhenuText.body.copyWith(color: t.inkSoft));
-            }
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _summaryCard(t, l, s),
-              if (_expanded) ...[
-                const SizedBox(height: DhenuSpacing.sm),
-                _pours(context, t, l),
-              ],
-            ]);
-          },
-        );
-  }
-
-  Widget _summaryCard(DhenuTokens t, AppLocalizations l, MpCollectionSummary s) => DhenuCard(
-        selected: _expanded,
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text(litres(s.totalQty, unit: true), style: DhenuText.title.copyWith(color: t.ink)),
-            const Spacer(),
-            Text(l.homeFarmerCount(s.farmerCount),
-                style: DhenuText.body.copyWith(color: t.inkSoft)),
-            const SizedBox(width: DhenuSpacing.sm),
-            Icon(_expanded ? DhenuIcons.chevronUp : DhenuIcons.chevronDown,
-                color: t.inkSoft, size: 20),
-          ]),
-          const SizedBox(height: DhenuSpacing.sm),
-          Row(children: [
-            Text('${l.shiftAm} ${litres(s.amQty, unit: true)} · ${l.shiftPm} ${litres(s.pmQty, unit: true)}',
-                style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            const Spacer(),
-            if (s.avgFat > 0)
-              Text('FAT ${s.avgFat.toStringAsFixed(1)} · SNF ${s.avgSnf.toStringAsFixed(1)}',
-                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
-          ]),
-        ]),
-      );
-
-  /// The expanded body: the same shift-grouped farmer rows Home shows for today,
-  /// tapping through to the pour detail sheet (and on to an edit).
-  Widget _pours(BuildContext context, DhenuTokens t, AppLocalizations l) {
-    final farmers = ref.watch(nodeFarmersProvider(widget.node.id)).asData?.value ?? const <MpFarmer>[];
-    final byId = {for (final f in farmers) f.id: f};
-    return ref.watch(nodePoursForDateProvider(_key)).when(
-          loading: () => const DhenuLoadingList(),
-          error: (e, _) =>
-              Text(friendlyError(context, e), style: DhenuText.caption.copyWith(color: t.gradeC)),
-          data: (pours) => pours.isEmpty
-              ? Text(l.homeNoCollectionYesterday, style: DhenuText.body.copyWith(color: t.inkSoft))
-              : ShiftGroupedPours(
-                  pours: pours,
-                  farmersById: byId,
-                  bands: ref.watch(qualityBandsProvider(widget.node.id)).valueOrNull,
-                  showAvatar: false,
-                  onTapPour: (p, farmer) => showPourDetailSheet(
-                    context,
-                    pour: p,
-                    node: widget.node,
-                    farmer: farmer,
-                    onModify: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          RecordCollectionScreen(node: widget.node, seedPour: p, seedFarmer: farmer),
-                    )),
-                  ),
-                ),
-        );
   }
 }

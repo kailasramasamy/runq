@@ -10,6 +10,7 @@ import '../theme/dhenu_tokens.dart';
 import '../utils/format.dart';
 import '../widgets/dhenu_card.dart';
 import '../widgets/dhenu_states.dart';
+import '../widgets/quality_badge.dart';
 import '../widgets/source_row.dart';
 import '../widgets/status_glyph.dart';
 
@@ -142,7 +143,11 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
     );
   }
 
-  /// Expanded body: one row per dispatch leg — destination, shift · no., qty, status.
+  /// Expanded body: one row per dispatch leg — destination, shift · no., milk
+  /// type, qty, status. A day usually holds one leg per type to the same
+  /// centre, so without the type the rows are told apart only by their
+  /// consignment number. Legacy legs predate the A1/A2 split and pooled BMC
+  /// loads carry no type at all — those simply show no pill.
   List<Widget> _detailRows(
       DhenuTokens t, AppLocalizations l, List<MpConsignment> cs, Map<String, String> names) => [
         for (var i = 0; i < cs.length; i++) ...[
@@ -151,6 +156,7 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
             title: names[cs[i].toNodeId] ??
                 (_destType == 'pp' ? l.dispatchHistoryPlantFallback : l.dispatchHistoryCcFallback),
             subtitle: _subtitle(l, cs[i]),
+            quality: cs[i].milkType == null ? null : MilkTypePill(milkType: cs[i].milkType!),
             litres: litres(cs[i].dispatchQty ?? 0, unit: true),
             trailingStatus: _status(t, l, cs[i]),
           ),

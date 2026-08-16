@@ -598,12 +598,6 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
-  String get homeYesterday => 'நேற்று';
-
-  @override
-  String get homeNoCollectionYesterday => 'நேற்று சேகரிப்பு இல்லை';
-
-  @override
   String get homeSeeFullHistory => 'முழு வரலாற்றைக் காண்க';
 
   @override
@@ -619,10 +613,22 @@ class AppLocalizationsTa extends AppLocalizations {
   String get homeHeroToday => 'இன்று';
 
   @override
-  String get homeHeroTodayAm => 'இன்று ☀️ காலை';
+  String get homeHeroTotalToday => 'இன்றைய மொத்தம்';
 
   @override
-  String get homeHeroTodayPm => 'இன்று ☾ மாலை';
+  String get homeShiftNotStarted => 'இன்னும் தொடங்கவில்லை';
+
+  @override
+  String get homeShiftCollecting => 'சேகரிப்பு நடக்கிறது';
+
+  @override
+  String get homeShiftToDispatch => 'அனுப்ப வேண்டியது';
+
+  @override
+  String get homeShiftInTransit => 'போக்குவரத்தில்';
+
+  @override
+  String get homeShiftAtCc => 'CC-ல் பெறப்பட்டது';
 
   @override
   String homeFarmerCount(Object count) {
@@ -630,24 +636,7 @@ class AppLocalizationsTa extends AppLocalizations {
   }
 
   @override
-  String homeShiftDone(Object shift, Object litres) {
-    return '$shift முடிந்தது · $litres சேகரிக்கப்பட்டது';
-  }
-
-  @override
-  String get homeToDispatch => 'அனுப்ப வேண்டியது';
-
-  @override
   String get homeAllDispatched => 'அனைத்தும் அனுப்பப்பட்டது';
-
-  @override
-  String get homeNothingYet => 'இன்னும் எதுவும் இல்லை';
-
-  @override
-  String get homeCollected => 'சேகரிக்கப்பட்டது';
-
-  @override
-  String get homeBmcTank => 'BMC தொட்டி';
 
   @override
   String get homeLoadError => 'உள்ளீடுகளை ஏற்ற முடியவில்லை';
@@ -791,6 +780,85 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get paymentsCyclesTitle => 'சுழற்சிகள்';
+
+  @override
+  String payoutsLatestCycle(Object period) {
+    return 'சமீபத்திய சுழற்சி · $period';
+  }
+
+  @override
+  String get payoutsLoadError => 'பணப்பட்டுவாடாக்களை ஏற்ற முடியவில்லை';
+
+  @override
+  String get payoutsCycleHistory => 'சுழற்சி வரலாறு';
+
+  @override
+  String get payoutLineQty => 'வழங்கிய பால்';
+
+  @override
+  String get payoutLineGross => 'மொத்தத் தொகை';
+
+  @override
+  String get payoutLineBonus => 'தர ஊக்கத்தொகை';
+
+  @override
+  String get payoutLineDeductions => 'கழிவுகள்';
+
+  @override
+  String get payoutLineOtherDeduction => 'பிற கழிவு';
+
+  @override
+  String get payoutLineStatementNo => 'அறிக்கை';
+
+  @override
+  String payoutLinePaidOn(Object date) {
+    return '$date அன்று செலுத்தப்பட்டது';
+  }
+
+  @override
+  String get payoutLineNotPaid => 'இன்னும் செலுத்தப்படவில்லை';
+
+  @override
+  String get payoutLineMarkPaid => 'செலுத்தியதாகக் குறி';
+
+  @override
+  String get payoutLineMarkUnpaid => 'செலுத்தாததாகக் குறி';
+
+  @override
+  String get payoutsEmptyTitle => 'இதுவரை பணப்பட்டுவாடா இல்லை';
+
+  @override
+  String get payoutsEmptySubtitle =>
+      'இந்த விவசாயியை உள்ளடக்கிய சுழற்சி வந்ததும் இங்கே தோன்றும்';
+
+  @override
+  String payoutsEarnedLabel(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count சுழற்சிகள்',
+      one: '$count சுழற்சி',
+    );
+    return 'சம்பாத்தியம் · $_temp0';
+  }
+
+  @override
+  String payoutsPaidAmount(Object amount) {
+    return '$amount செலுத்தப்பட்டது';
+  }
+
+  @override
+  String payoutsDueAmount(Object amount) {
+    return '$amount நிலுவை';
+  }
+
+  @override
+  String get payoutsCycleFallback => 'சுழற்சி';
+
+  @override
+  String payoutsGrossLessDeductions(Object gross, Object deductions) {
+    return '$gross மொத்தம் − $deductions கழிவு';
+  }
 
   @override
   String get paymentsPendingToPayLabel => 'செலுத்த நிலுவை';

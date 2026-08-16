@@ -9,13 +9,19 @@ import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
-import '../../widgets/dhenu_toast.dart';
+import '../../utils/friendly_error.dart';
 
-/// Button that exports a farmer's pours for a chosen cycle as a PDF and opens
-/// the OS share sheet. The PDF is rendered server-side (parity with web).
+/// Button that exports a farmer's pours for a cycle as a PDF and opens the OS
+/// share sheet. The PDF is rendered server-side (parity with web).
+///
+/// [period] pins it to one window — used where the screen is already about a
+/// specific cycle, so offering a picker would let the operator share a
+/// statement for a period they aren't looking at. Left null, the plain tap
+/// shares the latest closed cycle and the calendar button picks another.
 class ShareStatementButton extends ConsumerStatefulWidget {
-  const ShareStatementButton({super.key, required this.farmer});
+  const ShareStatementButton({super.key, required this.farmer, this.period});
   final MpFarmer farmer;
+  final MpCyclePeriod? period;
 
   @override
   ConsumerState<ShareStatementButton> createState() => _ShareStatementButtonState();
@@ -23,21 +29,29 @@ class ShareStatementButton extends ConsumerStatefulWidget {
 
 class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
   bool _busy = false;
+  // Shown under the button rather than as a toast: this button also lives
+  // inside a modal sheet, and a ScaffoldMessenger snackbar paints below the
+  // sheet — a failed statement then looked like nothing happening at all.
+  String? _error;
 
   /// Default tap: share the latest *closed* cycle straight away (the most
   /// common ask — no picker). The calendar button next door opens the picker.
   Future<void> _run({bool choose = false}) async {
-    final l = AppLocalizations.of(context);
-    final cycles = await ref.read(recentCyclePeriodsProvider.future);
-    if (!mounted) return;
-    if (cycles.isEmpty) {
-      showDhenuToast(context, l.statementNoCycles, type: DhenuToastType.error);
-      return;
+    setState(() => _error = null);
+    final MpCyclePeriod? picked;
+    if (widget.period != null) {
+      picked = widget.period;
+    } else {
+      final l = AppLocalizations.of(context);
+      final cycles = await ref.read(recentCyclePeriodsProvider.future);
+      if (!mounted) return;
+      if (cycles.isEmpty) {
+        setState(() => _error = l.statementNoCycles);
+        return;
+      }
+      // cycles[0] is the in-progress window; [1] is the newest closed one.
+      picked = choose ? await _pickCycle(cycles) : (cycles.length > 1 ? cycles[1] : cycles.first);
     }
-    // cycles[0] is the in-progress window; [1] is the newest closed one.
-    final MpCyclePeriod? picked = choose
-        ? await _pickCycle(cycles)
-        : (cycles.length > 1 ? cycles[1] : cycles.first);
     if (picked == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -50,7 +64,7 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
     } catch (e) {
       if (mounted) {
         final l2 = AppLocalizations.of(context);
-        showDhenuToast(context, l2.statementGenerateError(e), type: DhenuToastType.error);
+        setState(() => _error = l2.statementGenerateError(friendlyError(context, e)));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -110,7 +124,7 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
       foregroundColor: t.brand,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DhenuRadii.button)),
     );
-    return Row(children: [
+    final row = Row(children: [
       Expanded(
         child: OutlinedButton.icon(
           onPressed: _busy ? null : _run,
@@ -121,6 +135,7 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
           style: buttonStyle,
         ),
       ),
+      if (widget.period == null) ...[
       const SizedBox(width: DhenuSpacing.sm),
       // Pick a different cycle — the plain tap shares the latest closed one.
       OutlinedButton(
@@ -131,6 +146,13 @@ class _ShareStatementButtonState extends ConsumerState<ShareStatementButton> {
         ),
         child: const Icon(DhenuIcons.calendar, size: 18),
       ),
+      ],
+    ]);
+    if (_error == null) return row;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      row,
+      const SizedBox(height: DhenuSpacing.xs),
+      Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
     ]);
   }
 }

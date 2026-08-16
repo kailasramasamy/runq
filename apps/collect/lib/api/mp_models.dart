@@ -115,6 +115,12 @@ class MpNode {
   bool get isPooledDispatch => dispatchMode != 'per_shift';
   bool get isOvernightPool => dispatchMode == 'overnight';
 
+  /// Which node's payout cycle settles this node's farmers. Cycles are
+  /// CC-scoped — one per CC + period — so a VMCC has none of its own: its
+  /// farmers are paid by the parent CC's cycle. Asking for cycles at the VMCC
+  /// itself returns nothing, which reads on screen as "no cycles yet".
+  String get payoutScopeNodeId => isVmcc ? (parentNodeId ?? id) : id;
+
   /// The single milk type used to colour aggregate (mixed) FAT/SNF values at
   /// this node: explicit default, else the sole/first allowed type, else Cow A1.
   MilkType get effectiveMilkType =>

@@ -3,7 +3,6 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
-import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_context_provider.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
@@ -26,23 +25,13 @@ import '../shared/receive_leg.dart';
 typedef _Flow = ({double transit, double received, int tankers});
 
 /// PP operator home — mirrors the CC home layout: emerald hero, raw-milk tank
-/// gauge, in-transit/received stats, the CC network feeding this plant today,
-/// and recent tanker receipts.
+/// gauge, in-transit/received stats and the CC network feeding this plant today.
 class PpHome extends ConsumerWidget {
   const PpHome({super.key, required this.node});
   final MpNode node;
 
-  /// Recent receives spans 3 days, unlike the rest of this page: a load
-  /// collected yesterday but received this morning keeps YESTERDAY's collection
-  /// date, so a today-scoped list drops it the instant it's taken in. The hero,
-  /// gauge and CC list stay strictly today — those are the day's tally.
-  static const _recentDays = 3;
-  ReceivedRangeArgs get _recentArgs =>
-      (nodeId: node.id, kind: 'cc_to_pp', days: _recentDays);
-
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
-    ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
     await ref.read(nodeInboundConsignmentsProvider(node.id).future);
   }
 
@@ -58,8 +47,6 @@ class PpHome extends ConsumerWidget {
     final flow = _flowByNode(tankers);
     final inTransit = flow.values.fold<double>(0, (a, b) => a + b.transit);
     final received = flow.values.fold<double>(0, (a, b) => a + b.received);
-    final recent = ref.watch(nodeReceivedRangeProvider(_recentArgs)).valueOrNull
-        ?? const <MpConsignment>[];
     // The hero and stats above are a day view, built on today's inbound. This
     // is the work queue: everything still on the road whatever its collection
     // date. A tanker dispatched on Tuesday and not yet taken in was invisible
@@ -100,10 +87,6 @@ class PpHome extends ConsumerWidget {
           Text(l.ppHomeCcsToday, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
           _ccList(l, t, flow, names),
-          const SizedBox(height: DhenuSpacing.lg),
-          Text(l.ccReceiveRecentReceives, style: DhenuText.title.copyWith(color: t.ink)),
-          const SizedBox(height: DhenuSpacing.sm),
-          _recentReceives(l, t, recent, names, bands, milkType),
         ],
       ),
     );
@@ -401,102 +384,6 @@ class PpHome extends ConsumerWidget {
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Text(label, style: DhenuText.caption.copyWith(color: color)),
-    );
-  }
-
-  /// The newest few receipts across the 3-day window, grouped under a date
-  /// header per day — spanning days, an undated run of rows gives no sense of
-  /// which day's intake you're looking at. Rows arrive newest-first from the
-  /// API, so insertion order carries the grouping.
-  Widget _recentReceives(AppLocalizations l, DhenuTokens t, List<MpConsignment> received, Map<String, String> names, QualityBands bands, MilkType milkType) {
-    if (received.isEmpty) {
-      return DhenuEmptyState(
-        icon: DhenuIcons.package,
-        title: l.ccReceiveNoReceiptsYet,
-        subtitle: l.ppReceiveNoReceiptsSubtitle,
-      );
-    }
-    final byDay = <String, List<MpConsignment>>{};
-    for (final c in received.take(5)) {
-      byDay.putIfAbsent(c.collectionDate, () => []).add(c);
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      for (final day in byDay.entries) ...[
-        _dayHeader(t, day.key, day.value),
-        const SizedBox(height: DhenuSpacing.sm),
-        DhenuCard(
-          padding: EdgeInsets.zero,
-          child: Column(children: [
-            for (var i = 0; i < day.value.length; i++) ...[
-              if (i > 0) Divider(height: 1, color: t.hairline),
-              _receiveRow(l, t, day.value[i], names, bands, milkType),
-            ],
-          ]),
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-      ],
-    ]);
-  }
-
-  Widget _dayHeader(DhenuTokens t, String date, List<MpConsignment> rows) {
-    final qty = rows.fold<double>(0, (s, c) => s + (c.receiptQty ?? 0));
-    return Row(children: [
-      Text(prettyDate(date),
-          style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-      const SizedBox(width: DhenuSpacing.sm),
-      Expanded(child: Divider(color: t.hairline, height: 1)),
-      const SizedBox(width: DhenuSpacing.sm),
-      Text('${rows.length} · ${litres(qty, unit: true)}',
-          style: DhenuText.caption.copyWith(color: t.inkSoft)),
-    ]);
-  }
-
-  Widget _receiveRow(AppLocalizations l, DhenuTokens t, MpConsignment c, Map<String, String> names, QualityBands bands, MilkType milkType) {
-    final v = c.variancePct ?? 0;
-    final vColor = v.abs() > 2 ? t.gradeC : t.gradeA;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      child: Row(children: [
-        Icon(DhenuIcons.truck, size: 18, color: t.brand),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(names[c.fromNodeId] ?? 'CC',
-              style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          // What the load is comes first — at the plant the milk type decides
-          // which raw-milk stock it lands in. Bands are read against the load's
-          // own type, not the plant's default, or buffalo gets graded as cow.
-          // Wrap, not Row: the type label and the QC readout together overrun the
-          // narrow left column on a phone, and both need to stay readable — so
-          // the badge drops to its own line rather than being clipped.
-          Wrap(
-            spacing: DhenuSpacing.sm,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              // Legacy legs predate per-type consignments and carry no type.
-              if (c.milkType != null) MilkTypePill(milkType: c.milkType!),
-              if (c.receiptFat != null)
-                QualityBadge(fat: c.receiptFat, snf: c.receiptSnf, water: c.receiptWater,
-                    grade: Grade.unknown, bands: bands, milkType: c.milkType ?? milkType),
-            ],
-          ),
-          const SizedBox(height: 2),
-          // Slot first: it is what lets the plant match this row against the
-          // leg the CC says it dispatched.
-          Text(
-            '${consignmentSlotL10n(l, c.shift)} · ${c.containerNo ?? c.consignmentNo}',
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        ])),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 2),
-          Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
-              style: DhenuText.caption.copyWith(color: vColor)),
-        ]),
-      ]),
     );
   }
 }

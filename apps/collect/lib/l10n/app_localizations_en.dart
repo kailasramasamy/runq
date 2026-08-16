@@ -593,12 +593,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get homeYesterday => 'Yesterday';
-
-  @override
-  String get homeNoCollectionYesterday => 'No collection yesterday';
-
-  @override
   String get homeSeeFullHistory => 'See full history';
 
   @override
@@ -614,10 +608,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeHeroToday => 'TODAY';
 
   @override
-  String get homeHeroTodayAm => 'TODAY ☀️ AM';
+  String get homeHeroTotalToday => 'Total today';
 
   @override
-  String get homeHeroTodayPm => 'TODAY ☾ PM';
+  String get homeShiftNotStarted => 'Not started';
+
+  @override
+  String get homeShiftCollecting => 'Collection active';
+
+  @override
+  String get homeShiftToDispatch => 'To dispatch';
+
+  @override
+  String get homeShiftInTransit => 'In transit';
+
+  @override
+  String get homeShiftAtCc => 'Received at CC';
 
   @override
   String homeFarmerCount(Object count) {
@@ -625,24 +631,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String homeShiftDone(Object shift, Object litres) {
-    return '$shift done · $litres collected';
-  }
-
-  @override
-  String get homeToDispatch => 'To dispatch';
-
-  @override
   String get homeAllDispatched => 'All dispatched';
-
-  @override
-  String get homeNothingYet => 'Nothing yet';
-
-  @override
-  String get homeCollected => 'Collected';
-
-  @override
-  String get homeBmcTank => 'BMC tank';
 
   @override
   String get homeLoadError => 'Could not load entries';
@@ -785,6 +774,85 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paymentsCyclesTitle => 'Cycles';
+
+  @override
+  String payoutsLatestCycle(Object period) {
+    return 'Latest cycle · $period';
+  }
+
+  @override
+  String get payoutsLoadError => 'Could not load payouts';
+
+  @override
+  String get payoutsCycleHistory => 'Cycle history';
+
+  @override
+  String get payoutLineQty => 'Milk supplied';
+
+  @override
+  String get payoutLineGross => 'Gross';
+
+  @override
+  String get payoutLineBonus => 'Quality bonus';
+
+  @override
+  String get payoutLineDeductions => 'Deductions';
+
+  @override
+  String get payoutLineOtherDeduction => 'Other deduction';
+
+  @override
+  String get payoutLineStatementNo => 'Statement';
+
+  @override
+  String payoutLinePaidOn(Object date) {
+    return 'Paid on $date';
+  }
+
+  @override
+  String get payoutLineNotPaid => 'Not paid yet';
+
+  @override
+  String get payoutLineMarkPaid => 'Mark as paid';
+
+  @override
+  String get payoutLineMarkUnpaid => 'Mark as unpaid';
+
+  @override
+  String get payoutsEmptyTitle => 'No payouts yet';
+
+  @override
+  String get payoutsEmptySubtitle =>
+      'Payouts appear here once a cycle covers this farmer';
+
+  @override
+  String payoutsEarnedLabel(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cycles',
+      one: '$count cycle',
+    );
+    return 'Earned · $_temp0';
+  }
+
+  @override
+  String payoutsPaidAmount(Object amount) {
+    return '$amount paid';
+  }
+
+  @override
+  String payoutsDueAmount(Object amount) {
+    return '$amount due';
+  }
+
+  @override
+  String get payoutsCycleFallback => 'Cycle';
+
+  @override
+  String payoutsGrossLessDeductions(Object gross, Object deductions) {
+    return '$gross gross − $deductions deducted';
+  }
 
   @override
   String get paymentsPendingToPayLabel => 'Pending to pay';
