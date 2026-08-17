@@ -2062,6 +2062,19 @@ class AppLocalizationsKn extends AppLocalizations {
   String get ccHomeEvening => 'ಸಂಜೆ';
 
   @override
+  String ccHomeShiftInTransit(Object amount) {
+    return '$amount ದಾರಿಯಲ್ಲಿದೆ';
+  }
+
+  @override
+  String ccHomeShiftReceivedCount(int done, int total) {
+    return '$total ರಲ್ಲಿ $done ಬಂದಿದೆ';
+  }
+
+  @override
+  String get ccHomeShiftNothingIn => 'ಇನ್ನೂ ಏನೂ ಇಲ್ಲ';
+
+  @override
   String get ccReceiveTitle => 'ಸ್ವೀಕರಿಸಿ';
 
   @override
@@ -2079,6 +2092,21 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get ccReceiveRecentReceives => 'ಇತ್ತೀಚಿನ ಸ್ವೀಕೃತಿಗಳು';
+
+  @override
+  String get historyNotReceivedYet => 'ಇನ್ನೂ ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String historyUpstreamPending(Object qty) {
+    return '$qty ಇನ್ನೂ ಸ್ವೀಕರಿಸಿಲ್ಲ';
+  }
+
+  @override
+  String get historyAtSource => 'ಮೂಲದಲ್ಲಿ';
+
+  @override
+  String get historyNothingToday =>
+      'ಇಂದು ಇನ್ನೂ ಏನೂ ಸ್ವೀಕೃತಿ ಅಥವಾ ಸಂಗ್ರಹ ಆಗಿಲ್ಲ';
 
   @override
   String get ccReceiveNoReceiptsYet => 'ಇನ್ನೂ ಸ್ವೀಕೃತಿಗಳಿಲ್ಲ';
@@ -2376,10 +2404,6 @@ class AppLocalizationsKn extends AppLocalizations {
   String get ppHomeReceivedLabel => 'ಸ್ವೀಕರಿಸಿದ್ದು';
 
   @override
-  String get ppHomeInventoryNote =>
-      'ಅಂಗೀಕರಿಸಿದ್ದು runq ದಾಸ್ತಾನಿಗೆ ಪೋಸ್ಟ್ ಆಗುತ್ತದೆ (ಕಚ್ಚಾ ಹಾಲಿನ ಬ್ಯಾಚ್)';
-
-  @override
   String get ppHomeNoCcsTitle => 'ರವಾನಿಸುತ್ತಿರುವ CCಗಳಿಲ್ಲ';
 
   @override
@@ -2543,21 +2567,6 @@ class AppLocalizationsKn extends AppLocalizations {
   @override
   String get adminSwitchNoCentresSubtitle =>
       'ವೆಬ್ ಅಡ್ಮಿನ್‌ನಲ್ಲಿ ಮೊದಲು VMCCಗಳು, ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಗಳು ಅಥವಾ ಘಟಕಗಳನ್ನು ಸೇರಿಸಿ';
-
-  @override
-  String adminSwitchCountPp(int n) {
-    return '$n ಘಟಕ';
-  }
-
-  @override
-  String adminSwitchCountCc(int n) {
-    return '$n ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ';
-  }
-
-  @override
-  String adminSwitchCountVmcc(int n) {
-    return '$n ಕೇಂದ್ರ';
-  }
 
   @override
   String get operatorSwitchRolePp => 'ಸಂಸ್ಕರಣಾ ಘಟಕ';
@@ -3029,4 +3038,95 @@ class AppLocalizationsKn extends AppLocalizations {
   String ppQcRankingSummary(int active, int total, int days) {
     return '$total ರಲ್ಲಿ $active CC ವಿತರಿಸಿದೆ · ಕೊನೆಯ $days ದಿನಗಳು';
   }
+
+  @override
+  String fastTrackTitle(String plant) {
+    return '$plant ಗೆ ಕಳುಹಿಸಬೇಕೇ?';
+  }
+
+  @override
+  String get fastTrackChecking => 'ಸಿದ್ಧವಿರುವುದನ್ನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…';
+
+  @override
+  String get fastTrackSend => 'ಕಳುಹಿಸಿ';
+
+  @override
+  String get fastTrackNothingTitle => 'ಕಳುಹಿಸಲು ಏನೂ ಇಲ್ಲ';
+
+  @override
+  String get fastTrackNothingSubtitle =>
+      'ಸದ್ಯಕ್ಕೆ ಪ್ಲಾಂಟ್‌ಗೆ ಹೋಗಲು ಹಾಲು ಕಾಯುತ್ತಿಲ್ಲ.';
+
+  @override
+  String get fastTrackClosesWholeDay =>
+      'ಇದು ಈ ಕೇಂದ್ರದ ಇಡೀ ದಿನದ ಸಂಗ್ರಹಣೆಯನ್ನು ಮುಚ್ಚುತ್ತದೆ — ನಂತರ ಸುರಿದ ಹಾಲಿಗೆ ಸ್ಲಾಟ್ ಮತ್ತೆ ತೆರೆಯಬೇಕು.';
+
+  @override
+  String fastTrackSuccess(String qty, String plant) {
+    return '$qty $plant ಗೆ ಕಳುಹಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String fastTrackPartial(String vmcc) {
+    return '$vmcc ನಲ್ಲಿ ನಿಂತಿದೆ. ಅದಕ್ಕೂ ಮೊದಲಿನದೆಲ್ಲ ದಾಖಲಾಗಿದೆ — ಉಳಿದದ್ದನ್ನು ರವಾನೆ ಪರದೆಯಲ್ಲಿ ಮುಗಿಸಿ.';
+  }
+
+  @override
+  String get dispatchDestTitle => 'ಇದು ಎಲ್ಲಿಗೆ ಹೋಗುತ್ತದೆ?';
+
+  @override
+  String dispatchDestPlant(String plant) {
+    return '$plant ಗೆ ಕಳುಹಿಸಿ';
+  }
+
+  @override
+  String get dispatchDestPlantSub =>
+      'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರವನ್ನು ಮುಚ್ಚಿ ಹಾಲನ್ನು ಕಚ್ಚಾ ದಾಸ್ತಾನಿಗೆ ಸೇರಿಸುತ್ತದೆ — ಇಡೀ ಸರಪಳಿ, ಒಂದೇ ಹಂತದಲ್ಲಿ';
+
+  @override
+  String dispatchDestCc(String cc) {
+    return '$cc ಗೆ ರವಾನಿಸಿ';
+  }
+
+  @override
+  String get dispatchDestCcSub =>
+      'ಸಾಮಾನ್ಯ ಹಂತ — ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರ ಸ್ವೀಕರಿಸಿ ತೂಕ ಮಾಡುತ್ತದೆ';
+
+  @override
+  String get fastTrackChainSummary =>
+      'ಎರಡೂ ಕೇಂದ್ರಗಳನ್ನು ಮುಚ್ಚಿ, ಪ್ರತಿ ಹಂತದ ರವಾನೆ ಮತ್ತು ಸ್ವೀಕೃತಿಯನ್ನು ದಾಖಲಿಸಿ, ಹಾಲನ್ನು ಕಚ್ಚಾ ದಾಸ್ತಾನಿಗೆ ಸೇರಿಸುತ್ತದೆ.';
+
+  @override
+  String get ccHomeShiftAwaitingVmcc => 'ಇನ್ನೂ ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String homeDispatchShiftQty(String shift, String qty) {
+    return '$shift ರವಾನಿಸಿ · $qty';
+  }
+
+  @override
+  String homeDispatchSlotDated(String shift, String date, String qty) {
+    return '$shift · $date · $qty ರವಾನಿಸಿ';
+  }
+
+  @override
+  String homeDispatchBothShifts(String qty) {
+    return 'AM ಮತ್ತು PM ರವಾನಿಸಿ · $qty';
+  }
+
+  @override
+  String dispatchDestPlantSubBoth(String qty) {
+    return 'ಎರಡೂ ಪಾಳಿಗಳು · $qty';
+  }
+
+  @override
+  String dispatchDestCcSubOne(String shift) {
+    return 'ಒಂದೊಂದೇ ಪಾಳಿ — $shift ನಿಂದ ಆರಂಭ';
+  }
+
+  @override
+  String get dispatchDestPlantGeneric => 'ಮುಖ್ಯ ಪ್ಲಾಂಟ್‌ಗೆ ಕಳುಹಿಸಿ';
+
+  @override
+  String get dispatchDestCcGeneric => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಕ್ಕೆ ರವಾನಿಸಿ';
 }

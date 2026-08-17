@@ -48,6 +48,22 @@ export const directReceiveConsignmentSchema = z.object({
   water: z.number().min(0).max(100).nullish(),
 });
 
+/**
+ * Single-site fast track: run the whole VMCC→CC→PP chain for one collection
+ * slot in one call. `plan` previews it, `run` commits it — both take the same
+ * body, so the operator confirms exactly what was previewed.
+ *
+ * `shift` names the slot for per_shift nodes and is ignored by pooled ones (the
+ * node's dispatch mode owns its window). `vmccNodeIds` narrows the sweep to
+ * named centres; omit it and every eligible VMCC the operator is assigned to
+ * runs.
+ */
+export const fastTrackSchema = z.object({
+  collectionDate: z.string().date(),
+  shift: z.enum(['am', 'pm']).optional(),
+  vmccNodeIds: z.array(z.string().uuid()).min(1).optional(),
+});
+
 export const consignmentFilterSchema = z.object({
   kind: z.enum(['vmcc_to_cc', 'cc_to_pp']).optional(),
   fromNodeId: z.string().uuid().optional(),
@@ -81,5 +97,6 @@ export type CreateConsignmentInput = z.infer<typeof createConsignmentSchema>;
 export type ReceiveConsignmentInput = z.infer<typeof receiveConsignmentSchema>;
 export type DirectReceiveConsignmentInput = z.infer<typeof directReceiveConsignmentSchema>;
 export type ConsignmentFilter = z.infer<typeof consignmentFilterSchema>;
+export type FastTrackInput = z.infer<typeof fastTrackSchema>;
 export type ConsignmentAvailabilityQuery = z.infer<typeof consignmentAvailabilitySchema>;
 export type PendingDispatchQuery = z.infer<typeof pendingDispatchSchema>;

@@ -83,6 +83,10 @@ class MpNode {
   final List<MilkType>? allowedMilkTypes;
   /// Node-level default milk type for new pours. Null = no preference.
   final MilkType? defaultMilkType;
+  /// VMCC-only, read-side: this centre, its CC and the plant above them are one
+  /// site, and this operator can work all three — so the whole
+  /// close→dispatch→receive chain can run from one confirmed action.
+  final bool fastTrackEnabled;
 
   MpNode({
     required this.id,
@@ -103,6 +107,7 @@ class MpNode {
     this.collectionShifts = 'both',
     this.allowedMilkTypes,
     this.defaultMilkType,
+    this.fastTrackEnabled = false,
   });
 
   bool get isVmcc => nodeType == 'vmcc';
@@ -161,6 +166,7 @@ class MpNode {
     defaultMilkType: j['defaultMilkType'] == null
         ? null
         : milkTypeFrom(j['defaultMilkType'] as String?),
+    fastTrackEnabled: _b(j['fastTrackEnabled']),
   );
 }
 
@@ -1180,4 +1186,136 @@ class QualityBands {
     });
     return QualityBands(bands);
   }
+}
+
+// ── single-site fast track ──────────────────────────────────────────────────
+
+/// One milk type's worth of milk moving up the chain in a fast-track run.
+class MpFastTrackLeg {
+  const MpFastTrackLeg({required this.qty, this.milkType, this.fat, this.snf});
+  final double qty;
+  final MilkType? milkType;
+  final double? fat, snf;
+
+  factory MpFastTrackLeg.fromJson(Map<String, dynamic> j) => MpFastTrackLeg(
+    qty: _d(j['qty']),
+    milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
+    fat: _dn(j['fat']),
+    snf: _dn(j['snf']),
+  );
+}
+
+/// A (date, shift) slot a close will cover. Named explicitly so the confirm
+/// sheet can show that a pooled node is about to close both halves of its day.
+class MpFastTrackSlot {
+  const MpFastTrackSlot({required this.date, required this.shift});
+  final String date;
+  final Shift shift;
+
+  factory MpFastTrackSlot.fromJson(Map<String, dynamic> j) =>
+      MpFastTrackSlot(date: _s(j['date']), shift: shiftFrom(j['shift'] as String?));
+}
+
+/// What the chain will do for one VMCC — the unit the confirm sheet renders.
+class MpFastTrackVmcc {
+  const MpFastTrackVmcc({
+    required this.vmccId, required this.vmccName,
+    required this.ccId, required this.ccName,
+    required this.ppId, required this.ppName,
+    required this.legs, required this.vmccSlots, required this.ccSlots,
+    required this.totalQty, this.shift,
+  });
+  final String vmccId, vmccName, ccId, ccName, ppId, ppName;
+  final Shift? shift;
+  final List<MpFastTrackSlot> vmccSlots, ccSlots;
+  final List<MpFastTrackLeg> legs;
+  final double totalQty;
+
+  factory MpFastTrackVmcc.fromJson(Map<String, dynamic> j) => MpFastTrackVmcc(
+    vmccId: _s(j['vmccId']), vmccName: _s(j['vmccName']),
+    ccId: _s(j['ccId']), ccName: _s(j['ccName']),
+    ppId: _s(j['ppId']), ppName: _s(j['ppName']),
+    shift: j['shift'] == null ? null : shiftFrom(j['shift'] as String?),
+    vmccSlots: _slots(j['vmccSlots']),
+    ccSlots: _slots(j['ccSlots']),
+    legs: (j['legs'] as List? ?? const [])
+        .map((e) => MpFastTrackLeg.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    totalQty: _d(j['totalQty']),
+  );
+}
+
+List<MpFastTrackSlot> _slots(Object? raw) => (raw as List? ?? const [])
+    .map((e) => MpFastTrackSlot.fromJson(e as Map<String, dynamic>))
+    .toList();
+
+/// A VMCC left out of a run, with the reason — always shown, never silent.
+class MpFastTrackSkip {
+  const MpFastTrackSkip({required this.vmccName, required this.reason});
+  final String vmccName, reason;
+
+  factory MpFastTrackSkip.fromJson(Map<String, dynamic> j) =>
+      MpFastTrackSkip(vmccName: _s(j['vmccName']), reason: _s(j['reason']));
+}
+
+/// The dry run: exactly what a commit would do, with nothing written yet.
+class MpFastTrackPlan {
+  const MpFastTrackPlan({
+    required this.collectionDate, required this.vmccs,
+    required this.skipped, required this.totalQty, this.shift,
+  });
+  final String collectionDate;
+  final Shift? shift;
+  final List<MpFastTrackVmcc> vmccs;
+  final List<MpFastTrackSkip> skipped;
+  final double totalQty;
+
+  bool get isEmpty => vmccs.isEmpty;
+
+  /// The plant everything lands in. Null only when there's nothing to send.
+  String? get plantName => vmccs.isEmpty ? null : vmccs.first.ppName;
+
+  factory MpFastTrackPlan.fromJson(Map<String, dynamic> j) => MpFastTrackPlan(
+    collectionDate: _s(j['collectionDate']),
+    shift: j['shift'] == null ? null : shiftFrom(j['shift'] as String?),
+    vmccs: (j['vmccs'] as List? ?? const [])
+        .map((e) => MpFastTrackVmcc.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    skipped: (j['skipped'] as List? ?? const [])
+        .map((e) => MpFastTrackSkip.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    totalQty: _d(j['totalQty']),
+  );
+}
+
+/// Where a run stopped, if it did. Everything before it is committed and valid.
+class MpFastTrackFailure {
+  const MpFastTrackFailure({required this.vmccName, required this.step, required this.message});
+  final String vmccName, step, message;
+
+  factory MpFastTrackFailure.fromJson(Map<String, dynamic> j) => MpFastTrackFailure(
+    vmccName: _s(j['vmccName']), step: _s(j['step']), message: _s(j['message']),
+  );
+}
+
+class MpFastTrackResult {
+  const MpFastTrackResult({
+    required this.plan, required this.completed,
+    required this.receivedQty, this.failure,
+  });
+  final MpFastTrackPlan plan;
+  final List<String> completed;
+  final double receivedQty;
+  final MpFastTrackFailure? failure;
+
+  bool get ok => failure == null;
+
+  factory MpFastTrackResult.fromJson(Map<String, dynamic> j) => MpFastTrackResult(
+    plan: MpFastTrackPlan.fromJson((j['plan'] as Map<String, dynamic>?) ?? const {}),
+    completed: (j['completed'] as List? ?? const []).map((e) => e.toString()).toList(),
+    receivedQty: _d(j['receivedQty']),
+    failure: j['failure'] == null
+        ? null
+        : MpFastTrackFailure.fromJson(j['failure'] as Map<String, dynamic>),
+  );
 }

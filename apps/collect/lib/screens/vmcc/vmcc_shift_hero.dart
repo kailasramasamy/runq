@@ -121,9 +121,17 @@ class VmccShiftHero extends ConsumerWidget {
     return qty > 0.05 ? ShiftState.collecting : ShiftState.notStarted;
   }
 
-  /// Band colour can't be used on this gradient (every step fails contrast), so
-  /// the pill stays white on a translucent scrim and leans on its icon to
-  /// separate the states — the same rule the quality readout below follows.
+  /// Tinted band colour can't be used on this gradient — every step of it fails
+  /// contrast — but a SOLID fill can, and the two states an operator confuses
+  /// are the two that need separating most: milk still sitting here waiting to
+  /// go, and milk already delivered. So:
+  ///
+  ///   still to dispatch → solid amber, dark ink   (this one needs you)
+  ///   delivered at the CC → solid white, brand ink (this one is done)
+  ///   everything else → translucent scrim, white   (nothing to act on)
+  ///
+  /// Both AM and PM previously wore the same dark pill, so "To dispatch" and
+  /// "Received at CC" were told apart only by reading the words.
   Widget _statusPill(AppLocalizations l, ShiftState state) {
     final (icon, label) = switch (state) {
       ShiftState.notStarted => (DhenuIcons.clock, l.homeShiftNotStarted),
@@ -132,19 +140,24 @@ class VmccShiftHero extends ConsumerWidget {
       ShiftState.inTransit => (DhenuIcons.truck, l.homeShiftInTransit),
       ShiftState.atCc => (DhenuIcons.checkCircle, l.homeShiftAtCc),
     };
+    final (background, foreground) = switch (state) {
+      ShiftState.toDispatch => (DhenuColors.gradeB, DhenuColors.amInk),
+      ShiftState.atCc => (Colors.white, DhenuColors.brandDark),
+      ShiftState.notStarted => (Colors.black.withValues(alpha: 0.16), _soft),
+      _ => (Colors.black.withValues(alpha: 0.28), Colors.white),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: state == ShiftState.notStarted ? 0.16 : 0.28),
+        color: background,
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: state == ShiftState.notStarted ? _soft : Colors.white),
+        Icon(icon, size: 12, color: foreground),
         const SizedBox(width: 4),
         Flexible(
           child: Text(label,
-              style: DhenuText.caption.copyWith(
-                  color: state == ShiftState.notStarted ? _soft : Colors.white),
+              style: DhenuText.caption.copyWith(color: foreground),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ]),

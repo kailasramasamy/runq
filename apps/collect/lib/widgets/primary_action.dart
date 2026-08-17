@@ -57,9 +57,17 @@ class PrimaryAction extends StatelessWidget {
                     Icon(icon, color: fg, size: 20),
                     const SizedBox(width: DhenuSpacing.sm),
                   ],
-                  Text(
-                    label,
-                    style: DhenuText.button.copyWith(color: fg),
+                  // Flexible, not bare: this button is normally full-width, but
+                  // it also sits in half-width action rows, and a long label
+                  // (or a longer translation of a short one) overflowed the
+                  // button rather than shrinking to it.
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: DhenuText.button.copyWith(color: fg),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

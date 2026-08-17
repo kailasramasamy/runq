@@ -25,6 +25,12 @@ typedef _Agg = ({double qty, double? fat, double? snf, double? water});
 /// per-source detail is fetched, so neither the API nor the app loads 30 days of
 /// rows at once. The most recent day opens expanded; earlier days collapse to a
 /// qty + avg-quality summary and load their detail on tap.
+///
+/// Today always has a section, even before a single can is received: the day's
+/// milk exists from the moment a source records it, and a history that only
+/// starts at receipt leaves the operator staring at yesterday while today's
+/// collection is already on the floor upstream. The today card therefore carries
+/// both what has arrived and what has not — see [_upstreamRows].
 class ReceiveHistory extends ConsumerStatefulWidget {
   const ReceiveHistory({super.key, required this.node, required this.leg});
   final MpNode node;
@@ -43,6 +49,7 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
   QualityBands _bands = QualityBands.empty;
   MilkType _milkType = MilkType.cowA1;
   Map<String, MilkType> _sourceMilkType = const {};
+  List<UpstreamToday> _upstream = const [];
 
   MpNode get node => widget.node;
   ReceiveLeg get leg => widget.leg;
@@ -55,6 +62,10 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
     _milkType = node.effectiveMilkType;
     final async = ref.watch(nodeReceivedDailyProvider(
         (nodeId: node.id, kind: leg.kind, days: ReceiveHistory._days)));
+    _upstream = ref
+            .watch(upstreamTodayProvider((nodeId: node.id, sourceType: leg.sourceType)))
+            .valueOrNull ??
+        const <UpstreamToday>[];
     final sourceNodes = ref.watch(nodesByTypeProvider(leg.sourceType)).value ?? const <MpNode>[];
     final names = {for (final n in sourceNodes) n.id: n.name};
     _sourceMilkType = {for (final n in sourceNodes) n.id: n.effectiveMilkType};
@@ -62,6 +73,7 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
       onRefresh: () async {
         ref.invalidate(nodeReceivedDailyProvider(
             (nodeId: node.id, kind: leg.kind, days: ReceiveHistory._days)));
+        ref.invalidate(upstreamTodayProvider((nodeId: node.id, sourceType: leg.sourceType)));
         for (final d in _open) {
           ref.invalidate(
               nodeReceivedDayDetailProvider((nodeId: node.id, kind: leg.kind, date: d)));
@@ -72,29 +84,49 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
         error: (e, _) => DhenuEmptyState(
             icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: friendlyError(context, e)),
         data: (days) {
-          if (days.isEmpty) {
+          // Nothing received in 30 days and nothing collected upstream today —
+          // the node genuinely has no history to show.
+          if (days.isEmpty && _upstreamCollected == 0) {
             return DhenuEmptyState(
               icon: DhenuIcons.package,
               title: l.ccReceiveNoReceiptsYet,
               subtitle: leg.historyEmptySubtitle,
             );
           }
+          final rows = _withToday(days);
           if (!_seeded) {
-            _open.add(days.first.date);
+            _open.add(rows.first.date);
             _seeded = true;
           }
           return ListView.separated(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(
                 DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.x4),
-            itemCount: days.length,
+            itemCount: rows.length,
             separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.lg),
-            itemBuilder: (_, i) => _daySection(t, l, days[i], names),
+            itemBuilder: (_, i) => _daySection(t, l, rows[i], names),
           );
         },
       ),
     );
   }
+
+  /// Today's litres across the source nodes, received here or not.
+  double get _upstreamCollected => _upstream.fold(0.0, (s, u) => s + u.collected);
+
+  /// The server's day list, guaranteed to open with today. A day whose milk is
+  /// still upstream has no receipt rows at all, so the rollup query never
+  /// returns it — that card is synthesised here at zero received.
+  List<MpReceivedDay> _withToday(List<MpReceivedDay> days) {
+    final today = todayIso();
+    if (days.isNotEmpty && days.first.date == today) return days;
+    return [MpReceivedDay(date: today, totalQty: 0, sourceCount: 0), ...days];
+  }
+
+  /// Litres collected upstream today that have not reached this node yet.
+  double _pendingToday(MpReceivedDay day) => day.date != todayIso()
+      ? 0
+      : (_upstreamCollected - day.totalQty).clamp(0.0, double.infinity);
 
   /// A day header (date + cumulative qty) over either the collapsed summary or,
   /// when open, the lazily-loaded per-VMCC detail.
@@ -135,19 +167,37 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
   /// muted so it reads below the date/total. Colour-graded QC lives in the
   /// expanded per-leg detail.
   Widget _collapsedSummary(DhenuTokens t, AppLocalizations l, MpReceivedDay day) {
+    final pending = _pendingToday(day);
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      child: Row(children: [
-        Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
-        const SizedBox(width: DhenuSpacing.sm),
-        Text(leg.sourceCount(day.sourceCount),
-            style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        if (day.fat != null) ...[
-          const Spacer(),
-          QualityBadge(fat: day.fat, snf: day.snf, water: day.water,
-              grade: Grade.unknown, format: QualityFormat.valueLabel),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (day.totalQty > 0)
+          Row(children: [
+            Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
+            const SizedBox(width: DhenuSpacing.sm),
+            Text(leg.sourceCount(day.sourceCount),
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            if (day.fat != null) ...[
+              const Spacer(),
+              QualityBadge(fat: day.fat, snf: day.snf, water: day.water,
+                  grade: Grade.unknown, format: QualityFormat.valueLabel),
+            ],
+          ]),
+        if (pending > 0.05) ...[
+          if (day.totalQty > 0) const SizedBox(height: DhenuSpacing.sm),
+          Row(children: [
+            Icon(DhenuIcons.truck, size: 16, color: t.inkSoft),
+            const SizedBox(width: DhenuSpacing.sm),
+            Expanded(
+              child: Text(l.historyUpstreamPending(litres(pending, unit: true)),
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ),
+          ]),
         ],
+        if (day.totalQty == 0 && pending <= 0.05)
+          Text(l.historyNothingToday,
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
       ]),
     );
   }
@@ -169,14 +219,85 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
       ),
       data: (cs) {
         final sources = _groupBySource(cs);
+        final upstream = date == todayIso() ? _upstreamRows(t, l, cs) : const <Widget>[];
+        if (sources.isEmpty && upstream.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(DhenuSpacing.lg),
+            child: Text(l.historyNothingToday,
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          );
+        }
         return Column(children: [
           for (var i = 0; i < sources.length; i++) ...[
             if (i > 0) Divider(height: 1, color: t.hairline),
             _entry(context, t, l, date, sources[i], names),
           ],
+          ...upstream,
         ]);
       },
     );
+  }
+
+  /// Sources still holding today's milk: what they have collected minus what has
+  /// reached us. Split into what is still on their floor and what is already on
+  /// the road, so the operator knows which ones to chase and which to wait for.
+  List<Widget> _upstreamRows(
+      DhenuTokens t, AppLocalizations l, List<MpConsignment> received) {
+    final receivedBySource = <String, double>{};
+    for (final c in received) {
+      receivedBySource[c.fromNodeId] =
+          (receivedBySource[c.fromNodeId] ?? 0) + (c.receiptQty ?? 0);
+    }
+    final rows = <({String name, double pending, double atSource})>[];
+    for (final u in _upstream) {
+      final pending = u.collected - (receivedBySource[u.source.id] ?? 0);
+      if (pending <= 0.05) continue;
+      rows.add((name: u.source.name, pending: pending, atSource: u.available.clamp(0.0, pending)));
+    }
+    if (rows.isEmpty) return const [];
+    rows.sort((a, b) => b.pending.compareTo(a.pending));
+    return [
+      Divider(height: 1, color: t.hairline),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+            DhenuSpacing.lg, DhenuSpacing.md, DhenuSpacing.lg, DhenuSpacing.xs),
+        child: Row(children: [
+          Icon(DhenuIcons.clock, size: 14, color: t.inkSoft),
+          const SizedBox(width: DhenuSpacing.sm),
+          Text(l.historyNotReceivedYet.toUpperCase(),
+              style: DhenuText.label.copyWith(color: t.inkSoft)),
+        ]),
+      ),
+      for (final r in rows)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              DhenuSpacing.lg, DhenuSpacing.xs, DhenuSpacing.lg, DhenuSpacing.xs),
+          child: Row(children: [
+            Icon(leg.sourceIcon, size: 16, color: t.inkSoft),
+            const SizedBox(width: DhenuSpacing.md),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r.name,
+                  style: DhenuText.body.copyWith(color: t.inkSoft),
+                  overflow: TextOverflow.ellipsis),
+              Text(_upstreamSplit(l, r.pending, r.atSource),
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+            ])),
+            const SizedBox(width: DhenuSpacing.sm),
+            Text(litres(r.pending, unit: true),
+                style: DhenuText.number(size: 15, color: t.inkSoft)),
+          ]),
+        ),
+      const SizedBox(height: DhenuSpacing.md),
+    ];
+  }
+
+  /// "at source 120 L · In transit 80 L" — whichever halves are non-zero.
+  String _upstreamSplit(AppLocalizations l, double pending, double atSource) {
+    final transit = pending - atSource;
+    return [
+      if (atSource > 0.05) '${l.historyAtSource} ${litres(atSource, unit: true)}',
+      if (transit > 0.05) '${l.ccInTransitLabel} ${litres(transit, unit: true)}',
+    ].join('  ·  ');
   }
 
   /// Within a day, group a day's receipts by source node (AM+PM legs together),

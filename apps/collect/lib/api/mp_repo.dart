@@ -476,6 +476,38 @@ class MpRepo {
   /// receive that isn't yet locked for dispatch).
   Future<void> deleteReceipt(String id) => _api.delete('$_base/consignments/$id');
 
+  // ── single-site fast track ────────────────────────────────────────────────
+  /// Preview the whole VMCC→CC→plant chain without writing anything. Only
+  /// returns centres whose plant is flagged single-site and that this operator
+  /// can work end to end.
+  Future<MpFastTrackPlan> fastTrackPlan(
+    String collectionDate, {
+    String? shift,
+    List<String>? vmccNodeIds,
+  }) async {
+    final res = await _api.post('$_base/consignments/fast-track/plan', {
+      'collectionDate': collectionDate,
+      'shift': ?shift,
+      'vmccNodeIds': ?vmccNodeIds,
+    });
+    return MpFastTrackPlan.fromJson(_one(res) ?? const {});
+  }
+
+  /// Commit the chain. The server re-plans first, so what runs is what's on
+  /// hand now — not what the preview showed minutes ago.
+  Future<MpFastTrackResult> fastTrackRun(
+    String collectionDate, {
+    String? shift,
+    List<String>? vmccNodeIds,
+  }) async {
+    final res = await _api.post('$_base/consignments/fast-track/run', {
+      'collectionDate': collectionDate,
+      'shift': ?shift,
+      'vmccNodeIds': ?vmccNodeIds,
+    });
+    return MpFastTrackResult.fromJson(_one(res) ?? const {});
+  }
+
   // ── QC tests ──────────────────────────────────────────────────────────────
   Future<List<MpQcTest>> qcTests({
     String? subjectType,

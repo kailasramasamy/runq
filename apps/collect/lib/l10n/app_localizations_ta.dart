@@ -2081,6 +2081,19 @@ class AppLocalizationsTa extends AppLocalizations {
   String get ccHomeEvening => 'மாலை';
 
   @override
+  String ccHomeShiftInTransit(Object amount) {
+    return '$amount வழியில்';
+  }
+
+  @override
+  String ccHomeShiftReceivedCount(int done, int total) {
+    return '$total இல் $done வந்துவிட்டது';
+  }
+
+  @override
+  String get ccHomeShiftNothingIn => 'இன்னும் எதுவும் இல்லை';
+
+  @override
   String get ccReceiveTitle => 'பெறுதல்';
 
   @override
@@ -2098,6 +2111,21 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get ccReceiveRecentReceives => 'சமீபத்திய பெறுதல்கள்';
+
+  @override
+  String get historyNotReceivedYet => 'இன்னும் பெறப்படவில்லை';
+
+  @override
+  String historyUpstreamPending(Object qty) {
+    return '$qty இன்னும் பெறப்படவில்லை';
+  }
+
+  @override
+  String get historyAtSource => 'மையத்தில்';
+
+  @override
+  String get historyNothingToday =>
+      'இன்று இன்னும் எதுவும் பெறப்படவோ சேகரிக்கப்படவோ இல்லை';
 
   @override
   String get ccReceiveNoReceiptsYet => 'இன்னும் ரசீதுகள் இல்லை';
@@ -2397,10 +2425,6 @@ class AppLocalizationsTa extends AppLocalizations {
   String get ppHomeReceivedLabel => 'பெறப்பட்டது';
 
   @override
-  String get ppHomeInventoryNote =>
-      'ஏற்றுக்கொள்ளப்பட்டது runq சரக்கிற்கு பதிவாகும் (மூல பால் தொகுதி)';
-
-  @override
   String get ppHomeNoCcsTitle => 'அனுப்பும் CCக்கள் இல்லை';
 
   @override
@@ -2565,21 +2589,6 @@ class AppLocalizationsTa extends AppLocalizations {
   @override
   String get adminSwitchNoCentresSubtitle =>
       'வெப் அட்மினில் முதலில் VMCCக்கள், குளிரூட்டும் மையங்கள் அல்லது ஆலைகளை சேர்க்கவும்';
-
-  @override
-  String adminSwitchCountPp(int n) {
-    return '$n ஆலை';
-  }
-
-  @override
-  String adminSwitchCountCc(int n) {
-    return '$n குளிரூட்டும் மையம்';
-  }
-
-  @override
-  String adminSwitchCountVmcc(int n) {
-    return '$n மையம்';
-  }
 
   @override
   String get operatorSwitchRolePp => 'பதப்படுத்தும் ஆலை';
@@ -3052,4 +3061,95 @@ class AppLocalizationsTa extends AppLocalizations {
   String ppQcRankingSummary(int active, int total, int days) {
     return '$total-இல் $active CC விநியோகித்தது · கடந்த $days நாட்கள்';
   }
+
+  @override
+  String fastTrackTitle(String plant) {
+    return '$plant க்கு அனுப்பவா?';
+  }
+
+  @override
+  String get fastTrackChecking => 'தயாராக உள்ளதைச் சரிபார்க்கிறது…';
+
+  @override
+  String get fastTrackSend => 'அனுப்பு';
+
+  @override
+  String get fastTrackNothingTitle => 'அனுப்ப ஒன்றுமில்லை';
+
+  @override
+  String get fastTrackNothingSubtitle =>
+      'இப்போது ஆலைக்குச் செல்ல பால் எதுவும் காத்திருக்கவில்லை.';
+
+  @override
+  String get fastTrackClosesWholeDay =>
+      'இது இந்த மையத்தின் முழு நாள் சேகரிப்பையும் மூடும் — அதன் பிறகு ஊற்றப்படும் பாலுக்கு ஸ்லாட்டை மீண்டும் திறக்க வேண்டும்.';
+
+  @override
+  String fastTrackSuccess(String qty, String plant) {
+    return '$qty $plant க்கு அனுப்பப்பட்டது';
+  }
+
+  @override
+  String fastTrackPartial(String vmcc) {
+    return '$vmcc இல் நின்றது. அதற்கு முந்தையவை பதிவாகிவிட்டன — மீதியை அனுப்பும் திரையில் முடிக்கவும்.';
+  }
+
+  @override
+  String get dispatchDestTitle => 'இது எங்கே செல்கிறது?';
+
+  @override
+  String dispatchDestPlant(String plant) {
+    return '$plant க்கு அனுப்பு';
+  }
+
+  @override
+  String get dispatchDestPlantSub =>
+      'குளிரூட்டும் மையத்தை மூடி பாலை மூலப் பால் சரக்கில் சேர்க்கும் — முழு சங்கிலியும் ஒரே படியில்';
+
+  @override
+  String dispatchDestCc(String cc) {
+    return '$cc க்கு அனுப்பு';
+  }
+
+  @override
+  String get dispatchDestCcSub =>
+      'வழக்கமான படி — குளிரூட்டும் மையம் பெற்று எடை பார்க்கும்';
+
+  @override
+  String get fastTrackChainSummary =>
+      'இரு மையங்களையும் மூடி, ஒவ்வொரு படியின் அனுப்புதல் மற்றும் பெறுதலைப் பதிவு செய்து, பாலை மூலப் பால் சரக்கில் சேர்க்கும்.';
+
+  @override
+  String get ccHomeShiftAwaitingVmcc => 'இன்னும் பெறவில்லை';
+
+  @override
+  String homeDispatchShiftQty(String shift, String qty) {
+    return '$shift அனுப்பு · $qty';
+  }
+
+  @override
+  String homeDispatchSlotDated(String shift, String date, String qty) {
+    return '$shift · $date · $qty அனுப்பு';
+  }
+
+  @override
+  String homeDispatchBothShifts(String qty) {
+    return 'AM மற்றும் PM அனுப்பு · $qty';
+  }
+
+  @override
+  String dispatchDestPlantSubBoth(String qty) {
+    return 'இரு பணிமுறைகளும் · $qty';
+  }
+
+  @override
+  String dispatchDestCcSubOne(String shift) {
+    return 'ஒரு பணிமுறை மட்டும் — $shift இல் தொடங்கும்';
+  }
+
+  @override
+  String get dispatchDestPlantGeneric => 'முதன்மை ஆலைக்கு அனுப்பு';
+
+  @override
+  String get dispatchDestCcGeneric => 'குளிரூட்டும் மையத்திற்கு அனுப்பு';
 }

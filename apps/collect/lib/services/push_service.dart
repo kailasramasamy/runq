@@ -59,10 +59,6 @@ class PushService {
       }
 
       final token = await _fm.getToken();
-      if (kDebugMode) {
-        debugPrint('[push] permission=${settings.authorizationStatus.name} '
-            'token=${token == null ? 'null' : 'acquired'}');
-      }
       if (token != null) await _register(token);
 
       _refreshSub ??= _fm.onTokenRefresh.listen(_register);

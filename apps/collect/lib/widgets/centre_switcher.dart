@@ -4,6 +4,7 @@ import '../api/mp_models.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/mp_context_provider.dart';
 import '../theme/dhenu_icons.dart';
+import '../providers/auth_provider.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import 'dhenu_card.dart';
@@ -19,57 +20,32 @@ IconData nodeTierIcon(MpNode n) => _iconForType(n.nodeType);
 IconData _iconForType(String type) =>
     type == 'pp' ? DhenuIcons.tankers : (type == 'cc' ? DhenuIcons.snowflake : DhenuIcons.store);
 
-String _titleForType(AppLocalizations l, String type) => type == 'pp'
-    ? l.adminSwitchTitlePp
-    : (type == 'cc' ? l.adminSwitchTitleCc : l.adminSwitchTitleVmcc);
-
-/// A slim "tier · name ▾ Switch" bar shown at the top of an admin's shell —
-/// the active centre plus a tap target to change it. Only built for admins
-/// (owner/accountant/viewer) — a
-/// field-operator's single-node shell never gets one.
-class CentreSwitcherBar extends ConsumerWidget {
-  const CentreSwitcherBar({super.key, required this.node});
-  final MpNode node;
+/// The chevron beside a centre's name that reopens the switcher.
+///
+/// Replaces the full-width switcher bar that used to sit above every tab: it
+/// restated the centre name the home title already carries, and cost a strip of
+/// screen on all four tabs to do it. The bar's home button is gone with it —
+/// the switcher sheet reaches every centre directly, so a trip back to the
+/// picker was a longer route to the same place.
+///
+/// Renders nothing for an operator: their centres come from their assignments
+/// and are switched by [OperatorSwitcherBar], so a chevron here would open a
+/// sheet listing centres they cannot run.
+class CentreSwitcherButton extends ConsumerWidget {
+  const CentreSwitcherButton({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(authProvider).persona != Persona.admin) {
+      return const SizedBox.shrink();
+    }
     final t = DT(context);
-    return Material(
-      color: t.brandSubtle,
-      child: InkWell(
-        onTap: () => showCentreSwitcher(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: DhenuSpacing.screen, vertical: DhenuSpacing.sm),
-          child: Row(children: [
-            Icon(nodeTierIcon(node), size: 16, color: t.brand),
-            const SizedBox(width: DhenuSpacing.sm),
-            Expanded(
-              child: Text(
-                '${nodeTierLabel(node)} · ${node.name}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(width: DhenuSpacing.xs),
-            Icon(DhenuIcons.chevronDown, size: 18, color: t.brand),
-            const SizedBox(width: DhenuSpacing.sm),
-            Container(width: 1, height: 18, color: t.hairline),
-            // Home: back to the centre picker (main screen) — clearing the
-            // active node drops the admin shell back to CentrePickerScreen. Wide
-            // padding gives it a comfortable tap target.
-            InkWell(
-              onTap: () => setActiveNode(ref, null),
-              borderRadius: BorderRadius.circular(DhenuRadii.card),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
-                child: Icon(DhenuIcons.home, size: 18, color: t.brand),
-              ),
-            ),
-          ]),
-        ),
+    return InkWell(
+      onTap: () => showCentreSwitcher(context, ref),
+      borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      child: Padding(
+        padding: const EdgeInsets.all(DhenuSpacing.xs),
+        child: Icon(DhenuIcons.chevronDown, size: 22, color: t.brand),
       ),
     );
   }
@@ -127,17 +103,18 @@ class _CentreSwitcherSheet extends ConsumerWidget {
 /// Short tier abbreviation for a node type — shown in the tier meta line.
 String _abbrForType(String type) => type == 'pp' ? 'PP' : (type == 'cc' ? 'CC' : 'VMCC');
 
-/// Count label like "12 centres" / "3 chilling centres" / "1 plant" for a tier.
-String _countLabel(AppLocalizations l, String type, int n) => type == 'pp'
-    ? l.adminSwitchCountPp(n)
-    : type == 'cc'
-        ? l.adminSwitchCountCc(n)
-        : l.adminSwitchCountVmcc(n);
-
-/// The centre list as three collapsible tiers — Village Collection Centres /
-/// Chilling Centres / Processing Plants. Each tier is a card showing its count;
-/// tapping expands it to reveal the centres. Shared by the first-run picker
-/// screen and the in-shell switcher sheet.
+/// The centre list as a tier tab-bar over a flat list — VMCC / CC / PP across
+/// the top, that tier's centres beneath, the active one ticked.
+///
+/// Was a two-level accordion: expand the tier, expand the parent chilling
+/// centre, then pick. Reaching a VMCC took four taps including opening the
+/// sheet, and the two collapsed levels hid the very names being chosen between.
+/// Tabs cost one tap to change tier and none at all to stay in it, so the
+/// common switch — another centre of the same kind — is a single tap.
+///
+/// A tier with more than [_searchAbove] centres also gets a filter field; below
+/// that the whole list is on screen and a search box is just another thing to
+/// skip past.
 class CentrePickerList extends ConsumerStatefulWidget {
   const CentrePickerList({super.key, required this.onPick, this.currentId});
   final ValueChanged<MpNode> onPick;
@@ -148,23 +125,18 @@ class CentrePickerList extends ConsumerStatefulWidget {
 }
 
 class _CentrePickerListState extends ConsumerState<CentrePickerList> {
-  static const _kNoParent = '__no_parent__';
-  final Set<String> _open = {}; // expanded tiers, by node type
-  final Set<String> _openParent = {}; // expanded parent groups, by parent id
-  bool _seeded = false;
+  static const _searchAbove = 8;
 
-  /// On first load open the tier (and the parent group) holding the current
-  /// selection (the in-shell switcher), so the user sees their active centre
-  /// ticked. The first-run picker has no selection, so everything starts
-  /// collapsed down to the tier headers.
-  void _seed(List<MpNode> active, Map<String, MpNode> nodeById) {
-    if (_seeded) return;
-    _seeded = true;
+  String? _tier;
+  String _query = '';
+
+  /// Open on the tier holding the active centre, so switching to a sibling is
+  /// one tap and the current selection is visible without hunting for it.
+  String _tierFor(List<MpNode> active, List<String> tiers) {
+    if (_tier != null && tiers.contains(_tier)) return _tier!;
     final cur = active.where((n) => n.id == widget.currentId);
-    if (cur.isEmpty) return;
-    final n = cur.first;
-    _open.add(n.nodeType);
-    _openParent.add(nodeById.containsKey(n.parentNodeId) ? n.parentNodeId! : _kNoParent);
+    final seeded = cur.isNotEmpty ? cur.first.nodeType : tiers.first;
+    return tiers.contains(seeded) ? seeded : tiers.first;
   }
 
   @override
@@ -187,175 +159,130 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
               );
             }
             final nodeById = {for (final n in nodes) n.id: n};
-            _seed(active, nodeById);
-            final types = [
+            final tiers = [
               for (final type in const ['vmcc', 'cc', 'pp'])
                 if (active.any((n) => n.nodeType == type)) type,
             ];
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                  DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.lg),
-              itemCount: types.length,
-              separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.md),
-              itemBuilder: (_, i) => _tierCard(l, t, types[i],
-                  active.where((n) => n.nodeType == types[i]).toList(), nodeById),
-            );
+            final tier = _tierFor(active, tiers);
+            // The centre in use sits first, above the alphabetical run: the
+            // sheet opens on its tier, so it is on screen without scrolling —
+            // both a confirmation of where you are and the row to leave alone.
+            final inTier = active.where((n) => n.nodeType == tier).toList()
+              ..sort((a, b) {
+                if (a.id == widget.currentId) return -1;
+                if (b.id == widget.currentId) return 1;
+                return a.name.compareTo(b.name);
+              });
+            final rows = _query.isEmpty
+                ? inTier
+                : inTier.where((n) =>
+                    n.name.toLowerCase().contains(_query) ||
+                    n.code.toLowerCase().contains(_query)).toList();
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.md),
+                child: _tabs(l, t, tiers, tier, active),
+              ),
+              if (inTier.length > _searchAbove)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.md),
+                  child: TextField(
+                    onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                    decoration: InputDecoration(
+                      hintText: l.nodePickerSearchHint,
+                      prefixIcon: const Icon(DhenuIcons.search),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: rows.isEmpty
+                    ? DhenuEmptyState(
+                        icon: DhenuIcons.store, title: l.adminSwitchNoCentresTitle)
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(DhenuSpacing.screen, 0,
+                            DhenuSpacing.screen, DhenuSpacing.lg),
+                        itemCount: rows.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: DhenuSpacing.sm),
+                        itemBuilder: (_, i) => _nodeRow(t, rows[i], nodeById),
+                      ),
+              ),
+            ]);
           },
         );
   }
 
-  Widget _tierCard(
-      AppLocalizations l, DhenuTokens t, String type, List<MpNode> nodes, Map<String, MpNode> nodeById) {
-    final open = _open.contains(type);
-    return DhenuCard(
-      padding: EdgeInsets.zero,
-      child: Column(children: [
-        _tierHeader(l, t, type, nodes.length, open),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeInOut,
-          alignment: Alignment.topCenter,
-          child: open
-              ? Column(children: [
-                  Divider(height: 1, color: t.hairline),
-                  ..._tierBody(l, t, nodes, nodeById),
-                ])
-              : const SizedBox(width: double.infinity),
+  /// Tier tabs, each carrying its own count so the operator can see where the
+  /// centres are before switching to look.
+  Widget _tabs(AppLocalizations l, DhenuTokens t, List<String> tiers, String current,
+      List<MpNode> active) {
+    return Row(children: [
+      for (final ty in tiers) ...[
+        if (ty != tiers.first) const SizedBox(width: DhenuSpacing.sm),
+        Expanded(
+          child: _tab(t, ty, current == ty,
+              active.where((n) => n.nodeType == ty).length),
         ),
-      ]),
-    );
+      ],
+    ]);
   }
 
-  /// Expanded body: a second accordion level. Centres are grouped under their
-  /// parent node (e.g. VMCCs under their chilling centre); only the parent
-  /// names show until a parent is tapped to reveal its centres. Falls back to a
-  /// flat list when nothing in the tier has a parent (e.g. processing plants).
-  List<Widget> _tierBody(AppLocalizations l, DhenuTokens t, List<MpNode> nodes, Map<String, MpNode> nodeById) {
-    final groups = <String?, List<MpNode>>{};
-    for (final n in nodes) {
-      final pid = nodeById.containsKey(n.parentNodeId) ? n.parentNodeId : null;
-      groups.putIfAbsent(pid, () => []).add(n);
-    }
-    if (groups.length == 1 && groups.containsKey(null)) return _rows(t, nodes);
-
-    final parents = groups.keys.whereType<String>().toList()
-      ..sort((a, b) => (nodeById[a]?.name ?? '').compareTo(nodeById[b]?.name ?? ''));
-    return [
-      for (final pid in parents) ..._parentGroup(l, t, pid, nodeById[pid], groups[pid]!),
-      if (groups.containsKey(null)) ..._parentGroup(l, t, _kNoParent, null, groups[null]!),
-    ];
-  }
-
-  List<Widget> _parentGroup(AppLocalizations l, DhenuTokens t, String key, MpNode? parent, List<MpNode> nodes) {
-    final open = _openParent.contains(key);
-    return [
-      _groupHeader(l, t, key, parent, nodes.length, open),
-      if (open) ..._rows(t, nodes),
-    ];
-  }
-
-  List<Widget> _rows(DhenuTokens t, List<MpNode> nodes) => [
-        for (var i = 0; i < nodes.length; i++) ...[
-          if (i > 0) Divider(height: 1, indent: DhenuSpacing.xxl, color: t.hairline),
-          _nodeRow(t, nodes[i]),
-        ],
-      ];
-
-  Widget _groupHeader(AppLocalizations l, DhenuTokens t, String key, MpNode? parent, int count, bool open) {
-    return Material(
-      color: t.brandSubtle,
-      child: InkWell(
-        onTap: () => setState(() => open ? _openParent.remove(key) : _openParent.add(key)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-          child: Row(children: [
-            Icon(parent != null ? _iconForType(parent.nodeType) : DhenuIcons.cloudOff,
-                size: 16, color: t.brand),
-            const SizedBox(width: DhenuSpacing.sm),
-            Expanded(
-              child: Text(parent?.name ?? l.adminSwitchNotLinkedToCc,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-            ),
-            Text('$count', style: DhenuText.caption.copyWith(color: t.inkSoft)),
-            const SizedBox(width: DhenuSpacing.sm),
-            AnimatedRotation(
-              turns: open ? 0.5 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: Icon(DhenuIcons.chevronDown, size: 18, color: t.brand),
-            ),
-          ]),
+  Widget _tab(DhenuTokens t, String type, bool selected, int count) => Material(
+        color: selected ? t.brand : t.inputFill,
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+        child: InkWell(
+          onTap: selected
+              ? null
+              : () => setState(() { _tier = type; _query = ''; }),
+          borderRadius: BorderRadius.circular(DhenuRadii.pill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(_iconForType(type), size: 15,
+                  color: selected ? Colors.white : t.inkSoft),
+              const SizedBox(width: DhenuSpacing.xs),
+              Flexible(
+                child: Text('${_abbrForType(type)} $count',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: DhenuText.label.copyWith(
+                        color: selected ? Colors.white : t.ink,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ]),
+          ),
         ),
-      ),
-    );
-  }
+      );
 
-  Widget _tierHeader(AppLocalizations l, DhenuTokens t, String type, int count, bool open) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => setState(() => open ? _open.remove(type) : _open.add(type)),
-        borderRadius: BorderRadius.circular(DhenuRadii.card),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.lg),
-          child: Row(children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration:
-                  BoxDecoration(color: t.brand.withValues(alpha: 0.12), shape: BoxShape.circle),
-              child: Icon(_iconForType(type), size: 22, color: t.brand),
-            ),
-            const SizedBox(width: DhenuSpacing.md),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_titleForType(l, type),
-                    style: DhenuText.title.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text('${_abbrForType(type)} · ${_countLabel(l, type, count)}',
-                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
-              ]),
-            ),
-            AnimatedRotation(
-              turns: open ? 0.5 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: Icon(DhenuIcons.chevronDown, size: 22, color: t.brand),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _nodeRow(DhenuTokens t, MpNode n) {
+  /// One centre. The subtitle names its parent — which chilling centre a VMCC
+  /// feeds is what tells two similarly-named villages apart — falling back to
+  /// the code for a node with no parent.
+  Widget _nodeRow(DhenuTokens t, MpNode n, Map<String, MpNode> nodeById) {
     final selected = n.id == widget.currentId;
-    return Material(
-      color: selected ? t.brand.withValues(alpha: 0.06) : Colors.transparent,
-      child: InkWell(
-        onTap: () => widget.onPick(n),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-          child: Row(children: [
-            const SizedBox(width: DhenuSpacing.md),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(n.name,
-                    style: DhenuText.body.copyWith(
-                        color: t.ink,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(n.code, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-              ]),
-            ),
-            Icon(selected ? DhenuIcons.check : DhenuIcons.chevronRight,
-                size: 20, color: selected ? t.brand : t.inkSoft),
+    final parent = nodeById[n.parentNodeId];
+    return DhenuCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      selected: selected,
+      onTap: () => widget.onPick(n),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(n.name,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: DhenuText.body.copyWith(
+                    color: t.ink,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(parent?.name ?? n.code,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
           ]),
         ),
-      ),
+        Icon(selected ? DhenuIcons.check : DhenuIcons.chevronRight,
+            size: 20, color: selected ? t.brand : t.inkSoft),
+      ]),
     );
   }
 }

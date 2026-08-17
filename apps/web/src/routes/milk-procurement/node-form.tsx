@@ -81,6 +81,7 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
     hasBmc: node?.hasBmc ?? false, dispatchMode: node?.dispatchMode ?? 'per_shift',
     measurementMode: node?.measurementMode ?? 'analyzer',
     collectionShifts: node?.collectionShifts ?? 'both',
+    singleSiteChain: node?.singleSiteChain ?? false,
   });
   const [allowedMilkTypes, setAllowedMilkTypes] = useState<MilkType[]>(
     (node?.allowedMilkTypes ?? []).filter((t) => SELECTABLE_MILK_TYPES.includes(t)),
@@ -143,6 +144,21 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
               )}
             </>
           )}
+          {nodeType === 'pp' && (
+            <>
+              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <input type="checkbox" checked={f.singleSiteChain}
+                  onChange={(e) => setF({ ...f, singleSiteChain: e.target.checked })} />
+                Single-site chain (collection, chilling and processing in one place)
+              </label>
+              <p className="-mt-1 text-xs text-zinc-500">
+                Lets an operator assigned to this plant close the VMCC shift, dispatch, receive at the
+                CC, dispatch onward and take the milk in here — in one confirmed action. All six
+                records are still written. Leave off for a real network, where each leg is confirmed
+                by the operator standing at it.
+              </p>
+            </>
+          )}
           {nodeType === 'vmcc' && (
             <>
               <Combobox label="Payee vendor" value={f.payeeVendorId} onChange={(v) => setF({ ...f, payeeVendorId: v })}
@@ -172,7 +188,7 @@ export function NodeConfigForm({ nodeType, node, onSaved, onCancel, title }: {
 type FormState = {
   code: string; name: string; parentNodeId: string; capacityLitres: string | number;
   payoutMode: string; payeeVendorId: string; hasBmc: boolean; dispatchMode: string;
-  measurementMode: string; collectionShifts: string;
+  measurementMode: string; collectionShifts: string; singleSiteChain: boolean;
 };
 
 type DispatchMode = 'per_shift' | 'day' | 'overnight';
@@ -198,5 +214,5 @@ function buildBody(nodeType: NodeType, f: FormState, allowedMilkTypes: MilkType[
   if (nodeType === 'cc') {
     return { ...base, hasBmc: f.hasBmc, dispatchMode: f.dispatchMode as DispatchMode };
   }
-  return base;
+  return { ...base, singleSiteChain: f.singleSiteChain };
 }

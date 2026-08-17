@@ -23,7 +23,7 @@ import '../../widgets/pending_pours_strip.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/primary_action.dart';
-import 'vmcc_dispatch_tab.dart';
+import 'vmcc_dispatch_entry.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/sheet_grabber.dart';
@@ -869,20 +869,11 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
 
   /// Closing is what unlocks dispatch, so go straight there instead of making the
   /// operator back out to home → Dispatch and re-pick the same date and shift.
-  /// Opens on the slot just closed, and pops back to this screen when done.
+  /// Opens on the slot just closed, and pops back to this screen when done. At a
+  /// single-site VMCC this asks first whether the milk goes the usual leg to the
+  /// chilling centre or runs the whole chain to the plant.
   Future<void> _openDispatch() async {
-    final l = AppLocalizations.of(context);
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => Scaffold(
-        appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: DT(context).ink))),
-        body: VmccDispatchTab(
-          node: widget.node,
-          initialDate: _date,
-          // A BMC VMCC pools the whole day, so the slot's shift means nothing there.
-          initialShift: widget.node.isPooledDispatch ? null : _shift,
-        ),
-      ),
-    ));
+    await openVmccDispatch(context, node: widget.node, date: _date, shift: _shift);
     if (!mounted) return;
     // Dispatching consumes the slot's milk. These providers aren't autoDispose, so
     // without this the button keeps offering a dispatch that's already gone out.

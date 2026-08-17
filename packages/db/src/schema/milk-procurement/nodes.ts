@@ -39,6 +39,12 @@ export const mpNodes = pgTable('mp_nodes', {
   allowedMilkTypes: mpMilkType('allowed_milk_types').array(),
   // Pre-selected type at entry; must be one of allowedMilkTypes when both set.
   defaultMilkType: mpMilkType('default_milk_type'),
+  // PP-only: this plant, its CCs and their VMCCs are one physical site, so an
+  // operator assigned to all three may run the whole close→dispatch→receive
+  // chain in one action. Off everywhere else — in a real network the legs are
+  // kilometres apart and each has to be confirmed by the operator standing
+  // there. See MpFastTrackService.
+  singleSiteChain: boolean('single_site_chain').notNull().default(false),
   capacityLitres: decimal('capacity_litres', { precision: 12, scale: 1 }),
   // null = inherit tenant default (mp_gl_settings.default_payout_mode)
   payoutMode: mpPayoutMode('payout_mode'),

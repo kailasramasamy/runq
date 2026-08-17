@@ -3,16 +3,19 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/pending_dispatch_alert.dart';
+import '../../widgets/quick_link_card.dart';
 import '../shared/pending_work.dart';
 import 'cc_dispatch_tab.dart';
 import '../../widgets/tank_gauge.dart';
@@ -22,11 +25,23 @@ import '../shared/receive_history.dart';
 import '../shared/receive_leg.dart';
 import 'cc_rate_charts.dart';
 import 'cc_report_tab.dart';
+import 'cc_shift_hero.dart';
 
 /// Per-VMCC inbound-to-this-CC tally derived from today's consignments.
 /// [amRecv]/[pmRecv] split the received total by the consignment's shift so the
-/// row can show per-shift quantities and AM/PM receipt ticks.
-typedef _Flow = ({double transit, double received, double amRecv, double pmRecv});
+/// row can show per-shift quantities and AM/PM receipt ticks; [amTransit]/
+/// [pmTransit] do the same for milk still on the road.
+typedef _Flow = ({
+  double transit,
+  double received,
+  double amRecv,
+  double pmRecv,
+  double amTransit,
+  double pmTransit,
+});
+
+const _Flow _zeroFlow =
+    (transit: 0.0, received: 0.0, amRecv: 0.0, pmRecv: 0.0, amTransit: 0.0, pmTransit: 0.0);
 
 /// Accumulates qty-weighted QC for one shift while summing a VMCC's receipts.
 class _QcAcc {
@@ -106,7 +121,9 @@ class CcHome extends ConsumerWidget {
         children: [
           // No sync chip: the offline queue only holds VMCC farmer pours, so a
           // CC has nothing to sync and the chip was permanently inert.
-          DhenuSectionHeader(node.name, trailing: const NotificationBell()),
+          DhenuSectionHeader(node.name,
+              leadingTrailing: const CentreSwitcherButton(),
+              trailing: const NotificationBell()),
           const SizedBox(height: DhenuSpacing.lg),
           PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
@@ -165,19 +182,29 @@ class CcHome extends ConsumerWidget {
     // Only live legs count — a reversed (deleted) receipt must not resurface as
     // in-transit milk.
     for (final c in cons.where((c) => c.kind == 'vmcc_to_cc' && (c.received || c.inTransit))) {
-      final cur = m[c.fromNodeId] ?? (transit: 0.0, received: 0.0, amRecv: 0.0, pmRecv: 0.0);
+      final cur = m[c.fromNodeId] ?? _zeroFlow;
+      // A pooled VMCC dispatches its whole day untagged; the backend books such
+      // legs to AM, so the split follows suit rather than inventing a third slot.
+      final isPm = c.shift == Shift.pm;
       if (c.received) {
         final q = c.receiptQty ?? 0;
         m[c.fromNodeId] = (
           transit: cur.transit,
           received: cur.received + q,
-          amRecv: cur.amRecv + (c.shift == Shift.am ? q : 0),
-          pmRecv: cur.pmRecv + (c.shift == Shift.pm ? q : 0),
+          amRecv: cur.amRecv + (isPm ? 0 : q),
+          pmRecv: cur.pmRecv + (isPm ? q : 0),
+          amTransit: cur.amTransit,
+          pmTransit: cur.pmTransit,
         );
       } else {
+        final q = c.dispatchQty ?? 0;
         m[c.fromNodeId] = (
-          transit: cur.transit + (c.dispatchQty ?? 0),
-          received: cur.received, amRecv: cur.amRecv, pmRecv: cur.pmRecv,
+          transit: cur.transit + q,
+          received: cur.received,
+          amRecv: cur.amRecv,
+          pmRecv: cur.pmRecv,
+          amTransit: cur.amTransit + (isPm ? 0 : q),
+          pmTransit: cur.pmTransit + (isPm ? q : 0),
         );
       }
     }
@@ -222,21 +249,55 @@ class CcHome extends ConsumerWidget {
         final collected =
             rows.fold<double>(0, (a, r) => a + _shownQty(r, flow[r.vmcc.id], overnight));
         final active = rows.where((r) => _shownQty(r, flow[r.vmcc.id], overnight) > 0).length;
-        return HeroNumberCard(
+        return CcShiftHero(
           label: overnight ? l.ccHomeInPoolLabel : l.ccHomeCollectedTodayLabel,
-          primaryValue: litres(collected, unit: true),
-          gradient: const LinearGradient(
-            colors: [DhenuColors.brand, DhenuColors.brandDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          footer: Text(
-            l.ccHomeActiveOfTotal(active, rows.length, litres(inTransit, unit: true)),
-            style: DhenuText.body.copyWith(color: Colors.white.withValues(alpha: 0.82)),
-          ),
+          total: collected,
+          activeCentres: active,
+          totalCentres: rows.length,
+          inTransit: inTransit,
+          shifts: _heroShifts(rows, flow, overnight),
         );
       },
     );
+  }
+
+  /// Which shift sections the hero shows, in the order the milk arrives.
+  ///
+  /// A pooled CC's window is yesterday PM then today AM, so both sections are
+  /// stamped with their own date — "PM" alone would read as tonight's milk,
+  /// which belongs to the *next* pool. Otherwise the sections follow the shifts
+  /// the centre collects in, plus any shift that has milk anyway (a back-dated
+  /// or misconfigured slot still has to be visible).
+  List<CcHeroShift> _heroShifts(
+      List<VmccCollection> rows, Map<String, _Flow> flow, bool overnight) {
+    CcShiftTally tally(bool am) {
+      var qty = 0.0, transit = 0.0;
+      var received = 0, centres = 0;
+      for (final r in rows) {
+        final f = flow[r.vmcc.id];
+        final q = am ? _amShown(r, f, overnight) : _pmShown(r, f, overnight);
+        if (q <= 0.05) continue;
+        centres++;
+        qty += q;
+        transit += (am ? f?.amTransit : f?.pmTransit) ?? 0;
+        if (((am ? f?.amRecv : f?.pmRecv) ?? 0) > 0) received++;
+      }
+      return (qty: qty, transit: transit, received: received, centres: centres);
+    }
+
+    final am = tally(true), pm = tally(false);
+    if (overnight) {
+      return [
+        (shift: Shift.pm, date: isoDaysAgo(1), tally: pm),
+        (shift: Shift.am, date: todayIso(), tally: am),
+      ];
+    }
+    return [
+      if (node.collectsShift('am') || am.centres > 0)
+        (shift: Shift.am, date: null, tally: am),
+      if (node.collectsShift('pm') || pm.centres > 0)
+        (shift: Shift.pm, date: null, tally: pm),
+    ];
   }
 
   /// Overnight CCs: tonight's PM collection pools with tomorrow's AM, so it's
@@ -265,9 +326,9 @@ class CcHome extends ConsumerWidget {
     ];
     Widget pair(int a, int b) => IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(child: _linkCard(context, t, links[a].$1, links[a].$2, links[a].$3)),
+            Expanded(child: _linkCard(context, t, links[a])),
             const SizedBox(width: DhenuSpacing.md),
-            Expanded(child: _linkCard(context, t, links[b].$1, links[b].$2, links[b].$3)),
+            Expanded(child: _linkCard(context, t, links[b])),
           ]),
         );
     return Column(children: [
@@ -277,21 +338,17 @@ class CcHome extends ConsumerWidget {
     ]);
   }
 
-  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
-      DhenuCard(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+  Widget _linkCard(
+          BuildContext context, DhenuTokens t, (IconData, String, Widget) link) =>
+      QuickLinkCard(
+        icon: link.$1,
+        label: link.$2,
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => Scaffold(
-            appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
-            body: page,
+            appBar: AppBar(title: Text(link.$2, style: DhenuText.h2.copyWith(color: t.ink))),
+            body: link.$3,
           ),
         )),
-        child: Column(children: [
-          Icon(icon, color: t.brand),
-          const SizedBox(height: DhenuSpacing.sm),
-          Text(label, textAlign: TextAlign.center, style: DhenuText.label.copyWith(color: t.ink)),
-        ]),
       );
 
   /// Open one stuck slot on the dispatch screen, at its own date. A CC both
@@ -369,6 +426,7 @@ class CcHome extends ConsumerWidget {
                 amQc: _resolveQc(rows[i].am, receiptQc[rows[i].vmcc.id]?.am),
                 pmQc: _resolveQc(rows[i].pm, receiptQc[rows[i].vmcc.id]?.pm),
                 milkType: rows[i].vmcc.effectiveMilkType,
+                byMilkType: rows[i].byMilkType,
                 nodeId: rows[i].vmcc.id,
                 amReceived: (flow[rows[i].vmcc.id]?.amRecv ?? 0) > 0,
                 pmReceived: (flow[rows[i].vmcc.id]?.pmRecv ?? 0) > 0,
@@ -381,11 +439,13 @@ class CcHome extends ConsumerWidget {
   }
 
   /// Per-shift headline qty: the VMCC's in-app pour for the slot, else the milk
-  /// received at the CC for that shift (manual receive logged no pour).
+  /// received at the CC for that shift (manual receive logged no pour), else
+  /// what that shift still has on the road — the same ladder [_shownQty] walks,
+  /// so the two shift figures add back up to the row's total.
   double _amShown(VmccCollection vc, _Flow? f, bool overnight) =>
-      (!overnight && vc.amQty > 0) ? vc.amQty : (f?.amRecv ?? 0);
+      (!overnight && vc.amQty > 0) ? vc.amQty : ((f?.amRecv ?? 0) > 0 ? f!.amRecv : f?.amTransit ?? 0);
   double _pmShown(VmccCollection vc, _Flow? f, bool overnight) =>
-      (!overnight && vc.pmQty > 0) ? vc.pmQty : (f?.pmRecv ?? 0);
+      (!overnight && vc.pmQty > 0) ? vc.pmQty : ((f?.pmRecv ?? 0) > 0 ? f!.pmRecv : f?.pmTransit ?? 0);
 
 }
 
@@ -405,6 +465,7 @@ class _VmccEntry extends ConsumerStatefulWidget {
     required this.amReceived,
     required this.pmReceived,
     required this.milkType,
+    required this.byMilkType,
     required this.nodeId,
   });
 
@@ -414,6 +475,7 @@ class _VmccEntry extends ConsumerStatefulWidget {
   final double totalQty, amQty, pmQty;
   final ShiftQc amQc, pmQc;
   final MilkType milkType;
+  final List<MpMilkTypeSummary> byMilkType;
   final String nodeId;
 
   @override
@@ -506,17 +568,19 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
           borderRadius: BorderRadius.circular(DhenuRadii.card),
         ),
         child: Column(children: [
-          _shiftDetail(t, l.ccHomeMorning, DhenuIcons.sun, t.am, widget.amQty, widget.amQc),
+          _shiftDetail(t, l, l.ccHomeMorning, DhenuIcons.sun, t.am, Shift.am,
+              widget.amQty, widget.amQc),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
             child: Divider(height: 1, color: t.hairline),
           ),
-          _shiftDetail(t, l.ccHomeEvening, DhenuIcons.moon, t.pm, widget.pmQty, widget.pmQc),
+          _shiftDetail(t, l, l.ccHomeEvening, DhenuIcons.moon, t.pm, Shift.pm,
+              widget.pmQty, widget.pmQc),
         ]),
       );
 
-  Widget _shiftDetail(DhenuTokens t, String label, IconData icon, Color accent,
-      double qty, ShiftQc qc) {
+  Widget _shiftDetail(DhenuTokens t, AppLocalizations l, String label,
+      IconData icon, Color accent, Shift shift, double qty, ShiftQc qc) {
     // No collection this shift → dash every metric rather than show stale zeros.
     final has = qty > 0;
     // Pour-priced rate when present; otherwise resolve the receipt QC against the
@@ -539,24 +603,83 @@ class _VmccEntryState extends ConsumerState<_VmccEntry> {
         Text(has ? litres(qty, unit: true) : '—',
             style: DhenuText.number(size: 15, color: t.ink)),
       ]),
-      const SizedBox(height: 6),
-      Wrap(spacing: DhenuSpacing.lg, runSpacing: DhenuSpacing.xs, children: [
-        _qcCell(t, 'FAT', has && qc.fat > 0 ? oneDp(qc.fat) : '—', t.ink),
-        _qcCell(t, 'SNF', has && qc.snf > 0 ? oneDp(qc.snf) : '—', t.ink),
-        _qcCell(t, 'WATER', has && qc.water > 0 ? oneDp(qc.water) : '—', t.ink),
-        _qcCell(t, '₹/L', has && rate != null && rate > 0 ? rate.toStringAsFixed(2) : '—', t.brand),
-      ]),
+      const SizedBox(height: 4),
+      _qcLine(t, has: has, qc: qc, rate: rate),
+      ..._typeRows(t, l, shift),
     ]);
   }
 
-  Widget _qcCell(DhenuTokens t, String label, String value, Color color) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$label ',
-              style: DhenuText.caption.copyWith(color: t.inkSoft, letterSpacing: 0.4)),
-          Text(value, style: DhenuText.number(size: 13, color: color)),
-        ],
-      );
+  /// The shift's blended reading as one caption line. Metrics the centre didn't
+  /// measure are left out rather than printed as a dash — a lactometer-less
+  /// VMCC records no water, and a row of "—" columns read as missing data the
+  /// operator ought to chase.
+  Widget _qcLine(DhenuTokens t, {required bool has, required ShiftQc qc, double? rate}) {
+    final parts = <String>[
+      if (has && qc.fat > 0) 'FAT ${oneDp(qc.fat)}',
+      if (has && qc.snf > 0) 'SNF ${oneDp(qc.snf)}',
+      if (has && qc.water > 0) 'WATER ${oneDp(qc.water)}',
+    ];
+    final priced = has && rate != null && rate > 0;
+    if (parts.isEmpty && !priced) {
+      return Text('—', style: DhenuText.caption.copyWith(color: t.inkSoft));
+    }
+    return Row(children: [
+      Expanded(
+        child: Text(parts.join('  ·  '),
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      // The rate is the one figure here that is money, so it keeps the brand
+      // colour and its own end of the line instead of queueing behind the QC.
+      if (priced)
+        Text('₹${rate.toStringAsFixed(2)}/L',
+            style: DhenuText.number(size: 13, color: t.brand)),
+    ]);
+  }
+
+  /// Milk-type breakup for one shift: a line per type that actually poured in
+  /// that slot, biggest first. Manual-receive shifts carry no pours, so the
+  /// summary has nothing to split — the block simply doesn't render.
+  ///
+  /// A single type is skipped too: its figures are the blended line above,
+  /// restated. The split earns its space only when there is a split.
+  List<Widget> _typeRows(DhenuTokens t, AppLocalizations l, Shift shift) {
+    double qtyOf(MpMilkTypeSummary m) => shift == Shift.am ? m.amQty : m.pmQty;
+    final rows = widget.byMilkType.where((m) => qtyOf(m) > 0).toList()
+      ..sort((a, b) => qtyOf(b).compareTo(qtyOf(a)));
+    if (rows.length < 2) return const [];
+    return [
+      const SizedBox(height: DhenuSpacing.sm),
+      for (final m in rows)
+        Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Row(children: [
+            Expanded(
+              child: Text(milkTypeL10n(l, m.milkType),
+                  style: DhenuText.caption.copyWith(color: t.inkSoft),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            // Fixed columns, so FAT readings and litres line up down the list
+            // however wide the type names are.
+            SizedBox(
+              width: 52,
+              child: Text(
+                  (shift == Shift.am ? m.amFat : m.pmFat) > 0
+                      ? oneDp(shift == Shift.am ? m.amFat : m.pmFat)
+                      : '',
+                  textAlign: TextAlign.right,
+                  style: DhenuText.number(size: 13, color: t.inkSoft)),
+            ),
+            SizedBox(
+              width: 74,
+              child: Text(litres(qtyOf(m), unit: true),
+                  textAlign: TextAlign.right,
+                  style: DhenuText.number(size: 13, color: t.ink)),
+            ),
+          ]),
+        ),
+    ];
+  }
 
   /// Receipt tick for one shift: green check when that shift's milk is in, a
   /// greyed check otherwise.

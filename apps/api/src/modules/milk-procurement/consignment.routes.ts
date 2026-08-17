@@ -5,6 +5,7 @@ import {
   directReceiveConsignmentSchema,
   consignmentFilterSchema,
   consignmentAvailabilitySchema,
+  fastTrackSchema,
   pendingDispatchSchema,
   paginationSchema,
   uuidParamSchema,
@@ -12,6 +13,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { ConsignmentService } from './consignment.service';
 import { PendingDispatchService } from './pending-dispatch.service';
+import { MpFastTrackService } from './fast-track.service';
 import { resolveMpPrincipal } from './access-scope';
 
 // field_operator dispatches/receives at their node; reads are node-scoped
@@ -40,6 +42,21 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new PendingDispatchService(request.server.db, request.tenantId);
     return { data: await service.list(q.nodeId, principal) };
+  });
+
+  // Single-site chain: preview, then commit. Both take the same body so the
+  // operator commits exactly what the confirm sheet showed them.
+  app.post('/fast-track/plan', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = fastTrackSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    return { data: await new MpFastTrackService(request.server.db, request.tenantId).plan(input, principal) };
+  });
+
+  app.post('/fast-track/run', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = fastTrackSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new MpFastTrackService(request.server.db, request.tenantId);
+    return { data: await service.run(input, request.user?.userId, principal) };
   });
 
   app.get('/:id', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

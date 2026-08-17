@@ -9,6 +9,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -20,9 +21,11 @@ import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/pending_dispatch_alert.dart';
+import '../../widgets/quick_link_card.dart';
 import '../shared/pending_work.dart';
 import '../../utils/friendly_error.dart';
 import 'record_collection.dart';
+import 'vmcc_dispatch_entry.dart';
 import 'vmcc_dispatch_tab.dart';
 import 'vmcc_collection_history.dart';
 import 'vmcc_farmers_tab.dart';
@@ -110,32 +113,31 @@ class VmccHome extends ConsumerWidget {
     ));
   }
 
-  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Row(children: [
-        Expanded(child: _linkCard(context, t, DhenuIcons.users, l.homeFarmers,
-            VmccFarmersTab(node: node))),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
-            VmccCollectionHistory(node: node))),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.homeReports,
-            VmccReportsTab(node: node))),
-      ]);
+  Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) =>
+      IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _linkCard(context, t, DhenuIcons.users, l.homeFarmers,
+              VmccFarmersTab(node: node))),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: _linkCard(context, t, DhenuIcons.history, l.homeHistory,
+              VmccCollectionHistory(node: node))),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.homeReports,
+              VmccReportsTab(node: node))),
+        ]),
+      );
 
-  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
-      DhenuCard(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label,
+          Widget page) =>
+      QuickLinkCard(
+        icon: icon,
+        label: label,
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
             body: page,
           ),
         )),
-        child: Column(children: [
-          Icon(icon, color: t.brand),
-          const SizedBox(height: DhenuSpacing.sm),
-          Text(label, style: DhenuText.label.copyWith(color: t.ink)),
-        ]),
       );
 
   /// Two lines rather than one: the sync pill is as wide as a centre's name, so
@@ -145,12 +147,18 @@ class VmccHome extends ConsumerWidget {
   Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, SyncSnapshot sync) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
+          // The name and its chevron take everything up to the bell; a Flexible
+          // beside a Spacer would hand half the row to empty space.
           Expanded(
-            child: Text(node.name,
-                style: DhenuText.h2.copyWith(color: t.ink),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(
+                child: Text(node.name,
+                    style: DhenuText.h2.copyWith(color: t.ink),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              const CentreSwitcherButton(),
+            ]),
           ),
-          const SizedBox(width: DhenuSpacing.sm),
           const NotificationBell(),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
@@ -200,25 +208,77 @@ class VmccHome extends ConsumerWidget {
     if (!dispatchable) {
       return PrimaryAction(label: l.recordCollectionTitle, onPressed: openRecord);
     }
+    // Name the slot the button will actually act on. "Dispatch now" on a
+    // morning where AM is already at the CC and PM is the slot waiting read as
+    // though it meant the shift in progress — and it opened that one, which had
+    // nothing left to send.
+    final ready = _readySlots(pending);
+    final target = ready.firstOrNull;
+    // Both of today's shifts closed and waiting: the chain can take them
+    // together, so say so rather than naming one and leaving the other.
+    final bothToday = ready.length > 1 &&
+        node.fastTrackEnabled &&
+        ready.every((s) => s.collectionDate == todayIso() && s.shift != null);
+    final bothQty = litres(
+        ready.fold<double>(0, (sum, s) => sum + s.available), unit: true);
     return Column(children: [
+      // Same entry point Record Collection uses after a close: at a single-site
+      // VMCC it asks whether the milk takes the usual leg to the chilling
+      // centre or runs the whole chain to the plant.
       PrimaryAction(
-        label: l.collectDispatchNow,
+        label: bothToday ? l.homeDispatchBothShifts(bothQty) : _dispatchLabel(l, target),
         icon: DhenuIcons.transit,
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: Text(l.dispatchTitle, style: DhenuText.h2.copyWith(color: t.ink))),
-            body: VmccDispatchTab(
-              node: node,
-              initialShift: node.isPooledDispatch ? null : shift,
-            ),
-          ),
-        )),
+        onPressed: () => openVmccDispatch(context,
+            node: node,
+            date: target?.collectionDate,
+            shift: target?.shift == null ? shift : shiftFrom(target!.shift),
+            bothShifts: bothToday,
+            totalLabel: bothQty),
       ),
       TextButton(
         onPressed: openRecord,
         child: Text(l.recordCollectionTitle, style: DhenuText.label.copyWith(color: t.brand)),
       ),
     ]);
+  }
+
+  /// What the dispatch button says. A slot from an earlier day names that day —
+  /// without it, "Dispatch AM" sits under a hero showing today's AM already
+  /// delivered and reads as a contradiction.
+  String _dispatchLabel(AppLocalizations l, MpPendingDispatch? target) {
+    if (target == null || target.shift == null) return l.collectDispatchNow;
+    final shiftLabel = target.shift! == 'am' ? l.shiftAm : l.shiftPm;
+    final qty = litres(target.available, unit: true);
+    return target.collectionDate == todayIso()
+        ? l.homeDispatchShiftQty(shiftLabel, qty)
+        : l.homeDispatchSlotDated(shiftLabel, shortDate(target.collectionDate), qty);
+  }
+
+  /// The slots waiting to be dispatched, earliest first: TODAY's if it has any,
+  /// otherwise the backlog. The first is what one tap opens; the whole list is
+  /// what the button counts when it offers to send the day together.
+  ///
+  /// Today first, not oldest first: the backlog already has its own alert card
+  /// directly above naming the slot and its date, and a primary button that
+  /// silently reaches back a day reads as the shift on the hero — "Dispatch AM"
+  /// under a card showing today's AM already at the CC. A back-dated slot is
+  /// still offered, but the label carries its date so it can't be misread.
+  ///
+  /// Empty while the list is still loading. A pooled node yields one entry with
+  /// no shift — its whole window travels as a single untagged tanker.
+  List<MpPendingDispatch> _readySlots(List<MpPendingDispatch>? pending) {
+    if (pending == null) return const [];
+    final ready = pending.where((s) => s.closed && s.available > 0).toList()
+      // Date, then shift — within a day AM has to come before PM, and sorting
+      // on the date alone leaves same-day slots in whatever order they arrived.
+      ..sort((a, b) {
+        final byDate = a.collectionDate.compareTo(b.collectionDate);
+        return byDate != 0 ? byDate : (a.shift ?? '').compareTo(b.shift ?? '');
+      });
+    // Today's slots first; a back-dated one only when today has nothing left.
+    final today = todayIso();
+    final mine = ready.where((s) => s.collectionDate == today).toList();
+    return mine.isNotEmpty ? mine : ready;
   }
 
   /// End-of-shift reminder (audit E8): closing is what unlocks dispatch, but

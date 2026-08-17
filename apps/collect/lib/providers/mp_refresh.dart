@@ -44,6 +44,7 @@ final _mpNodeDataProviders = <ProviderOrFamily>[
   nodesByTypeProvider,
   recentQcTestsProvider,
   ccVmccCollectionsProvider,
+  upstreamTodayProvider,
   receiptRateProvider,
 
   // ── mp_context_provider.dart — pours, summaries, farmers, bands ──
@@ -104,6 +105,7 @@ const mpRefreshedProviderNames = <String>{
   'nodesByTypeProvider',
   'recentQcTestsProvider',
   'ccVmccCollectionsProvider',
+  'upstreamTodayProvider',
   'receiptRateProvider',
   'nodeFarmersProvider',
   'nodeTodaySummaryProvider',

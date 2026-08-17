@@ -41,6 +41,10 @@ export interface MpNode {
   allowedMilkTypes: MilkType[] | null;
   defaultMilkType: MilkType | null;
   rateChartId: string | null;
+  /** PP-only: this plant and everything feeding it are one site. */
+  singleSiteChain?: boolean;
+  /** VMCC-only, read-side: the caller may run the whole chain in one action. */
+  fastTrackEnabled?: boolean;
   city: string | null; state: string | null; isActive: boolean;
 }
 export type CattleBreed = 'desi_natti' | 'crossbred' | 'jersey' | 'hf' | 'gir' | 'sahiwal' | 'murrah' | 'other';

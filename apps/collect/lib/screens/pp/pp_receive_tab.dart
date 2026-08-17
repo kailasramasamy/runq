@@ -20,9 +20,10 @@ import '../cc/receive_consignment_screen.dart';
 import 'pp_manual_receive_screen.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
-/// recent receipts below. Mirrors the CC Receive layout: an AppBar title, two
-/// counted sections, rich cards leading with the CC name + container id, and the
-/// same full-screen receive flow ([ReceiveConsignmentScreen]) with PP labels.
+/// recent receipts below. Two counted sections of one-line cards — source,
+/// milk type and quantity on a single row so a full queue fits on a screen —
+/// feeding the same full-screen receive flow ([ReceiveConsignmentScreen]) the
+/// CC uses, with PP labels.
 class PpReceiveTab extends ConsumerWidget {
   const PpReceiveTab({super.key, required this.node});
   final MpNode node;
@@ -61,49 +62,27 @@ class PpReceiveTab extends ConsumerWidget {
     final names = {for (final n in allCcs) n.id: n.name};
     return Scaffold(
       backgroundColor: t.surface,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(l.ccReceiveTitle, style: DhenuText.h2.copyWith(color: t.ink)),
+      // The shell already applies the top SafeArea for every tab.
+      body: RefreshIndicator(
+        onRefresh: () => _refresh(ref),
+        child: consAsync.when(
+          loading: () => const DhenuLoadingList(),
+          error: (e, _) => DhenuEmptyState(
+            icon: DhenuIcons.cloudOff,
+            title: l.ppReceiveLoadError,
+            subtitle: friendlyError(context, e),
+          ),
+          // Already scoped to cc_to_pp receipts and ordered newest-first by
+          // the API — no client-side filter or reversal needed.
+          data: (received) {
+            final inTransit = (pending.asData?.value ?? const <MpConsignment>[])
+                .where((c) => c.kind == 'cc_to_pp' && c.inTransit)
+                .toList()
+              ..sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
+            return _list(context, ref, l, t, inTransit, received, names);
+          },
+        ),
       ),
-      body: Column(children: [
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => _refresh(ref),
-            child: consAsync.when(
-              loading: () => const DhenuLoadingList(),
-              error: (e, _) => DhenuEmptyState(
-                icon: DhenuIcons.cloudOff,
-                title: l.ppReceiveLoadError,
-                subtitle: friendlyError(context, e),
-              ),
-              // Already scoped to cc_to_pp receipts and ordered newest-first by
-              // the API — no client-side filter or reversal needed.
-              data: (received) {
-                final inTransit = (pending.asData?.value ?? const <MpConsignment>[])
-                    .where((c) => c.kind == 'cc_to_pp' && c.inTransit)
-                    .toList()
-                  ..sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
-                return _list(context, ref, l, t, inTransit, received, names);
-              },
-            ),
-          ),
-        ),
-        // A backup path, not the main one — muted and pinned below the list,
-        // exactly as the CC offers its own manual receive.
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                DhenuSpacing.screen, DhenuSpacing.sm, DhenuSpacing.screen, DhenuSpacing.sm),
-            child: OutlinedButton.icon(
-              onPressed: () => _openManualReceive(context, ref),
-              icon: const Icon(DhenuIcons.listAdd, size: 18),
-              label: Text(l.ppManualReceiveButton),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            ),
-          ),
-        ),
-      ]),
     );
   }
 
@@ -137,11 +116,24 @@ class PpReceiveTab extends ConsumerWidget {
   Widget _list(BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t,
       List<MpConsignment> inTransit, List<MpConsignment> received,
       Map<String, String> names) {
+    final awaiting = inTransit.fold<double>(0, (sum, c) => sum + (c.dispatchQty ?? 0));
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.bottomGap),
       children: [
+        // Title + the one number the plant actually wants on arrival: how much
+        // milk is still on the road. The tab bar already says "Receive", so the
+        // old AppBar row was a second copy of the same word for 56px.
+        Row(children: [
+          Expanded(
+            child: Text(l.ccReceiveTitle, style: DhenuText.h2.copyWith(color: t.ink)),
+          ),
+          if (inTransit.isNotEmpty)
+            Text(litres(awaiting, unit: true),
+                style: DhenuText.number(size: 18, color: t.brand)),
+        ]),
+        const SizedBox(height: DhenuSpacing.lg),
         _sectionTitle(t, l.ccInTransitLabel, inTransit.length),
         const SizedBox(height: DhenuSpacing.sm),
         if (inTransit.isEmpty)
@@ -154,9 +146,18 @@ class PpReceiveTab extends ConsumerWidget {
           for (final c in inTransit) ...[
             _transitCard(context, ref, l, t, c, names[c.fromNodeId] ?? 'CC',
                 duplicate: _manualAlreadyIn(received, c)),
-            const SizedBox(height: DhenuSpacing.md),
+            const SizedBox(height: DhenuSpacing.sm),
           ],
-        const SizedBox(height: DhenuSpacing.lg),
+        // A backup path, not the main one: it sits with the queue it belongs to
+        // instead of holding a pinned bar over every screenful of cards.
+        const SizedBox(height: DhenuSpacing.md),
+        OutlinedButton.icon(
+          onPressed: () => _openManualReceive(context, ref),
+          icon: const Icon(DhenuIcons.listAdd, size: 18),
+          label: Text(l.ppManualReceiveButton),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+        ),
+        const SizedBox(height: DhenuSpacing.xl),
         _sectionTitle(t, l.ccReceiveRecentReceives, received.length),
         const SizedBox(height: DhenuSpacing.sm),
         if (received.isEmpty)
@@ -243,24 +244,28 @@ class PpReceiveTab extends ConsumerWidget {
 
   Widget _transitCard(BuildContext context, WidgetRef ref, AppLocalizations l, DhenuTokens t,
       MpConsignment c, String name, {bool duplicate = false}) {
+    // One row, same shape as a received card: source and quantity on the same
+    // line so five waiting tankers fit on a screen instead of two. "In transit"
+    // is the whole section, so the per-card status pill went with it — the
+    // amber truck mark carries it.
     return DhenuCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       onTap: () => _openReceive(context, ref, l, c, name),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _cardHeader(t, l, c, name),
-        const SizedBox(height: DhenuSpacing.md),
-        Text(litres(c.dispatchQty ?? 0, unit: true),
-            style: DhenuText.number(size: 26, color: t.ink)),
+        Row(children: [
+          Icon(DhenuIcons.transit, size: 18, color: t.gradeB),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: _cardHeader(t, l, c, name)),
+          const SizedBox(width: DhenuSpacing.sm),
+          Text(litres(c.dispatchQty ?? 0, unit: true),
+              style: DhenuText.number(size: 18, color: t.ink)),
+          Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
+        ]),
         if (duplicate) ...[
           const SizedBox(height: DhenuSpacing.sm),
           _duplicateNotice(t, l),
         ],
-        const SizedBox(height: DhenuSpacing.sm),
-        Row(children: [
-          _pill(t, l.ccReceivePillInTransit, t.gradeB, icon: DhenuIcons.transit),
-          const Spacer(),
-          Text(l.ccReceiveTapToReceive, style: DhenuText.caption.copyWith(color: t.brand)),
-          Icon(DhenuIcons.chevronRight, size: 16, color: t.brand),
-        ]),
       ]),
     );
   }
@@ -309,12 +314,8 @@ class PpReceiveTab extends ConsumerWidget {
               if (c.directReceive) _pill(t, l.ppReceiveManualTag, t.gradeB),
             ]),
           ],
-          const SizedBox(height: 2),
-          Text(
-            '${consignmentSlotL10n(l, c.shift)} · '
-            '${c.consignmentNo} · ${prettyDate(c.collectionDate)}',
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: DhenuSpacing.xs),
+          _whenLine(t, l, c, id: c.consignmentNo),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -367,44 +368,78 @@ class PpReceiveTab extends ConsumerWidget {
     }
   }
 
-  Widget _cardHeader(DhenuTokens t, AppLocalizations l, MpConsignment c, String name) => Row(children: [
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(color: t.brand.withValues(alpha: 0.10), shape: BoxShape.circle),
-          child: Icon(DhenuIcons.truck, size: 19, color: t.brand),
-        ),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-          if (c.milkType != null) ...[
-            const SizedBox(height: 3),
-            MilkTypePill(milkType: c.milkType!),
-          ],
-          const SizedBox(height: 2),
-          // Name the slot the load came from — AM / PM, or Pooled for a
-          // whole-day tanker — so the plant can match it against what the CC
-          // says it sent.
-          Text(
-            '${consignmentSlotL10n(l, c.shift)} · '
-            '${c.containerNo ?? c.consignmentNo} · ${prettyDate(c.collectionDate)}',
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        ])),
+  Widget _cardHeader(DhenuTokens t, AppLocalizations l, MpConsignment c, String name) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Name and milk type share a line: the type is a short pill and the CC
+        // names are short, and keeping them together saves a whole row per card.
+        Wrap(spacing: DhenuSpacing.sm, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+          if (c.milkType != null) MilkTypePill(milkType: c.milkType!),
+        ]),
+        const SizedBox(height: DhenuSpacing.xs),
+        _whenLine(t, l, c, id: c.containerNo ?? c.consignmentNo),
       ]);
 
-  Widget _pill(DhenuTokens t, String label, Color color, {IconData? icon}) => Container(
+  /// Slot and date, the two facts the plant matches a tanker on. They used to
+  /// sit inside one soft caption with the container id — the id is the longest
+  /// part, so it took the eye first and pushed the date to the ellipsis. Now
+  /// the slot is a coloured pill, the date reads in full ink, and the id
+  /// trails behind them in caption grey.
+  Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {required String id}) =>
+      Row(children: [
+        _slotPill(t, l, c.shift),
+        const SizedBox(width: DhenuSpacing.sm),
+        Text(_dateLabel(c.collectionDate),
+            style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+        const SizedBox(width: DhenuSpacing.sm),
+        Expanded(
+          child: Text(id,
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ]);
+
+  /// AM / PM / Pooled, in that slot's own colour — same pill the CC receive
+  /// tab uses, so a slot reads identically on both legs of the journey.
+  Widget _slotPill(DhenuTokens t, AppLocalizations l, Shift? shift) {
+    final color = switch (shift) {
+      Shift.am => t.amText,
+      Shift.pm => t.pm,
+      null => t.inkSoft,
+    };
+    final icon = switch (shift) {
+      Shift.am => DhenuIcons.sun,
+      Shift.pm => DhenuIcons.moon,
+      null => DhenuIcons.calendar,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(consignmentSlotL10n(l, shift), style: DhenuText.label.copyWith(color: color)),
+      ]),
+    );
+  }
+
+  /// "16 Aug" for this year, full "16 Aug 2025" once the year differs — a
+  /// back-dated receipt from last season must not read as a recent one.
+  String _dateLabel(String iso) {
+    final d = DateTime.tryParse(iso);
+    return d != null && d.year == DateTime.now().year ? shortDate(iso) : prettyDate(iso);
+  }
+
+  Widget _pill(DhenuTokens t, String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 4),
-          ],
-          Text(label, style: DhenuText.label.copyWith(color: color)),
-        ]),
+        child: Text(label, style: DhenuText.label.copyWith(color: color)),
       );
 
   Future<void> _openReceive(

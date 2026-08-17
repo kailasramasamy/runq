@@ -2060,6 +2060,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ccHomeEvening => 'Evening';
 
   @override
+  String ccHomeShiftInTransit(Object amount) {
+    return '$amount on the way';
+  }
+
+  @override
+  String ccHomeShiftReceivedCount(int done, int total) {
+    return '$done of $total in';
+  }
+
+  @override
+  String get ccHomeShiftNothingIn => 'Nothing yet';
+
+  @override
   String get ccReceiveTitle => 'Receive';
 
   @override
@@ -2077,6 +2090,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ccReceiveRecentReceives => 'Recent receives';
+
+  @override
+  String get historyNotReceivedYet => 'Not received yet';
+
+  @override
+  String historyUpstreamPending(Object qty) {
+    return '$qty not received yet';
+  }
+
+  @override
+  String get historyAtSource => 'at source';
+
+  @override
+  String get historyNothingToday => 'Nothing received or collected yet today';
 
   @override
   String get ccReceiveNoReceiptsYet => 'No receipts yet';
@@ -2387,10 +2414,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ppHomeReceivedLabel => 'Received';
 
   @override
-  String get ppHomeInventoryNote =>
-      'Accepted posts to runq Inventory (raw-milk batch)';
-
-  @override
   String get ppHomeNoCcsTitle => 'No CCs dispatching';
 
   @override
@@ -2553,39 +2576,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get adminSwitchNoCentresSubtitle =>
       'Add VMCCs, chilling centres or plants in the web admin first';
-
-  @override
-  String adminSwitchCountPp(int n) {
-    String _temp0 = intl.Intl.pluralLogic(
-      n,
-      locale: localeName,
-      other: '$n plants',
-      one: '$n plant',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String adminSwitchCountCc(int n) {
-    String _temp0 = intl.Intl.pluralLogic(
-      n,
-      locale: localeName,
-      other: '$n chilling centres',
-      one: '$n chilling centre',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String adminSwitchCountVmcc(int n) {
-    String _temp0 = intl.Intl.pluralLogic(
-      n,
-      locale: localeName,
-      other: '$n centres',
-      one: '$n centre',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get operatorSwitchRolePp => 'Processing plant';
@@ -3062,4 +3052,95 @@ class AppLocalizationsEn extends AppLocalizations {
   String ppQcRankingSummary(int active, int total, int days) {
     return '$active of $total CCs delivered · last $days days';
   }
+
+  @override
+  String fastTrackTitle(String plant) {
+    return 'Send to $plant?';
+  }
+
+  @override
+  String get fastTrackChecking => 'Checking what\'s ready…';
+
+  @override
+  String get fastTrackSend => 'Send';
+
+  @override
+  String get fastTrackNothingTitle => 'Nothing to send';
+
+  @override
+  String get fastTrackNothingSubtitle =>
+      'No milk is waiting to go to the plant right now.';
+
+  @override
+  String get fastTrackClosesWholeDay =>
+      'This closes the whole day\'s collection at this centre — anything poured afterwards needs the slot reopened.';
+
+  @override
+  String fastTrackSuccess(String qty, String plant) {
+    return '$qty sent to $plant';
+  }
+
+  @override
+  String fastTrackPartial(String vmcc) {
+    return 'Stopped at $vmcc. Everything before it was recorded — finish the rest on the dispatch screen.';
+  }
+
+  @override
+  String get dispatchDestTitle => 'Where is this going?';
+
+  @override
+  String dispatchDestPlant(String plant) {
+    return 'Send to $plant';
+  }
+
+  @override
+  String get dispatchDestPlantSub =>
+      'Closes the chilling centre and takes the milk into raw-milk stock — the whole chain, in one step';
+
+  @override
+  String dispatchDestCc(String cc) {
+    return 'Dispatch to $cc';
+  }
+
+  @override
+  String get dispatchDestCcSub =>
+      'The usual leg — the chilling centre receives and weighs it';
+
+  @override
+  String get fastTrackChainSummary =>
+      'Closes both centres, records the dispatch and receipt on each leg, and takes the milk into raw-milk stock.';
+
+  @override
+  String get ccHomeShiftAwaitingVmcc => 'Yet to receive';
+
+  @override
+  String homeDispatchShiftQty(String shift, String qty) {
+    return 'Dispatch $shift · $qty';
+  }
+
+  @override
+  String homeDispatchSlotDated(String shift, String date, String qty) {
+    return 'Dispatch $shift · $date · $qty';
+  }
+
+  @override
+  String homeDispatchBothShifts(String qty) {
+    return 'Dispatch AM & PM · $qty';
+  }
+
+  @override
+  String dispatchDestPlantSubBoth(String qty) {
+    return 'Both shifts · $qty';
+  }
+
+  @override
+  String dispatchDestCcSubOne(String shift) {
+    return 'One shift at a time — starts with $shift';
+  }
+
+  @override
+  String get dispatchDestPlantGeneric => 'Send to the main plant';
+
+  @override
+  String get dispatchDestCcGeneric => 'Dispatch to the chilling centre';
 }

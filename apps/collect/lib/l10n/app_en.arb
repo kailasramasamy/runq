@@ -1436,12 +1436,48 @@
   },
   "ccHomeMorning": "Morning",
   "ccHomeEvening": "Evening",
+  "ccHomeShiftInTransit": "{amount} on the way",
+  "@ccHomeShiftInTransit": {
+    "description": "CC hero shift pill: litres still in transit for that shift",
+    "placeholders": {
+      "amount": {}
+    }
+  },
+  "ccHomeShiftReceivedCount": "{done} of {total} in",
+  "@ccHomeShiftReceivedCount": {
+    "description": "CC hero shift pill: VMCCs received of those with milk this shift",
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "ccHomeShiftNothingIn": "Nothing yet",
+  "@ccHomeShiftNothingIn": {
+    "description": "CC hero shift pill when the shift has no milk at all"
+  },
   "ccReceiveTitle": "Receive",
   "ccReceiveLoadError": "Could not load consignments",
   "ccReceiveManualButton": "Manual receive",
   "ccReceiveNothingInTransit": "Nothing in transit",
   "ccReceiveNothingInTransitSubtitle": "Incoming consignments appear here",
   "ccReceiveRecentReceives": "Recent receives",
+  "historyNotReceivedYet": "Not received yet",
+  "@historyNotReceivedYet": {
+    "description": "Receive history, today card: heading over source nodes whose milk has not arrived"
+  },
+  "historyUpstreamPending": "{qty} not received yet",
+  "@historyUpstreamPending": {
+    "description": "Receive history, today card collapsed: litres still upstream",
+    "placeholders": {
+      "qty": {}
+    }
+  },
+  "historyAtSource": "at source",
+  "historyNothingToday": "Nothing received or collected yet today",
   "ccReceiveNoReceiptsYet": "No receipts yet",
   "ccReceiveNoReceiptsSubtitle": "Milk you receive from VMCCs shows here",
   "ccReceiveHistoryTitle": "Receive history",
@@ -1638,7 +1674,6 @@
     }
   },
   "ppHomeReceivedLabel": "Received",
-  "ppHomeInventoryNote": "Accepted posts to runq Inventory (raw-milk batch)",
   "ppHomeNoCcsTitle": "No CCs dispatching",
   "ppHomeNoCcsSubtitle": "Chilling centres feeding this plant appear here",
   "ppHomeFlowTransit": "{amount} transit",
@@ -1734,33 +1769,6 @@
   "adminSwitchLoadCentresError": "Could not load centres",
   "adminSwitchNoCentresTitle": "No centres yet",
   "adminSwitchNoCentresSubtitle": "Add VMCCs, chilling centres or plants in the web admin first",
-  "adminSwitchCountPp": "{n, plural, one{{n} plant} other{{n} plants}}",
-  "@adminSwitchCountPp": {
-    "description": "Plant count in the centre switcher tier header",
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "adminSwitchCountCc": "{n, plural, one{{n} chilling centre} other{{n} chilling centres}}",
-  "@adminSwitchCountCc": {
-    "description": "Chilling centre count in the centre switcher tier header",
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "adminSwitchCountVmcc": "{n, plural, one{{n} centre} other{{n} centres}}",
-  "@adminSwitchCountVmcc": {
-    "description": "VMCC count in the centre switcher tier header",
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "operatorSwitchRolePp": "Processing plant",
   "operatorSwitchRoleCc": "Chilling centre",
   "operatorSwitchRoleVmcc": "Village collection centre",
@@ -2092,5 +2100,155 @@
         "type": "int"
       }
     }
+  },
+  "fastTrackTitle": "Send to {plant}?",
+  "@fastTrackTitle": {
+      "description": "Confirm sheet title",
+      "placeholders": {
+          "plant": {
+              "type": "String"
+          }
+      }
+  },
+  "fastTrackChecking": "Checking what's ready…",
+  "@fastTrackChecking": {
+      "description": "Loading state while the plan is fetched"
+  },
+  "fastTrackSend": "Send",
+  "@fastTrackSend": {
+      "description": "Confirm button on the fast-track sheet"
+  },
+  "fastTrackNothingTitle": "Nothing to send",
+  "@fastTrackNothingTitle": {
+      "description": "Empty plan title"
+  },
+  "fastTrackNothingSubtitle": "No milk is waiting to go to the plant right now.",
+  "@fastTrackNothingSubtitle": {
+      "description": "Empty plan subtitle"
+  },
+  "fastTrackClosesWholeDay": "This closes the whole day's collection at this centre — anything poured afterwards needs the slot reopened.",
+  "@fastTrackClosesWholeDay": {
+      "description": "Warning shown when a pooled node's close covers both shifts"
+  },
+  "fastTrackSuccess": "{qty} sent to {plant}",
+  "@fastTrackSuccess": {
+      "description": "Toast after a full run",
+      "placeholders": {
+          "qty": {
+              "type": "String"
+          },
+          "plant": {
+              "type": "String"
+          }
+      }
+  },
+  "fastTrackPartial": "Stopped at {vmcc}. Everything before it was recorded — finish the rest on the dispatch screen.",
+  "@fastTrackPartial": {
+      "description": "Toast when the chain failed part-way",
+      "placeholders": {
+          "vmcc": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestTitle": "Where is this going?",
+  "@dispatchDestTitle": {
+      "description": "Title of the dispatch destination chooser on a single-site VMCC"
+  },
+  "dispatchDestPlant": "Send to {plant}",
+  "@dispatchDestPlant": {
+      "description": "Chooser option: run the whole chain to the plant",
+      "placeholders": {
+          "plant": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestPlantSub": "Closes the chilling centre and takes the milk into raw-milk stock — the whole chain, in one step",
+  "@dispatchDestPlantSub": {
+      "description": "Subtitle for the plant option"
+  },
+  "dispatchDestCc": "Dispatch to {cc}",
+  "@dispatchDestCc": {
+      "description": "Chooser option: the ordinary VMCC to CC leg",
+      "placeholders": {
+          "cc": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestCcSub": "The usual leg — the chilling centre receives and weighs it",
+  "@dispatchDestCcSub": {
+      "description": "Subtitle for the CC option"
+  },
+  "fastTrackChainSummary": "Closes both centres, records the dispatch and receipt on each leg, and takes the milk into raw-milk stock.",
+  "@fastTrackChainSummary": {
+      "description": "One-line explanation of what the whole chain does, under the route"
+  },
+  "ccHomeShiftAwaitingVmcc": "Yet to receive",
+  "@ccHomeShiftAwaitingVmcc": {
+      "description": "Pill on the CC hero when a shift's milk is still at the VMCC — collected there, not dispatched"
+  },
+  "homeDispatchShiftQty": "Dispatch {shift} · {qty}",
+  "@homeDispatchShiftQty": {
+      "description": "Primary action naming the exact slot that will be dispatched, e.g. 'Dispatch PM · 197.5 L'",
+      "placeholders": {
+          "shift": {
+              "type": "String"
+          },
+          "qty": {
+              "type": "String"
+          }
+      }
+  },
+  "homeDispatchSlotDated": "Dispatch {shift} · {date} · {qty}",
+  "@homeDispatchSlotDated": {
+      "description": "Primary action when the waiting slot is from an earlier day — the date is named so it can't read as today's shift",
+      "placeholders": {
+          "shift": {
+              "type": "String"
+          },
+          "date": {
+              "type": "String"
+          },
+          "qty": {
+              "type": "String"
+          }
+      }
+  },
+  "homeDispatchBothShifts": "Dispatch AM & PM · {qty}",
+  "@homeDispatchBothShifts": {
+      "description": "Primary action when both of today's shifts are closed and waiting",
+      "placeholders": {
+          "qty": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestPlantSubBoth": "Both shifts · {qty}",
+  "@dispatchDestPlantSubBoth": {
+      "description": "Plant option subtitle when the chain will send AM and PM together",
+      "placeholders": {
+          "qty": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestCcSubOne": "One shift at a time — starts with {shift}",
+  "@dispatchDestCcSubOne": {
+      "description": "CC option subtitle when two shifts are waiting but the dispatch screen takes one",
+      "placeholders": {
+          "shift": {
+              "type": "String"
+          }
+      }
+  },
+  "dispatchDestPlantGeneric": "Send to the main plant",
+  "@dispatchDestPlantGeneric": {
+      "description": "Plant option title while the plant's name is still loading, or if it can't be resolved"
+  },
+  "dispatchDestCcGeneric": "Dispatch to the chilling centre",
+  "@dispatchDestCcGeneric": {
+      "description": "CC option title while the centre's name is still loading"
   }
 }

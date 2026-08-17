@@ -8,8 +8,12 @@ import { ConflictError, NotFoundError } from '../../utils/errors';
 import { MpPrincipal, scopeNodes } from './access-scope';
 import { assertAssignableRateChart } from './rate-chart.service';
 
+/** A VMCC row carries whether the single-site chain is open to this caller, so
+ * the app can offer the one-tap send without a second round trip. */
+export type NodeListRow = MpNodeRow & { fastTrackEnabled?: boolean };
+
 export interface NodeListResult {
-  data: MpNodeRow[];
+  data: NodeListRow[];
   meta: PaginationMeta;
 }
 
@@ -37,7 +41,49 @@ export class NodeService {
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpNodes).where(where),
     ]);
     const total = countResult[0]?.count ?? 0;
-    return { data: rows, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
+    return {
+      data: await this.annotateFastTrack(rows, principal),
+      meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
+    };
+  }
+
+  /**
+   * Mark the VMCCs whose whole chain this caller may run in one action: the
+   * plant above them carries `singleSiteChain`, and the caller can operate the
+   * CC and the plant too. Operator scope is descendant-expanded, so an operator
+   * assigned to the plant qualifies — which is the single-site case — while a
+   * VMCC-only operator does not.
+   *
+   * Costs one extra query, and only when the page actually holds VMCCs.
+   */
+  private async annotateFastTrack(
+    rows: MpNodeRow[], principal: MpPrincipal,
+  ): Promise<NodeListRow[]> {
+    const parentIds = [...new Set(
+      rows.filter((r) => r.nodeType === 'vmcc' && r.parentNodeId).map((r) => r.parentNodeId!),
+    )];
+    if (!parentIds.length) return rows;
+    // Two hops in one pass: the CCs above these VMCCs, and the plants above
+    // those CCs. The tree is only three deep, so a self-join isn't worth it.
+    const ccs = await this.db.select().from(mpNodes)
+      .where(and(eq(mpNodes.tenantId, this.tenantId), inArray(mpNodes.id, parentIds)));
+    const ppIds = [...new Set(ccs.filter((c) => c.parentNodeId).map((c) => c.parentNodeId!))];
+    const pps = ppIds.length
+      ? await this.db.select().from(mpNodes)
+        .where(and(eq(mpNodes.tenantId, this.tenantId), inArray(mpNodes.id, ppIds)))
+      : [];
+    const ccById = new Map(ccs.map((c) => [c.id, c]));
+    const ppById = new Map(pps.map((p) => [p.id, p]));
+    const operable = (id: string) => principal.kind === 'all'
+      || (principal.kind === 'operator' && principal.nodeIds.has(id));
+
+    return rows.map((r) => {
+      if (r.nodeType !== 'vmcc' || !r.parentNodeId) return r;
+      const cc = ccById.get(r.parentNodeId);
+      const pp = cc?.parentNodeId ? ppById.get(cc.parentNodeId) : undefined;
+      const enabled = !!pp?.singleSiteChain && !!cc && operable(cc.id) && operable(pp.id);
+      return enabled ? { ...r, fastTrackEnabled: true } : r;
+    });
   }
 
   async getById(id: string): Promise<MpNodeRow> {
@@ -68,6 +114,7 @@ export class NodeService {
         nodeType: input.nodeType,
         parentNodeId: input.parentNodeId ?? null,
         hasBmc: input.hasBmc,
+        singleSiteChain: input.singleSiteChain ?? false,
         dispatchMode: input.dispatchMode,
         measurementMode: input.measurementMode,
         collectionShifts: input.collectionShifts,
@@ -99,6 +146,7 @@ export class NodeService {
     // already fixes which resource (and type) a node belongs to.
     assignDefined(patch, {
       name: input.name, hasBmc: input.hasBmc,
+      singleSiteChain: input.singleSiteChain,
       dispatchMode: input.dispatchMode,
       measurementMode: input.measurementMode, collectionShifts: input.collectionShifts,
       allowedMilkTypes: input.allowedMilkTypes, defaultMilkType: input.defaultMilkType,

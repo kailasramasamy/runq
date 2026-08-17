@@ -31,21 +31,26 @@ class NotificationBell extends ConsumerWidget {
         child: Stack(clipBehavior: Clip.none, children: [
           Icon(unread > 0 ? DhenuIcons.bellDot : DhenuIcons.bell,
               size: 22, color: unread > 0 ? t.brand : t.inkSoft),
+          // Clear of the glyph, not on top of it. At caption size a "9+" badge
+          // is nearly as wide as the bell and sat right over it, so the icon
+          // it was annotating became unreadable. Smaller type, pushed further
+          // out, and ringed in the surface colour so the two shapes separate.
           if (unread > 0)
             Positioned(
-              top: -4, right: -6,
+              top: -5, right: -7,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                constraints: const BoxConstraints(minWidth: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 15),
                 decoration: BoxDecoration(
                   color: t.gradeC,
                   borderRadius: BorderRadius.circular(DhenuRadii.pill),
+                  border: Border.all(color: t.surface, width: 1.5),
                 ),
                 child: Text(
                   unread > 9 ? '9+' : '$unread',
                   textAlign: TextAlign.center,
-                  style: DhenuText.caption.copyWith(
-                      color: Colors.white, fontWeight: FontWeight.w700),
+                  style: DhenuText.number(size: 9, color: Colors.white)
+                      .copyWith(fontWeight: FontWeight.w700, height: 1.2),
                 ),
               ),
             ),

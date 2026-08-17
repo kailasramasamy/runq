@@ -22,6 +22,12 @@ import { RateChartService } from './rate-chart.service';
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type MilkType = NonNullable<MpConsignmentRow['milkType']>;
 
+/** Per-leg switches. `silent` suppresses the dispatch/receipt notification —
+ * the single-site fast track performs both halves of a leg on behalf of the one
+ * operator who tapped, so pinging them six times about milk that never left the
+ * building is noise, not news. */
+export interface LegOptions { silent?: boolean }
+
 /** Milk on hand at a source node on a date: what it took in minus what it already sent on. */
 export interface ConsignmentAvailability {
   nodeId: string; collectionDate: string; nodeType: string;
@@ -69,7 +75,10 @@ export class ConsignmentService {
     return row;
   }
 
-  async dispatch(input: CreateConsignmentInput, userId: string | undefined, principal: MpPrincipal): Promise<MpConsignmentRow> {
+  async dispatch(
+    input: CreateConsignmentInput, userId: string | undefined, principal: MpPrincipal,
+    opts: LegOptions = {},
+  ): Promise<MpConsignmentRow> {
     // operators may only dispatch from a node they're assigned to
     assertNodeAccess(principal, input.fromNodeId);
     // The node's dispatch mode decides everything below: a pooled node (day /
@@ -146,12 +155,17 @@ export class ConsignmentService {
     });
     // Tell the destination's operators a load is on the way. Fire-and-forget:
     // a notification must never fail the dispatch that triggered it.
-    void new MpNotifier(this.db, this.tenantId).dispatched(created)
-      .catch((err) => console.error('mp dispatch notification failed:', err));
+    if (!opts.silent) {
+      void new MpNotifier(this.db, this.tenantId).dispatched(created)
+        .catch((err) => console.error('mp dispatch notification failed:', err));
+    }
     return created;
   }
 
-  async receive(id: string, input: ReceiveConsignmentInput, userId: string | undefined, principal: MpPrincipal): Promise<MpConsignmentRow> {
+  async receive(
+    id: string, input: ReceiveConsignmentInput, userId: string | undefined, principal: MpPrincipal,
+    opts: LegOptions = {},
+  ): Promise<MpConsignmentRow> {
     const c = await this.getById(id, principal);
     if (c.status !== 'in_transit') throw new ConflictError('Consignment is not in transit');
     // operators may only receive at a node they're assigned to
@@ -178,8 +192,10 @@ export class ConsignmentService {
     });
     // Close the loop back to the sender — a short delivery should reach the
     // dispatching operator's phone, not wait for a month-end report.
-    void new MpNotifier(this.db, this.tenantId).received(result)
-      .catch((err) => console.error('mp receipt notification failed:', err));
+    if (!opts.silent) {
+      void new MpNotifier(this.db, this.tenantId).received(result)
+        .catch((err) => console.error('mp receipt notification failed:', err));
+    }
     return result;
   }
 

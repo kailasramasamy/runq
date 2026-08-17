@@ -59,8 +59,12 @@ const ccFields = baseNodeFields.extend({
   dispatchMode,
 });
 
-// PP: shared fields only.
-const ppFields = baseNodeFields;
+// PP: shared fields plus the single-site switch.
+const ppFields = baseNodeFields.extend({
+  // This plant and everything feeding it sit on one site, so an operator
+  // assigned to the whole chain can close + dispatch + receive in one action.
+  singleSiteChain: z.boolean().default(false),
+});
 
 // defaultMilkType, when set alongside an explicit allowed list, must be in it.
 const defaultWithinAllowed = (d: { defaultMilkType?: unknown; allowedMilkTypes?: readonly string[] | null }) =>
@@ -103,6 +107,7 @@ export type UpdateProcessingPlantInput = z.infer<typeof updateProcessingPlantSch
 // parsed typed-create object is assignable to these.
 type NodeTypeSpecific = {
   hasBmc?: boolean;
+  singleSiteChain?: boolean;
   dispatchMode?: z.infer<typeof dispatchMode>;
   measurementMode?: z.infer<typeof vmccFields>['measurementMode'];
   collectionShifts?: z.infer<typeof vmccFields>['collectionShifts'];

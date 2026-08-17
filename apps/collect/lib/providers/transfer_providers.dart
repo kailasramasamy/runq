@@ -156,6 +156,29 @@ final nodesByTypeProvider =
   return mpRepo.nodes(nodeType: nodeType, limit: 200);
 });
 
+/// What each source node feeding [nodeId] is holding today: collected so far,
+/// dispatched onward, and still available on its floor. Leg-generic — a VMCC's
+/// figure comes off its pours, a CC's off its own receipts — so the receive
+/// history can show today's milk before any of it has been received here.
+typedef UpstreamTodayArgs = ({String nodeId, String sourceType});
+typedef UpstreamToday = ({MpNode source, double collected, double dispatched, double available});
+
+final upstreamTodayProvider =
+    FutureProvider.family<List<UpstreamToday>, UpstreamTodayArgs>((ref, args) async {
+  final all = await ref.watch(nodesByTypeProvider(args.sourceType).future);
+  final children = all.where((n) => n.parentNodeId == args.nodeId && n.isActive);
+  final today = todayIso();
+  return Future.wait(children.map((n) async {
+    final a = await mpRepo.availability(n.id, today);
+    return (
+      source: n,
+      collected: a?.collected ?? 0.0,
+      dispatched: a?.dispatched ?? 0.0,
+      available: a?.available ?? 0.0,
+    );
+  }));
+});
+
 /// Recent QC tests — no filter (PP sees all subject types).
 final recentQcTestsProvider = FutureProvider<List<MpQcTest>>((ref) async {
   return mpRepo.qcTests();
@@ -175,6 +198,9 @@ typedef VmccCollection = ({
   int farmers,
   ShiftQc am,
   ShiftQc pm,
+  /// Per-milk-type slices of the same day, each carrying its own AM/PM qty and
+  /// QC — powers the per-shift milk-type breakup in the expanded entry.
+  List<MpMilkTypeSummary> byMilkType,
 });
 
 final ccVmccCollectionsProvider =
@@ -192,6 +218,7 @@ final ccVmccCollectionsProvider =
       farmers: s?.farmerCount ?? 0,
       am: (fat: s?.amFat ?? 0, snf: s?.amSnf ?? 0, water: s?.amWater ?? 0, rate: s?.amRate ?? 0),
       pm: (fat: s?.pmFat ?? 0, snf: s?.pmSnf ?? 0, water: s?.pmWater ?? 0, rate: s?.pmRate ?? 0),
+      byMilkType: s?.byMilkType ?? const <MpMilkTypeSummary>[],
     );
   }));
 });

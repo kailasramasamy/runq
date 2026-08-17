@@ -8,6 +8,7 @@ import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -15,6 +16,7 @@ import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/tank_gauge.dart';
+import '../../widgets/quick_link_card.dart';
 import '../../utils/friendly_error.dart';
 import '../role_shell.dart';
 import '../shared/node_qc_report.dart';
@@ -81,8 +83,6 @@ class PpHome extends ConsumerWidget {
           _statsRow(l, t, inTransit, received),
           const SizedBox(height: DhenuSpacing.md),
           _quickLinks(context, t, l),
-          const SizedBox(height: DhenuSpacing.md),
-          _inventoryNote(l, t),
           const SizedBox(height: DhenuSpacing.lg),
           Text(l.ppHomeCcsToday, style: DhenuText.title.copyWith(color: t.ink)),
           const SizedBox(height: DhenuSpacing.sm),
@@ -107,7 +107,8 @@ class PpHome extends ConsumerWidget {
   // No sync chip here: the offline queue only ever holds VMCC farmer pours, so
   // at a plant it could only read "Synced" — and "saved on device" when offline,
   // which is untrue. The bell is the only header affordance that means anything.
-  Widget _header() => DhenuSectionHeader(node.name, trailing: const NotificationBell());
+  Widget _header() => DhenuSectionHeader(node.name,
+      leadingTrailing: const CentreSwitcherButton(), trailing: const NotificationBell());
 
   Widget _hero(BuildContext context, AppLocalizations l, DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
     return consAsync.when(
@@ -285,40 +286,17 @@ class PpHome extends ConsumerWidget {
     );
   }
 
-  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label, Widget page) =>
-      DhenuCard(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.lg),
+  Widget _linkCard(BuildContext context, DhenuTokens t, IconData icon, String label,
+          Widget page) =>
+      QuickLinkCard(
+        icon: icon,
+        label: label,
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: Text(label, style: DhenuText.h2.copyWith(color: t.ink))),
             body: page,
           ),
         )),
-        child: Column(children: [
-          Icon(icon, color: t.brand),
-          const SizedBox(height: DhenuSpacing.sm),
-          Text(label, textAlign: TextAlign.center, style: DhenuText.label.copyWith(color: t.ink)),
-        ]),
-      );
-
-  Widget _inventoryNote(AppLocalizations l, DhenuTokens t) => Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
-        decoration: BoxDecoration(
-          color: t.brandSubtle,
-          borderRadius: BorderRadius.circular(DhenuRadii.input),
-        ),
-        child: Row(children: [
-          Icon(DhenuIcons.package, size: 16, color: t.inkSoft),
-          const SizedBox(width: DhenuSpacing.sm),
-          Expanded(
-            child: Text(
-              l.ppHomeInventoryNote,
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-            ),
-          ),
-        ]),
       );
 
   Widget _ccList(AppLocalizations l, DhenuTokens t, Map<String, _Flow> flow, Map<String, String> names) {

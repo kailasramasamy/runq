@@ -3628,6 +3628,24 @@ abstract class AppLocalizations {
   /// **'Evening'**
   String get ccHomeEvening;
 
+  /// CC hero shift pill: litres still in transit for that shift
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} on the way'**
+  String ccHomeShiftInTransit(Object amount);
+
+  /// CC hero shift pill: VMCCs received of those with milk this shift
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total} in'**
+  String ccHomeShiftReceivedCount(int done, int total);
+
+  /// CC hero shift pill when the shift has no milk at all
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing yet'**
+  String get ccHomeShiftNothingIn;
+
   /// No description provided for @ccReceiveTitle.
   ///
   /// In en, this message translates to:
@@ -3663,6 +3681,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recent receives'**
   String get ccReceiveRecentReceives;
+
+  /// Receive history, today card: heading over source nodes whose milk has not arrived
+  ///
+  /// In en, this message translates to:
+  /// **'Not received yet'**
+  String get historyNotReceivedYet;
+
+  /// Receive history, today card collapsed: litres still upstream
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} not received yet'**
+  String historyUpstreamPending(Object qty);
+
+  /// No description provided for @historyAtSource.
+  ///
+  /// In en, this message translates to:
+  /// **'at source'**
+  String get historyAtSource;
+
+  /// No description provided for @historyNothingToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing received or collected yet today'**
+  String get historyNothingToday;
 
   /// No description provided for @ccReceiveNoReceiptsYet.
   ///
@@ -4178,12 +4220,6 @@ abstract class AppLocalizations {
   /// **'Received'**
   String get ppHomeReceivedLabel;
 
-  /// No description provided for @ppHomeInventoryNote.
-  ///
-  /// In en, this message translates to:
-  /// **'Accepted posts to runq Inventory (raw-milk batch)'**
-  String get ppHomeInventoryNote;
-
   /// No description provided for @ppHomeNoCcsTitle.
   ///
   /// In en, this message translates to:
@@ -4447,24 +4483,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add VMCCs, chilling centres or plants in the web admin first'**
   String get adminSwitchNoCentresSubtitle;
-
-  /// Plant count in the centre switcher tier header
-  ///
-  /// In en, this message translates to:
-  /// **'{n, plural, one{{n} plant} other{{n} plants}}'**
-  String adminSwitchCountPp(int n);
-
-  /// Chilling centre count in the centre switcher tier header
-  ///
-  /// In en, this message translates to:
-  /// **'{n, plural, one{{n} chilling centre} other{{n} chilling centres}}'**
-  String adminSwitchCountCc(int n);
-
-  /// VMCC count in the centre switcher tier header
-  ///
-  /// In en, this message translates to:
-  /// **'{n, plural, one{{n} centre} other{{n} centres}}'**
-  String adminSwitchCountVmcc(int n);
 
   /// No description provided for @operatorSwitchRolePp.
   ///
@@ -5247,6 +5265,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{active} of {total} CCs delivered · last {days} days'**
   String ppQcRankingSummary(int active, int total, int days);
+
+  /// Confirm sheet title
+  ///
+  /// In en, this message translates to:
+  /// **'Send to {plant}?'**
+  String fastTrackTitle(String plant);
+
+  /// Loading state while the plan is fetched
+  ///
+  /// In en, this message translates to:
+  /// **'Checking what\'s ready…'**
+  String get fastTrackChecking;
+
+  /// Confirm button on the fast-track sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get fastTrackSend;
+
+  /// Empty plan title
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to send'**
+  String get fastTrackNothingTitle;
+
+  /// Empty plan subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'No milk is waiting to go to the plant right now.'**
+  String get fastTrackNothingSubtitle;
+
+  /// Warning shown when a pooled node's close covers both shifts
+  ///
+  /// In en, this message translates to:
+  /// **'This closes the whole day\'s collection at this centre — anything poured afterwards needs the slot reopened.'**
+  String get fastTrackClosesWholeDay;
+
+  /// Toast after a full run
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} sent to {plant}'**
+  String fastTrackSuccess(String qty, String plant);
+
+  /// Toast when the chain failed part-way
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped at {vmcc}. Everything before it was recorded — finish the rest on the dispatch screen.'**
+  String fastTrackPartial(String vmcc);
+
+  /// Title of the dispatch destination chooser on a single-site VMCC
+  ///
+  /// In en, this message translates to:
+  /// **'Where is this going?'**
+  String get dispatchDestTitle;
+
+  /// Chooser option: run the whole chain to the plant
+  ///
+  /// In en, this message translates to:
+  /// **'Send to {plant}'**
+  String dispatchDestPlant(String plant);
+
+  /// Subtitle for the plant option
+  ///
+  /// In en, this message translates to:
+  /// **'Closes the chilling centre and takes the milk into raw-milk stock — the whole chain, in one step'**
+  String get dispatchDestPlantSub;
+
+  /// Chooser option: the ordinary VMCC to CC leg
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch to {cc}'**
+  String dispatchDestCc(String cc);
+
+  /// Subtitle for the CC option
+  ///
+  /// In en, this message translates to:
+  /// **'The usual leg — the chilling centre receives and weighs it'**
+  String get dispatchDestCcSub;
+
+  /// One-line explanation of what the whole chain does, under the route
+  ///
+  /// In en, this message translates to:
+  /// **'Closes both centres, records the dispatch and receipt on each leg, and takes the milk into raw-milk stock.'**
+  String get fastTrackChainSummary;
+
+  /// Pill on the CC hero when a shift's milk is still at the VMCC — collected there, not dispatched
+  ///
+  /// In en, this message translates to:
+  /// **'Yet to receive'**
+  String get ccHomeShiftAwaitingVmcc;
+
+  /// Primary action naming the exact slot that will be dispatched, e.g. 'Dispatch PM · 197.5 L'
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch {shift} · {qty}'**
+  String homeDispatchShiftQty(String shift, String qty);
+
+  /// Primary action when the waiting slot is from an earlier day — the date is named so it can't read as today's shift
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch {shift} · {date} · {qty}'**
+  String homeDispatchSlotDated(String shift, String date, String qty);
+
+  /// Primary action when both of today's shifts are closed and waiting
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch AM & PM · {qty}'**
+  String homeDispatchBothShifts(String qty);
+
+  /// Plant option subtitle when the chain will send AM and PM together
+  ///
+  /// In en, this message translates to:
+  /// **'Both shifts · {qty}'**
+  String dispatchDestPlantSubBoth(String qty);
+
+  /// CC option subtitle when two shifts are waiting but the dispatch screen takes one
+  ///
+  /// In en, this message translates to:
+  /// **'One shift at a time — starts with {shift}'**
+  String dispatchDestCcSubOne(String shift);
+
+  /// Plant option title while the plant's name is still loading, or if it can't be resolved
+  ///
+  /// In en, this message translates to:
+  /// **'Send to the main plant'**
+  String get dispatchDestPlantGeneric;
+
+  /// CC option title while the centre's name is still loading
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch to the chilling centre'**
+  String get dispatchDestCcGeneric;
 }
 
 class _AppLocalizationsDelegate

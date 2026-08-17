@@ -8,7 +8,6 @@ import '../providers/mp_context_provider.dart';
 import '../providers/mp_refresh.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
-import '../widgets/centre_switcher.dart';
 import '../widgets/dhenu_states.dart';
 import '../widgets/farmer_view.dart';
 import '../widgets/operator_switcher.dart';
@@ -81,10 +80,10 @@ class _AdminHome extends ConsumerWidget {
       if (r == null) return const CentrePickerScreen();
       node = r;
     }
-    final header = CentreSwitcherBar(node: node);
-    if (node.isPp) return PpShell(node: node, header: header);
-    if (node.isCc) return CcShell(node: node, header: header);
-    return VmccShell(node: node, header: header);
+    // No switcher bar: the home title carries the centre name and its chevron
+    // ([CentreSwitcherButton]) reopens the switcher, so a strip above every tab
+    // only restated what was already on screen.
+    return _shellFor(node, null);
   }
 }
 
