@@ -3,19 +3,30 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'runq_tokens.dart';
 
-/// System-bar styles that carry icon brightness and nothing else.
+/// System-bar styles that carry icon brightness, plus a transparent status
+/// bar.
 ///
-/// Every colour field on [SystemUiOverlayStyle] — `statusBarColor`,
-/// `systemNavigationBarColor`, `systemNavigationBarDividerColor`,
-/// `systemNavigationBarContrastEnforced` — routes to a `Window` setter that
+/// `systemNavigationBarColor`, `systemNavigationBarDividerColor` and
+/// `systemNavigationBarContrastEnforced` route to `Window` setters that
 /// Android deprecated in API 35 and ignores under edge-to-edge, which is what
 /// Play Console reports as "uses deprecated APIs or parameters for edge-to-edge".
 /// Brightness maps to `WindowInsetsController.setSystemBarsAppearance`, which
 /// is current. Flutter's own `SystemUiOverlayStyle.light`/`.dark` constants set
 /// a black nav bar, so prefer these instead of those.
+///
+/// `statusBarColor` is the exception, and it has to be set here. Edge-to-edge
+/// does NOT leave the status bar transparent: it applies `0x40000000`, a 25%
+/// black scrim. Measured on-device the bar came back (185,184,181) over a
+/// (247,245,241) [RunqTokens.bgWarm] screen — exactly that blend, so the app
+/// already paints its own background up there and the scrim is the only thing
+/// making the bar look like a different colour. Because it is applied at
+/// runtime it also overrides `android:statusBarColor` from the Android theme,
+/// so styles.xml cannot fix this. On API 35 the setter is ignored and the bar
+/// is transparent anyway, which is the same result.
 class RunqSystemBars {
   /// Light icons — for a dark background behind the bars.
   static const lightIcons = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
     systemNavigationBarIconBrightness: Brightness.light,
@@ -23,6 +34,7 @@ class RunqSystemBars {
 
   /// Dark icons — for a light background behind the bars.
   static const darkIcons = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
     statusBarBrightness: Brightness.light,
     systemNavigationBarIconBrightness: Brightness.dark,
