@@ -47,12 +47,14 @@ IconData _statusIcon(String s) => switch (s) {
     };
 
 /// Opens the picker and applies the chosen status. Call with the root
-/// navigator's context — the caller's sheet is usually being popped.
+/// navigator's context — the caller's sheet is usually being popped, so we
+/// read the container off that context rather than take the caller's
+/// WidgetRef, which dies with its sheet.
 Future<void> showEmploymentStatusSheet(
   BuildContext context,
-  WidgetRef ref,
   HrEmployee emp,
 ) async {
+  final container = ProviderScope.containerOf(context);
   final picked = await showModalBottomSheet<String>(
     context: context,
     backgroundColor: Colors.transparent,
@@ -121,8 +123,8 @@ Future<void> showEmploymentStatusSheet(
 
   try {
     await hrRepo.updateEmployee(emp.id, body);
-    ref.invalidate(hrEmployeeProvider(emp.id));
-    ref.invalidate(hrEmployeesProvider);
+    container.invalidate(hrEmployeeProvider(emp.id));
+    container.invalidate(hrEmployeesProvider);
     if (context.mounted) {
       showRunqSnack(context, 'Marked ${employmentStatusLabel(picked).toLowerCase()}',
           kind: SnackKind.success);

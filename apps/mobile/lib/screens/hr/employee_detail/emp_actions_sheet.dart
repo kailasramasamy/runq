@@ -143,7 +143,7 @@ class _ActionsSheet extends ConsumerWidget {
                 // the photo action grabs it.
                 final rootCtx = Navigator.of(context, rootNavigator: true).context;
                 Navigator.of(context).pop();
-                await showEmploymentStatusSheet(rootCtx, ref, emp);
+                await showEmploymentStatusSheet(rootCtx, emp);
               },
             ),
           ]),
@@ -219,17 +219,21 @@ class _ActionsSheet extends ConsumerWidget {
       label: label,
       trailing: trailing,
       onTap: disabled ? () {} : () async {
+        // Same reason as the status row: this sheet is gone by the time the
+        // invite returns, so hold the root context and the container.
+        final rootCtx = Navigator.of(context, rootNavigator: true).context;
+        final container = ProviderScope.containerOf(context);
         Navigator.of(context).pop();
-        await _sendInvite(context, ref);
+        await _sendInvite(rootCtx, container);
       },
     );
   }
 
-  Future<void> _sendInvite(BuildContext context, WidgetRef ref) async {
+  Future<void> _sendInvite(BuildContext context, ProviderContainer container) async {
     try {
       final result = await hrRepo.inviteEmployee(emp.id);
       // Refresh status so the sheet reads "Pending" next time.
-      ref.invalidate(hrEmployeeInviteStatusProvider(emp.id));
+      container.invalidate(hrEmployeeInviteStatusProvider(emp.id));
       // Always stage the link to clipboard so the inviter has a fallback
       // regardless of whether SMTP delivered. Cheap and never harmful.
       await Clipboard.setData(ClipboardData(text: result.inviteUrl));
