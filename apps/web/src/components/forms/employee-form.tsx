@@ -100,9 +100,10 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
   const [form, setForm] = useState<FormState>(() => buildInitial(initialData));
   const { data: deptData } = useDepartments();
   const { data: desigData } = useDesignations();
-  // Active employees power the reporting-manager picker. Fetch a wide page so
-  // the Combobox (searchable) lists everyone for typical SME headcounts.
-  const { data: empData } = useEmployees({ status: 'active', limit: 500 });
+  // Active employees power the reporting-manager picker. 200 is the server's
+  // hard cap on this filter — asking for more 400s and leaves the Combobox
+  // empty, which is worse than a page that covers any SME headcount.
+  const { data: empData } = useEmployees({ status: 'active', limit: 200 });
   // Only on create — an existing record already has its code.
   const { data: nextCode } = useNextEmployeeCode(!initialData);
   const suggestedCode = nextCode?.data.employeeCode;
