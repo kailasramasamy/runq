@@ -1,9 +1,10 @@
-import { eq, and, sql, isNull } from 'drizzle-orm';
+import { eq, and, sql, isNull, desc, asc } from 'drizzle-orm';
 import { leaveBalances, leaveTypes, employees } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { AdjustLeaveBalanceInput } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import { applyHrScope, type HrAccessScope } from './access-scope';
+import { LeaveAccrualService } from './leave-accrual.service';
 
 /// A leave type granting more days than this is treated as statutory
 /// event leave (e.g. Maternity ≈182d), not a regular annual quota — it is
@@ -38,6 +39,20 @@ function monthlyAccrualStart(joiningDate: Date, year: number): number {
   return joiningDate.getUTCMonth(); // 0-based index == 1-based month minus one
 }
 
+/**
+ * Opening accrual for a fresh balance row. Upfront types are credited
+ * their prorated annual quota; monthly types start empty and let the
+ * accrual scheduler credit them month by month (12 parks a non-monthly
+ * row so the scheduler skips it).
+ */
+export function seedAccrual(type: typeof leaveTypes.$inferSelect, joiningDate: Date, year: number) {
+  const monthly = type.accrualMode === 'monthly';
+  return {
+    accrued: monthly ? '0' : String(proratedAccrued(Number(type.daysPerYear), joiningDate, year)),
+    lastAccruedMonth: monthly ? monthlyAccrualStart(joiningDate, year) : 12,
+  };
+}
+
 export class LeaveBalanceService {
   /// Optional scope. Defaults to org-wide so internal callers (carry-forward,
   /// adjust, incrementUsed) keep working; the `/leave-balances` GET passes the
@@ -49,24 +64,20 @@ export class LeaveBalanceService {
   ) {}
 
   /**
-   * Ensures a balance row exists for (employee, leaveType, year). Initializes
-   * `accrued` to the leave type's daysPerYear if creating.
+   * Ensures a balance row exists for (employee, leaveType, year), seeding
+   * it exactly the way provisioning would — prorated for upfront types,
+   * zero for monthly-accrual ones. Seeding a monthly type with its full
+   * annual quota here would hand an employee a whole year up front the
+   * first time they apply for that leave.
    */
   async ensure(employeeId: string, leaveTypeId: string, year: number) {
-    const [existing] = await this.db
-      .select()
-      .from(leaveBalances)
-      .where(and(
-        eq(leaveBalances.tenantId, this.tenantId),
-        eq(leaveBalances.employeeId, employeeId),
-        eq(leaveBalances.leaveTypeId, leaveTypeId),
-        eq(leaveBalances.year, year),
-      ))
-      .limit(1);
+    const existing = await this.findBalance(employeeId, leaveTypeId, year);
     if (existing) return existing;
 
+    const emp = await this.loadEmployee(employeeId);
+    if (!emp) throw new NotFoundError('Employee');
     const [type] = await this.db
-      .select({ daysPerYear: leaveTypes.daysPerYear })
+      .select()
       .from(leaveTypes)
       .where(and(eq(leaveTypes.id, leaveTypeId), eq(leaveTypes.tenantId, this.tenantId)))
       .limit(1);
@@ -78,9 +89,23 @@ export class LeaveBalanceService {
       leaveTypeId,
       year,
       opening: '0',
-      accrued: type.daysPerYear,
       used: '0',
+      ...seedAccrual(type, new Date(emp.joiningDate), year),
     }).returning();
+    return row;
+  }
+
+  private async findBalance(employeeId: string, leaveTypeId: string, year: number) {
+    const [row] = await this.db
+      .select()
+      .from(leaveBalances)
+      .where(and(
+        eq(leaveBalances.tenantId, this.tenantId),
+        eq(leaveBalances.employeeId, employeeId),
+        eq(leaveBalances.leaveTypeId, leaveTypeId),
+        eq(leaveBalances.year, year),
+      ))
+      .limit(1);
     return row;
   }
 
@@ -91,11 +116,7 @@ export class LeaveBalanceService {
    * populated from day one.
    */
   async provisionForEmployee(employeeId: string, year: number) {
-    const [emp] = await this.db
-      .select({ id: employees.id, joiningDate: employees.joiningDate, gender: employees.gender })
-      .from(employees)
-      .where(and(eq(employees.id, employeeId), eq(employees.tenantId, this.tenantId)))
-      .limit(1);
+    const emp = await this.loadEmployee(employeeId);
     if (!emp) throw new NotFoundError('Employee');
     return this.provisionRows(emp, await this.activeLeaveTypes(), year);
   }
@@ -106,7 +127,37 @@ export class LeaveBalanceService {
    * existing workforce, or open a new leave year.
    */
   async provisionAll(year: number) {
-    const emps = await this.db
+    const emps = await this.activeEmployees();
+    const types = await this.activeLeaveTypes();
+    let created = 0;
+    for (const emp of emps) created += (await this.provisionRows(emp, types, year)).created;
+    return { employees: emps.length, created };
+  }
+
+  /**
+   * Provision one newly-created leave type across the existing workforce.
+   * Without this, a type added tenant-wide only reaches employees hired
+   * afterwards — everyone already on the books keeps an empty Leave
+   * screen for it until someone remembers to run "Initialize balances".
+   */
+  async provisionForType(type: typeof leaveTypes.$inferSelect, year: number) {
+    const emps = await this.activeEmployees();
+    let created = 0;
+    for (const emp of emps) created += (await this.provisionRows(emp, [type], year)).created;
+    return { employees: emps.length, created };
+  }
+
+  private async loadEmployee(employeeId: string) {
+    const [emp] = await this.db
+      .select({ id: employees.id, joiningDate: employees.joiningDate, gender: employees.gender })
+      .from(employees)
+      .where(and(eq(employees.id, employeeId), eq(employees.tenantId, this.tenantId)))
+      .limit(1);
+    return emp;
+  }
+
+  private activeEmployees() {
+    return this.db
       .select({ id: employees.id, joiningDate: employees.joiningDate, gender: employees.gender })
       .from(employees)
       .where(and(
@@ -114,10 +165,6 @@ export class LeaveBalanceService {
         eq(employees.status, 'active'),
         isNull(employees.deletedAt),
       ));
-    const types = await this.activeLeaveTypes();
-    let created = 0;
-    for (const emp of emps) created += (await this.provisionRows(emp, types, year)).created;
-    return { employees: emps.length, created };
   }
 
   private activeLeaveTypes() {
@@ -141,7 +188,6 @@ export class LeaveBalanceService {
       // Mirror list()'s gender-eligibility filter — never seed a
       // maternity balance onto a male employee.
       if (t.applicableGender !== 'all' && t.applicableGender !== emp.gender) continue;
-      const monthly = t.accrualMode === 'monthly';
       const inserted = await this.db
         .insert(leaveBalances)
         .values({
@@ -150,11 +196,8 @@ export class LeaveBalanceService {
           leaveTypeId: t.id,
           year,
           opening: '0',
-          accrued: monthly
-            ? '0'
-            : String(proratedAccrued(Number(t.daysPerYear), joiningDate, year)),
           used: '0',
-          lastAccruedMonth: monthly ? monthlyAccrualStart(joiningDate, year) : 12,
+          ...seedAccrual(t, joiningDate, year),
         })
         .onConflictDoNothing({
           target: [leaveBalances.employeeId, leaveBalances.leaveTypeId, leaveBalances.year],
@@ -210,6 +253,48 @@ export class LeaveBalanceService {
   }
 
   async list(filter: { employeeId?: string; year?: number }) {
+    // Self-heal one employee's year before reading it. Balance rows are
+    // materialised, not derived, so an employee who was never provisioned
+    // — hired before the leave type existed, or a year that was never
+    // opened — reads back empty and their Leave screen looks like they
+    // have no entitlement at all. Provisioning is idempotent, so this is
+    // a no-op on every subsequent read.
+    if (filter.employeeId && filter.year && this.canRead(filter.employeeId)) {
+      const emp = await this.loadEmployee(filter.employeeId);
+      if (emp) await this.healEmployee(emp, filter.year);
+    }
+    return this.select(filter);
+  }
+
+  /// Never heal an employee the caller can't read anyway — the rows would
+  /// be filtered straight back out, and a read has no business writing on
+  /// behalf of someone outside the caller's scope.
+  private canRead(employeeId: string) {
+    const s = this.scope;
+    if (s.kind === 'all') return true;
+    if (s.kind === 'none') return false;
+    return s.kind === 'self'
+      ? s.selfEmployeeId === employeeId
+      : s.ids.has(employeeId);
+  }
+
+  /// Provision any missing rows for one employee's year, then — for the
+  /// current year only — catch their monthly-accrual types up to today.
+  /// Without the catch-up a healed employee reads back at zero until the
+  /// nightly scheduler runs, which looks identical to the bug.
+  private async healEmployee(
+    emp: { id: string; joiningDate: string; gender: string | null },
+    year: number,
+  ) {
+    const { created } = await this.provisionRows(emp, await this.activeLeaveTypes(), year);
+    if (!created) return;
+    const now = new Date();
+    if (year !== now.getUTCFullYear()) return;
+    await new LeaveAccrualService(this.db)
+      .accrueUpThrough(this.tenantId, year, now.getUTCMonth() + 1, emp.id);
+  }
+
+  private async select(filter: { employeeId?: string; year?: number }) {
     const conditions = [eq(leaveBalances.tenantId, this.tenantId)];
     if (filter.employeeId) conditions.push(eq(leaveBalances.employeeId, filter.employeeId));
     if (filter.year) conditions.push(eq(leaveBalances.year, filter.year));
@@ -243,7 +328,11 @@ export class LeaveBalanceService {
       .from(leaveBalances)
       .innerJoin(leaveTypes, eq(leaveTypes.id, leaveBalances.leaveTypeId))
       .innerJoin(employees, eq(employees.id, leaveBalances.employeeId))
-      .where(applyHrScope(this.scope, leaveBalances.employeeId, and(...conditions)));
+      .where(applyHrScope(this.scope, leaveBalances.employeeId, and(...conditions)))
+      // Deterministic order — without it Postgres returns heap order, so
+      // the same employee's types shuffle between reads. Types the
+      // employee can actually draw on lead; code breaks the tie.
+      .orderBy(desc(sql`${leaveBalances.opening} + ${leaveBalances.accrued} - ${leaveBalances.used}`), asc(leaveTypes.code));
 
     return rows.map((r) => ({
       ...r.bal,

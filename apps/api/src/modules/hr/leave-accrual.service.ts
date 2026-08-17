@@ -33,10 +33,19 @@ export class LeaveAccrualService {
   /// Advance all eligible balance rows in `tenantId` so their
   /// `last_accrued_month` is at least `asOfMonth`. Returns a summary
   /// suitable for the scheduler log.
-  async accrueUpThrough(tenantId: string, year: number, asOfMonth: number): Promise<AccrualSummary> {
+  async accrueUpThrough(
+    tenantId: string,
+    year: number,
+    asOfMonth: number,
+    employeeId?: string,
+  ): Promise<AccrualSummary> {
     if (asOfMonth < 1 || asOfMonth > 12) {
       throw new Error(`Invalid asOfMonth: ${asOfMonth}`);
     }
+    // Optional single-employee narrowing, so a freshly provisioned
+    // employee can be caught up on the spot instead of waiting for the
+    // next nightly pass.
+    const employeeFilter = employeeId ? sql`AND lb.employee_id = ${employeeId}` : sql``;
 
     // Single UPDATE … FROM so we don't round-trip per row. The delta is
     // (asOfMonth - last_accrued_month) months at (daysPerYear / 12) each.
@@ -58,6 +67,7 @@ export class LeaveAccrualService {
            AND lb.last_accrued_month < ${asOfMonth}
            AND e.status = 'active'
            AND e.deleted_at IS NULL
+           ${employeeFilter}
       ),
       capped AS (
         -- max_balance caps the *available* balance, not lifetime accrual: an

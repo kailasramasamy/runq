@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { LeaveAccrualService } from '../src/modules/hr/leave-accrual.service';
 import { countedLeaveDates } from '../src/modules/hr/leave-days';
 import { countWorkingDays } from '../src/modules/hr/work-calendar';
+import { seedAccrual } from '../src/modules/hr/leave-balance.service';
 
 // The policy knobs behind an org that works all seven days, accrues a few
 // days of CL a month, and caps how much can be banked. Every default here is
@@ -308,5 +309,43 @@ describe('payroll: the LOP line names the days', () => {
 
   it('handles a half day', () => {
     expect(label([], 0.5)).toBe(' (0.5 days)');
+  });
+});
+
+describe('leave balance seeding', () => {
+  const type = (over: Record<string, unknown>) => ({
+    daysPerYear: '48.00',
+    accrualMode: 'monthly',
+    applicableGender: 'all',
+    ...over,
+  }) as any;
+
+  const joinedMarch = new Date('2026-03-31');
+
+  it('seeds a monthly-accrual type empty, not with the annual quota', () => {
+    // The bug this guards: seeding `accrued = daysPerYear` handed an
+    // employee a full year of CL the first time a row was materialised.
+    const seed = seedAccrual(type({}), joinedMarch, 2026);
+    expect(seed.accrued).toBe('0');
+  });
+
+  it('parks a monthly row on the join month so accrual starts there', () => {
+    // 0-based month index — March is 2, so the next pass credits from March.
+    expect(seedAccrual(type({}), joinedMarch, 2026).lastAccruedMonth).toBe(2);
+  });
+
+  it('credits an upfront type its prorated quota and skips the scheduler', () => {
+    const seed = seedAccrual(type({ accrualMode: 'upfront', daysPerYear: '12.00' }), joinedMarch, 2026);
+    expect(seed.accrued).toBe('10'); // Mar–Dec = 10 of 12 months
+    expect(seed.lastAccruedMonth).toBe(12);
+  });
+
+  it('gives an earlier joiner the full upfront quota', () => {
+    const seed = seedAccrual(
+      type({ accrualMode: 'upfront', daysPerYear: '12.00' }),
+      new Date('2021-01-01'),
+      2026,
+    );
+    expect(seed.accrued).toBe('12');
   });
 });

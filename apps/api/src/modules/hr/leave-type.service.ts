@@ -74,6 +74,14 @@ export class LeaveTypeService {
       .insert(leaveTypes)
       .values({ tenantId: this.tenantId, ...this.serialize(input) } as any)
       .returning();
+
+    // Enabling a type tenant-wide has to reach the existing workforce —
+    // balances are materialised rows, so without this only employees
+    // hired afterwards would ever see the new entitlement.
+    if (row.isActive) {
+      await new LeaveBalanceService(this.db, this.tenantId)
+        .provisionForType(row, new Date().getUTCFullYear());
+    }
     return row;
   }
 
@@ -110,10 +118,10 @@ export class LeaveTypeService {
       .limit(1);
     if (used) throw new ConflictError('Leave type is in use by requests');
 
-    // Balances are derived bookkeeping — the accrual scheduler creates a
-    // row per employee × type, so almost every type has them and they'd
-    // otherwise trip the FK. With no requests behind it, `used` is 0, so
-    // there's nothing to preserve.
+    // Balances are derived bookkeeping — every active employee is
+    // provisioned a row per type, so almost every type has them and
+    // they'd otherwise trip the FK. With no requests behind it, `used`
+    // is 0, so there's nothing to preserve.
     return this.db.transaction(async (tx) => {
       await tx
         .delete(leaveBalances)
