@@ -63,7 +63,10 @@ export async function buildApp() {
   // maxParamLength defaults to 100; the signed MP statement-PDF token (the
   // WhatsApp document link Interakt fetches) is ~250 chars in a single :token
   // path param, so a lower limit makes find-my-way 404 the route entirely.
-  const app = Fastify({ logger: true, maxParamLength: 1024 });
+  // trustProxy: behind the platform's load balancer every request arrives from
+  // the proxy socket, so req.ip (and the rate-limit bucket keyed on it) would
+  // otherwise be one shared value for the whole world.
+  const app = Fastify({ logger: true, maxParamLength: 1024, trustProxy: true });
 
   // CORS
   const corsOrigin = process.env.CORS_ORIGIN
@@ -75,9 +78,15 @@ export async function buildApp() {
   await app.register(helmet, {
     contentSecurityPolicy: false, // Disable CSP for API — frontend handles its own
   });
+  // Signed-in traffic is bucketed per bearer token, not per IP: a Dhenu CC home
+  // fans out one call per feeding VMCC on every refresh, and a village of
+  // operators shares one NAT address — on an IP bucket they drain each other's
+  // budget and the app 429s mid-dashboard. Anonymous callers keep the tight
+  // IP-keyed limit.
   await app.register(rateLimit, {
-    max: 100,
+    max: (req) => (req.headers.authorization ? 600 : 100),
     timeWindow: '1 minute',
+    keyGenerator: (req) => req.headers.authorization ?? req.ip,
   });
 
   // Infrastructure plugins
