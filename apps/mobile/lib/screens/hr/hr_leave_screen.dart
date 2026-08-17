@@ -283,7 +283,7 @@ class _MyLeaveTab extends ConsumerWidget {
         await Future<void>.delayed(const Duration(milliseconds: 250));
       },
       child: ListView(
-        padding: EdgeInsets.fromLTRB(16, bothEmpty ? 72 : 20, 16, 140),
+        padding: EdgeInsets.fromLTRB(16, bothEmpty ? 72 : 14, 16, 140),
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         children: bothEmpty
             ? const [
@@ -302,7 +302,7 @@ class _MyLeaveTab extends ConsumerWidget {
                   data: (rows) => rows.isEmpty
                       ? const SizedBox.shrink()
                       : Padding(
-                          padding: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.only(bottom: 16),
                           child: HrLeaveBalancePills(rows: rows),
                         ),
                   loading: () => const SizedBox.shrink(),
