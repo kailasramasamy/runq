@@ -22,6 +22,7 @@
 import { FastifyRequest } from 'fastify';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { employees, users } from '@runq/db';
+import type { Db } from '@runq/db';
 
 export type HrAccessScope =
   | { kind: 'all' }
@@ -45,6 +46,49 @@ export async function resolveHrAccessScope(req: FastifyRequest): Promise<HrAcces
   return scope;
 }
 
+/// WHERE fragment matching the `employees` row that backs `user`: by email
+/// for web logins, by digit-normalised phone for mobile OTP logins (which
+/// mint a user with no real email). A phone-only employee must still
+/// resolve, otherwise every self-serve HR read silently returns nothing.
+export function employeeMatchesUser(
+  tenantId: string,
+  user: { email: string | null; phone: string | null },
+) {
+  const phoneDigits = user.phone ?? '';
+  return and(
+    eq(employees.tenantId, tenantId),
+    sql`(
+      lower(${employees.email}) = lower(${user.email})
+      OR (
+        ${phoneDigits} <> ''
+        AND regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g') IN (${phoneDigits}, ${'91' + phoneDigits})
+      )
+    )`,
+  );
+}
+
+/// The employee id behind `userId`, or null when the user has no employee
+/// row. Unlike [resolveHrAccessScope] this ignores role: an owner asking
+/// for "my payslip" means their own, not the whole tenant's.
+export async function resolveSelfEmployeeId(
+  db: Db,
+  tenantId: string,
+  userId: string,
+): Promise<string | null> {
+  const [userRow] = await db
+    .select({ email: users.email, phone: users.phone })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!userRow) return null;
+  const [emp] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(employeeMatchesUser(tenantId, userRow))
+    .limit(1);
+  return emp?.id ?? null;
+}
+
 async function compute(req: FastifyRequest): Promise<HrAccessScope> {
   const role = req.activeRole;
   if (ORG_WIDE_ROLES.has(role)) return { kind: 'all' };
@@ -66,22 +110,10 @@ async function compute(req: FastifyRequest): Promise<HrAccessScope> {
   // phone (mobile OTP-login). Mirrors /hr/me — a phone-only employee with
   // no email must still resolve to a scope, otherwise every scoped HR
   // query (leave balances, leave requests, …) silently returns nothing.
-  const phoneDigits = userRow.phone ?? '';
   const [emp] = await db
     .select({ id: employees.id })
     .from(employees)
-    .where(
-      and(
-        eq(employees.tenantId, tenantId),
-        sql`(
-          lower(${employees.email}) = lower(${userRow.email})
-          OR (
-            ${phoneDigits} <> ''
-            AND regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g') IN (${phoneDigits}, ${'91' + phoneDigits})
-          )
-        )`,
-      ),
-    )
+    .where(employeeMatchesUser(tenantId, userRow))
     .limit(1);
   if (!emp) return { kind: 'none' };
 

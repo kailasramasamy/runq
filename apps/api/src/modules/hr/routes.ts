@@ -9,7 +9,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { ExpenseClaimService } from './expense-claim.service';
-import { resolveHrAccessScope } from './access-scope';
+import { resolveHrAccessScope, resolveSelfEmployeeId } from './access-scope';
 import { departmentRoutes } from './department.routes';
 import { designationRoutes } from './designation.routes';
 import { employeeRoutes } from './employee.routes';
@@ -176,35 +176,10 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
     '/me/payslips',
     { preHandler: [rbacHook([...ALL_ROLES])] },
     async (request) => {
-      const userId = request.user!.userId;
       const tenantId = request.tenantId;
-      const [userRow] = await request.server.db
-        .select({ email: users.email, phone: users.phone })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-      if (!userRow) return { data: [] };
-
-      // Mirror the /hr/me resolution: email-match for web logins, phone
-      // fallback for mobile OTP logins on phone-only employees.
-      const phoneDigits = userRow.phone ?? '';
-      const [emp] = await request.server.db
-        .select({ id: employees.id })
-        .from(employees)
-        .where(
-          and(
-            eq(employees.tenantId, tenantId),
-            sql`(
-              lower(${employees.email}) = lower(${userRow.email})
-              OR (
-                ${phoneDigits} <> ''
-                AND regexp_replace(coalesce(${employees.phone}, ''), '\\D', '', 'g') IN (${phoneDigits}, ${'91' + phoneDigits})
-              )
-            )`,
-          ),
-        )
-        .limit(1);
-      if (!emp) return { data: [] };
+      const employeeId = await resolveSelfEmployeeId(
+        request.server.db, tenantId, request.user!.userId);
+      if (!employeeId) return { data: [] };
 
       const rows = await request.server.db
         .select({
@@ -216,7 +191,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
         .from(payslips)
         .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
         .where(
-          and(eq(payslips.tenantId, tenantId), eq(payslips.employeeId, emp.id)),
+          and(eq(payslips.tenantId, tenantId), eq(payslips.employeeId, employeeId)),
         )
         .orderBy(desc(payrollRuns.year), desc(payrollRuns.month))
         .limit(24);

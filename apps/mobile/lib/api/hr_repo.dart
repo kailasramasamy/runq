@@ -951,6 +951,22 @@ class HrRepo {
     return HrPayslip.fromJson(_data(res));
   }
 
+  /// The logged-in employee's own payslip. The route above is owner/HR only,
+  /// so self-service has to go through /hr/me, which resolves the payslip via
+  /// the caller's own employee record.
+  Future<HrPayslip> myPayslipDetail(String payslipId) async {
+    final res = await apiClient.get('/hr/me/payslips/$payslipId');
+    return HrPayslip.fromJson(_data(res));
+  }
+
+  /// Payslip PDF, rendered server-side — the same document payroll reviewed,
+  /// rather than a second layout built on the phone that could drift from it.
+  Future<List<int>> payslipPdf({required String runId, required String payslipId}) =>
+      apiClient.getBytes('/hr/payroll-runs/$runId/payslips/$payslipId/print?format=pdf');
+
+  Future<List<int>> myPayslipPdf(String payslipId) =>
+      apiClient.getBytes('/hr/me/payslips/$payslipId/print?format=pdf');
+
   // ── Payroll runs ────────────────────────────────────────────────────────
 
   Future<List<HrPayrollRun>> payrollRuns() async {

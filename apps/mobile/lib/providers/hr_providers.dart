@@ -316,11 +316,16 @@ final hrEmployeePayslipsProvider =
   return _watchAuth(ref, () => hrRepo.employeePayslips(employeeId));
 });
 
+/// `self` picks the self-service endpoint: the admin payslip route is
+/// owner/HR only, so an employee opening their own payslip must go via
+/// /hr/me or they get a 403 dead screen.
 final hrPayslipDetailProvider =
-    FutureProvider.family<HrPayslip, ({String runId, String payslipId})>((ref, ids) async {
+    FutureProvider.family<HrPayslip, ({String runId, String payslipId, bool self})>((ref, ids) async {
   return _watchAuth(
     ref,
-    () => hrRepo.payslipDetail(runId: ids.runId, payslipId: ids.payslipId),
+    () => ids.self
+        ? hrRepo.myPayslipDetail(ids.payslipId)
+        : hrRepo.payslipDetail(runId: ids.runId, payslipId: ids.payslipId),
   );
 });
 

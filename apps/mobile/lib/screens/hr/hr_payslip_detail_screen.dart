@@ -1,16 +1,20 @@
 // Payslip detail — purple gradient header with net pay + days, then
 // earnings (with a blue total gross bar) and deductions (red total bar).
-// Driven by /hr/payroll-runs/:runId/payslips/:payslipId.
+// Driven by /hr/payroll-runs/:runId/payslips/:payslipId for admins, and by
+// /hr/me/payslips/:payslipId when opened from the employee's own Pay screen
+// (?self=1) — the admin route is owner/HR only.
 
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../api/api_client.dart';
 import '../../api/hr_models.dart';
+import '../../api/hr_repo.dart';
 import '../../providers/hr_providers.dart';
-import '../../services/payslip_pdf.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
@@ -20,12 +24,20 @@ import 'widgets/hr_widgets.dart';
 class HrPayslipDetailScreen extends ConsumerWidget {
   final String runId;
   final String payslipId;
-  const HrPayslipDetailScreen({super.key, required this.runId, required this.payslipId});
+  /// Opened by the employee whose payslip this is, rather than by HR.
+  final bool self;
+  const HrPayslipDetailScreen({
+    super.key,
+    required this.runId,
+    required this.payslipId,
+    this.self = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final slipAsync = ref.watch(hrPayslipDetailProvider((runId: runId, payslipId: payslipId)));
+    final slipAsync =
+        ref.watch(hrPayslipDetailProvider((runId: runId, payslipId: payslipId, self: self)));
     return Scaffold(
       backgroundColor: t.bgWarm,
       body: slipAsync.when(
@@ -34,7 +46,7 @@ class HrPayslipDetailScreen extends ConsumerWidget {
         data: (ps) => CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _GradientHeader(ps: ps)),
+            SliverToBoxAdapter(child: _GradientHeader(ps: ps, runId: runId, self: self)),
             SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverToBoxAdapter(child: _Earnings(ps: ps)),
@@ -42,6 +54,12 @@ class HrPayslipDetailScreen extends ConsumerWidget {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               sliver: SliverToBoxAdapter(child: _Deductions(ps: ps)),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              sliver: SliverToBoxAdapter(
+                child: _DownloadButton(ps: ps, runId: runId, self: self),
+              ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 140)),
           ],
@@ -53,7 +71,9 @@ class HrPayslipDetailScreen extends ConsumerWidget {
 
 class _GradientHeader extends ConsumerWidget {
   final HrPayslip ps;
-  const _GradientHeader({required this.ps});
+  final String runId;
+  final bool self;
+  const _GradientHeader({required this.ps, required this.runId, required this.self});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,7 +99,8 @@ class _GradientHeader extends ConsumerWidget {
               const Spacer(),
               Builder(
                 builder: (btnCtx) => IconButton(
-                  onPressed: () => _sharePayslip(btnCtx, ref, ps),
+                  tooltip: 'Download payslip',
+                  onPressed: () => downloadPayslip(btnCtx, ps, runId: runId, self: self),
                   icon: const Icon(Icons.ios_share_rounded, color: Colors.white),
                 ),
               ),
@@ -171,55 +192,74 @@ class _GradientHeader extends ConsumerWidget {
         ],
       );
 
-  // Build an "official" payslip PDF using the local pdf package and
-  // share via share_plus. We fetch company name (best-effort) so the
-  // header reads like a real payslip rather than a runQ-branded slip;
-  // employee name + code come straight off /hr/me.
-  static Future<void> _sharePayslip(BuildContext context, WidgetRef ref, HrPayslip ps) async {
-    try {
-      final me = await ref.read(hrMeProvider.future);
-      final emp = me.employee;
-      final empName = me.displayName.isNotEmpty
-          ? me.displayName
-          : (emp != null ? '${emp.firstName}${emp.lastName != null ? ' ${emp.lastName}' : ''}' : 'Employee');
-      final empCode = emp?.employeeCode ?? '—';
+}
 
-      // Best-effort company name fetch; if it fails the PDF still
-      // renders with a generic "Company" header.
-      String? companyName;
-      try {
-        final res = await apiClient.get('/settings/company');
-        if (res is Map && res['data'] is Map) {
-          final d = (res['data'] as Map).cast<String, dynamic>();
-          companyName = (d['name'] as String?)?.trim();
-        }
-      } catch (_) { /* swallow — name is decorative */ }
-
-      final builder = PayslipPdf(
-        slip: ps,
-        employeeName: empName,
-        employeeCode: empCode,
-        companyName: companyName,
-      );
-      final file = await builder.save();
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box != null
-          ? box.localToGlobal(Offset.zero) & box.size
-          : null;
-      // iOS share sheet shows `text` and `files` as two separate items
-      // ("Plain Text and 1 Document") even when text is just a caption.
-      // For payslip-as-attachment we want only the PDF — the subject
-      // becomes the email subject / WhatsApp filename hint by itself.
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/pdf', name: file.path.split('/').last)],
-        subject: 'Payslip — ${ps.periodLabel}',
-        sharePositionOrigin: origin,
-      );
-    } catch (e) {
-      if (context.mounted) {
-        showRunqSnack(context, 'Could not build PDF: $e', kind: SnackKind.error);
-      }
+/// Fetch the server-rendered payslip PDF and hand it to the share sheet,
+/// which is how "download" works on both platforms — save to Files, mail it,
+/// or send it on. Rendered server-side on purpose: the employee gets the
+/// exact document payroll reviewed, not a second layout built on the phone
+/// that could drift from it.
+Future<void> downloadPayslip(
+  BuildContext context,
+  HrPayslip ps, {
+  required String runId,
+  required bool self,
+}) async {
+  try {
+    final bytes = self
+        ? await hrRepo.myPayslipPdf(ps.id)
+        : await hrRepo.payslipPdf(runId: runId, payslipId: ps.id);
+    final dir = await getTemporaryDirectory();
+    final safePeriod = ps.periodLabel.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
+    final file = File('${dir.path}/Payslip-$safePeriod.pdf');
+    await file.writeAsBytes(bytes);
+    if (!context.mounted) return;
+    // iPad requires a sharePositionOrigin anchor or the platform throws.
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+    // Attach the PDF alone — passing `text` too makes the iOS sheet offer
+    // "Plain Text and 1 Document", and the caption is not what's wanted.
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'application/pdf', name: file.path.split('/').last)],
+      subject: 'Payslip — ${ps.periodLabel}',
+      sharePositionOrigin: origin,
+    );
+  } catch (e) {
+    if (context.mounted) {
+      showRunqSnack(context, 'Could not download payslip: $e', kind: SnackKind.error);
     }
+  }
+}
+
+/// Labelled CTA under the breakdown. The header carries the same action as an
+/// icon, but an employee looking for "my payslip PDF" scans for words.
+class _DownloadButton extends StatelessWidget {
+  final HrPayslip ps;
+  final String runId;
+  final bool self;
+  const _DownloadButton({required this.ps, required this.runId, required this.self});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Builder(
+      builder: (btnCtx) => SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => downloadPayslip(btnCtx, ps, runId: runId, self: self),
+          icon: const Icon(Icons.download_rounded, size: 18),
+          label: const Text('Download payslip'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: t.ink,
+            side: BorderSide(color: t.hairline),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(RunqRadii.smallCard),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

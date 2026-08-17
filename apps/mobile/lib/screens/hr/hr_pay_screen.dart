@@ -155,12 +155,17 @@ class _PayslipsTab extends ConsumerWidget {
                 workingDays: latest.workingDays,
                 paidDays: latest.paidDays,
                 statusLabel: _runStatusLabel(latest.runStatus),
-                onTap: () => context.push('/hr/payslips/${latest.payrollRunId}/${latest.id}'),
+                onTap: () => context.push('/hr/payslips/${latest.payrollRunId}/${latest.id}?self=1'),
               ),
-              const SizedBox(height: 16),
-              Text('Previous', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              const SizedBox(height: 8),
-              for (final ps in list.skip(1)) _PayslipRow(ps: ps),
+              // Only header the older payslips once there are some — a lone
+              // "Previous" under the current month's hero reads as a section
+              // that failed to load.
+              if (list.length > 1) ...[
+                const SizedBox(height: 16),
+                Text('Previous', style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                const SizedBox(height: 8),
+                for (final ps in list.skip(1)) _PayslipRow(ps: ps),
+              ],
             ],
           );
         },
@@ -190,7 +195,7 @@ class _PayslipRow extends StatelessWidget {
         border: Border.all(color: t.hairline, width: 0.5),
       ),
       child: InkWell(
-        onTap: () => context.push('/hr/payslips/${ps.payrollRunId}/${ps.id}'),
+        onTap: () => context.push('/hr/payslips/${ps.payrollRunId}/${ps.id}?self=1'),
         borderRadius: BorderRadius.circular(RunqRadii.smallCard),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),

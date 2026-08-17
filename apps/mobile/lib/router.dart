@@ -568,6 +568,9 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             HrPayslipDetailScreen(
               runId: state.pathParameters['runId']!,
               payslipId: state.pathParameters['payslipId']!,
+              // ?self=1 from the employee's own Pay screen — routes the reads
+              // through /hr/me, which a non-admin is allowed to call.
+              self: state.uri.queryParameters['self'] == '1',
             ),
             key: state.pageKey,
           ),

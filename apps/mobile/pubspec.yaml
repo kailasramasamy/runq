@@ -41,7 +41,6 @@ dependencies:
   # Sibling to `pdf` — used purely for PdfGoogleFonts so the payslip
   # PDF can render ₹ and em-dash (the default Helvetica core fonts
   # are ASCII-only). No printer/preview features used.
-  printing: ^5.13.0
   image: ^4.5.4
   # App-sandboxed temp dir — required for share_plus to expose attachment
   # files to the iOS share extension.

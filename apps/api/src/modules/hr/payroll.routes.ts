@@ -11,7 +11,7 @@ import {
   uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
-import { AppError } from '../../utils/errors';
+import { AppError, NotFoundError } from '../../utils/errors';
 import { SalaryComponentService } from './payroll/salary-component.service';
 import { SalaryStructureService } from './payroll/salary-structure.service';
 import { generateDefaultStructure } from './payroll/salary-structure-generator';
@@ -19,6 +19,7 @@ import { EmployeeSalaryService } from './payroll/employee-salary.service';
 import { PayrollRunService } from './payroll/payroll-run.service';
 import { renderPayslipHTML } from './payroll/payslip-template';
 import { HrNotifier } from './hr-notifier';
+import { resolveSelfEmployeeId } from './access-scope';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthLabel = (year: number, month: number): string => `${MONTHS[month - 1]} ${year}`;
@@ -55,8 +56,78 @@ const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const employeeIdQuery = z.object({ employeeId: z.string().uuid() });
 const payslipParams = z.object({ id: z.string().uuid(), payslipId: z.string().uuid() });
+const selfPayslipParams = z.object({ payslipId: z.string().uuid() });
+// Payroll writes stay admin-only; these are the roles allowed to read their
+// OWN payslip, which is every role a person can log in as.
+const SELF = ['owner', 'accountant', 'viewer', 'hr'] as const;
+
+/** Render one payslip as HTML, or as a PDF download when `?format=pdf`. */
+async function sendPayslipDocument(
+  req: any,
+  reply: any,
+  runId: string,
+  payslipId: string,
+) {
+  const svc = new PayrollRunService(req.server.db, req.tenantId);
+  const { slip, tenantName, settings } = await svc.getPayslipForPrint(runId, payslipId);
+  const html = renderPayslipHTML(slip, tenantName, settings);
+
+  if ((req.query as { format?: string } | undefined)?.format !== 'pdf') {
+    return reply.type('text/html').send(html);
+  }
+  // Lazy import: puppeteer pulls ~300MB of Chromium, so it only loads when
+  // a PDF is actually asked for.
+  const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
+  const pdf = await renderHtmlToPdf(html);
+  const safeName = slip.employeeName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, '-').slice(0, 60);
+  const fileName = `Payslip-${slip.year}-${String(slip.month).padStart(2, '0')}-${safeName || slip.employeeCode}.pdf`;
+  return reply
+    .type('application/pdf')
+    .header('Content-Disposition', `attachment; filename="${fileName}"`)
+    .send(pdf);
+}
+
+/**
+ * Resolve a payslip the CALLER owns, returning its payroll-run id.
+ *
+ * The admin payslip routes are owner/HR only, so an employee could not open
+ * or download their own payslip at all. Rather than widen those, these
+ * self-serve routes look the payslip up THROUGH the caller's own employee
+ * row — a payslip id belonging to someone else simply does not resolve.
+ * 404, not 403: whether a given payslip exists is itself pay information.
+ */
+async function ownPayslipRunId(req: any, payslipId: string): Promise<string> {
+  const employeeId = await resolveSelfEmployeeId(
+    req.server.db, req.tenantId, req.user!.userId);
+  if (!employeeId) throw new NotFoundError('Payslip');
+  const [row] = await req.server.db
+    .select({ runId: payslips.payrollRunId })
+    .from(payslips)
+    .where(and(
+      eq(payslips.id, payslipId),
+      eq(payslips.tenantId, req.tenantId),
+      eq(payslips.employeeId, employeeId),
+    ))
+    .limit(1);
+  if (!row) throw new NotFoundError('Payslip');
+  return row.runId;
+}
 
 export const payrollRoutes: FastifyPluginAsync = async (app) => {
+  // --- Self-serve payslip (the logged-in employee's own) ---
+  app.get('/me/payslips/:payslipId', { preHandler: [rbacHook([...SELF])] }, async (req) => {
+    const { payslipId } = selfPayslipParams.parse(req.params);
+    const runId = await ownPayslipRunId(req, payslipId);
+    const svc = new PayrollRunService(req.server.db, req.tenantId);
+    return { data: await svc.getPayslip(runId, payslipId) };
+  });
+
+  app.get('/me/payslips/:payslipId/print', { preHandler: [rbacHook([...SELF])] }, async (req, reply) => {
+    const { payslipId } = selfPayslipParams.parse(req.params);
+    const runId = await ownPayslipRunId(req, payslipId);
+    return sendPayslipDocument(req, reply, runId, payslipId);
+  });
+
   // --- Per-employee payslips (admin) ---
   // Mirrors /hr/me/payslips but for an arbitrary employee, so owner/HR can
   // review another employee's pay history from the admin detail screen.
@@ -212,23 +283,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   // reviewed.
   app.get('/payroll-runs/:id/payslips/:payslipId/print', { preHandler: [rbacHook([...MANAGE])] }, async (req, reply) => {
     const { id, payslipId } = payslipParams.parse(req.params);
-    const svc = new PayrollRunService(req.server.db, req.tenantId);
-    const { slip, tenantName, settings } = await svc.getPayslipForPrint(id, payslipId);
-    const html = renderPayslipHTML(slip, tenantName, settings);
-
-    if ((req.query as { format?: string } | undefined)?.format !== 'pdf') {
-      return reply.type('text/html').send(html);
-    }
-    // Lazy import: puppeteer pulls ~300MB of Chromium, so it only loads when
-    // a PDF is actually asked for.
-    const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
-    const pdf = await renderHtmlToPdf(html);
-    const safeName = slip.employeeName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, '-').slice(0, 60);
-    const fileName = `Payslip-${slip.year}-${String(slip.month).padStart(2, '0')}-${safeName || slip.employeeCode}.pdf`;
-    return reply
-      .type('application/pdf')
-      .header('Content-Disposition', `attachment; filename="${fileName}"`)
-      .send(pdf);
+    return sendPayslipDocument(req, reply, id, payslipId);
   });
 
   app.get('/payroll-runs/:id/payslips/:payslipId', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
