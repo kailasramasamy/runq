@@ -12,6 +12,9 @@ import {
 } from '@runq/validators';
 
 const verifyGstinBodySchema = z.object({ gstin: z.string().length(15) });
+const topOutstandingQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(5),
+});
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { CustomerService } from './customer.service';
@@ -43,6 +46,16 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
         includeInactive: filters.includeInactive,
         active: filters.active,
       });
+    },
+  );
+
+  app.get(
+    '/outstanding',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { limit } = topOutstandingQuerySchema.parse(request.query);
+      const service = new CustomerService(request.server.db, request.tenantId);
+      return { data: await service.topOutstanding(limit) };
     },
   );
 

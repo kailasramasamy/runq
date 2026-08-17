@@ -42,6 +42,15 @@ export interface CustomerListResult {
   meta: PaginationMeta;
 }
 
+/** One row of the "who owes us the most" list on the sales hub. */
+export interface CustomerDue {
+  customerId: string;
+  customerName: string;
+  outstandingAmount: number;
+  overdueAmount: number;
+  invoiceCount: number;
+}
+
 export class CustomerService {
   constructor(
     private readonly db: Db,
@@ -301,6 +310,34 @@ export class CustomerService {
     }
     result.push(current.trim());
     return result;
+  }
+
+  /**
+   * Customers ranked by what they still owe, biggest first. `list()` can't
+   * answer this — it attaches outstanding *after* paginating, so it only ever
+   * ranks within one page. This aggregates and sorts in the database instead.
+   */
+  async topOutstanding(limit: number): Promise<CustomerDue[]> {
+    const open = and(
+      eq(salesInvoices.tenantId, this.tenantId),
+      notInArray(salesInvoices.status, ['paid', 'cancelled', 'draft']),
+      sql`${salesInvoices.balanceDue} > 0`,
+    );
+    const rows = await this.db
+      .select({
+        customerId: salesInvoices.customerId,
+        customerName: customers.name,
+        outstandingAmount: sql<number>`coalesce(sum(${salesInvoices.balanceDue}), 0)::float`,
+        overdueAmount: sql<number>`coalesce(sum(${salesInvoices.balanceDue}) filter (where ${salesInvoices.dueDate} < current_date), 0)::float`,
+        invoiceCount: sql<number>`count(*)::int`,
+      })
+      .from(salesInvoices)
+      .innerJoin(customers, eq(customers.id, salesInvoices.customerId))
+      .where(open)
+      .groupBy(salesInvoices.customerId, customers.name)
+      .orderBy(sql`sum(${salesInvoices.balanceDue}) desc`)
+      .limit(limit);
+    return rows;
   }
 
   private async queryOutstanding(ids: string[]): Promise<{ customerId: string; amount: number }[]> {

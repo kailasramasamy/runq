@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/models.dart';
 import '../providers/data_providers.dart';
 import '../widgets/invoice_create_sheet.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
+import '../widgets/avatar.dart';
 import '../widgets/hub_header.dart';
+import '../widgets/runq_card.dart';
+import '../widgets/status_pill.dart';
 import '../widgets/hub_quick_chip.dart';
 import '../widgets/hub_section_tile.dart';
 import '../widgets/section_head.dart';
@@ -20,6 +24,7 @@ class SalesHubScreen extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(invoiceSummaryProvider);
     ref.invalidate(invoicesProvider);
+    ref.invalidate(customerDuesProvider);
     // The PO tile's "to review" count comes off this one.
     ref.invalidate(customerOrdersProvider);
     await ref
@@ -74,6 +79,20 @@ class SalesHubScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: SectionHead(
+                  title: 'Pending dues',
+                  action: 'Show all',
+                  onAction: () => context.push('/sales/invoices'),
+                ),
+              ),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+              sliver: SliverToBoxAdapter(child: _CustomerDues()),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                 child: SectionHead(
                   title: 'Recent invoices',
                   action: 'See all',
@@ -289,6 +308,110 @@ class _SalesGrid extends ConsumerWidget {
           onTap: () => context.push('/sales/analytics'),
         ),
       ],
+    );
+  }
+}
+
+/// Who owes us the most, biggest first. Tapping a row opens the invoices
+/// list already filtered to that customer — the name rides in the query
+/// string so the filter chip labels itself without a second fetch.
+class _CustomerDues extends ConsumerWidget {
+  const _CustomerDues();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dues = ref.watch(customerDuesProvider);
+    return AsyncSlot(
+      value: dues,
+      onRetry: () => ref.invalidate(customerDuesProvider),
+      data: (rows) {
+        if (rows.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_outlined,
+            title: 'Nothing outstanding',
+            subtitle: 'Every sent invoice is fully paid.',
+          );
+        }
+        return Column(
+          children: [
+            for (final d in rows)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _CustomerDueRow(due: d),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CustomerDueRow extends StatelessWidget {
+  final CustomerDue due;
+  const _CustomerDueRow({required this.due});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final overdue = due.overdueAmount > 0;
+    return RunqCard(
+      padding: const EdgeInsets.all(14),
+      onTap: () => context.push(
+        '/sales/invoices?${Uri(queryParameters: {
+          'customerId': due.customerId,
+          'customerName': due.customerName,
+        }).query}',
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RqAvatar(name: due.customerName, size: 44, square: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  due.customerName,
+                  style: RunqText.bodyStrong,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    // The pill carries a number, so it never truncates; the
+                    // count is the one that yields if the row runs out.
+                    Flexible(
+                      child: Text(
+                        '${due.invoiceCount} ${due.invoiceCount == 1 ? 'invoice' : 'invoices'}',
+                        style: RunqText.caption.copyWith(color: t.muted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (overdue) ...[
+                      const SizedBox(width: 8),
+                      StatusPill(
+                        'overdue',
+                        label: '${formatINR(due.overdueAmount, compact: true)} OVERDUE',
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Compact here, unlike the invoice rows below: a full-precision
+          // total (₹1,37,023.2) eats the width the count + overdue pill need,
+          // and this list is triage — the exact figure is one tap away.
+          Text(
+            formatINR(due.outstandingAmount, compact: true),
+            style: RunqText.tabular(size: 17, w: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }

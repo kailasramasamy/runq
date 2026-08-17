@@ -64,7 +64,17 @@ class StatusPill extends StatelessWidget {
   final String status;
   final bool overlay;
   final bool warning;
-  const StatusPill(this.status, {super.key, this.overlay = false, this.warning = false});
+
+  /// Overrides the status's stock caption while keeping its colours — lets a
+  /// pill carry a value (e.g. "₹62.3k OVERDUE") instead of a bare label.
+  final String? label;
+  const StatusPill(
+    this.status, {
+    super.key,
+    this.overlay = false,
+    this.warning = false,
+    this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +113,14 @@ class StatusPill extends StatelessWidget {
             Text('!', style: RunqText.micro.copyWith(color: fg)),
             const SizedBox(width: 3),
           ],
-          Text(spec.label, style: RunqText.micro.copyWith(color: fg)),
+          Flexible(
+            child: Text(
+              label ?? spec.label,
+              style: RunqText.micro.copyWith(color: fg),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

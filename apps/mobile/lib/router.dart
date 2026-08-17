@@ -811,7 +811,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/sales/invoices',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
-            InvoicesScreen(initialTab: state.uri.queryParameters['tab']),
+            InvoicesScreen(
+              initialTab: state.uri.queryParameters['tab'],
+              initialCustomerId: state.uri.queryParameters['customerId'],
+              initialCustomerName: state.uri.queryParameters['customerName'],
+            ),
             key: state.pageKey,
           ),
         ),

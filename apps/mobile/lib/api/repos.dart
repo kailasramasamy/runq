@@ -302,6 +302,13 @@ class CustomersRepo {
     final res = await apiClient.get('/ar/customers?${Uri(queryParameters: qp).query}');
     return _dataList(res).map(CustomerSummary.fromJson).toList();
   }
+
+  /// Customers with an open balance, biggest first. Aggregated and sorted
+  /// server-side — the paginated list can't rank across the whole book.
+  Future<List<CustomerDue>> topOutstanding({int limit = 5}) async {
+    final res = await apiClient.get('/ar/customers/outstanding?limit=$limit');
+    return _dataList(res).map(CustomerDue.fromJson).toList();
+  }
 }
 
 class BillsRepo {

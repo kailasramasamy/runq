@@ -72,6 +72,11 @@ final invoiceSummaryProvider = FutureProvider<InvoiceSummary>((ref) async {
   return _watchAuth(ref, () => invoicesRepo.summary());
 });
 
+/// Top customers by open balance — the sales hub's "Pending dues" list.
+final customerDuesProvider = FutureProvider<List<CustomerDue>>((ref) async {
+  return _watchAuth(ref, () => customersRepo.topOutstanding());
+});
+
 class InvoiceFilter {
   final String? customerId;
   final String? status;

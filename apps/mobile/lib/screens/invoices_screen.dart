@@ -18,7 +18,18 @@ class InvoicesScreen extends ConsumerStatefulWidget {
   /// Optional starting tab key (e.g. `'draft'` or `'overdue'`). The hub tiles
   /// use this so tapping "20 draft" lands on the screen pre-filtered.
   final String? initialTab;
-  const InvoicesScreen({super.key, this.initialTab});
+
+  /// Optional customer to open pre-filtered on, from the sales hub's
+  /// "Pending dues" list. The name rides along so the filter chip can label
+  /// itself without a round-trip; the chip clears like any manual pick.
+  final String? initialCustomerId;
+  final String? initialCustomerName;
+  const InvoicesScreen({
+    super.key,
+    this.initialTab,
+    this.initialCustomerId,
+    this.initialCustomerName,
+  });
 
   @override
   ConsumerState<InvoicesScreen> createState() => _InvoicesScreenState();
@@ -33,8 +44,8 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   String search = '';
   DateTime? dateFrom;
   DateTime? dateTo;
-  String? customerId;
-  String? customerName;
+  late String? customerId = widget.initialCustomerId;
+  late String? customerName = widget.initialCustomerName;
 
   @override
   void dispose() {

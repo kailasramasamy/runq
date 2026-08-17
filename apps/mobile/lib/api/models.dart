@@ -1612,6 +1612,30 @@ class CustomerSummary {
       );
 }
 
+/// One customer's open balance, for the sales hub's "Pending dues" list.
+class CustomerDue {
+  final String customerId;
+  final String customerName;
+  final double outstandingAmount;
+  final double overdueAmount;
+  final int invoiceCount;
+  CustomerDue({
+    required this.customerId,
+    required this.customerName,
+    required this.outstandingAmount,
+    required this.overdueAmount,
+    required this.invoiceCount,
+  });
+
+  factory CustomerDue.fromJson(Map<String, dynamic> j) => CustomerDue(
+        customerId: _strOr(j['customerId'], ''),
+        customerName: _strOr(j['customerName'], ''),
+        outstandingAmount: _num(j['outstandingAmount']),
+        overdueAmount: _num(j['overdueAmount']),
+        invoiceCount: (j['invoiceCount'] is num) ? (j['invoiceCount'] as num).toInt() : 0,
+      );
+}
+
 /// Lightweight vendor row for the bills-screen vendor filter picker.
 /// Mirrors [CustomerSummary] — only the fields the picker actually needs.
 class VendorSummary {
