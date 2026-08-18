@@ -253,11 +253,17 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
 /// is in the ledger and hiding what it reversed helps nobody.
 class HrSettlementPaymentList extends ConsumerWidget {
   final String settlementId;
+
+  /// What the settlement says has been paid. Used to tell "nothing paid yet"
+  /// apart from "the list failed to load" — an empty section where money has
+  /// gone out reads as though the instalments were never recorded.
+  final double amountPaid;
   final bool canVoid;
   final VoidCallback onChanged;
   const HrSettlementPaymentList({
     super.key,
     required this.settlementId,
+    required this.amountPaid,
     required this.canVoid,
     required this.onChanged,
   });
@@ -265,8 +271,18 @@ class HrSettlementPaymentList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final rows = ref.watch(hrSettlementPaymentsProvider(settlementId)).asData?.value
-        ?? const <HrSettlementPayment>[];
+    final async = ref.watch(hrSettlementPaymentsProvider(settlementId));
+    final rows = async.asData?.value ?? const <HrSettlementPayment>[];
+
+    if (async.hasError || (amountPaid > 0 && rows.isEmpty && !async.isLoading)) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 6),
+        child: HrContractWarning(
+          text: '${hrFormatINR(amountPaid)} has been paid, but the payment '
+              'history could not be loaded. Nothing is lost — pull to refresh.',
+        ),
+      );
+    }
     if (rows.isEmpty) return const SizedBox.shrink();
 
     return Column(

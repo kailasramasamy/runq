@@ -568,6 +568,7 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
               ),
               HrSettlementPaymentList(
                 settlementId: s.id,
+                amountPaid: s.amountPaid,
                 canVoid: true,
                 onChanged: _refresh,
               ),

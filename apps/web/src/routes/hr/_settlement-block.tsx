@@ -81,9 +81,24 @@ export function SettlementBlock({ contract }: { contract: ContractDetail }) {
 
 function PaymentHistory({ settlement }: { settlement: ContractSettlement }) {
   const { toast } = useToast();
-  const { data } = useSettlementPayments(settlement.id);
+  const { data, isLoading, isError, error, refetch } = useSettlementPayments(settlement.id);
   const voidPayment = useVoidSettlementPayment();
   const rows = data?.data ?? [];
+  const paid = Number(settlement.amountPaid);
+
+  // A failed fetch used to render as an empty section, which reads as "the
+  // instalments were never recorded" — alarming when money has gone out.
+  // The settlement's own paid figure is the tell: if it is non-zero there
+  // are payments behind it, whatever this request did.
+  if (isError || (paid > 0 && rows.length === 0 && !isLoading)) {
+    return (
+      <div className="mt-4 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        {formatINR(paid)} has been paid, but the payment history could not be
+        loaded{error instanceof Error ? ` (${error.message})` : ''}. Nothing is lost —{' '}
+        <button type="button" className="underline" onClick={() => refetch()}>try again</button>.
+      </div>
+    );
+  }
   if (rows.length === 0) return null;
 
   return (
