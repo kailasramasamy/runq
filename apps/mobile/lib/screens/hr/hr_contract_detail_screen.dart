@@ -8,8 +8,12 @@
 
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../api/api_client.dart';
 import '../../api/hr_contract_models.dart';
 import '../../api/hr_repo.dart';
@@ -22,11 +26,13 @@ import 'widgets/hr_colors.dart';
 import 'widgets/hr_contract_bits.dart';
 import 'widgets/hr_contract_calendar.dart';
 import 'widgets/hr_contract_form_sheet.dart';
+import 'widgets/hr_contract_pause_card.dart';
 import 'widgets/hr_crew_member_sheet.dart';
 import 'widgets/hr_form.dart';
 import 'widgets/hr_mark_contract_day_sheet.dart';
 import 'widgets/hr_month_calendar.dart';
 import 'widgets/hr_settle_sheet.dart';
+import 'widgets/hr_settlement_payment_sheet.dart';
 import 'widgets/hr_setup_widgets.dart';
 import 'widgets/hr_widgets.dart';
 
@@ -44,6 +50,9 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
 
   /// Null = whole crew. Ignored for a single-member contract.
   String? _memberFilter;
+
+  /// The statement is rendered by the server, so there is a wait worth showing.
+  bool _sharing = false;
 
   void _refresh() {
     ref.invalidate(hrContractProvider(widget.id));
@@ -78,6 +87,17 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (contract != null)
+                  IconButton(
+                    onPressed: _sharing ? null : () => _shareStatement(contract),
+                    icon: _sharing
+                        ? SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: t.muted),
+                          )
+                        : Icon(Icons.ios_share_rounded, color: t.muted),
+                  ),
                 if (contract?.isActive == true)
                   IconButton(
                     onPressed: () => _edit(contract!),
@@ -122,7 +142,18 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
                     outstanding: c.balance!.netPayable,
                     throughDate: c.balance!.throughDate,
                     isOpenEnded: c.isOpenEnded,
+                    // A lump sum is priced for the job, so days are not
+                    // what it is made of.
+                    daysWorked: c.isTask ? null : c.balance!.daysWorked,
+                    isCrew: c.members.length > 1,
+                    excludedNote: c.isTask ? '' : c.balance!.excludedNote,
                   ),
+                // A task lump sum is priced for the job, not the days, so
+                // stopping the work changes nothing there.
+                if (!c.isTask) ...[
+                  const SizedBox(height: RunqSpacing.sectionGap),
+                  HrContractPauseCard(contract: c, onChanged: _refresh),
+                ],
                 if (c.hasCalendar) ...[
                   const SizedBox(height: RunqSpacing.sectionGap),
                   _calendarCard(c),
@@ -135,7 +166,7 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
                 _advancesSection(c),
                 if (settlement != null) ...[
                   const SizedBox(height: RunqSpacing.sectionGap),
-                  _settlementSection(settlement),
+                  _settlementSection(c, settlement),
                 ],
               ],
             ),
@@ -176,7 +207,7 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
               c.leadPersonPhone == null || c.leadPersonPhone!.isEmpty
                   ? c.leadPersonName
                   : '${c.leadPersonName} · ${c.leadPersonPhone}'),
-          _kv(t, 'Term', hrContractTerm(c)),
+          _kv(t, 'Term', hrContractTerm(c), sub: _daysWorkedNote(c)),
           _kv(
             t,
             c.isTask ? 'Agreed amount' : 'Rate',
@@ -188,7 +219,20 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
     );
   }
 
-  Widget _kv(RunqTokens t, String k, String v) => Padding(
+  /// Days actually worked, sitting under the term because that is the line
+  /// it qualifies: the term says how long the job has run, this says how
+  /// much of it was worked. What was taken out to get there lives on the
+  /// balance strip below, where the money it drives is.
+  ///
+  /// Null on a task lump sum — priced for the job, not the days.
+  String? _daysWorkedNote(HrContract c) {
+    final b = c.balance;
+    if (c.isTask || b == null) return null;
+    final unit = c.members.length > 1 ? 'crew-days' : 'days';
+    return '${hrFormatDays(b.daysWorked)} $unit worked';
+  }
+
+  Widget _kv(RunqTokens t, String k, String v, {String? sub}) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,9 +242,18 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
               child: Text(k, style: RunqText.caption.copyWith(color: t.muted)),
             ),
             Expanded(
-              child: Text(v,
-                  style: RunqText.body
-                      .copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(v,
+                      style: RunqText.body
+                          .copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+                  if (sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(sub, style: RunqText.caption.copyWith(color: t.muted)),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
@@ -249,7 +302,7 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
             onTapDay: (d) => _markDay(c, cal, d),
           ),
           const SizedBox(height: 12),
-          const HrContractCalendarLegend(),
+          HrContractCalendarLegend(showPaused: c.pauses.isNotEmpty),
         ],
       ),
     );
@@ -455,7 +508,7 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
 
   // ── Settlement ──────────────────────────────────────────────────────────
 
-  Widget _settlementSection(HrSettlement s) {
+  Widget _settlementSection(HrContract c, HrSettlement s) {
     final t = RT(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -489,27 +542,61 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
                     label: 'Other deductions',
                     amount: s.otherDeductions,
                     negative: true),
+              HrMoneyRow(label: 'Net payable', amount: s.netPayable),
+              if (s.amountPaid > 0)
+                HrMoneyRow(label: 'Paid', amount: s.amountPaid, negative: true),
               Divider(height: 12, thickness: 0.5, color: t.hairlineSoft),
               HrMoneyRow(
-                  label: 'Net payable', amount: s.netPayable, emphasis: true),
+                label: s.amountDue > 0 ? 'Still to pay' : 'Fully disbursed',
+                amount: s.amountDue,
+                emphasis: true,
+              ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    HrContractStatusChip(status: s.status),
+                    HrContractStatusChip(
+                      status: s.isPartlyPaid ? 'part paid' : s.status,
+                    ),
                     const Spacer(),
                     Text(
-                      s.status == 'paid' ? 'Disbursed' : 'Awaiting payout',
+                      'Settled to ${hrContractDateFull(s.toDate)}',
                       style: RunqText.caption.copyWith(color: t.muted2),
                     ),
                   ],
                 ),
               ),
+              HrSettlementPaymentList(
+                settlementId: s.id,
+                canVoid: true,
+                onChanged: _refresh,
+              ),
+              if (s.awaitsPayment)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 10),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: HrSubmitButton(
+                      label: 'Record payment',
+                      loading: false,
+                      enabled: true,
+                      onPressed: () => _recordPayment(c, s),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _recordPayment(HrContract c, HrSettlement s) async {
+    final saved = await showHrSettlementPaymentSheet(context, c, s);
+    if (saved == true) {
+      ref.invalidate(hrSettlementPaymentsProvider(s.id));
+      _refresh();
+    }
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -561,6 +648,37 @@ class _HrContractDetailScreenState extends ConsumerState<HrContractDetailScreen>
         ),
       ),
     );
+  }
+
+  /// Fetch the statement and hand it to the share sheet, which is how
+  /// "download" works on both platforms — save to Files, mail it, or send it
+  /// straight to the crew lead on WhatsApp.
+  Future<void> _shareStatement(HrContract c) async {
+    setState(() => _sharing = true);
+    try {
+      final bytes = await hrRepo.contractStatementPdf(c.id);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${c.contractNumber}-statement.pdf');
+      await file.writeAsBytes(bytes);
+      if (!mounted) return;
+      // iPad throws without an anchor for the popover.
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf', name: file.path.split('/').last)],
+        subject: '${c.name} — contract statement',
+        sharePositionOrigin: origin,
+      );
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (e) {
+      if (mounted) {
+        showRunqSnack(context, 'Could not build the statement: $e',
+            kind: SnackKind.error);
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 
   Future<void> _edit(HrContract c) async {

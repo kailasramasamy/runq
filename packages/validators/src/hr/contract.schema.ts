@@ -115,6 +115,33 @@ export const markDaysSchema = z.object({
 export type MarkDaysInput = z.infer<typeof markDaysSchema>;
 
 /**
+ * Pausing the work. `toDate` omitted means "until further notice" — the
+ * common case, since nobody knows when the rain stops. Resuming stamps the
+ * end date, so an indefinite pause never needs to be guessed at up front.
+ */
+export const pauseContractSchema = z.object({
+  fromDate: z.string().date(),
+  /** Omit for an indefinite pause. */
+  toDate: z.string().date().nullish(),
+  reason: z.string().max(200).nullish(),
+}).superRefine((v, ctx) => {
+  if (v.toDate && v.toDate < v.fromDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['toDate'],
+      message: 'The pause cannot end before it starts',
+    });
+  }
+});
+export type PauseContractInput = z.infer<typeof pauseContractSchema>;
+
+/** The first day back. The pause ends the day before it. */
+export const resumeContractSchema = z.object({
+  resumeDate: z.string().date(),
+});
+export type ResumeContractInput = z.infer<typeof resumeContractSchema>;
+
+/**
  * An advance. `memberId` attributes it to one person so their settlement
  * line nets it off; omit it on a task contract, where the cash goes to the
  * crew lead.
@@ -143,10 +170,27 @@ export const createSettlementSchema = z.object({
 });
 export type CreateSettlementInput = z.infer<typeof createSettlementSchema>;
 
+/**
+ * A disbursement against an approved settlement. `amount` is optional and
+ * defaults to whatever is still due, which is the one-click "pay it all"
+ * case; passing a smaller figure records an instalment.
+ *
+ * `bankAccountId` is required unless the money went out as cash.
+ */
 export const paySettlementSchema = z.object({
   paymentDate: z.string().date(),
-  bankAccountId: z.string().uuid(),
+  amount: z.number().positive().nullish(),
+  bankAccountId: z.string().uuid().nullish(),
   paymentMethod: z.enum(['bank_transfer', 'cash', 'upi', 'cheque']).default('bank_transfer'),
   reference: z.string().max(100).nullish(),
+  notes: z.string().max(1000).nullish(),
+}).superRefine((v, ctx) => {
+  if (v.paymentMethod !== 'cash' && !v.bankAccountId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['bankAccountId'],
+      message: 'Choose the account the money left from',
+    });
+  }
 });
 export type PaySettlementInput = z.infer<typeof paySettlementSchema>;

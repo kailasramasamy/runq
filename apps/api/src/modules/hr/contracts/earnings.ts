@@ -43,13 +43,25 @@ export interface DayException {
   status: DayStatus;
 }
 
+/**
+ * A stretch where the whole job stopped. `toDate` null means it is still
+ * stopped, so the pause runs to the end of whatever window is being priced.
+ */
+export interface PauseWindow {
+  fromDate: string;
+  /** Null = indefinite. */
+  toDate: string | null;
+}
+
 export interface MemberEarnings {
   memberId: string;
   name: string;
   role: string | null;
   dailyRate: number;
-  /** Calendar days the member was on the contract, inside the window. */
+  /** Calendar days the member was on the contract, net of paused days. */
   eligibleDays: number;
+  /** Days inside the member's window that the whole job was stopped. */
+  pausedDays: number;
   leaveDays: number;
   halfDays: number;
   /** eligibleDays − leaveDays − halfDays/2 */
@@ -83,11 +95,38 @@ export function memberWindow(
   return to < from ? null : { from, to };
 }
 
+/** True when the job was stopped on that date. */
+export function isPaused(date: string, pauses: PauseWindow[]): boolean {
+  return pauses.some(
+    (p) => date >= p.fromDate && (p.toDate === null || date <= p.toDate),
+  );
+}
+
+/**
+ * Paused days inside a window.
+ *
+ * Pauses are kept non-overlapping when they are written, so their clipped
+ * lengths can simply be added rather than unioned here.
+ */
+export function pausedDaysWithin(
+  window: { from: string; to: string },
+  pauses: PauseWindow[],
+): number {
+  let total = 0;
+  for (const p of pauses) {
+    const from = laterOf(window.from, p.fromDate);
+    const to = earlierOf(window.to, p.toDate ?? window.to);
+    if (to >= from) total += daysBetween(from, to);
+  }
+  return total;
+}
+
 export function memberEarnings(
   member: MemberTerms,
   exceptions: DayException[],
   contractStart: string,
   throughDate: string,
+  pauses: PauseWindow[] = [],
 ): MemberEarnings {
   const window = memberWindow(member, contractStart, throughDate);
   const base: MemberEarnings = {
@@ -96,6 +135,7 @@ export function memberEarnings(
     role: member.role,
     dailyRate: member.dailyRate,
     eligibleDays: 0,
+    pausedDays: 0,
     leaveDays: 0,
     halfDays: 0,
     daysWorked: 0,
@@ -103,15 +143,21 @@ export function memberEarnings(
   };
   if (!window) return base;
 
-  const eligibleDays = daysBetween(window.from, window.to);
+  const pausedDays = pausedDaysWithin(window, pauses);
+  const eligibleDays = Math.max(0, daysBetween(window.from, window.to) - pausedDays);
 
   // Only exceptions inside the member's own window count. A leave marked
   // before they joined must not reduce days they were never going to work.
+  //
+  // A leave marked inside a pause is ignored for the same reason twice over:
+  // the day is already worth nothing, and deducting it again would push the
+  // total below zero days.
   let leaveDays = 0;
   let halfDays = 0;
   for (const e of exceptions) {
     if (e.memberId !== member.id) continue;
     if (e.logDate < window.from || e.logDate > window.to) continue;
+    if (isPaused(e.logDate, pauses)) continue;
     if (e.status === 'leave') leaveDays++;
     else if (e.status === 'half_day') halfDays++;
   }
@@ -120,6 +166,7 @@ export function memberEarnings(
   return {
     ...base,
     eligibleDays,
+    pausedDays,
     leaveDays,
     halfDays,
     daysWorked: Math.max(0, Math.round(daysWorked * 10) / 10),
@@ -142,6 +189,8 @@ export interface ContractEarnings {
   earned: number;
   /** True when the term is still running (open-ended, or end date in future). */
   isOpenEnded: boolean;
+  /** Days inside the priced window that the job was stopped. */
+  pausedDays: number;
 }
 
 /**
@@ -151,6 +200,8 @@ export interface ContractEarnings {
  *              stays deterministic under test.
  * @param asOf  Optional override — settle a contract through a specific
  *              date rather than today.
+ * @param pauses Stretches where the job was stopped. Nothing accrues inside
+ *              one, for anybody.
  */
 export function contractEarnings(
   contract: ContractTerms,
@@ -158,6 +209,7 @@ export function contractEarnings(
   exceptions: DayException[],
   today: string,
   asOf?: string,
+  pauses: PauseWindow[] = [],
 ): ContractEarnings {
   // A closed term stops accruing at its end date even if that is in the
   // past; an open one accrues to today.
@@ -165,23 +217,32 @@ export function contractEarnings(
   const throughDate = asOf ?? earlierOf(today, ceiling);
   const isOpenEnded = contract.endDate === null;
 
+  const contractWindow = { from: contract.startDate, to: throughDate };
+  const pausedDays = throughDate < contract.startDate
+    ? 0
+    : pausedDaysWithin(contractWindow, pauses);
+
+  // A lump sum is a price for the job, not for the days. Stopping the work
+  // delays it; it does not make it cheaper, so the agreed amount stands.
   if (contract.contractType === 'task_lumpsum') {
     return {
       throughDate,
       members: [],
       earned: r2(contract.fixedAmount ?? 0),
       isOpenEnded,
+      pausedDays,
     };
   }
 
   const rows = members.map((m) =>
-    memberEarnings(m, exceptions, contract.startDate, throughDate),
+    memberEarnings(m, exceptions, contract.startDate, throughDate, pauses),
   );
   return {
     throughDate,
     members: rows,
     earned: r2(rows.reduce((s, m) => s + m.earned, 0)),
     isOpenEnded,
+    pausedDays,
   };
 }
 
@@ -209,6 +270,16 @@ export interface ContractBalance {
   netPayable: number;
   lines: SettlementLine[];
   isOpenEnded: boolean;
+  pausedDays: number;
+  /**
+   * Days actually worked so far, net of leave, half days and paused
+   * stretches. On a crew this is the sum across everyone — man-days, not
+   * calendar days, since that is what the wage bill is made of.
+   */
+  daysWorked: number;
+  /** What was taken out to get there, for the "why is it not 20?" question. */
+  leaveDays: number;
+  halfDays: number;
 }
 
 /**
@@ -290,6 +361,12 @@ export function contractBalance(
     netPayable: r2(earnings.earned - advancesPaid - r2(otherDeductions)),
     lines,
     isOpenEnded: earnings.isOpenEnded,
+    pausedDays: earnings.pausedDays,
+    daysWorked: Math.round(
+      earnings.members.reduce((s, m) => s + m.daysWorked, 0) * 10,
+    ) / 10,
+    leaveDays: earnings.members.reduce((s, m) => s + m.leaveDays, 0),
+    halfDays: earnings.members.reduce((s, m) => s + m.halfDays, 0),
   };
 }
 

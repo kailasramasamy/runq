@@ -143,6 +143,40 @@ export const contractDayLog = pgTable('contract_day_log', {
 ]);
 
 /**
+ * Pauses. Work stops for a stretch — monsoon, a stalled site, the crew away
+ * for a festival — and nothing accrues while it is stopped.
+ *
+ * `toDate` null means "paused until further notice"; resuming stamps the day
+ * before the resume date here. A pause covers the whole crew: an individual
+ * being away is already a `leave` day, and one leaving for good is a
+ * `leftOn` date.
+ *
+ * Like the day log, this is a windows table rather than a status flag on the
+ * contract — a pause can be booked for a future date, and a flag would need
+ * a scheduler to flip it on the right morning.
+ */
+export const contractPauses = pgTable('contract_pauses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  contractId: uuid('contract_id').notNull()
+    .references(() => labourContracts.id, { onDelete: 'cascade' }),
+  fromDate: date('from_date').notNull(),
+  /** Null = indefinite. */
+  toDate: date('to_date'),
+  reason: varchar('reason', { length: 200 }),
+  createdBy: uuid('created_by').references(() => users.id),
+  resumedBy: uuid('resumed_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('idx_contract_pause_contract').on(t.contractId, t.fromDate),
+  check(
+    'ck_contract_pause_dates',
+    sql`${t.toDate} IS NULL OR ${t.toDate} >= ${t.fromDate}`,
+  ),
+]);
+
+/**
  * Advances. `memberId` is null on a task_lumpsum contract, where the money
  * goes to the crew lead and there are no members to attribute it to.
  *
@@ -187,6 +221,13 @@ export const labourSettlements = pgTable('labour_settlements', {
   advancesRecovered: decimal('advances_recovered', { precision: 15, scale: 2 }).notNull().default('0'),
   otherDeductions: decimal('other_deductions', { precision: 15, scale: 2 }).notNull().default('0'),
   netPayable: decimal('net_payable', { precision: 15, scale: 2 }).notNull().default('0'),
+  /**
+   * Disbursed so far. A crew is rarely paid in one go, so the settlement
+   * stays `approved` while this is short of `netPayable` and flips to `paid`
+   * only when the two meet. "Partly paid" is that difference, never a
+   * status of its own — a stored one could disagree with the payments.
+   */
+  amountPaid: decimal('amount_paid', { precision: 15, scale: 2 }).notNull().default('0'),
   status: contractSettlementStatusEnum('status').notNull().default('draft'),
   notes: text('notes'),
   journalEntryId: uuid('journal_entry_id'),
@@ -227,4 +268,39 @@ export const labourSettlementLines = pgTable('labour_settlement_lines', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('idx_labour_settlement_line_settlement').on(t.settlementId),
+]);
+
+/**
+ * Money actually handed over against a settlement.
+ *
+ * Approval books what is owed (Cr 2110); this books what has left the till.
+ * One row per instalment because a crew is paid as the cash comes in, and a
+ * single `paidAt` stamp cannot say how much of the ₹1.4L has gone out.
+ *
+ * `voidedAt` marks a mistake reversed rather than deleting the row: the
+ * disbursement JE is already in the ledger and its reversal has to be
+ * traceable to what it reversed.
+ */
+export const labourSettlementPayments = pgTable('labour_settlement_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id),
+  settlementId: uuid('settlement_id').notNull()
+    .references(() => labourSettlements.id, { onDelete: 'cascade' }),
+  contractId: uuid('contract_id').notNull().references(() => labourContracts.id),
+  amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+  paymentDate: date('payment_date').notNull(),
+  paymentMethod: varchar('payment_method', { length: 30 }).notNull().default('bank_transfer'),
+  bankAccountId: uuid('bank_account_id'),
+  reference: varchar('reference', { length: 100 }),
+  notes: text('notes'),
+  journalEntryId: uuid('journal_entry_id'),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  voidJournalEntryId: uuid('void_journal_entry_id'),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('idx_labour_settlement_payment_settlement').on(t.settlementId),
+  index('idx_labour_settlement_payment_contract').on(t.contractId),
+  check('ck_labour_settlement_payment_amount', sql`${t.amount} > 0`),
 ]);

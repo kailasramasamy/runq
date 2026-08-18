@@ -22,8 +22,10 @@ import '../../../theme/runq_tokens.dart';
 import 'hr_colors.dart';
 import 'hr_month_calendar.dart';
 
-/// Derived state of one day for one member.
-enum ContractDayState { worked, leave, halfDay, outside }
+/// Derived state of one day for one member. `paused` means the whole job
+/// was stopped that day, which beats any exception on it — nobody accrues
+/// either way.
+enum ContractDayState { worked, leave, halfDay, paused, outside }
 
 /// Palette mirrors the attendance vocabulary elsewhere in HR so a worked
 /// day reads the same here as on the muster grid. Declared for both themes
@@ -39,6 +41,7 @@ List<Color> contractDayColors(BuildContext context, ContractDayState s) {
       ContractDayState.worked => const [Color(0xFF14532D), Color(0xFF86EFAC)],
       ContractDayState.leave => const [Color(0xFF78350F), Color(0xFFFCD34D)],
       ContractDayState.halfDay => const [Color(0xFF1E3A8A), Color(0xFF93C5FD)],
+      ContractDayState.paused => const [Color(0xFF3F3F46), Color(0xFFD4D4D8)],
       _ => const [Color(0xFF334155), Color(0xFFCBD5E1)],
     };
   }
@@ -46,6 +49,7 @@ List<Color> contractDayColors(BuildContext context, ContractDayState s) {
     ContractDayState.worked => const [Color(0xFFDCFCE7), Color(0xFF14532D)],
     ContractDayState.leave => const [Color(0xFFFEF3C7), Color(0xFF78350F)],
     ContractDayState.halfDay => const [Color(0xFFDBEAFE), Color(0xFF1E3A8A)],
+    ContractDayState.paused => const [Color(0xFFE4E4E7), Color(0xFF52525B)],
     _ => const [Color(0xFFF1F5F9), Color(0xFF475569)],
   };
 }
@@ -54,6 +58,7 @@ String contractDayLabel(ContractDayState s) => switch (s) {
       ContractDayState.worked => 'Worked',
       ContractDayState.leave => 'Leave',
       ContractDayState.halfDay => 'Half day',
+      ContractDayState.paused => 'Paused',
       ContractDayState.outside => 'Outside term',
     };
 
@@ -96,6 +101,7 @@ class ContractCalendar {
 
   ContractDayState stateFor(DateTime day, String memberId) {
     if (!isInTerm(day)) return ContractDayState.outside;
+    if (contract.isPausedOn(day)) return ContractDayState.paused;
     final s = _exceptions['$memberId|${_key(day)}'];
     if (s == 'leave') return ContractDayState.leave;
     if (s == 'half_day') return ContractDayState.halfDay;
@@ -108,6 +114,9 @@ class ContractCalendar {
     final members = contract.members;
     if (!isInTerm(day) || members.isEmpty) {
       return (state: ContractDayState.outside, off: 0, total: members.length);
+    }
+    if (contract.isPausedOn(day)) {
+      return (state: ContractDayState.paused, off: 0, total: members.length);
     }
     var off = 0;
     var partial = 0;
@@ -199,6 +208,10 @@ class HrContractCalendar extends StatelessWidget {
     final state = crew ? reading!.state : calendar.stateFor(day, memberId!);
     final pair = contractDayColors(context, state);
     final outside = state == ContractDayState.outside;
+    // Marking a paused day would be a no-op — the pause already zeroes it —
+    // so it is untappable. It keeps its own grey rather than the dimming
+    // used for days the contract never covered.
+    final locked = outside || state == ContractDayState.paused;
 
     final now = DateTime.now();
     final isToday =
@@ -207,7 +220,7 @@ class HrContractCalendar extends StatelessWidget {
     final cell = AspectRatio(
       aspectRatio: 1,
       child: GestureDetector(
-        onTap: outside ? null : () => onTapDay(day),
+        onTap: locked ? null : () => onTapDay(day),
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(
@@ -232,7 +245,7 @@ class HrContractCalendar extends StatelessWidget {
               ),
               // On the crew view, say how many are off rather than making
               // the user open every day to find out.
-              if (crew && !outside && reading!.off > 0)
+              if (crew && !locked && reading!.off > 0)
                 Positioned(
                   right: 3,
                   top: 2,
@@ -258,7 +271,14 @@ class HrContractCalendar extends StatelessWidget {
 /// like a bug until you know unmarked means worked.
 class HrContractCalendarLegend extends StatelessWidget {
   final bool showHalfDay;
-  const HrContractCalendarLegend({super.key, this.showHalfDay = true});
+
+  /// Only worth a swatch once the contract actually has a pause on it.
+  final bool showPaused;
+  const HrContractCalendarLegend({
+    super.key,
+    this.showHalfDay = true,
+    this.showPaused = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -267,6 +287,7 @@ class HrContractCalendarLegend extends StatelessWidget {
       ContractDayState.worked,
       ContractDayState.leave,
       if (showHalfDay) ContractDayState.halfDay,
+      if (showPaused) ContractDayState.paused,
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

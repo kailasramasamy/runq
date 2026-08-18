@@ -20,6 +20,10 @@ String hrContractDate(DateTime d) => '${d.day} ${_kMon[d.month - 1]}';
 String hrContractDateFull(DateTime d) =>
     '${d.day} ${_kMon[d.month - 1]} ${d.year}';
 
+/// "18" or "18.5" — never "18.0", which reads like a precision nobody has.
+String hrFormatDays(double n) =>
+    n == n.roundToDouble() ? n.toInt().toString() : n.toStringAsFixed(1);
+
 /// "1 Aug → ongoing" for open-ended work, or a closed span.
 String hrContractTerm(HrContract c) => c.endDate == null
     ? '${hrContractDate(c.startDate)} → ongoing'
@@ -39,16 +43,18 @@ List<Color> _statusColors(BuildContext context, String status) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   if (isDark) {
     return switch (status) {
-      'active' || 'approved' => const [Color(0xFF78350F), Color(0xFFFCD34D)],
+      'active' || 'approved' || 'part paid' =>
+        const [Color(0xFF78350F), Color(0xFFFCD34D)],
       'completed' || 'paid' => const [Color(0xFF14532D), Color(0xFF86EFAC)],
-      'draft' => const [Color(0xFF1E3A8A), Color(0xFF93C5FD)],
+      'draft' || 'paused' => const [Color(0xFF1E3A8A), Color(0xFF93C5FD)],
       _ => const [Color(0xFF334155), Color(0xFFCBD5E1)],
     };
   }
   return switch (status) {
-    'active' || 'approved' => const [Color(0xFFFEF3C7), Color(0xFF78350F)],
+    'active' || 'approved' || 'part paid' =>
+      const [Color(0xFFFEF3C7), Color(0xFF78350F)],
     'completed' || 'paid' => const [Color(0xFFDCFCE7), Color(0xFF14532D)],
-    'draft' => const [Color(0xFFDBEAFE), Color(0xFF1E3A8A)],
+    'draft' || 'paused' => const [Color(0xFFDBEAFE), Color(0xFF1E3A8A)],
     _ => const [Color(0xFFF1F5F9), Color(0xFF475569)],
   };
 }
@@ -60,6 +66,8 @@ String hrContractStatusLabel(String s) => switch (s) {
       'draft' => 'Draft',
       'approved' => 'Approved',
       'paid' => 'Paid',
+      'part paid' => 'Part paid',
+      'paused' => 'Paused',
       'recovered' => 'Recovered',
       _ => s,
     };
@@ -206,8 +214,22 @@ class HrBalanceStrip extends StatelessWidget {
   final double earned, advances, outstanding;
   final DateTime throughDate;
   final bool isOpenEnded;
+
+  /// Days worked so far. A fourth money-sized cell would crowd a phone, so
+  /// this rides the caption instead. Null on a task lump sum.
+  final double? daysWorked;
+
+  /// True when those days are man-days across a crew, not one person's
+  /// calendar.
+  final bool isCrew;
+
+  /// "2 leave, 1 paused" — why the count is short of the calendar.
+  final String excludedNote;
   const HrBalanceStrip({
     super.key,
+    this.daysWorked,
+    this.isCrew = false,
+    this.excludedNote = '',
     required this.earned,
     required this.advances,
     required this.outstanding,
@@ -239,15 +261,27 @@ class HrBalanceStrip extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            isOpenEnded
-                ? 'Counting to ${hrContractDateFull(throughDate)} · ongoing'
-                : 'Up to ${hrContractDateFull(throughDate)}',
-            style: RunqText.caption.copyWith(color: t.muted),
-          ),
+          Text(_caption(), style: RunqText.caption.copyWith(color: t.muted)),
+          if (excludedNote.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text('$excludedNote excluded',
+                style: RunqText.caption.copyWith(color: t.muted2)),
+          ],
         ],
       ),
     );
+  }
+
+  /// "18 days worked · up to 20 Aug 2026", or just the term on a lump sum.
+  String _caption() {
+    final term = isOpenEnded
+        ? 'counting to ${hrContractDateFull(throughDate)} · ongoing'
+        : 'up to ${hrContractDateFull(throughDate)}';
+    if (daysWorked == null) {
+      return term[0].toUpperCase() + term.substring(1);
+    }
+    return '${hrFormatDays(daysWorked!)} '
+        '${isCrew ? 'crew-days' : 'days'} worked · $term';
   }
 
   Widget _divider(RunqTokens t) =>

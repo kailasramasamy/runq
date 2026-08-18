@@ -1314,6 +1314,46 @@ class HrRepo {
     });
   }
 
+  /// The contract statement as a server-rendered PDF: days worked and what
+  /// came off them, pauses, leave, advances, settlement and payments.
+  /// Rendered server-side on purpose — the crew lead gets the same document
+  /// the office sees, not a second layout built on the phone.
+  Future<List<int>> contractStatementPdf(String contractId) =>
+      apiClient.getBytes('/hr/contracts/$contractId/statement?format=pdf');
+
+  // ── Pause / resume ──────────────────────────────────────────────────────
+
+  /// Stop the clock. Omit [toDate] when nobody knows when work restarts —
+  /// [resumeContract] closes it later.
+  Future<HrContractPause> pauseContract(
+    String contractId, {
+    required DateTime fromDate,
+    DateTime? toDate,
+    String? reason,
+  }) async {
+    final res = await apiClient.post('/hr/contracts/$contractId/pause', {
+      'fromDate': _isoDate(fromDate),
+      if (toDate != null) 'toDate': _isoDate(toDate),
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    });
+    return HrContractPause.fromJson(_data(res));
+  }
+
+  /// [resumeDate] is the first day back; the pause ends the day before it.
+  Future<HrContractPause> resumeContract(
+    String contractId, {
+    required DateTime resumeDate,
+  }) async {
+    final res = await apiClient.put('/hr/contracts/$contractId/resume', {
+      'resumeDate': _isoDate(resumeDate),
+    });
+    return HrContractPause.fromJson(_data(res));
+  }
+
+  Future<void> deleteContractPause(String pauseId) async {
+    await apiClient.delete('/hr/contract-pauses/$pauseId');
+  }
+
   // ── Advances ────────────────────────────────────────────────────────────
 
   Future<HrAdvance> payAdvance(
@@ -1379,6 +1419,37 @@ class HrRepo {
 
   Future<void> cancelSettlement(String id) async {
     await apiClient.put('/hr/settlements/$id/cancel', {});
+  }
+
+  Future<List<HrSettlementPayment>> settlementPayments(String settlementId) async {
+    final res = await apiClient.get('/hr/settlements/$settlementId/payments');
+    return _dataList(res).map(HrSettlementPayment.fromJson).toList();
+  }
+
+  /// Money handed over. Omit [amount] to clear whatever is still due;
+  /// pass a smaller one to record an instalment.
+  Future<HrSettlement> recordSettlementPayment(
+    String settlementId, {
+    required DateTime paymentDate,
+    double? amount,
+    required String paymentMethod,
+    String? bankAccountId,
+    String? reference,
+    String? notes,
+  }) async {
+    final res = await apiClient.post('/hr/settlements/$settlementId/payments', {
+      'paymentDate': _isoDate(paymentDate),
+      if (amount != null) 'amount': amount,
+      'paymentMethod': paymentMethod,
+      if (bankAccountId != null) 'bankAccountId': bankAccountId,
+      if (reference != null && reference.isNotEmpty) 'reference': reference,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return HrSettlement.fromJson(_data(res));
+  }
+
+  Future<void> voidSettlementPayment(String paymentId) async {
+    await apiClient.put('/hr/settlement-payments/$paymentId/void', {});
   }
 }
 

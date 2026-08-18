@@ -196,7 +196,11 @@ class _ContractCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  HrContractStatusChip(status: contract.status),
+                  // A paused contract is still active — it just is not
+                  // accruing today, which is what the list needs to show.
+                  HrContractStatusChip(
+                    status: contract.isPausedNow ? 'paused' : contract.status,
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

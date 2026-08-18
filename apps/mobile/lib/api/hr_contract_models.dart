@@ -117,6 +117,104 @@ class HrContractDay {
       );
 }
 
+/// A stretch where the whole job stopped — rain, a stalled site, a festival.
+/// `toDate` null means it is still stopped and nobody has said when work
+/// restarts; resuming stamps the day before the first day back.
+class HrContractPause {
+  final String id;
+  final DateTime fromDate;
+  final DateTime? toDate;
+  final String? reason;
+
+  /// Resume responses only: the pause covered no days and was deleted.
+  final bool removed;
+
+  HrContractPause({
+    required this.id,
+    required this.fromDate,
+    this.toDate,
+    this.reason,
+    this.removed = false,
+  });
+
+  bool coversDay(DateTime d) {
+    final day = DateTime(d.year, d.month, d.day);
+    final from = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    if (day.isBefore(from)) return false;
+    if (toDate == null) return true;
+    final to = DateTime(toDate!.year, toDate!.month, toDate!.day);
+    return !day.isAfter(to);
+  }
+
+  factory HrContractPause.fromJson(Map<String, dynamic> j) => HrContractPause(
+        id: _strOr(j['id'], ''),
+        fromDate: _dt(j['fromDate']) ?? DateTime.now(),
+        toDate: _dt(j['toDate']),
+        reason: _str(j['reason']),
+        removed: _bool(j['removed']),
+      );
+}
+
+/// Where the work stands today, derived server-side from the pause windows.
+/// `pause_scheduled` is a pause booked ahead — still running until then.
+class HrPauseState {
+  /// 'running' | 'paused' | 'pause_scheduled'
+  final String state;
+  final DateTime? since, until;
+  final String? reason;
+
+  const HrPauseState({required this.state, this.since, this.until, this.reason});
+
+  static const running = HrPauseState(state: 'running');
+
+  bool get isPaused => state == 'paused';
+  bool get isScheduled => state == 'pause_scheduled';
+
+  factory HrPauseState.fromJson(Map<String, dynamic>? j) {
+    if (j == null) return running;
+    return HrPauseState(
+      state: _strOr(j['state'], 'running'),
+      // 'paused' carries `since`; 'pause_scheduled' carries `from`.
+      since: _dt(j['since']) ?? _dt(j['from']),
+      until: _dt(j['until']),
+      reason: _str(j['reason']),
+    );
+  }
+}
+
+/// Money handed over against a settlement. A crew is paid as the cash comes
+/// in, so a settlement can carry several of these.
+class HrSettlementPayment {
+  final String id;
+  final double amount;
+  final DateTime paymentDate;
+  final String paymentMethod;
+  final String? reference, notes;
+  final DateTime? voidedAt;
+
+  HrSettlementPayment({
+    required this.id,
+    required this.amount,
+    required this.paymentDate,
+    required this.paymentMethod,
+    this.reference,
+    this.notes,
+    this.voidedAt,
+  });
+
+  bool get isVoided => voidedAt != null;
+
+  factory HrSettlementPayment.fromJson(Map<String, dynamic> j) => HrSettlementPayment(
+        id: _strOr(j['id'], ''),
+        amount: _num(j['amount']),
+        paymentDate: _dt(j['paymentDate']) ?? DateTime.now(),
+        paymentMethod: _strOr(j['paymentMethod'], 'bank_transfer'),
+        reference: _str(j['reference']),
+        notes: _str(j['notes']),
+        voidedAt: _dt(j['voidedAt']),
+      );
+}
+
 class HrAdvance {
   final String id;
   final String? memberId;
@@ -188,6 +286,16 @@ class HrContractBalance {
   final DateTime throughDate;
   final double earned, advancesPaid, netPayable;
   final bool isOpenEnded;
+
+  /// Days in the priced window the job was stopped, already excluded above.
+  final int pausedDays;
+
+  /// Days actually worked so far, net of leave, half days and pauses. On a
+  /// crew this is the sum across everyone — man-days, not calendar days.
+  final double daysWorked;
+
+  /// What was taken out to get there.
+  final int leaveDays, halfDays;
   final List<HrSettlementLine> lines;
 
   HrContractBalance({
@@ -196,8 +304,23 @@ class HrContractBalance {
     required this.advancesPaid,
     required this.netPayable,
     required this.isOpenEnded,
+    this.pausedDays = 0,
+    this.daysWorked = 0,
+    this.leaveDays = 0,
+    this.halfDays = 0,
     required this.lines,
   });
+
+  /// Says why the count is short of the calendar — the immediate follow-up
+  /// question whenever it is. Empty when nothing was taken out.
+  String get excludedNote {
+    final parts = <String>[
+      if (leaveDays > 0) '$leaveDays leave',
+      if (halfDays > 0) '$halfDays half',
+      if (pausedDays > 0) '$pausedDays paused',
+    ];
+    return parts.join(', ');
+  }
 
   factory HrContractBalance.fromJson(Map<String, dynamic> j) => HrContractBalance(
         throughDate: _dt(j['throughDate']) ?? DateTime.now(),
@@ -205,6 +328,10 @@ class HrContractBalance {
         advancesPaid: _num(j['advancesPaid']),
         netPayable: _num(j['netPayable']),
         isOpenEnded: _bool(j['isOpenEnded']),
+        pausedDays: _int(j['pausedDays']),
+        daysWorked: _num(j['daysWorked']),
+        leaveDays: _int(j['leaveDays']),
+        halfDays: _int(j['halfDays']),
         lines: _list(j['lines'], HrSettlementLine.fromJson),
       );
 
@@ -223,6 +350,10 @@ class HrSettlement {
   final DateTime fromDate, toDate;
   final double earned, advancesRecovered, otherDeductions, netPayable;
 
+  /// Disbursed so far. Short of `netPayable` means part-paid — the status
+  /// stays 'approved' until the two meet.
+  final double amountPaid;
+
   /// 'draft' | 'approved' | 'paid' | 'cancelled'
   final String status;
   final List<HrSettlementLine> lines;
@@ -236,9 +367,21 @@ class HrSettlement {
     required this.advancesRecovered,
     required this.otherDeductions,
     required this.netPayable,
+    this.amountPaid = 0,
     required this.status,
     this.lines = const [],
   });
+
+  /// What is still to be handed over. Never negative.
+  double get amountDue {
+    final due = netPayable - amountPaid;
+    return due > 0 ? due : 0;
+  }
+
+  bool get isPartlyPaid => amountPaid > 0 && amountDue > 0;
+
+  /// Payable, and someone has to hand the money over.
+  bool get awaitsPayment => status == 'approved' && amountDue > 0;
 
   factory HrSettlement.fromJson(Map<String, dynamic> j) => HrSettlement(
         id: _strOr(j['id'], ''),
@@ -249,6 +392,7 @@ class HrSettlement {
         advancesRecovered: _num(j['advancesRecovered']),
         otherDeductions: _num(j['otherDeductions']),
         netPayable: _num(j['netPayable']),
+        amountPaid: _num(j['amountPaid']),
         status: _strOr(j['status'], 'draft'),
         lines: _list(j['lines'], HrSettlementLine.fromJson),
       );
@@ -267,11 +411,15 @@ class HrContract {
   final int memberCount;
   final double earnedToDate, advancesPaidTotal, outstanding;
 
+  /// Where the work stands today. Present on both list and detail.
+  final HrPauseState pauseState;
+
   /// Detail only.
   final List<HrContractMember> members;
   final List<HrAdvance> advances;
   final List<HrSettlement> settlements;
   final List<HrContractDay> dayLog;
+  final List<HrContractPause> pauses;
   final HrContractBalance? balance;
 
   HrContract({
@@ -290,14 +438,27 @@ class HrContract {
     this.earnedToDate = 0,
     this.advancesPaidTotal = 0,
     this.outstanding = 0,
+    HrPauseState? pauseState,
     this.members = const [],
     this.advances = const [],
     this.settlements = const [],
     this.dayLog = const [],
+    this.pauses = const [],
     this.balance,
-  });
+  }) : pauseState = pauseState ?? HrPauseState.running;
 
   bool get isActive => status == 'active';
+
+  /// Paused is not a status of its own — the contract is still active, it
+  /// just is not accruing today.
+  bool get isPausedNow => isActive && pauseState.isPaused;
+
+  /// Terms and pauses freeze once a settlement exists.
+  bool get canChangePauses => isActive && liveSettlement == null;
+
+  /// Is a day inside a pause? Used by the calendar, which must not read a
+  /// stopped day as worked.
+  bool isPausedOn(DateTime d) => pauses.any((p) => p.coversDay(d));
   bool get isOpenEnded => endDate == null;
   bool get isTask => contractType == 'task_lumpsum';
   bool get isCrew => contractType == 'crew_daily';
@@ -337,6 +498,12 @@ class HrContract {
         advances: _list(j['advances'], HrAdvance.fromJson),
         settlements: _list(j['settlements'], HrSettlement.fromJson),
         dayLog: _list(j['dayLog'], HrContractDay.fromJson),
+        pauses: _list(j['pauses'], HrContractPause.fromJson),
+        pauseState: HrPauseState.fromJson(
+          j['pauseState'] is Map<String, dynamic>
+              ? j['pauseState'] as Map<String, dynamic>
+              : null,
+        ),
         balance: j['balance'] is Map<String, dynamic>
             ? HrContractBalance.fromJson(j['balance'] as Map<String, dynamic>)
             : null,
@@ -349,6 +516,9 @@ class HrSettlementPreview {
   final DateTime fromDate, throughDate;
   final bool isOpenEnded;
   final double earned, advancesRecovered, otherDeductions, netPayable;
+
+  /// Paused days already excluded from `earned`.
+  final int pausedDays;
   final List<HrSettlementLine> lines;
   final List<String> warnings;
 
@@ -364,6 +534,7 @@ class HrSettlementPreview {
     required this.advancesRecovered,
     required this.otherDeductions,
     required this.netPayable,
+    this.pausedDays = 0,
     required this.lines,
     required this.warnings,
   });
@@ -384,6 +555,7 @@ class HrSettlementPreview {
         advancesRecovered: _num(j['advancesRecovered']),
         otherDeductions: _num(j['otherDeductions']),
         netPayable: _num(j['netPayable']),
+        pausedDays: _int(j['pausedDays']),
         lines: _list(j['lines'], HrSettlementLine.fromJson),
         warnings: _stringList(j['warnings']),
       );

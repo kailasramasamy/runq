@@ -15,12 +15,13 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-export type DayState = 'worked' | 'leave' | 'half_day' | 'outside';
+export type DayState = 'worked' | 'leave' | 'half_day' | 'paused' | 'outside';
 
 const CELL: Record<DayState, string> = {
   worked: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
   leave: 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
   half_day: 'bg-blue-100 text-blue-900 dark:bg-blue-900/50 dark:text-blue-200',
+  paused: 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700/60 dark:text-zinc-300',
   outside: 'bg-muted/40 text-muted-foreground/50',
 };
 
@@ -63,8 +64,16 @@ export function ContractCalendar({
   const startMonth = contract.startDate.slice(0, 7);
   const lastMonth = last.slice(0, 7);
 
+  /** A paused day beats any exception on it: nobody accrues either way. */
+  function isPausedDay(date: string): boolean {
+    return contract.pauses.some(
+      (p) => date >= p.fromDate && (p.toDate === null || date <= p.toDate),
+    );
+  }
+
   function stateFor(date: string, mid: string): DayState {
     if (date < contract.startDate || date > last) return 'outside';
+    if (isPausedDay(date)) return 'paused';
     const s = exceptions.get(`${mid}|${date}`);
     if (s === 'leave') return 'leave';
     if (s === 'half_day') return 'half_day';
@@ -74,6 +83,7 @@ export function ContractCalendar({
   /** Crew reading: off only when everyone is, split otherwise. */
   function crewStateFor(date: string): { state: DayState; off: number } {
     if (date < contract.startDate || date > last) return { state: 'outside', off: 0 };
+    if (isPausedDay(date)) return { state: 'paused', off: 0 };
     let off = 0;
     let partial = 0;
     for (const m of contract.members) {
@@ -142,7 +152,10 @@ export function ContractCalendar({
           const reading = target ? null : crewStateFor(date);
           const state = target ? stateFor(date, target) : reading!.state;
           const off = reading?.off ?? 0;
-          const disabled = state === 'outside' || contract.status !== 'active';
+          // Marking a paused day would be a no-op — the pause already zeroes
+          // it — so the cell reads as stopped rather than inviting a click.
+          const disabled =
+            state === 'outside' || state === 'paused' || contract.status !== 'active';
           return (
             <button
               key={date}
@@ -170,6 +183,7 @@ export function ContractCalendar({
         <Legend cls={CELL.worked} label="Worked" />
         <Legend cls={CELL.leave} label="Leave" />
         <Legend cls={CELL.half_day} label="Half day" />
+        {contract.pauses.length > 0 && <Legend cls={CELL.paused} label="Paused" />}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Every day counts as worked from the start date. Click a day to mark leave

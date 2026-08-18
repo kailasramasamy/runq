@@ -1,18 +1,22 @@
 import { useState } from 'react';
-import { AlertTriangle, Pencil, X } from 'lucide-react';
+import { AlertTriangle, Download, Pencil, X } from 'lucide-react';
 import {
   Modal, Button, Badge, Input, Combobox, useToast,
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { sharePdf } from '@/lib/share-pdf';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
   useContract, useSettlementPreview, usePayAdvance, useCancelAdvance,
   useSettleContract, useMarkDays, CONTRACT_TYPE_LABEL,
-  type ContractDetail, type LabourContract,
+  type ContractDetail, type ContractBalance, type LabourContract,
 } from '@/hooks/queries/use-hr-contracts';
 import { contractStatusVariant, contractTerm, fmtDate } from './contracts';
 import { ContractCalendar, lastAccrualDay, type DayState } from './_contract-calendar';
+import { PauseBlock } from './_contract-pause';
+import { SettlementBlock } from './_settlement-block';
+import { Advances } from './_contract-advances';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -48,6 +52,7 @@ export function ContractDetailModal({
         <div className="space-y-5">
           <Summary contract={c} onEdit={() => onEdit(c)} />
           <Balance contract={c} />
+          {c.contractType !== 'task_lumpsum' && <PauseBlock contract={c} />}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {c.contractType !== 'task_lumpsum' && <CalendarBlock contract={c} />}
             <div className="space-y-5">
@@ -81,6 +86,7 @@ function Summary({ contract, onEdit }: { contract: ContractDetail; onEdit: () =>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={contractStatusVariant(contract.status)}>{contract.status}</Badge>
+          <StatementButton contract={contract} />
           {contract.status === 'active' && (
             <Button variant="outline" size="sm" onClick={onEdit}>
               <Pencil size={12} /> Edit
@@ -89,7 +95,10 @@ function Summary({ contract, onEdit }: { contract: ContractDetail; onEdit: () =>
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-        <Row label="Term">{contractTerm(contract)}</Row>
+        <Row label="Term">
+          {contractTerm(contract)}
+          <DaysWorked contract={contract} />
+        </Row>
         <Row label={contract.contractType === 'task_lumpsum' ? 'Agreed amount' : 'Rate'}>
           {contract.contractType === 'task_lumpsum'
             ? formatINR(Number(contract.fixedAmount ?? 0))
@@ -97,6 +106,59 @@ function Summary({ contract, onEdit }: { contract: ContractDetail; onEdit: () =>
         </Row>
         {contract.notes?.trim() ? <Row label="Notes">{contract.notes}</Row> : null}
       </dl>
+    </div>
+  );
+}
+
+/**
+ * The whole contract as a PDF — days worked and what came off them, pauses,
+ * leave, advances, settlement and payments. Rendered server-side so the crew
+ * lead is handed the same document the office is looking at.
+ */
+function StatementButton({ contract }: { contract: ContractDetail }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await sharePdf({
+            path: `/hr/contracts/${contract.id}/statement`,
+            params: {},
+            filename: `${contract.contractNumber}-statement.pdf`,
+            title: `${contract.name} — statement`,
+          });
+        } catch (e: any) {
+          toast(e?.message ?? 'Could not build the statement', 'error');
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Download size={12} /> {busy ? 'Preparing…' : 'Statement'}
+    </Button>
+  );
+}
+
+/**
+ * Days actually worked, sitting under the term because that is the line it
+ * qualifies: the term says how long the job has run, this says how much of
+ * it was worked. What was taken out to get there lives on the balance
+ * below, where the money it drives is.
+ *
+ * Nothing to show on a task lump sum — it is priced for the job, not the
+ * days.
+ */
+function DaysWorked({ contract }: { contract: ContractDetail }) {
+  if (contract.contractType === 'task_lumpsum') return null;
+  const crew = contract.members.length > 1;
+  return (
+    <div className="text-xs font-normal text-muted-foreground">
+      {formatDays(contract.balance.daysWorked)} {crew ? 'crew-days' : 'days'} worked
     </div>
   );
 }
@@ -113,9 +175,23 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 /** The running position — the number people actually ask about. */
 function Balance({ contract }: { contract: ContractDetail }) {
   const b = contract.balance;
+  // A lump sum is priced for the job, so days are not what it is made of.
+  const showDays = contract.contractType !== 'task_lumpsum';
+  const crew = contract.members.length > 1;
   return (
     <div className="rounded-lg border border-border bg-primary/5 p-4">
-      <div className="grid grid-cols-3 divide-x divide-border text-center">
+      <div
+        className={
+          'grid divide-x divide-border text-center ' +
+          (showDays ? 'grid-cols-4' : 'grid-cols-3')
+        }
+      >
+        {showDays && (
+          <Cell
+            label={crew ? 'Crew-days' : 'Days worked'}
+            value={formatDays(b.daysWorked)}
+          />
+        )}
         <Cell label="Earned" value={formatINR(b.earned)} />
         <Cell label="Advances" value={b.advancesPaid > 0 ? `− ${formatINR(b.advancesPaid)}` : '—'} />
         <Cell label="Outstanding" value={formatINR(b.netPayable)} strong />
@@ -124,9 +200,26 @@ function Balance({ contract }: { contract: ContractDetail }) {
         {b.isOpenEnded
           ? `Counting to ${fmtDate(b.throughDate)} · ongoing`
           : `Up to ${fmtDate(b.throughDate)}`}
+        {showDays && excludedNote(b) ? ` · ${excludedNote(b)} excluded` : ''}
       </p>
     </div>
   );
+}
+
+/** "18" or "18.5" — never "18.0", which reads like a precision nobody has. */
+export const formatDays = (n: number) =>
+  Number.isInteger(n) ? String(n) : n.toFixed(1);
+
+/**
+ * Says why the day count is short of the calendar, which is the immediate
+ * follow-up question whenever it is.
+ */
+function excludedNote(b: ContractBalance): string {
+  const parts: string[] = [];
+  if (b.leaveDays > 0) parts.push(`${b.leaveDays} leave`);
+  if (b.halfDays > 0) parts.push(`${b.halfDays} half`);
+  if (b.pausedDays > 0) parts.push(`${b.pausedDays} paused`);
+  return parts.join(', ');
 }
 
 function Cell({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -218,145 +311,6 @@ function Crew({ contract }: { contract: ContractDetail }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Advances({ contract }: { contract: ContractDetail }) {
-  const { toast } = useToast();
-  const pay = usePayAdvance();
-  const cancel = useCancelAdvance();
-  const { data: banks } = useBankAccounts();
-
-  const [amount, setAmount] = useState('');
-  const [paidOn, setPaidOn] = useState(today());
-  const [method, setMethod] = useState('cash');
-  const [bankAccountId, setBankAccountId] = useState('');
-  const [memberId, setMemberId] = useState('');
-
-  const settled = contract.settlements.some((s) => s.status !== 'cancelled');
-  const needsBank = method !== 'cash';
-  const needsMember = contract.members.length > 1;
-  const amountValue = Number(amount);
-  const canPay =
-    contract.status === 'active' && !settled &&
-    amount.trim() !== '' && amountValue > 0 &&
-    (!needsBank || !!bankAccountId) && (!needsMember || !!memberId);
-
-  const memberName = (id: string | null) =>
-    contract.members.find((m) => m.id === id)?.name ?? null;
-
-  async function submit() {
-    if (!canPay) return;
-    try {
-      await pay.mutateAsync({
-        contractId: contract.id,
-        amount: amountValue,
-        paidOn,
-        memberId: memberId || contract.members[0]?.id || null,
-        paymentMethod: method,
-        bankAccountId: needsBank ? bankAccountId : null,
-      });
-      setAmount('');
-      toast('Advance recorded', 'success');
-    } catch (e: any) {
-      toast(e?.message ?? 'Could not record the advance', 'error');
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-border p-4">
-      <h3 className="mb-3 text-sm font-semibold">Advances</h3>
-      {contract.advances.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No advances paid yet.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <Th>Date</Th>
-              <Th>To</Th>
-              <Th align="right">Amount</Th>
-              <Th>Status</Th>
-              <Th />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contract.advances.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell>{fmtDate(a.paidOn)}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {memberName(a.memberId) ?? contract.leadPersonName}
-                </TableCell>
-                <TableCell align="right" className="font-medium">
-                  {formatINR(Number(a.amount))}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={contractStatusVariant(a.status)}>{a.status}</Badge>
-                </TableCell>
-                <TableCell align="right">
-                  {contract.status === 'active' && a.status === 'paid' && (
-                    <button
-                      type="button"
-                      title="Reverse this advance"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={async () => {
-                        try {
-                          await cancel.mutateAsync(a.id);
-                          toast('Advance reversed', 'success');
-                        } catch (e: any) {
-                          toast(e?.message ?? 'Could not reverse', 'error');
-                        }
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-
-      {contract.status === 'active' && !settled && (
-        <div className="mt-3 space-y-2 rounded-md border border-dashed border-border p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Input label="Amount (₹)" type="number" min="0" value={amount}
-              onChange={(e) => setAmount(e.target.value)} placeholder="2000" />
-            <Input label="Paid on" type="date" value={paidOn}
-              onChange={(e) => setPaidOn(e.target.value)} />
-          </div>
-          {needsMember && (
-            <Combobox
-              label="Paid to"
-              value={memberId}
-              onChange={setMemberId}
-              options={contract.members.map((m) => ({
-                value: m.id,
-                label: m.role ? `${m.name} · ${m.role}` : m.name,
-              }))}
-            />
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <Combobox label="Paid by" value={method}
-              onChange={(v) => { setMethod(v); if (v === 'cash') setBankAccountId(''); }}
-              options={METHODS} />
-            {needsBank && (
-              <Combobox label="From account" value={bankAccountId} onChange={setBankAccountId}
-                options={(banks?.data ?? []).map((b: any) => ({
-                  value: b.id, label: `${b.name} · ${b.bankName}`,
-                }))} />
-            )}
-          </div>
-          <Button className="w-full" onClick={submit} disabled={!canPay || pay.isPending}>
-            {pay.isPending ? 'Saving…' : 'Pay advance'}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Recorded as money owed back, not a wage expense — recovered when the
-            contract is settled.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -466,49 +420,8 @@ function SettleBlock({ contract, onDone }: { contract: ContractDetail; onDone: (
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Settling books the wage to expenses, clears the advances and closes the
-        contract. Record the payout separately once the money leaves.
+        contract. Record the payout here afterwards, in one go or in instalments.
       </p>
-    </div>
-  );
-}
-
-function SettlementBlock({ contract }: { contract: ContractDetail }) {
-  const s = contract.settlements.find((x) => x.status !== 'cancelled')!;
-  return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Settlement</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{s.settlementNumber}</span>
-          <Badge variant={contractStatusVariant(s.status)}>{s.status}</Badge>
-        </div>
-      </div>
-      <dl className="space-y-1 text-sm">
-        <Money label="Earned" amount={Number(s.earned)} />
-        {Number(s.advancesRecovered) > 0 && (
-          <Money label="Advances recovered" amount={Number(s.advancesRecovered)} negative />
-        )}
-        {Number(s.otherDeductions) > 0 && (
-          <Money label="Other deductions" amount={Number(s.otherDeductions)} negative />
-        )}
-      </dl>
-      <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-        <div className="text-xs text-muted-foreground">
-          {s.status === 'paid' ? 'Disbursed' : 'Awaiting payout'} · settled to {fmtDate(s.toDate)}
-        </div>
-        <div className="text-lg font-semibold">{formatINR(Number(s.netPayable))}</div>
-      </div>
-    </div>
-  );
-}
-
-function Money({ label, amount, negative }: { label: string; amount: number; negative?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={negative ? 'text-muted-foreground' : 'font-medium'}>
-        {negative ? '− ' : ''}{formatINR(amount)}
-      </span>
     </div>
   );
 }

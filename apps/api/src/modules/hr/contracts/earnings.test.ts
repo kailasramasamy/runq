@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   daysBetween, dayFactor, memberEarnings, memberWindow,
   contractEarnings, contractBalance, settlementJournalLines,
+  isPaused, pausedDaysWithin,
   type MemberTerms, type DayException, type ContractTerms,
 } from './earnings';
 
@@ -216,6 +217,119 @@ describe('contractEarnings', () => {
   });
 });
 
+describe('pauses — the work stopped, so nothing accrues', () => {
+  const TODAY = '2026-08-20';
+
+  it('knows whether a date falls inside a pause', () => {
+    const p = [{ fromDate: '2026-08-05', toDate: '2026-08-07' }];
+    expect(isPaused('2026-08-04', p)).toBe(false);
+    expect(isPaused('2026-08-05', p)).toBe(true);
+    expect(isPaused('2026-08-07', p)).toBe(true);
+    expect(isPaused('2026-08-08', p)).toBe(false);
+  });
+
+  it('treats an open pause as running to the end of the window', () => {
+    const p = [{ fromDate: '2026-08-05', toDate: null }];
+    expect(isPaused('2049-01-01', p)).toBe(true);
+    expect(pausedDaysWithin({ from: '2026-08-01', to: '2026-08-10' }, p)).toBe(6);
+  });
+
+  it('clips a pause to the window being priced', () => {
+    const p = [{ fromDate: '2026-07-20', toDate: '2026-08-03' }];
+    expect(pausedDaysWithin({ from: '2026-08-01', to: '2026-08-10' }, p)).toBe(3);
+  });
+
+  it('drops paused days out of a member’s earnings', () => {
+    const e = memberEarnings(
+      member(), [], '2026-08-01', '2026-08-10',
+      [{ fromDate: '2026-08-05', toDate: '2026-08-07' }],
+    );
+    expect(e.pausedDays).toBe(3);
+    expect(e.eligibleDays).toBe(7);
+    expect(e.earned).toBe(8400);
+  });
+
+  /// A leave marked inside a pause would otherwise be deducted twice: the
+  /// day is already worth nothing.
+  it('ignores an exception that falls inside a pause', () => {
+    const e = memberEarnings(
+      member(), [leave('2026-08-06'), half('2026-08-06')], '2026-08-01', '2026-08-10',
+      [{ fromDate: '2026-08-05', toDate: '2026-08-07' }],
+    );
+    expect(e.leaveDays).toBe(0);
+    expect(e.daysWorked).toBe(7);
+    expect(e.earned).toBe(8400);
+  });
+
+  it('still counts an exception outside the pause', () => {
+    const e = memberEarnings(
+      member(), [leave('2026-08-09')], '2026-08-01', '2026-08-10',
+      [{ fromDate: '2026-08-05', toDate: '2026-08-07' }],
+    );
+    expect(e.leaveDays).toBe(1);
+    expect(e.daysWorked).toBe(6);
+  });
+
+  it('earns nothing while an indefinite pause is running', () => {
+    const open: ContractTerms = { ...solo, endDate: null };
+    const e = contractEarnings(
+      open, [member()], [], TODAY, undefined,
+      [{ fromDate: '2026-08-01', toDate: null }],
+    );
+    expect(e.earned).toBe(0);
+    expect(e.pausedDays).toBe(20);
+  });
+
+  it('resumes accruing after the pause ends', () => {
+    const open: ContractTerms = { ...solo, endDate: null };
+    const e = contractEarnings(
+      open, [member()], [], TODAY, undefined,
+      [{ fromDate: '2026-08-05', toDate: '2026-08-14' }],
+    );
+    // 20 days less 10 paused
+    expect(e.earned).toBe(12000);
+    expect(e.pausedDays).toBe(10);
+  });
+
+  it('adds two separate pauses', () => {
+    const open: ContractTerms = { ...solo, endDate: null };
+    const e = contractEarnings(
+      open, [member()], [], TODAY, undefined,
+      [
+        { fromDate: '2026-08-03', toDate: '2026-08-04' },
+        { fromDate: '2026-08-10', toDate: '2026-08-12' },
+      ],
+    );
+    expect(e.pausedDays).toBe(5);
+    expect(e.earned).toBe(18000);
+  });
+
+  /// A pause booked for next week must not change what is owed today.
+  it('ignores a pause that starts after the priced window', () => {
+    const e = contractEarnings(
+      solo, [member()], [], TODAY, undefined,
+      [{ fromDate: '2026-09-01', toDate: null }],
+    );
+    expect(e.pausedDays).toBe(0);
+    expect(e.earned).toBe(12000);
+  });
+
+  /// A lump sum prices the job, not the days: stopping the work delays it
+  /// rather than making it cheaper.
+  it('leaves a task lump sum untouched', () => {
+    const task: ContractTerms = {
+      contractType: 'task_lumpsum', fixedAmount: 15000,
+      startDate: '2026-08-01', endDate: null,
+    };
+    const e = contractEarnings(
+      task, [], [], TODAY, undefined,
+      [{ fromDate: '2026-08-02', toDate: null }],
+    );
+    expect(e.earned).toBe(15000);
+    expect(e.pausedDays).toBe(19);
+  });
+});
+
 describe('contractBalance', () => {
   const TODAY = '2026-08-20';
   const crew: ContractTerms = { ...solo, contractType: 'crew_daily' };
@@ -277,6 +391,54 @@ describe('contractBalance', () => {
     const e = contractEarnings(crew, roster, [], TODAY);
     const b = contractBalance(crew, e, [{ memberId: 'm1', amount: 25000 }], 'Ramesh');
     expect(b.netPayable).toBe(-5000);
+  });
+});
+
+describe('contractBalance — days worked', () => {
+  const TODAY = '2026-08-20';
+  const crew: ContractTerms = { ...solo, contractType: 'crew_daily' };
+
+  const daysOn = (
+    terms: ContractTerms,
+    roster: MemberTerms[],
+    exceptions: DayException[] = [],
+    pauses: { fromDate: string; toDate: string | null }[] = [],
+  ) => contractBalance(
+    terms,
+    contractEarnings(terms, roster, exceptions, TODAY, undefined, pauses),
+    [],
+    'Lead',
+  ).daysWorked;
+
+  it('counts every day in a clean term', () => {
+    expect(daysOn(solo, [member()])).toBe(10);
+  });
+
+  it('excludes leave and halves a half day', () => {
+    expect(daysOn(solo, [member()], [leave('2026-08-03'), half('2026-08-05')])).toBe(8.5);
+  });
+
+  it('excludes paused days', () => {
+    expect(daysOn(solo, [member()], [], [{ fromDate: '2026-08-04', toDate: '2026-08-06' }]))
+      .toBe(7);
+  });
+
+  /// A crew's days are man-days: three people for ten days is thirty, which
+  /// is what the wage bill is actually made of.
+  it('sums a crew into man-days', () => {
+    expect(daysOn(crew, [
+      member({ id: 'm1' }),
+      member({ id: 'm2' }),
+      member({ id: 'm3' }),
+    ], [leave('2026-08-04', 'm3')])).toBe(29);
+  });
+
+  it('is zero on a task lump sum, which has no days', () => {
+    const task: ContractTerms = {
+      contractType: 'task_lumpsum', fixedAmount: 15000,
+      startDate: '2026-08-01', endDate: null,
+    };
+    expect(daysOn(task, [])).toBe(0);
   });
 });
 

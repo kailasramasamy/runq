@@ -1,7 +1,7 @@
 import { eq, and, sql, desc } from 'drizzle-orm';
 import {
-  labourSettlements, labourSettlementLines, labourContracts,
-  contractAdvances, bankAccounts, accounts,
+  labourSettlements, labourSettlementLines, labourSettlementPayments,
+  labourContracts, contractAdvances, bankAccounts, accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { CreateSettlementInput, PaySettlementInput } from '@runq/validators';
@@ -50,6 +50,17 @@ export class SettlementService {
     } else if (detail.endDate > today()) {
       warnings.push('The contract term has not finished yet.');
     }
+    if (b.pausedDays > 0 && detail.contractType !== 'task_lumpsum') {
+      warnings.push(
+        `${b.pausedDays} paused ${b.pausedDays === 1 ? 'day is' : 'days are'} excluded — ` +
+        'the work was stopped and nothing accrued.',
+      );
+    }
+    if (detail.pauseState.state === 'paused') {
+      warnings.push(
+        `The work is still paused, since ${detail.pauseState.since}. Settling closes the contract.`,
+      );
+    }
 
     return {
       contractId,
@@ -64,6 +75,7 @@ export class SettlementService {
       advancesRecovered: b.advancesPaid,
       otherDeductions: deductions,
       netPayable: net,
+      pausedDays: b.pausedDays,
       lines: b.lines,
       warnings,
     };
@@ -79,11 +91,28 @@ export class SettlementService {
       ))
       .limit(1);
     if (!row) throw new NotFoundError('Settlement not found');
-    const lines = await this.db
+    const [lines, payments] = await Promise.all([
+      this.db.select().from(labourSettlementLines)
+        .where(eq(labourSettlementLines.settlementId, id)),
+      this.payments(id),
+    ]);
+    return { ...row, lines, payments, amountDue: this.dueOn(row) };
+  }
+
+  async payments(settlementId: string) {
+    return this.db
       .select()
-      .from(labourSettlementLines)
-      .where(eq(labourSettlementLines.settlementId, id));
-    return { ...row, lines };
+      .from(labourSettlementPayments)
+      .where(and(
+        eq(labourSettlementPayments.tenantId, this.tenantId),
+        eq(labourSettlementPayments.settlementId, settlementId),
+      ))
+      .orderBy(desc(labourSettlementPayments.paymentDate));
+  }
+
+  /** What is still to be handed over. Never negative. */
+  private dueOn(s: { netPayable: string; amountPaid: string }) {
+    return Math.max(0, r2(Number(s.netPayable) - Number(s.amountPaid)));
   }
 
   async listForContract(contractId: string) {
@@ -239,23 +268,22 @@ export class SettlementService {
     });
   }
 
-  /** Disburse: Dr 2110 Salary Payable / Cr bank-or-cash. */
+  /**
+   * Disburse, in whole or in part: Dr 2110 Salary Payable / Cr bank-or-cash.
+   *
+   * A crew is paid as the cash comes in, so any number of instalments can
+   * land against one settlement. Each posts its own entry — leaving the
+   * payable overstated between part-payments would misstate the books — and
+   * the settlement only reaches `paid` when the due reaches zero.
+   *
+   * `amount` omitted means "the rest of it", which is the one-click case.
+   */
   async pay(id: string, input: PaySettlementInput, userId: string) {
     const settlement = await this.get(id);
-    if (settlement.status !== 'approved') {
-      throw new ConflictError(
-        settlement.status === 'paid'
-          ? 'Settlement is already paid'
-          : 'Approve the settlement before paying it',
-      );
-    }
-    const net = r2(Number(settlement.netPayable));
-    if (net <= 0) {
-      throw new UnprocessableError('Nothing to disburse — net payable is zero');
-    }
+    const amount = this.payableAmount(settlement, input);
     const creditCode = input.paymentMethod === 'cash'
       ? '1102'
-      : await this.bankGlCode(input.bankAccountId);
+      : await this.bankGlCode(input.bankAccountId!);
 
     return this.db.transaction(async (tx) => {
       const gl = new GLService(tx as unknown as Db, this.tenantId);
@@ -265,17 +293,143 @@ export class SettlementService {
         sourceType: 'contract_settlement_payment',
         sourceId: settlement.id,
         lines: [
-          { accountCode: '2110', debit: net, description: 'Salary Payable cleared' },
-          { accountCode: creditCode, credit: net, description: 'Settlement disbursement' },
+          { accountCode: '2110', debit: amount, description: 'Salary Payable cleared' },
+          { accountCode: creditCode, credit: amount, description: 'Settlement disbursement' },
         ],
         createdBy: userId,
       });
-      const [updated] = await tx
+
+      await tx.insert(labourSettlementPayments).values({
+        tenantId: this.tenantId,
+        settlementId: settlement.id,
+        contractId: settlement.contractId,
+        amount: String(amount),
+        paymentDate: input.paymentDate,
+        paymentMethod: input.paymentMethod,
+        bankAccountId: input.bankAccountId ?? null,
+        reference: input.reference ?? null,
+        notes: input.notes ?? null,
+        journalEntryId: je.id,
+        createdBy: userId,
+      });
+
+      return this.bumpPaid(tx as unknown as Db, id, amount);
+    });
+  }
+
+  /**
+   * Add a disbursement to the settlement's running total, and flip it to
+   * `paid` once the due reaches zero.
+   *
+   * Both are decided in SQL against the row as it stands, not against the
+   * figure read before the transaction: two payments entered at the same
+   * moment would otherwise both see the full due and between them pay out
+   * more than is owed. The guard in the WHERE is what refuses the second.
+   */
+  private async bumpPaid(tx: Db, id: string, amount: number) {
+    const paidSoFar = sql`${labourSettlements.amountPaid} + ${String(amount)}`;
+    const settled = sql`${paidSoFar} >= ${labourSettlements.netPayable}`;
+    const [updated] = await tx
+      .update(labourSettlements)
+      .set({
+        amountPaid: paidSoFar,
+        status: sql`(CASE WHEN ${settled} THEN 'paid' ELSE 'approved' END)::contract_settlement_status`,
+        paidAt: sql`(CASE WHEN ${settled} THEN now() ELSE NULL END)`,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(labourSettlements.id, id),
+        sql`${paidSoFar} <= ${labourSettlements.netPayable}`,
+      ))
+      .returning();
+    if (!updated) {
+      throw new ConflictError(
+        'Another payment landed on this settlement at the same time. Reopen it and check what is still due.',
+      );
+    }
+    return updated;
+  }
+
+  /**
+   * How much this payment is for, and whether it may be made at all.
+   * Omitting the amount means "the rest of it", which is the one-click case.
+   */
+  private payableAmount(
+    settlement: { status: string; amountDue: number },
+    input: PaySettlementInput,
+  ): number {
+    if (settlement.status !== 'approved') {
+      throw new ConflictError(
+        settlement.status === 'paid'
+          ? 'Settlement is already paid in full'
+          : 'Approve the settlement before paying it',
+      );
+    }
+    const due = settlement.amountDue;
+    if (due <= 0) {
+      throw new UnprocessableError('Nothing to disburse — nothing is due');
+    }
+    const amount = r2(input.amount ?? due);
+    if (amount > due) {
+      throw new UnprocessableError(
+        `That is more than the ₹${due.toLocaleString('en-IN')} still due on this settlement.`,
+      );
+    }
+    return amount;
+  }
+
+  /**
+   * Undo a payment entered wrongly. The disbursement is already in the
+   * ledger, so this posts the exact reverse and keeps the row — deleting it
+   * would leave a reversal pointing at nothing.
+   */
+  async voidPayment(paymentId: string, userId: string) {
+    const [payment] = await this.db
+      .select()
+      .from(labourSettlementPayments)
+      .where(and(
+        eq(labourSettlementPayments.id, paymentId),
+        eq(labourSettlementPayments.tenantId, this.tenantId),
+      ))
+      .limit(1);
+    if (!payment) throw new NotFoundError('Payment not found');
+    if (payment.voidedAt) throw new ConflictError('This payment is already voided');
+
+    const settlement = await this.get(payment.settlementId);
+    const amount = r2(Number(payment.amount));
+    const creditCode = payment.paymentMethod === 'cash'
+      ? '1102'
+      : await this.bankGlCode(payment.bankAccountId!);
+
+    return this.db.transaction(async (tx) => {
+      const gl = new GLService(tx as unknown as Db, this.tenantId);
+      const je = await gl.createJournalEntry({
+        date: payment.paymentDate,
+        description: `Contract settlement payment reversed — ${settlement.settlementNumber}`,
+        sourceType: 'contract_settlement_payment_reversal',
+        sourceId: payment.id,
+        lines: [
+          { accountCode: creditCode, debit: amount, description: 'Disbursement reversed' },
+          { accountCode: '2110', credit: amount, description: 'Salary Payable restored' },
+        ],
+        createdBy: userId,
+      });
+
+      await tx
         .update(labourSettlements)
-        .set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() })
-        .where(eq(labourSettlements.id, id))
+        .set({
+          amountPaid: sql`GREATEST(${labourSettlements.amountPaid} - ${String(amount)}, 0)`,
+          status: 'approved',
+          paidAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(labourSettlements.id, payment.settlementId));
+
+      const [updated] = await tx
+        .update(labourSettlementPayments)
+        .set({ voidedAt: new Date(), voidJournalEntryId: je.id, updatedAt: new Date() })
+        .where(eq(labourSettlementPayments.id, paymentId))
         .returning();
-      void je;
       return updated;
     });
   }

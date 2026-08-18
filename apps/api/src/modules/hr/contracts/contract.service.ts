@@ -1,7 +1,7 @@
 import { eq, and, sql, desc, inArray, gte, lte } from 'drizzle-orm';
 import {
   labourContracts, contractMembers, contractDayLog, contractAdvances,
-  labourSettlements,
+  labourSettlements, contractPauses,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
@@ -11,8 +11,9 @@ import type {
 import { NotFoundError, ConflictError, ValidationError } from '../../../utils/errors';
 import {
   contractEarnings, contractBalance,
-  type MemberTerms, type DayException, type ContractTerms,
+  type MemberTerms, type DayException, type ContractTerms, type PauseWindow,
 } from './earnings';
+import { pauseState } from './pause.service';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -37,20 +38,22 @@ export class ContractService {
     // than N per contract — a list of fifty contracts should not be 150
     // queries.
     const ids = rows.map((r) => r.id);
-    const [members, exceptions, advances] = await Promise.all([
+    const [members, exceptions, advances, pauses] = await Promise.all([
       this.db.select().from(contractMembers).where(inArray(contractMembers.contractId, ids)),
       this.db.select().from(contractDayLog).where(inArray(contractDayLog.contractId, ids)),
       this.db.select().from(contractAdvances).where(and(
         inArray(contractAdvances.contractId, ids),
         sql`${contractAdvances.status}::text = 'paid'`,
       )),
+      this.db.select().from(contractPauses).where(inArray(contractPauses.contractId, ids)),
     ]);
 
     const now = today();
     return rows.map((c) => {
       const mine = members.filter((m) => m.contractId === c.id);
+      const myPauses = pauses.filter((p) => p.contractId === c.id);
       const balance = this.balanceFor(c, mine, exceptions.filter((e) => e.contractId === c.id),
-        advances.filter((a) => a.contractId === c.id), now);
+        advances.filter((a) => a.contractId === c.id), myPauses, now);
       return {
         ...c,
         memberCount: mine.length,
@@ -58,6 +61,7 @@ export class ContractService {
         advancesPaid: balance.advancesPaid,
         outstanding: balance.netPayable,
         throughDate: balance.throughDate,
+        pauseState: pauseState(myPauses, now),
       };
     });
   }
@@ -75,7 +79,7 @@ export class ContractService {
   /** Contract plus everything the detail screen renders in one payload. */
   async detail(id: string, asOf?: string) {
     const c = await this.get(id);
-    const [members, exceptions, advances, settlements] = await Promise.all([
+    const [members, exceptions, advances, settlements, pauses] = await Promise.all([
       this.db.select().from(contractMembers)
         .where(eq(contractMembers.contractId, id))
         .orderBy(desc(contractMembers.dailyRate)),
@@ -89,10 +93,14 @@ export class ContractService {
       this.db.select().from(labourSettlements)
         .where(eq(labourSettlements.contractId, id))
         .orderBy(desc(labourSettlements.createdAt)),
+      this.db.select().from(contractPauses)
+        .where(eq(contractPauses.contractId, id))
+        .orderBy(desc(contractPauses.fromDate)),
     ]);
 
     const live = advances.filter((a) => a.status === 'paid');
-    const balance = this.balanceFor(c, members, exceptions, live, today(), asOf);
+    const now = today();
+    const balance = this.balanceFor(c, members, exceptions, live, pauses, now, asOf);
 
     return {
       ...c,
@@ -100,6 +108,8 @@ export class ContractService {
       advances,
       settlements,
       dayLog: exceptions,
+      pauses,
+      pauseState: pauseState(pauses, now),
       balance,
     };
   }
@@ -110,6 +120,7 @@ export class ContractService {
     members: (typeof contractMembers.$inferSelect)[],
     exceptions: (typeof contractDayLog.$inferSelect)[],
     advances: (typeof contractAdvances.$inferSelect)[],
+    pauses: (typeof contractPauses.$inferSelect)[],
     now: string,
     asOf?: string,
   ) {
@@ -132,7 +143,11 @@ export class ContractService {
       logDate: e.logDate,
       status: e.status,
     }));
-    const earnings = contractEarnings(terms, roster, exc, now, asOf);
+    const windows: PauseWindow[] = pauses.map((p) => ({
+      fromDate: p.fromDate,
+      toDate: p.toDate,
+    }));
+    const earnings = contractEarnings(terms, roster, exc, now, asOf, windows);
     return contractBalance(
       terms,
       earnings,

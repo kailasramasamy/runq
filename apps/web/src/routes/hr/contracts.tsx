@@ -146,7 +146,13 @@ export function ContractsPage() {
                   {formatINR(c.outstanding)}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={contractStatusVariant(c.status)}>{c.status}</Badge>
+                  {/* A paused contract is still active — it just is not
+                      accruing today, which is what people need to see. */}
+                  {c.status === 'active' && c.pauseState?.state === 'paused' ? (
+                    <Badge variant="info">paused</Badge>
+                  ) : (
+                    <Badge variant={contractStatusVariant(c.status)}>{c.status}</Badge>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

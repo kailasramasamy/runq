@@ -26,12 +26,33 @@ export interface LabourContract {
   endDate: string | null;
   status: 'active' | 'completed' | 'cancelled';
   notes: string | null;
+  /** Derived from the pause windows, never stored. */
+  pauseState: PauseState;
   /** List rows only. */
   memberCount: number;
   earnedToDate: number;
   advancesPaid: number;
   outstanding: number;
   throughDate: string;
+}
+
+/**
+ * Where the work stands today. `pause_scheduled` is a pause booked for a
+ * future date — the contract is still running until then.
+ */
+export type PauseState =
+  | { state: 'running' }
+  | { state: 'paused'; since: string; until: string | null; reason: string | null }
+  | { state: 'pause_scheduled'; from: string; until: string | null; reason: string | null };
+
+export interface ContractPause {
+  id: string;
+  fromDate: string;
+  /** Null while the work is paused with no date to resume. */
+  toDate: string | null;
+  reason: string | null;
+  /** Resume responses only: the pause covered no days and was deleted. */
+  removed?: boolean;
 }
 
 export interface ContractMember {
@@ -78,6 +99,16 @@ export interface ContractBalance {
   advancesPaid: number;
   netPayable: number;
   isOpenEnded: boolean;
+  /** Days in the priced window the job was stopped. */
+  pausedDays: number;
+  /**
+   * Days actually worked so far, net of leave, half days and pauses. On a
+   * crew this is the sum across everyone — man-days, not calendar days.
+   */
+  daysWorked: number;
+  /** What was taken out to get there. */
+  leaveDays: number;
+  halfDays: number;
   lines: SettlementLine[];
 }
 
@@ -90,7 +121,20 @@ export interface ContractSettlement {
   advancesRecovered: string;
   otherDeductions: string;
   netPayable: string;
+  /** Disbursed so far; the difference from netPayable is what is still due. */
+  amountPaid: string;
   status: 'draft' | 'approved' | 'paid' | 'cancelled';
+}
+
+export interface SettlementPayment {
+  id: string;
+  amount: string;
+  paymentDate: string;
+  paymentMethod: string;
+  bankAccountId: string | null;
+  reference: string | null;
+  notes: string | null;
+  voidedAt: string | null;
 }
 
 export interface ContractDetail extends LabourContract {
@@ -98,7 +142,13 @@ export interface ContractDetail extends LabourContract {
   advances: ContractAdvance[];
   settlements: ContractSettlement[];
   dayLog: ContractDay[];
+  pauses: ContractPause[];
   balance: ContractBalance;
+}
+
+/** What is still to be handed over on a settlement. Never negative. */
+export function settlementDue(s: ContractSettlement): number {
+  return Math.max(0, Number(s.netPayable) - Number(s.amountPaid));
 }
 
 export interface SettlementPreview {
@@ -113,6 +163,7 @@ export interface SettlementPreview {
   advancesRecovered: number;
   otherDeductions: number;
   netPayable: number;
+  pausedDays: number;
   lines: SettlementLine[];
   warnings: string[];
 }
@@ -123,6 +174,8 @@ export const CONTRACT_KEYS = {
   detail: (id: string) => ['hr', 'contracts', id] as const,
   preview: (id: string, through?: string) =>
     ['hr', 'contracts', id, 'settlement-preview', through ?? 'today'] as const,
+  payments: (settlementId: string) =>
+    ['hr', 'contracts', 'settlements', settlementId, 'payments'] as const,
 };
 
 export function useContracts(status?: string) {
@@ -199,6 +252,39 @@ export function useCancelContract() {
   return useMutation({
     mutationFn: (id: string) =>
       api.put<ApiSuccess<LabourContract>>(`/hr/contracts/${id}/cancel`, {}),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+// ── Pause / resume ────────────────────────────────────────────────────────
+
+/** Omit `toDate` for a pause with no date to resume yet. */
+export function usePauseContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contractId, ...d }: {
+      contractId: string; fromDate: string;
+      toDate?: string | null; reason?: string | null;
+    }) => api.post<ApiSuccess<ContractPause>>(`/hr/contracts/${contractId}/pause`, d),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+/** `resumeDate` is the first day back; the pause ends the day before it. */
+export function useResumeContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contractId, resumeDate }: { contractId: string; resumeDate: string }) =>
+      api.put<ApiSuccess<ContractPause>>(`/hr/contracts/${contractId}/resume`, { resumeDate }),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useDeletePause() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete<ApiSuccess<{ id: string }>>(`/hr/contract-pauses/${id}`),
     onSuccess: () => invalidateAll(qc),
   });
 }
@@ -303,6 +389,42 @@ export function useSettleContract() {
         `/hr/settlements/${draft.data.id}/approve`, {},
       );
     },
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useSettlementPayments(settlementId: string | null) {
+  return useQuery({
+    queryKey: CONTRACT_KEYS.payments(settlementId ?? ''),
+    queryFn: () =>
+      api.get<ApiSuccess<SettlementPayment[]>>(`/hr/settlements/${settlementId}/payments`),
+    enabled: !!settlementId,
+  });
+}
+
+/**
+ * Money handed over against a settled contract. Omit `amount` to clear the
+ * whole due; pass one to record an instalment.
+ */
+export function useRecordSettlementPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ settlementId, ...d }: {
+      settlementId: string; paymentDate: string; amount?: number | null;
+      bankAccountId?: string | null; paymentMethod: string;
+      reference?: string | null; notes?: string | null;
+    }) => api.post<ApiSuccess<ContractSettlement>>(
+      `/hr/settlements/${settlementId}/payments`, d,
+    ),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useVoidSettlementPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.put<ApiSuccess<SettlementPayment>>(`/hr/settlement-payments/${id}/void`, {}),
     onSuccess: () => invalidateAll(qc),
   });
 }

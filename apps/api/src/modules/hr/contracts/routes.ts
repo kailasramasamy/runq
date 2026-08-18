@@ -7,6 +7,8 @@ import {
   contractMemberInputSchema,
   updateMemberSchema,
   markDaysSchema,
+  pauseContractSchema,
+  resumeContractSchema,
   createAdvanceSchema,
   createSettlementSchema,
   paySettlementSchema,
@@ -14,6 +16,11 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../../hooks/rbac';
 import { ContractService } from './contract.service';
+import { PauseService } from './pause.service';
+import { ContractStatementService } from './statement.service';
+import {
+  renderContractStatementHTML, contractStatementFilename,
+} from './statement-template';
 import { AdvanceService } from './advance.service';
 import { SettlementService } from './settlement.service';
 
@@ -57,6 +64,62 @@ export const contractRoutes: FastifyPluginAsync = async (app) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new ContractService(req.server.db, req.tenantId);
     return { data: await svc.cancel(id) };
+  });
+
+  // ── Statement ───────────────────────────────────────────────────────────
+
+  /**
+   * The whole contract on paper: days worked and what was taken off them,
+   * pauses, leave, advances, and the settlement with its payments. PDF by
+   * default; `?format=html` renders the same document in the browser, which
+   * is how the template is iterated on without Chromium in the loop.
+   */
+  const statementQuery = z.object({
+    format: z.enum(['pdf', 'html']).default('pdf'),
+  });
+
+  app.get('/contracts/:id/statement', { preHandler: [rbacHook([...READ])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const { format } = statementQuery.parse(req.query);
+    const data = await new ContractStatementService(req.server.db, req.tenantId)
+      .forContract(id);
+    const html = renderContractStatementHTML(data);
+    if (format === 'html') return reply.type('text/html').send(html);
+
+    // Lazy-imported so the Chromium dependency only loads when a PDF is
+    // actually asked for.
+    const { renderHtmlToPdf } = await import('../../ar/invoice-pdf');
+    const pdf = await renderHtmlToPdf(html);
+    return reply.type('application/pdf')
+      .header('Content-Disposition', `inline; filename="${contractStatementFilename(data)}"`)
+      // Browsers hide non-safelisted headers from JS; the clients read the
+      // server's filename back rather than each inventing one.
+      .header('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(pdf);
+  });
+
+  // ── Pauses ──────────────────────────────────────────────────────────────
+
+  /** Stop the clock from a date, optionally until a known one. */
+  app.post('/contracts/:id/pause', { preHandler: [rbacHook([...WRITE])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = pauseContractSchema.parse(req.body);
+    const svc = new PauseService(req.server.db, req.tenantId);
+    return reply.status(201).send({ data: await svc.pause(id, input, req.user!.userId) });
+  });
+
+  /** `resumeDate` is the first day back; the pause ends the day before. */
+  app.put('/contracts/:id/resume', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = resumeContractSchema.parse(req.body);
+    const svc = new PauseService(req.server.db, req.tenantId);
+    return { data: await svc.resume(id, input, req.user!.userId) };
+  });
+
+  app.delete('/contract-pauses/:id', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new PauseService(req.server.db, req.tenantId);
+    return { data: await svc.remove(id) };
   });
 
   // ── Crew ────────────────────────────────────────────────────────────────
@@ -154,6 +217,30 @@ export const contractRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.approve(id, req.user!.userId) };
   });
 
+  /**
+   * Record money handed over. Omitting `amount` pays off whatever is due,
+   * so the same route serves both a full payout and an instalment.
+   */
+  app.post('/settlements/:id/payments', { preHandler: [rbacHook([...WRITE])] }, async (req, reply) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = paySettlementSchema.parse(req.body);
+    const svc = new SettlementService(req.server.db, req.tenantId);
+    return reply.status(201).send({ data: await svc.pay(id, input, req.user!.userId) });
+  });
+
+  app.get('/settlements/:id/payments', { preHandler: [rbacHook([...READ])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SettlementService(req.server.db, req.tenantId);
+    return { data: await svc.payments(id) };
+  });
+
+  app.put('/settlement-payments/:id/void', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SettlementService(req.server.db, req.tenantId);
+    return { data: await svc.voidPayment(id, req.user!.userId) };
+  });
+
+  /** @deprecated Kept for older clients — POST the payments route instead. */
   app.put('/settlements/:id/pay', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = paySettlementSchema.parse(req.body);

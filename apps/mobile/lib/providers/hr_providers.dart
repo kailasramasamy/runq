@@ -755,6 +755,12 @@ final hrContractProvider =
   return _watchAuth(ref, () => hrRepo.contract(id));
 });
 
+/// Instalments already handed over against a settlement.
+final hrSettlementPaymentsProvider =
+    FutureProvider.family<List<HrSettlementPayment>, String>((ref, settlementId) async {
+  return _watchAuth(ref, () => hrRepo.settlementPayments(settlementId));
+});
+
 class HrSettlementQuery {
   final String contractId;
   final DateTime? throughDate;
