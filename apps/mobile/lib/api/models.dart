@@ -524,6 +524,28 @@ class InvoiceSummary {
       );
 }
 
+/// What became of the customer email when an invoice was issued. Mirrors
+/// `InvoiceEmailResult` on the API: absent when the send never asked for one.
+class InvoiceEmailOutcome {
+  final bool sent, attached;
+  final List<String> to;
+  final String? reason;
+
+  const InvoiceEmailOutcome({
+    required this.sent,
+    required this.attached,
+    required this.to,
+    this.reason,
+  });
+
+  factory InvoiceEmailOutcome.fromJson(Map<String, dynamic> j) => InvoiceEmailOutcome(
+        sent: j['sent'] == true,
+        attached: j['attached'] == true,
+        to: ((j['to'] as List?) ?? const []).map((e) => e.toString()).toList(),
+        reason: _str(j['reason']),
+      );
+}
+
 class Invoice {
   final String id, invoiceNumber, customerId, status;
   final String customerName;

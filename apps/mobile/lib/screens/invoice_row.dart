@@ -12,6 +12,7 @@ import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/avatar.dart';
+import '../widgets/invoice_send_outcome.dart';
 import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
@@ -190,13 +191,14 @@ class InvoiceRow extends ConsumerWidget {
 
   Future<void> _send(BuildContext context, WidgetRef ref) async {
     try {
-      await invoicesRepo.send(invoice.id);
+      final email = await invoicesRepo.send(invoice.id);
       await _refreshAll(ref);
       if (!context.mounted) return;
-      showRunqSnack(
+      reportInvoiceSendOutcome(
         context,
-        'Sent ${invoice.invoiceNumber} to ${invoice.customerName}',
-        kind: SnackKind.success,
+        email,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customerName,
       );
     } catch (e) {
       if (!context.mounted) return;

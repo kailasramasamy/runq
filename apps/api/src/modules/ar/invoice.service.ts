@@ -1101,13 +1101,15 @@ export class InvoiceService {
     await this.audit().log({ userId, action: 'sent', entityType: 'sales_invoice', entityId: id });
     const invoice = this.toInvoice(row!);
 
-    // Email is opt-in and awaited: the operator confirmed a recipient in the
-    // send dialog, so they get told whether it actually left. WhatsApp stays
-    // fire-and-forget — it has no such confirmation step.
+    // The channel picks how the customer is pinged; `sendEmail` is a separate
+    // opt-in for the invoice mail itself, so a WhatsApp send can still put the
+    // PDF in their inbox. Email is awaited — the caller gets told whether it
+    // actually left — while WhatsApp stays fire-and-forget.
     let email: InvoiceEmailResult | undefined;
     if (input.channel === 'whatsapp') {
       void this.sendInvoiceWhatsApp(invoice, existing.customerId, existing.customerName, input.whatsappTo);
-    } else if (input.sendEmail) {
+    }
+    if (input.sendEmail) {
       email = await this.sendInvoiceEmail(id, invoice, existing.customerId, existing.customerName, input);
     }
 

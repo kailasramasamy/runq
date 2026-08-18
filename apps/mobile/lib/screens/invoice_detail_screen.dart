@@ -15,6 +15,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
+import '../widgets/invoice_send_outcome.dart';
 import '../widgets/payment_qr_sheet.dart';
 import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_card.dart';
@@ -758,9 +759,16 @@ class _StickyFooterState extends ConsumerState<_StickyFooter> {
   Future<void> _send() async {
     setState(() => _sending = true);
     try {
-      await invoicesRepo.send(widget.invoice.id, channel: 'whatsapp');
+      // WhatsApp pings the customer; the invoice mail with the PDF attached
+      // goes out alongside it, which is the copy they actually file.
+      final email = await invoicesRepo.send(widget.invoice.id, channel: 'whatsapp');
       if (!mounted) return;
-      showRunqSnack(context, 'Invoice sent', kind: SnackKind.success);
+      reportInvoiceSendOutcome(
+        context,
+        email,
+        invoiceNumber: widget.invoice.invoiceNumber,
+        customerName: widget.invoice.customerName,
+      );
       widget.onChange();
     } on ApiException catch (e) {
       if (!mounted) return;

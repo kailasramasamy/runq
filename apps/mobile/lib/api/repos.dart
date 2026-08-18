@@ -95,11 +95,29 @@ class InvoicesRepo {
     return _dataList(res).map(InvoiceReceipt.fromJson).toList();
   }
 
-  Future<void> send(String id, {String? channel, String? note}) async {
-    await apiClient.post('/ar/invoices/$id/send', {
+  /// Issue a draft invoice.
+  ///
+  /// The email is a separate opt-in on the API and defaults to off there, so
+  /// it is asked for explicitly — otherwise the invoice goes out on paper only
+  /// while the app claims the customer was sent it. The returned outcome says
+  /// where the mail actually landed, or why it did not.
+  Future<InvoiceEmailOutcome?> send(
+    String id, {
+    String? channel,
+    String? note,
+    bool sendEmail = true,
+    bool attachPdf = true,
+  }) async {
+    final res = await apiClient.post('/ar/invoices/$id/send', {
       if (channel != null) 'channel': channel,
       if (note != null) 'note': note,
+      'sendEmail': sendEmail,
+      'attachPdf': attachPdf,
     });
+    final email = _data(res)['email'];
+    return email is Map
+        ? InvoiceEmailOutcome.fromJson(email.cast<String, dynamic>())
+        : null;
   }
 
   /// Mark an invoice paid. The API server currently hardcodes the receipt's
