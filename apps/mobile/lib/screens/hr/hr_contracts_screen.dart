@@ -29,7 +29,7 @@ class HrContractsScreen extends ConsumerStatefulWidget {
 
 class _HrContractsScreenState extends ConsumerState<HrContractsScreen> {
   /// Null means "all"; the API treats an absent status the same way.
-  String? _status = 'active';
+  String? _status;
 
   @override
   Widget build(BuildContext context) {
@@ -83,10 +83,13 @@ class _HrContractsScreenState extends ConsumerState<HrContractsScreen> {
       );
 
   Widget _filters() {
+    // All first and selected by default: a settled contract is still the one
+    // people come looking for, and hiding it behind a filter made the list
+    // look like work had gone missing.
     const options = <(String?, String)>[
+      (null, 'All'),
       ('active', 'Active'),
       ('completed', 'Completed'),
-      (null, 'All'),
     ];
     return SizedBox(
       height: 46,

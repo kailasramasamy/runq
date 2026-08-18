@@ -12,10 +12,13 @@ import {
 import { ContractFormModal } from './_contract-form-modal';
 import { ContractDetailModal } from './_contract-detail-modal';
 
+// All first and selected by default: a contract that has been settled is
+// still the one people come looking for, and hiding it behind a filter made
+// the list look like work had gone missing.
 const STATUSES = [
+  { value: '', label: 'All' },
   { value: 'active', label: 'Active' },
   { value: 'completed', label: 'Completed' },
-  { value: '', label: 'All' },
 ];
 
 export function contractStatusVariant(status: string) {
@@ -34,7 +37,7 @@ export function contractTerm(c: { startDate: string; endDate: string | null }) {
 }
 
 export function ContractsPage() {
-  const [status, setStatus] = useState('active');
+  const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<LabourContract | null>(null);
@@ -53,9 +56,17 @@ export function ContractsPage() {
       )
     : rows;
 
+  // Tiles summarise whatever the filter has loaded — now every contract by
+  // default, which is why they need guarding: cancelled work never happened,
+  // and a settled contract's wage has become a payable on the settlement, so
+  // counting it as outstanding here too would say it is owed twice.
   const activeCount = rows.filter((r) => r.status === 'active').length;
-  const earned = rows.reduce((s, r) => s + r.earnedToDate, 0);
-  const outstanding = rows.reduce((s, r) => s + r.outstanding, 0);
+  const earned = rows
+    .filter((r) => r.status !== 'cancelled')
+    .reduce((s, r) => s + r.earnedToDate, 0);
+  const outstanding = rows
+    .filter((r) => r.status === 'active')
+    .reduce((s, r) => s + r.outstanding, 0);
 
   return (
     <div>
