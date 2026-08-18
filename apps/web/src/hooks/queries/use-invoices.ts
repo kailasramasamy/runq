@@ -144,7 +144,15 @@ export type AutoDispatchOutcome =
   | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
   | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
 
-type SentInvoice = SalesInvoice & { autoDispatch?: AutoDispatchOutcome };
+/** What became of the customer email, mirrored from InvoiceEmailResult on the API. */
+export interface InvoiceEmailResult {
+  sent: boolean;
+  to: string[];
+  attached: boolean;
+  reason?: string;
+}
+
+type SentInvoice = SalesInvoice & { autoDispatch?: AutoDispatchOutcome; email?: InvoiceEmailResult };
 
 export function useSendInvoice() {
   const qc = useQueryClient();

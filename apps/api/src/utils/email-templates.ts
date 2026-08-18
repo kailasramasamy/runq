@@ -85,13 +85,18 @@ export interface InvoiceSentParams {
   dueDate: string;
   terms: number;
   companyName: string;
+  /** Whether the PDF actually rides along, so the copy never promises a missing file. */
+  attached?: boolean;
 }
 
 export function invoiceSent(p: InvoiceSentParams): EmailTemplate {
+  const lead = p.attached
+    ? `Please find your invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong> attached for your records.`
+    : `Here are the details of your invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong>.`;
   const subject = `Invoice ${p.invoiceNumber} — ₹${formatINR(p.amount)} from ${p.companyName}`;
   const bodyHtml = `
     <p style="color:#18181b;font-size:15px">Dear ${p.customerName},</p>
-    <p style="color:#3f3f46;font-size:14px;line-height:1.6">Please find your invoice <strong>${p.invoiceNumber}</strong> for <strong>₹${formatINR(p.amount)}</strong> attached for your records.</p>
+    <p style="color:#3f3f46;font-size:14px;line-height:1.6">${lead}</p>
     <table cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e4e4e7;border-radius:6px;width:100%">
       <tr style="background:#f4f4f5"><td style="padding:10px 16px;color:#71717a;font-size:13px;width:40%">Invoice Number</td><td style="padding:10px 16px;color:#18181b;font-size:13px;font-weight:600">${p.invoiceNumber}</td></tr>
       <tr><td style="padding:10px 16px;color:#71717a;font-size:13px">Amount Due</td><td style="padding:10px 16px;color:#18181b;font-size:13px;font-weight:600">₹${formatINR(p.amount)}</td></tr>
@@ -99,7 +104,7 @@ export function invoiceSent(p: InvoiceSentParams): EmailTemplate {
       <tr><td style="padding:10px 16px;color:#71717a;font-size:13px">Payment Terms</td><td style="padding:10px 16px;color:#18181b;font-size:13px">Net ${p.terms} days</td></tr>
     </table>
     <p style="color:#3f3f46;font-size:14px">Please make payment by the due date. Contact us if you have any questions.</p>`;
-  const text = `Dear ${p.customerName}, please find your invoice ${p.invoiceNumber} for ₹${formatINR(p.amount)}. Due date: ${p.dueDate}. Payment terms: ${p.terms} days.`;
+  const text = `Dear ${p.customerName}, ${p.attached ? 'please find your invoice' : 'here are the details of your invoice'} ${p.invoiceNumber} for ₹${formatINR(p.amount)}. Due date: ${p.dueDate}. Payment terms: ${p.terms} days.`;
   return { subject, html: layout(p.companyName, 'Invoice', bodyHtml), text };
 }
 

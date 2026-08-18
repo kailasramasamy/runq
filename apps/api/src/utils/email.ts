@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import type { EmailAttachment } from './email-provider';
 
 let transporter: Transporter | null = null;
 let useResend = false;
@@ -32,10 +33,12 @@ export function initEmailTransport(): void {
 
 async function sendViaResend(params: {
   to: string;
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
   from: string;
+  attachments?: EmailAttachment[];
 }): Promise<boolean> {
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -47,9 +50,18 @@ async function sendViaResend(params: {
       body: JSON.stringify({
         from: params.from,
         to: params.to,
+        ...(params.cc?.length ? { cc: params.cc } : {}),
         subject: params.subject,
         html: params.html,
         text: params.text,
+        ...(params.attachments?.length
+          ? {
+              attachments: params.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString('base64'),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) {
@@ -64,11 +76,18 @@ async function sendViaResend(params: {
   }
 }
 
+/** Splits a stored "a@x.com, b@y.com" field into individual addresses. */
+export function parseEmails(csv: string | null | undefined): string[] {
+  return (csv ?? '').split(',').map((e) => e.trim()).filter(Boolean);
+}
+
 export async function sendEmail(params: {
   to: string;
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
   fromName?: string;
   /** Override the From address (otherwise uses MAIL_FROM). */
   fromAddress?: string;
@@ -93,9 +112,11 @@ export async function sendEmail(params: {
     await transporter.sendMail({
       from,
       to: params.to,
+      cc: params.cc,
       subject: params.subject,
       html: params.html,
       text: params.text,
+      attachments: params.attachments,
     });
     return true;
   } catch (err) {

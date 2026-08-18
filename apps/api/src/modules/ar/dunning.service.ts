@@ -8,7 +8,7 @@ import type { PaginationMeta } from '@runq/types';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AgentFeedService } from '../dashboard/agent-feed.service';
 import { createEmailProvider } from '../../utils/email-provider';
-import { sendEmail } from '../../utils/email';
+import { sendEmail, parseEmails } from '../../utils/email';
 import { overdueReminder, type OverdueInvoiceItem } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
 
@@ -39,10 +39,6 @@ export interface RenderedDunningMessage {
 export interface DunningLogListResult {
   data: DunningLogEntry[];
   meta: PaginationMeta;
-}
-
-function parseEmails(csv: string): string[] {
-  return csv.split(',').map((e) => e.trim()).filter(Boolean);
 }
 
 const DEFAULT_DUNNING_RULES = [

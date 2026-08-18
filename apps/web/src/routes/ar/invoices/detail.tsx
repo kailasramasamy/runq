@@ -25,6 +25,7 @@ import {
 } from '@/components/ui';
 import { FileUpload } from '@/components/ui/file-upload';
 import { DispatchStatusStrip } from '@/components/ar/dispatch-status-strip';
+import { SendInvoiceDialog } from '@/components/ar/send-invoice-dialog';
 
 interface Props { invoiceId: string }
 interface UPILinkData { deepLink: string; qrData: string }
@@ -69,6 +70,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
   const [showMarkPaid, setShowMarkPaid] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showSend, setShowSend] = useState(false);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [referenceNumber, setReferenceNumber] = useState('');
 
@@ -113,13 +115,35 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
     const fmt = format ? `&format=${format}` : '';
     return `/api/v1/ar/invoices/${invoiceId}/print?tenantId=${tenantId}${fmt}`;
   }
-  function handleSend() {
+  function handleSend(opts: { emailTo: string; emailCc: string; attachPdf: boolean }) {
     sendMutation.mutate(
-      { id: invoiceId, data: { channel: 'email', sendEmail: false } },
       {
-        // Silent unless the tenant dispatches on issue — then the operator
-        // needs to know whether the goods actually left before walking away.
+        id: invoiceId,
+        data: {
+          channel: 'email',
+          sendEmail: true,
+          emailTo: opts.emailTo,
+          emailCc: opts.emailCc || null,
+          attachPdf: opts.attachPdf,
+        },
+      },
+      {
         onSuccess: (res) => {
+          setShowSend(false);
+
+          // Delivery first: an invoice the customer never received is the
+          // failure the operator most needs to hear about.
+          const email = res.data.email;
+          if (email && !email.sent) {
+            toast(`Invoice issued, but the email failed — ${email.reason ?? 'unknown error'}`, 'error');
+          } else if (email?.sent) {
+            const who = email.to.join(', ');
+            toast(
+              email.reason ? `Invoice emailed to ${who} — ${email.reason}` : `Invoice emailed to ${who}`,
+              email.reason ? 'info' : 'success',
+            );
+          }
+
           const d = res.data.autoDispatch;
           if (!d) return;
           if (d.status === 'dispatched') {
@@ -133,6 +157,9 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           } else {
             toast(`Invoice sent · not dispatched — ${d.reason}`, 'info');
           }
+        },
+        onError: (err) => {
+          toast(err instanceof Error ? err.message : 'Failed to send invoice', 'error');
         },
       },
     );
@@ -235,7 +262,7 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
               invoice={invoice}
               sending={sendMutation.isPending}
               walletPending={markPaidFromWalletMutation.isPending}
-              onSend={handleSend}
+              onSend={() => setShowSend(true)}
               onMarkPaid={() => setShowMarkPaid(true)}
               onPaidFromWallet={handleMarkPaidFromWallet}
               onEdit={() => navigate({ to: '/finance/ar/invoices/$invoiceId/edit', params: { invoiceId } })}
@@ -775,6 +802,17 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
           </div>
         </div>
       )}
+
+      <SendInvoiceDialog
+        open={showSend}
+        onClose={() => setShowSend(false)}
+        invoiceNumber={invoice.invoiceNumber}
+        customerName={invoice.customerName}
+        customerEmail={customer?.email ?? null}
+        customerCcEmail={customer?.ccEmail ?? null}
+        sending={sendMutation.isPending}
+        onSend={handleSend}
+      />
 
       <ConfirmationDialog
         open={showDiscard}

@@ -1,11 +1,19 @@
 import nodemailer from 'nodemailer';
 import type { TenantSettings } from '@runq/types';
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 export interface EmailParams {
   to: string;
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailProvider {
@@ -22,6 +30,11 @@ class SmtpProvider implements EmailProvider {
       port: cfg.smtpPort || 587,
       secure: cfg.smtpSecure ?? false,
       auth: cfg.smtpUser ? { user: cfg.smtpUser, pass: cfg.smtpPass } : undefined,
+      // Without these, a blocked SMTP port (Railway blocks 25/465/587 below the
+      // Pro plan) leaves the connection hanging forever instead of erroring.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
     this.from = `${cfg.fromName || 'runQ'} <${cfg.fromEmail || 'noreply@example.com'}>`;
   }
@@ -30,9 +43,15 @@ class SmtpProvider implements EmailProvider {
     await this.transporter.sendMail({
       from: this.from,
       to: params.to,
+      cc: params.cc,
       subject: params.subject,
       html: params.html,
       text: params.text,
+      attachments: params.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
     return true;
   }
@@ -51,7 +70,22 @@ class ResendProvider implements EmailProvider {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: this.from, to: [params.to], subject: params.subject, html: params.html, text: params.text }),
+      body: JSON.stringify({
+        from: this.from,
+        to: [params.to],
+        ...(params.cc?.length ? { cc: params.cc } : {}),
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+        ...(params.attachments?.length
+          ? {
+              attachments: params.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString('base64'),
+              })),
+            }
+          : {}),
+      }),
     });
     if (!res.ok) {
       const body = await res.text();
@@ -75,13 +109,26 @@ class SendGridProvider implements EmailProvider {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: params.to }] }],
+        personalizations: [{
+          to: [{ email: params.to }],
+          ...(params.cc?.length ? { cc: params.cc.map((email) => ({ email })) } : {}),
+        }],
         from: this.from,
         subject: params.subject,
         content: [
           { type: 'text/html', value: params.html },
           ...(params.text ? [{ type: 'text/plain', value: params.text }] : []),
         ],
+        ...(params.attachments?.length
+          ? {
+              attachments: params.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString('base64'),
+                type: a.contentType ?? 'application/octet-stream',
+                disposition: 'attachment',
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) {

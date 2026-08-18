@@ -129,7 +129,7 @@ async function run(db: Db, tenantId: string, fx: Fixture) {
 
   // The moment under test: issuing the invoice.
   const svc = new InvoiceService(db, tenantId);
-  const sent = await svc.send(inv.id, { channel: 'email', sendEmail: false });
+  const sent = await svc.send(inv.id, { channel: 'email', sendEmail: false, attachPdf: false });
   const outcome = (sent as { autoDispatch?: { status: string; dnNo?: string; reason?: string } })
     .autoDispatch;
   console.log(`send() → autoDispatch: ${JSON.stringify(outcome)}`);

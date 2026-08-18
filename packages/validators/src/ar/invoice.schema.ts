@@ -42,10 +42,22 @@ export const salesInvoiceFilterSchema = z.object({
   dateTo: z.string().date().optional(),
 });
 
+/** Accepts one address or a comma-separated list, so a CC field can hold several. */
+const emailList = z.string().refine(
+  (v) => v.split(',').map((e) => e.trim()).filter(Boolean).every((e) => z.string().email().safeParse(e).success),
+  { message: 'Must be an email address, or several separated by commas' },
+);
+
 export const sendInvoiceSchema = z.object({
   channel: z.enum(['email', 'whatsapp']).default('email'),
+  /** Opt-in: the invoice is only emailed to the customer when this is true. */
   sendEmail: z.boolean().default(false),
-  emailTo: z.string().email().nullish(),
+  /** Overrides the customer's stored email. Comma-separated for multiple. */
+  emailTo: emailList.nullish(),
+  /** Overrides the customer's stored CC. Comma-separated for multiple. */
+  emailCc: emailList.nullish(),
+  /** Attach the rendered invoice PDF. */
+  attachPdf: z.boolean().default(true),
   whatsappTo: z.string().max(20).nullish(),
 });
 

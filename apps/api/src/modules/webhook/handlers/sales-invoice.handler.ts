@@ -79,7 +79,7 @@ export async function handleSalesInvoiceCreated(
 
   // Auto-send if requested
   if (payload.autoSend) {
-    await service.send(result.id, { channel: 'email', sendEmail: true });
+    await service.send(result.id, { channel: 'email', sendEmail: true, attachPdf: true });
   }
 
   return result.id;

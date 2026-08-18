@@ -16,7 +16,9 @@ import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
 import { AuditService } from '../../utils/audit';
 import { GLService } from '../gl/gl.service';
-import { sendEmail } from '../../utils/email';
+import { sendEmail, parseEmails } from '../../utils/email';
+import { createEmailProvider } from '../../utils/email-provider';
+import type { EmailParams, EmailAttachment } from '../../utils/email-provider';
 import { invoiceSent } from '../../utils/email-templates';
 import { getTenantName } from '../../utils/tenant-name';
 import { determinePlaceOfSupply, calculateLineItemTax, calculateInvoiceTax, resolveStateCode } from '../../utils/gst-calculator';
@@ -24,7 +26,7 @@ import { defaultPackSize } from '../gst/hsn-canonical-uqc';
 import { getMessageProvider } from '../../utils/messaging';
 import { AutoDispatchService } from '../inventory/auto-dispatch.service';
 import type { AutoDispatchOutcome } from '../inventory/auto-dispatch.service';
-import type { TaxCategory, TaxBreakdown } from '@runq/types';
+import type { TaxCategory, TaxBreakdown, TenantSettings as TenantEmailSettings } from '@runq/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTx = NodePgDatabase<any> | PgTransaction<any, any, any>;
@@ -37,6 +39,14 @@ export interface InvoiceSummary {
   overdueAmount: number;
   draftCount: number;
   pendingCount: number;
+}
+
+/** What actually happened to the customer email, so the operator is not left guessing. */
+export interface InvoiceEmailResult {
+  sent: boolean;
+  to: string[];
+  attached: boolean;
+  reason?: string;
 }
 
 export interface InvoiceListParams {
@@ -1076,7 +1086,7 @@ export class InvoiceService {
     id: string,
     input: SendInvoiceInput,
     userId?: string,
-  ): Promise<SalesInvoice & { autoDispatch?: AutoDispatchOutcome }> {
+  ): Promise<SalesInvoice & { autoDispatch?: AutoDispatchOutcome; email?: InvoiceEmailResult }> {
     const existing = await this.getById(id);
     if (existing.status !== 'draft') {
       throw new ConflictError('Only draft invoices can be sent');
@@ -1091,18 +1101,26 @@ export class InvoiceService {
     await this.audit().log({ userId, action: 'sent', entityType: 'sales_invoice', entityId: id });
     const invoice = this.toInvoice(row!);
 
+    // Email is opt-in and awaited: the operator confirmed a recipient in the
+    // send dialog, so they get told whether it actually left. WhatsApp stays
+    // fire-and-forget — it has no such confirmation step.
+    let email: InvoiceEmailResult | undefined;
     if (input.channel === 'whatsapp') {
       void this.sendInvoiceWhatsApp(invoice, existing.customerId, existing.customerName, input.whatsappTo);
-    } else {
-      void this.sendInvoiceEmail(invoice, existing.customerId, existing.customerName);
+    } else if (input.sendEmail) {
+      email = await this.sendInvoiceEmail(id, invoice, existing.customerId, existing.customerName, input);
     }
 
-    // Awaited, unlike the delivery above: the operator needs to know whether
+    // Awaited too: the operator needs to know whether
     // the goods moved before they walk away from the screen. The invoice is
     // already committed, and runForInvoice never throws, so a warehouse problem
     // can only downgrade the message — never the billing document.
     const autoDispatch = await this.autoDispatch().runForInvoice(id);
-    return autoDispatch.status === 'off' ? invoice : { ...invoice, autoDispatch };
+    return {
+      ...invoice,
+      ...(autoDispatch.status === 'off' ? {} : { autoDispatch }),
+      ...(email ? { email } : {}),
+    };
   }
 
   /**
@@ -1158,28 +1176,107 @@ export class InvoiceService {
     return row?.phone ?? null;
   }
 
-  private async sendInvoiceEmail(invoice: SalesInvoice, customerId: string, customerName: string): Promise<void> {
-    const [customerRow] = await this.db
-      .select({ email: customers.email, paymentTermsDays: customers.paymentTermsDays })
+  private async sendInvoiceEmail(
+    invoiceId: string,
+    invoice: SalesInvoice,
+    customerId: string,
+    customerName: string,
+    input: SendInvoiceInput,
+  ): Promise<InvoiceEmailResult> {
+    const [customer] = await this.db
+      .select({ email: customers.email, ccEmail: customers.ccEmail, paymentTermsDays: customers.paymentTermsDays })
       .from(customers)
-      .where(eq(customers.id, customerId))
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
       .limit(1);
 
-    if (!customerRow?.email) return;
+    const to = parseEmails(input.emailTo ?? customer?.email);
+    if (to.length === 0) {
+      return { sent: false, to: [], attached: false, reason: 'No email address on file for this customer' };
+    }
+    const cc = parseEmails(input.emailCc ?? customer?.ccEmail);
 
+    const attachment = input.attachPdf ? await this.renderInvoicePdf(invoiceId) : null;
     const companyName = await getTenantName(this.db, this.tenantId);
     const template = invoiceSent({
       customerName,
       invoiceNumber: invoice.invoiceNumber,
       amount: invoice.totalAmount,
       dueDate: invoice.dueDate,
-      terms: customerRow.paymentTermsDays,
+      terms: customer?.paymentTermsDays ?? 30,
       companyName,
+      attached: !!attachment,
     });
+    const pdfMissing = input.attachPdf && !attachment
+      ? 'the PDF could not be generated, so details were sent inline'
+      : undefined;
 
-    sendEmail({ to: customerRow.email, fromName: companyName, ...template }).catch((err) =>
-      console.error('Invoice email failed:', err),
-    );
+    try {
+      await this.dispatchEmail(companyName, {
+        to: to[0]!,
+        cc: [...to.slice(1), ...cc],
+        ...template,
+        ...(attachment ? { attachments: [attachment] } : {}),
+      });
+      return { sent: true, to: [...to, ...cc], attached: !!attachment, reason: pdfMissing };
+    } catch (err) {
+      console.error(`Invoice ${invoice.invoiceNumber} email failed:`, err);
+      return {
+        sent: false,
+        to: [...to, ...cc],
+        attached: false,
+        reason: err instanceof Error ? err.message : 'Email delivery failed',
+      };
+    }
+  }
+
+  /**
+   * Prefers the tenant's own configured provider so invoices carry the seller's
+   * verified domain, and only falls back to the platform sender when a tenant
+   * has not configured one.
+   */
+  private async dispatchEmail(companyName: string, params: EmailParams): Promise<void> {
+    const [row] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId))
+      .limit(1);
+
+    const provider = createEmailProvider((row?.settings ?? {}) as TenantEmailSettings);
+    if (provider) {
+      await provider.send(params);
+      return;
+    }
+    if (!await sendEmail({ ...params, fromName: companyName })) {
+      throw new Error('No email provider is configured. Set one up in Settings → Email Provider.');
+    }
+  }
+
+  /**
+   * Renders the same PDF the print route serves. A rendering failure must not
+   * cost the customer their invoice email, so it degrades to an inline-details
+   * mail instead of throwing — the template drops its "attached" wording to match.
+   */
+  private async renderInvoicePdf(invoiceId: string): Promise<EmailAttachment | null> {
+    try {
+      const { invoice, items: lines, customer, tenant, bankAccounts: banks } = await this.getForPrint(invoiceId);
+      const { renderInvoiceHTML } = await import('./invoice-template');
+      const { renderHtmlToPdf } = await import('./invoice-pdf');
+      const html = renderInvoiceHTML(
+        invoice,
+        lines,
+        customer,
+        { ...tenant, settings: (tenant.settings ?? {}) as Record<string, unknown> },
+        banks,
+      );
+      return {
+        filename: `${invoice.invoiceNumber}.pdf`,
+        content: await renderHtmlToPdf(html),
+        contentType: 'application/pdf',
+      };
+    } catch (err) {
+      console.error(`Invoice PDF render failed for ${invoiceId}:`, err);
+      return null;
+    }
   }
 
   async markPaid(id: string, input: MarkPaidInput): Promise<SalesInvoiceWithDetails> {
