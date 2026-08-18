@@ -316,6 +316,11 @@ function settlementSection(d: ContractStatementData): string {
       Not settled yet. ${esc(inr(d.totals.outstanding))} outstanding as at ${esc(fmtDate(d.throughDate))}.
     </div>`);
   }
+  // The ledger's "Less paid" is one number; the instalments behind it are
+  // what the crew argues about, so they get their own labelled table with a
+  // total that has to agree with it. Reversed payments are shown but not counted.
+  const paidTotal = s.payments.filter((p) => !p.voided)
+    .reduce((t, p) => t + p.amount, 0);
   const payRows = s.payments.map((p) => `<tr class="${p.voided ? 'void' : ''}">
     <td>${fmtDate(p.paymentDate)}</td>
     <td>${esc(methodLabel(p.paymentMethod))}</td>
@@ -335,9 +340,16 @@ function settlementSection(d: ContractStatementData): string {
       </tbody>
     </table>
     <div class="note">${esc(s.number)} · settled to ${esc(fmtDate(s.toDate))} · ${esc(s.status)}</div>
-    ${s.payments.length ? `<table class="pay-table">
+    ${s.payments.length ? `<div class="sub-title">${
+      s.payments.length === 1 ? 'Payment made' : `Payments made · ${s.payments.length} instalments`
+    }</div>
+    <table class="pay-table">
       <thead><tr><th>Paid on</th><th>Paid by</th><th>Reference</th><th class="right">Amount</th></tr></thead>
       <tbody>${payRows}</tbody>
+      <tfoot><tr>
+        <td colspan="3" class="tfoot-label">Total paid</td>
+        <td class="right grand">${inr(paidTotal)}</td>
+      </tr></tfoot>
     </table>` : ''}`);
 }
 
@@ -449,6 +461,10 @@ const STYLE = `<style>
   table.ledger td { border-bottom: none; padding: 4px 8px; }
   table.ledger tr:nth-child(even) td { background: transparent; }
   table.ledger tr.rule td { border-top: 1px solid #E9E7DF; padding-top: 6px; }
-  table.pay-table { margin-top: 10px; }
+  /* Splitting the instalments over a page break repeats the header and
+     strands the total, which is exactly the reading it must not invite. */
+  table.pay-table { margin-top: 4px; break-inside: avoid; }
+  .sub-title { margin-top: 12px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.8px; color: #5B635C; }
   .footer { margin-top: 20px; font-size: 10px; color: #9aa29a; text-align: center; }
 </style>`;

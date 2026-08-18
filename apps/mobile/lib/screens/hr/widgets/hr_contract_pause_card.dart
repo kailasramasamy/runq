@@ -42,6 +42,10 @@ class HrContractPauseCard extends StatelessWidget {
     final resumesOn = paused && s.until != null
         ? s.until!.add(const Duration(days: 1))
         : null;
+    // A closed contract accrues nothing, so "Work running" would be a lie.
+    // With no pauses to look back on there is nothing left to say either.
+    final closed = !contract.isActive;
+    if (closed && contract.pauses.isEmpty) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -60,7 +64,11 @@ class HrContractPauseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                paused ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                closed
+                    ? Icons.check_circle_outline
+                    : paused
+                        ? Icons.pause_circle_outline
+                        : Icons.play_circle_outline,
                 size: 18,
                 color: paused ? const Color(0xFFB45309) : t.muted2,
               ),
@@ -70,17 +78,19 @@ class HrContractPauseCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      resumesOn != null
-                          ? 'Paused · back on ${hrContractDate(resumesOn)}'
-                          : paused
-                              ? 'Work paused'
-                              : s.isScheduled
-                                  ? 'Pause booked'
-                                  : 'Work running',
+                      closed
+                          ? _closedTitle(contract.status)
+                          : resumesOn != null
+                              ? 'Paused · back on ${hrContractDate(resumesOn)}'
+                              : paused
+                                  ? 'Work paused'
+                                  : s.isScheduled
+                                      ? 'Pause booked'
+                                      : 'Work running',
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
                     ),
                     const SizedBox(height: 2),
-                    Text(_describe(s),
+                    Text(closed ? _closedNote(contract) : _describe(s),
                         style: RunqText.caption.copyWith(color: t.muted)),
                   ],
                 ),
@@ -133,6 +143,16 @@ class HrContractPauseCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _closedTitle(String status) =>
+      status == 'cancelled' ? 'Contract cancelled' : 'Work complete';
+
+  /// On a closed contract the card is a record of the pauses, not a control.
+  static String _closedNote(HrContract c) {
+    final n = c.pauses.length;
+    return '$n paused ${n == 1 ? 'stretch' : 'stretches'} on this contract. '
+        'Nothing accrues any more.';
   }
 
   static String _describe(HrPauseState s) {

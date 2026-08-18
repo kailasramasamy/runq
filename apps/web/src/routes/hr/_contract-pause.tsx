@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PauseCircle, PlayCircle, X } from 'lucide-react';
+import { CheckCircle2, PauseCircle, PlayCircle, X } from 'lucide-react';
 import { Button, Input, useToast } from '@/components/ui';
 import {
   usePauseContract, useResumeContract, useDeletePause,
@@ -35,6 +35,9 @@ export function PauseBlock({ contract }: { contract: ContractDetail }) {
    * a Tuesday looks like it silently failed because the banner is still up.
    */
   const resumesOn = paused && state.until ? nextDay(state.until) : null;
+  /** A closed contract accrues nothing, so "Work running" would be a lie. */
+  const closed = contract.status !== 'active';
+  if (closed && contract.pauses.length === 0) return null;
 
   return (
     <div
@@ -47,18 +50,24 @@ export function PauseBlock({ contract }: { contract: ContractDetail }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          {paused
-            ? <PauseCircle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-            : <PlayCircle size={16} className="mt-0.5 shrink-0 text-muted-foreground" />}
+          {closed
+            ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+            : paused
+              ? <PauseCircle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              : <PlayCircle size={16} className="mt-0.5 shrink-0 text-muted-foreground" />}
           <div>
             <div className="text-sm font-semibold">
-              {resumesOn
-                ? `Paused · back on ${fmtDate(resumesOn)}`
-                : paused
-                  ? 'Work paused'
-                  : state.state === 'pause_scheduled' ? 'Pause booked' : 'Work running'}
+              {closed
+                ? (contract.status === 'cancelled' ? 'Contract cancelled' : 'Work complete')
+                : resumesOn
+                  ? `Paused · back on ${fmtDate(resumesOn)}`
+                  : paused
+                    ? 'Work paused'
+                    : state.state === 'pause_scheduled' ? 'Pause booked' : 'Work running'}
             </div>
-            <p className="text-xs text-muted-foreground">{describe(state)}</p>
+            <p className="text-xs text-muted-foreground">
+              {closed ? closedNote(contract.pauses.length) : describe(state)}
+            </p>
           </div>
         </div>
         {canChange && (
@@ -121,6 +130,10 @@ export function PauseBlock({ contract }: { contract: ContractDetail }) {
     </div>
   );
 }
+
+/** On a closed contract the block is a record of the pauses, not a control. */
+const closedNote = (n: number) =>
+  `${n} paused ${n === 1 ? 'stretch' : 'stretches'} on this contract. Nothing accrues any more.`;
 
 function describe(state: ContractDetail['pauseState']): string {
   if (state.state === 'paused') {
