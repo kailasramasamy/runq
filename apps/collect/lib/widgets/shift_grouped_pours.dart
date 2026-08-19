@@ -11,7 +11,8 @@ import 'quality_badge.dart';
 import 'source_row.dart';
 
 /// Renders pours grouped into PM-first then AM shift sections. Each section has
-/// a subtotal header (count + total litres + amount) over a card of farmer rows.
+/// a subtotal header (count + total litres + amount) over a card of pour rows,
+/// each showing its litres, amount and effective ₹/L.
 /// Shared by Home "Recent entries", Record Collection, and Collection History so
 /// the shift grouping reads identically everywhere.
 class ShiftGroupedPours extends StatelessWidget {
@@ -22,7 +23,6 @@ class ShiftGroupedPours extends StatelessWidget {
     required this.onTapPour,
     this.maxRowsPerShift,
     this.showDate = false,
-    this.singleFarmer = false,
     this.showAvatar = true,
     this.bands,
   });
@@ -40,15 +40,9 @@ class ShiftGroupedPours extends StatelessWidget {
   /// (Record Collection = today, History = day-grouped).
   final bool showDate;
 
-  /// Single-farmer history mode: the farmer is already implied by the screen,
-  /// so the shift header shows the effective rate (₹/L) instead of a
-  /// litres·amount subtotal that would just repeat the row below, and each row
-  /// leads with its milk type rather than the (redundant) farmer name.
-  final bool singleFarmer;
-
   /// Drops the leading farmer avatar on each row. Used by Record Collection's
   /// "Today's entries" where the farmer name already leads and the avatar adds
-  /// nothing. Ignored in [singleFarmer] mode (already avatar-less).
+  /// nothing.
   final bool showAvatar;
 
   /// When provided, each pour row's quality metrics are colored per-metric by
@@ -88,10 +82,7 @@ class ShiftGroupedPours extends StatelessWidget {
               ' · ${shiftPours.length}',
               style: DhenuText.label.copyWith(color: t.inkSoft)),
           const Spacer(),
-          Text(
-              singleFarmer
-                  ? (totalL > 0 ? '${rupees(totalAmt / totalL, paise: true)}/L' : '—')
-                  : '${litres(totalL, unit: true)} · ${rupees(totalAmt)}',
+          Text('${litres(totalL, unit: true)} · ${rupees(totalAmt)}',
               style: DhenuText.label.copyWith(color: t.ink)),
         ]),
       ),
@@ -110,20 +101,21 @@ class ShiftGroupedPours extends StatelessWidget {
   Widget _row(BuildContext context, DhenuTokens t, AppLocalizations l, MpPour p) {
     final farmer = farmersById[p.farmerId];
     final milkType = milkTypeL10n(l, p.milkType);
-    final noAvatar = singleFarmer || !showAvatar;
-    // In single-farmer mode the row already leads with the type. Otherwise it
-    // leads with the farmer's name, which leaves two pours from the same farmer
-    // in the same shift looking identical at different rates — so when the list
-    // mixes types, the type goes on the subtitle. Single-type nodes, which are
-    // most of them, see no extra line.
-    final labelType = !singleFarmer && _mixedTypes;
+    // The row leads with the farmer's name, which leaves two pours from the
+    // same farmer in the same shift looking identical at different rates — so
+    // when the list mixes types, the type goes on the subtitle. Single-type
+    // nodes, which are most of them, see no extra line.
+    final labelType = _mixedTypes;
+    // The effective ₹/L sits on the subtitle so the trailing column stays a
+    // two-number stack (litres over amount) and the quality line stays short.
+    final rate = '${rupees(p.ratePerLitre, paise: true)}/L';
     return SourceRow(
-      title: singleFarmer ? milkType : (farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback),
-      subtitle: labelType ? milkType : null,
-      hideLeading: noAvatar,
-      farmer: noAvatar ? null : farmer,
+      title: farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback,
+      subtitle: labelType ? '$milkType  ·  $rate' : rate,
+      hideLeading: !showAvatar,
+      farmer: showAvatar ? farmer : null,
       litres: litres(p.qtyLitres, unit: true),
-      quality: p.fat == null ? null : _qualityLine(context, p, bands),
+      quality: p.fat == null ? null : pourQualityLine(context, p, bands),
       amount: rupees(p.lineAmount),
       onTap: () => onTapPour(p, farmer),
     );
@@ -136,7 +128,9 @@ class ShiftGroupedPours extends StatelessWidget {
 
 /// Low-emphasis quality read for list rows: muted "FAT · SNF · W" with only the
 /// grade letter (and per-metric values when bands are provided) carrying color.
-Widget _qualityLine(BuildContext context, MpPour p, QualityBands? bands) {
+/// Shared with Collection History's by-farmer day cards, which lay their pours
+/// out per shift rather than per farmer but read quality identically.
+Widget pourQualityLine(BuildContext context, MpPour p, QualityBands? bands) {
   final t = DT(context);
   final muted = DhenuText.caption.copyWith(color: t.inkSoft);
   final hasGrade = p.qualityGrade != Grade.unknown;

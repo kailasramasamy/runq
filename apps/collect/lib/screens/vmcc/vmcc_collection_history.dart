@@ -9,8 +9,10 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
+import '../../widgets/dhenu_segmented.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/pour_detail_sheet.dart';
+import '../../widgets/source_row.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import 'record_collection.dart';
 
@@ -104,84 +106,29 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
   // ── Controls ──────────────────────────────────────────────────────────────
 
   Widget _controls(DhenuTokens t, AppLocalizations l) => Column(children: [
-        _segment<_HistoryView>(t, _view, (v) => setState(() => _view = v), [
-          (_HistoryView.byDay, l.historyByDay, null),
-          (_HistoryView.byFarmer, l.historyByFarmer, null),
-        ]),
+        DhenuSegmented<_HistoryView>(
+          current: _view,
+          onSelect: (v) => setState(() => _view = v),
+          options: [
+            (_HistoryView.byDay, l.historyByDay, null),
+            (_HistoryView.byFarmer, l.historyByFarmer, null),
+          ],
+        ),
         const SizedBox(height: DhenuSpacing.sm),
-        _segment<Shift?>(t, _shift, (v) => setState(() => _shift = v), [
-          (null, l.historyAll, null),
-          (Shift.pm, l.shiftPm, DhenuIcons.moon),
-          (Shift.am, l.shiftAm, DhenuIcons.sun),
-        ]),
+        DhenuSegmented<Shift?>(
+          current: _shift,
+          onSelect: (v) => setState(() => _shift = v),
+          options: [
+            (null, l.historyAll, null),
+            (Shift.pm, l.shiftPm, DhenuIcons.moon),
+            (Shift.am, l.shiftAm, DhenuIcons.sun),
+          ],
+        ),
         if (_view == _HistoryView.byFarmer) ...[
           const SizedBox(height: DhenuSpacing.sm),
           _searchField(t, l),
         ],
       ]);
-
-  Widget _segment<E>(DhenuTokens t, E current, void Function(E) onSelect,
-      List<(E, String, IconData?)> options) {
-    final n = options.length;
-    final idx = options.indexWhere((o) => o.$1 == current);
-    return Container(
-      padding: const EdgeInsets.all(DhenuSpacing.xs),
-      decoration: BoxDecoration(
-        color: t.inputFill,
-        borderRadius: BorderRadius.circular(DhenuRadii.input),
-      ),
-      // A single brand pill slides to the selected item — only ever one
-      // highlight, so switching options reads as a move, not a double-flash.
-      child: Stack(children: [
-        if (idx >= 0)
-          Positioned.fill(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment(n == 1 ? 0 : -1 + 2 * idx / (n - 1), 0),
-              child: FractionallySizedBox(
-                widthFactor: 1 / n,
-                heightFactor: 1,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: t.brandSubtle,
-                    borderRadius: BorderRadius.circular(DhenuRadii.input - 2),
-                    border: Border.all(color: t.brand),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        Row(children: [
-          for (final (val, label, icon) in options)
-            Expanded(child: _segmentItem(t, label, icon, current == val, () => onSelect(val))),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _segmentItem(DhenuTokens t, String label, IconData? icon, bool selected, VoidCallback onTap) {
-    final fg = selected ? t.brand : t.inkSoft;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
-        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 4),
-          ],
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            style: DhenuText.label.copyWith(color: fg),
-            child: Text(label),
-          ),
-        ]),
-      ),
-    );
-  }
 
   Widget _searchField(DhenuTokens t, AppLocalizations l) => TextField(
         onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
@@ -325,39 +272,70 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
           ]),
         ),
       ),
-      if (isOpen) ..._farmerDays(t, farmer, pours),
+      if (isOpen) ..._farmerDays(t, l, farmer, pours),
     ]);
   }
 
-  List<Widget> _farmerDays(DhenuTokens t, MpFarmer farmer, List<MpPour> pours) {
+  /// One card per day, each row a shift — the farmer is already named by the
+  /// section header above, so the rows spend their space on shift, rate and
+  /// quality instead of repeating it.
+  List<Widget> _farmerDays(DhenuTokens t, AppLocalizations l, MpFarmer farmer, List<MpPour> pours) {
     final groups = <String, List<MpPour>>{};
     for (final p in pours) {
       (groups[p.collectionDate] ??= []).add(p);
     }
     final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
-    final byId = {farmer.id: farmer};
+    final mixedTypes = hasMixedMilkTypes(pours.map((p) => p.milkType));
     return [
       const SizedBox(height: DhenuSpacing.sm),
       for (final d in dates) ...[
-        _farmerDayHeader(t, d, groups[d]!),
-        const SizedBox(height: DhenuSpacing.xs),
-        ShiftGroupedPours(pours: groups[d]!, farmersById: byId, bands: _bands, onTapPour: _openPour),
+        _farmerDayCard(t, l, farmer, d, groups[d]!, mixedTypes),
         const SizedBox(height: DhenuSpacing.sm),
       ],
     ];
   }
 
-  Widget _farmerDayHeader(DhenuTokens t, String date, List<MpPour> dayPours) {
+  Widget _farmerDayCard(DhenuTokens t, AppLocalizations l, MpFarmer farmer, String date,
+      List<MpPour> dayPours, bool mixedTypes) {
     final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres);
     final amt = dayPours.fold<double>(0, (a, p) => a + p.lineAmount);
-    return Padding(
-      padding: const EdgeInsets.only(left: DhenuSpacing.xs),
-      child: Row(children: [
-        Text(prettyDate(date), style: DhenuText.label.copyWith(color: t.ink)),
-        const Spacer(),
-        Text('${litres(qty, unit: true)} · ${rupees(amt)}',
-            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+    // PM leads the day, matching every other pour list in the app.
+    final rows = [
+      for (final p in dayPours) if (p.shift == Shift.pm) p,
+      for (final p in dayPours) if (p.shift != Shift.pm) p,
+    ];
+    return DhenuCard(
+      padding: EdgeInsets.zero,
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              DhenuSpacing.screen, DhenuSpacing.md, DhenuSpacing.screen, DhenuSpacing.md),
+          child: Row(children: [
+            Text(prettyDate(date), style: DhenuText.label.copyWith(color: t.ink)),
+            const Spacer(),
+            Text('${litres(qty, unit: true)} · ${rupees(amt)}',
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ]),
+        ),
+        for (final p in rows) ...[
+          Divider(height: 1, color: t.hairline),
+          _shiftRow(t, l, farmer, p, mixedTypes),
+        ],
       ]),
+    );
+  }
+
+  Widget _shiftRow(DhenuTokens t, AppLocalizations l, MpFarmer farmer, MpPour p, bool mixedTypes) {
+    final label = p.shift == Shift.am ? l.shiftAm : l.shiftPm;
+    return SourceRow(
+      titleIcon: p.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
+      title: mixedTypes ? '$label  ·  ${milkTypeL10n(l, p.milkType)}' : label,
+      subtitle: '${rupees(p.ratePerLitre, paise: true)}/L',
+      hideLeading: true,
+      litres: litres(p.qtyLitres, unit: true),
+      quality: p.fat == null ? null : pourQualityLine(context, p, _bands),
+      amount: rupees(p.lineAmount),
+      onTap: () => _openPour(p, farmer),
     );
   }
 }
