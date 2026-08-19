@@ -6,7 +6,7 @@ import {
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
-import { VmccBillService } from './vmcc-bill.service';
+import { VmccBillService, type PeriodSelection } from './vmcc-bill.service';
 import { MpPaymentHistoryService } from './payment-history.service';
 import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './statement-template';
 import { resolveMpPrincipal } from './access-scope';
@@ -45,7 +45,12 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
   // the day/shift supply behind one VMCC's bill — how its milk cost was reached.
   // format=pdf returns the official bill document (same layout as the Dhenu app).
   app.get('/vmcc-detail', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
-    const { vmccNodeId, format, ...sel } = vmccBillDetailSchema.parse(request.query);
+    const q = vmccBillDetailSchema.parse(request.query);
+    const { vmccNodeId, format } = q;
+    // The schema guarantees one of the two forms; explicit dates take priority.
+    const sel: PeriodSelection = q.from && q.to
+      ? { from: q.from, to: q.to }
+      : { year: q.year!, month: q.month!, half: q.half! };
     const principal = await resolveMpPrincipal(request);
     const service = new VmccBillService(request.server.db, request.tenantId);
     if (format !== 'pdf') {

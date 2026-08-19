@@ -25,7 +25,7 @@ are intentionally left in Latin.
 | profile*           | profile_tab | ☐ | ☐ |
 | farmerDetail*, farmerPours*, farmerPayments* | farmer_detail + tabs | ☐ | ☐ |
 | addFarmer*, herd*  | add_farmer screens | ☐ | ☐ |
-| reports*           | vmcc_reports_tab | ☐ | ☐ |
+| reports*, qcReport* | vmcc_qc_report (Reports) | ☐ | ☐ |
 | cycle*             | cycle_detail_screen | ☐ | ☐ |
 | farmerHistory*     | vmcc_farmer_history | ☐ | ☐ |
 | ledger*, statement*, picker* | ledger / statement / farmer picker | ☐ | ☐ |

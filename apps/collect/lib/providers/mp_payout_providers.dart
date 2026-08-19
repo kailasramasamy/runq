@@ -46,3 +46,11 @@ final operatorPayoutComputeProvider =
         (ref, p) async {
   return mpRepo.operatorPayoutCompute(from: p.from, to: p.to);
 });
+
+/// One VMCC's settlement bills — the money view for a centre whose milk is
+/// bought in bulk rather than farmer by farmer, so it has payout cycles at its
+/// parent CC but none of its own.
+final nodeVmccBillsProvider =
+    FutureProvider.family<List<MpVmccBill>, String>((ref, nodeId) async {
+  return mpRepo.vmccBills(nodeId: nodeId);
+});

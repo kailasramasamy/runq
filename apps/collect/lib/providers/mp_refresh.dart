@@ -56,6 +56,7 @@ final _mpNodeDataProviders = <ProviderOrFamily>[
   nodeTodayPoursProvider,
   nodePoursForDateProvider,
   nodeHistoryPoursProvider,
+  nodeSuppliedHistoryProvider,
   farmerHistoryPoursProvider,
   qualityBandsProvider,
 
@@ -65,6 +66,7 @@ final _mpNodeDataProviders = <ProviderOrFamily>[
   farmerLedgerProvider,
   recentCyclePeriodsProvider,
   operatorPayoutComputeProvider,
+  nodeVmccBillsProvider,
 ];
 
 /// Providers in the MP provider files that are deliberately NOT refreshed on a
@@ -115,6 +117,7 @@ const mpRefreshedProviderNames = <String>{
   'nodeTodayPoursProvider',
   'nodePoursForDateProvider',
   'nodeHistoryPoursProvider',
+  'nodeSuppliedHistoryProvider',
   'farmerHistoryPoursProvider',
   'qualityBandsProvider',
   'nodeCyclesProvider',
@@ -122,6 +125,7 @@ const mpRefreshedProviderNames = <String>{
   'farmerLedgerProvider',
   'recentCyclePeriodsProvider',
   'operatorPayoutComputeProvider',
+  'nodeVmccBillsProvider',
 };
 
 /// Drop every cached node-scoped figure. Call when the operated centre changes;

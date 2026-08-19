@@ -1081,13 +1081,13 @@ abstract class AppLocalizations {
   /// No description provided for @homeAmShiftInProgress.
   ///
   /// In en, this message translates to:
-  /// **'☀️ AM shift · in progress'**
+  /// **'AM shift · in progress'**
   String get homeAmShiftInProgress;
 
   /// No description provided for @homePmShiftInProgress.
   ///
   /// In en, this message translates to:
-  /// **'☾ PM shift · in progress'**
+  /// **'PM shift · in progress'**
   String get homePmShiftInProgress;
 
   /// No description provided for @homeJustNow.
@@ -2224,83 +2224,11 @@ abstract class AppLocalizations {
   /// **'Other'**
   String get herdBreedOther;
 
-  /// No description provided for @reportsCouldNotLoadSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not load summary'**
-  String get reportsCouldNotLoadSummary;
-
-  /// No description provided for @reportsNoCollectionToday.
-  ///
-  /// In en, this message translates to:
-  /// **'No collection on this date'**
-  String get reportsNoCollectionToday;
-
-  /// No description provided for @reportsTotalCollected.
-  ///
-  /// In en, this message translates to:
-  /// **'Total collected'**
-  String get reportsTotalCollected;
-
-  /// No description provided for @reportsTabSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'Summary'**
-  String get reportsTabSummary;
-
   /// No description provided for @reportsTabQc.
   ///
   /// In en, this message translates to:
   /// **'QC'**
   String get reportsTabQc;
-
-  /// No description provided for @reportsFarmersPoursStat.
-  ///
-  /// In en, this message translates to:
-  /// **'{farmerCount} farmers · {pourCount} pours'**
-  String reportsFarmersPoursStat(Object farmerCount, Object pourCount);
-
-  /// No description provided for @reportsStatAmLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'☀️ AM'**
-  String get reportsStatAmLabel;
-
-  /// No description provided for @reportsStatPmLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'☾ PM'**
-  String get reportsStatPmLabel;
-
-  /// No description provided for @reportsStatAvgFat.
-  ///
-  /// In en, this message translates to:
-  /// **'Avg FAT'**
-  String get reportsStatAvgFat;
-
-  /// No description provided for @reportsStatAvgSnf.
-  ///
-  /// In en, this message translates to:
-  /// **'Avg SNF'**
-  String get reportsStatAvgSnf;
-
-  /// No description provided for @reportsStatAvgWater.
-  ///
-  /// In en, this message translates to:
-  /// **'Avg Water %'**
-  String get reportsStatAvgWater;
-
-  /// No description provided for @reportsStatFarmers.
-  ///
-  /// In en, this message translates to:
-  /// **'Farmers'**
-  String get reportsStatFarmers;
-
-  /// No description provided for @reportsStatGross.
-  ///
-  /// In en, this message translates to:
-  /// **'Gross'**
-  String get reportsStatGross;
 
   /// No description provided for @cycleCycle.
   ///
@@ -5607,6 +5535,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Other'**
   String get farmerPaymentsModeOther;
+
+  /// No description provided for @suppliedRecordedAtCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded at the chilling centre'**
+  String get suppliedRecordedAtCc;
+
+  /// No description provided for @suppliedRecordedAtNamedCc.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded at {cc}'**
+  String suppliedRecordedAtNamedCc(String cc);
+
+  /// No description provided for @suppliedWholeDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole day'**
+  String get suppliedWholeDay;
+
+  /// No description provided for @suppliedNotPriced.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate not set'**
+  String get suppliedNotPriced;
+
+  /// No description provided for @historyDaySupplySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'☾ {pm} · ☀️ {am}'**
+  String historyDaySupplySubtitle(String pm, String am);
+
+  /// No description provided for @dispatchHistoryRecordedOnArrival.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded on arrival'**
+  String get dispatchHistoryRecordedOnArrival;
+
+  /// No description provided for @paymentsBillsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Settlement bills'**
+  String get paymentsBillsTitle;
+
+  /// No description provided for @paymentsBillsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What this centre was paid, cycle by cycle'**
+  String get paymentsBillsSubtitle;
+
+  /// No description provided for @paymentsBillsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No bills yet'**
+  String get paymentsBillsEmptyTitle;
+
+  /// No description provided for @paymentsBillsEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A bill appears here once the chilling centre settles a cycle'**
+  String get paymentsBillsEmptySubtitle;
+
+  /// No description provided for @paymentsBillMilk.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk'**
+  String get paymentsBillMilk;
+
+  /// No description provided for @paymentsBillOperator.
+  ///
+  /// In en, this message translates to:
+  /// **'Operator'**
+  String get paymentsBillOperator;
+
+  /// No description provided for @paymentsBillReversed.
+  ///
+  /// In en, this message translates to:
+  /// **'Reversed'**
+  String get paymentsBillReversed;
+
+  /// No description provided for @paymentsBillStatement.
+  ///
+  /// In en, this message translates to:
+  /// **'Statement'**
+  String get paymentsBillStatement;
+
+  /// No description provided for @paymentsBillsPaidTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid to date'**
+  String get paymentsBillsPaidTotal;
+
+  /// No description provided for @paymentsBillsDueTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting payment'**
+  String get paymentsBillsDueTotal;
+
+  /// No description provided for @paymentsBillTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get paymentsBillTotal;
+
+  /// No description provided for @paymentsBillStatusPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid'**
+  String get paymentsBillStatusPaid;
+
+  /// No description provided for @paymentsBillStatusDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Due'**
+  String get paymentsBillStatusDue;
 }
 
 class _AppLocalizationsDelegate

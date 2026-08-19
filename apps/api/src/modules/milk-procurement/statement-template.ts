@@ -317,8 +317,12 @@ const STYLE = `<style>
   .card-v { font-size: 15px; font-weight: 700; color: #14150F; font-variant-numeric: tabular-nums; }
   .card-l { font-size: 10px; color: #5B635C; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  thead th { background: #0F7A5A; color: #fff; font-weight: 600; padding: 7px 8px; text-align: left; }
-  tbody td { padding: 6px 8px; border-bottom: 1px solid #EFEDE6; font-variant-numeric: tabular-nums; }
+  thead th { background: #0F7A5A; color: #fff; font-weight: 600; padding: 6px 8px; text-align: left; }
+  /* Row height is what decides the page count: a fortnight of two-shift pours
+     is 32 rows, and at 6px padding they ran one row past A4 — the statement
+     then carried a second page holding a single pour and the totals, which
+     reads as a mistake. 4px fits the whole cycle on one page with room spare. */
+  tbody td { padding: 4px 8px; border-bottom: 1px solid #EFEDE6; font-variant-numeric: tabular-nums; }
   tbody tr:nth-child(even) td { background: #FBFAF6; }
   .right { text-align: right; } .center { text-align: center; }
   .empty { text-align: center; color: #5B635C; padding: 20px; }

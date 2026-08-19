@@ -136,6 +136,16 @@ final nodeHistoryPoursProvider = FutureProvider.family<List<MpPour>, String>((re
       nodeId: nodeId, from: isoDaysAgo(30), to: todayIso(), status: 'recorded', limit: 500);
 });
 
+/// What a node supplied over the last 30 days as recorded by the CC's manual
+/// receipts (day x shift x milk type, priced). A VMCC that doesn't log farmer
+/// pours has nothing in [nodeHistoryPoursProvider]; this is its history. Shared
+/// by the collection-history screen and Home's recent-entries fallback, so a
+/// node reading both pays for one fetch.
+final nodeSuppliedHistoryProvider =
+    FutureProvider.family<List<MpSuppliedLine>, String>((ref, nodeId) async {
+  return mpRepo.suppliedDaily(nodeId: nodeId, from: isoDaysAgo(30), to: todayIso());
+});
+
 /// One farmer's recorded pours over the last 30 days at a node (the farmer
 /// detail "Pours" tab). Scoped to `farmerId` server-side so we never pull the
 /// whole node's history just to show a single farmer — keeps the payload small

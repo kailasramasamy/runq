@@ -596,10 +596,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSeeFullHistory => 'See full history';
 
   @override
-  String get homeAmShiftInProgress => '☀️ AM shift · in progress';
+  String get homeAmShiftInProgress => 'AM shift · in progress';
 
   @override
-  String get homePmShiftInProgress => '☾ PM shift · in progress';
+  String get homePmShiftInProgress => 'PM shift · in progress';
 
   @override
   String get homeJustNow => 'just now';
@@ -1230,45 +1230,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get herdBreedOther => 'Other';
 
   @override
-  String get reportsCouldNotLoadSummary => 'Could not load summary';
-
-  @override
-  String get reportsNoCollectionToday => 'No collection on this date';
-
-  @override
-  String get reportsTotalCollected => 'Total collected';
-
-  @override
-  String get reportsTabSummary => 'Summary';
-
-  @override
   String get reportsTabQc => 'QC';
-
-  @override
-  String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
-    return '$farmerCount farmers · $pourCount pours';
-  }
-
-  @override
-  String get reportsStatAmLabel => '☀️ AM';
-
-  @override
-  String get reportsStatPmLabel => '☾ PM';
-
-  @override
-  String get reportsStatAvgFat => 'Avg FAT';
-
-  @override
-  String get reportsStatAvgSnf => 'Avg SNF';
-
-  @override
-  String get reportsStatAvgWater => 'Avg Water %';
-
-  @override
-  String get reportsStatFarmers => 'Farmers';
-
-  @override
-  String get reportsStatGross => 'Gross';
 
   @override
   String get cycleCycle => 'Cycle';
@@ -3258,4 +3220,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerPaymentsModeOther => 'Other';
+
+  @override
+  String get suppliedRecordedAtCc => 'Recorded at the chilling centre';
+
+  @override
+  String suppliedRecordedAtNamedCc(String cc) {
+    return 'Recorded at $cc';
+  }
+
+  @override
+  String get suppliedWholeDay => 'Whole day';
+
+  @override
+  String get suppliedNotPriced => 'Rate not set';
+
+  @override
+  String historyDaySupplySubtitle(String pm, String am) {
+    return '☾ $pm · ☀️ $am';
+  }
+
+  @override
+  String get dispatchHistoryRecordedOnArrival => 'Recorded on arrival';
+
+  @override
+  String get paymentsBillsTitle => 'Settlement bills';
+
+  @override
+  String get paymentsBillsSubtitle =>
+      'What this centre was paid, cycle by cycle';
+
+  @override
+  String get paymentsBillsEmptyTitle => 'No bills yet';
+
+  @override
+  String get paymentsBillsEmptySubtitle =>
+      'A bill appears here once the chilling centre settles a cycle';
+
+  @override
+  String get paymentsBillMilk => 'Milk';
+
+  @override
+  String get paymentsBillOperator => 'Operator';
+
+  @override
+  String get paymentsBillReversed => 'Reversed';
+
+  @override
+  String get paymentsBillStatement => 'Statement';
+
+  @override
+  String get paymentsBillsPaidTotal => 'Paid to date';
+
+  @override
+  String get paymentsBillsDueTotal => 'Awaiting payment';
+
+  @override
+  String get paymentsBillTotal => 'Total';
+
+  @override
+  String get paymentsBillStatusPaid => 'Paid';
+
+  @override
+  String get paymentsBillStatusDue => 'Due';
 }

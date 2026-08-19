@@ -35,6 +35,17 @@ export const poursDailySchema = z.object({
 
 export type PoursDailyQuery = z.infer<typeof poursDailySchema>;
 
+/** Per-(day, shift, milk type) rollup of what one VMCC supplied through manual
+ * CC receipts — the record for a VMCC that doesn't log farmer pours, whose milk
+ * exists only as the receiving CC's entry. Powers the VMCC's own history. */
+export const suppliedDailySchema = z.object({
+  nodeId: z.string().uuid(),
+  from: z.string().date(),
+  to: z.string().date(),
+});
+
+export type SuppliedDailyQuery = z.infer<typeof suppliedDailySchema>;
+
 /** Per-day, per-milk-type qty-weighted QC rollup across the tenant (optionally
  * one node) — powers the per-milk-type quality trend charts on the MP home. */
 export const qualityTrendSchema = z.object({

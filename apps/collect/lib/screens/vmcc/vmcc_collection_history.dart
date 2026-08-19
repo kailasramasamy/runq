@@ -14,14 +14,21 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/source_row.dart';
 import '../../widgets/shift_grouped_pours.dart';
+import '../../widgets/supplied_shift_rows.dart';
 import 'record_collection.dart';
 
 enum _HistoryView { byDay, byFarmer }
 
-/// Collection history — the node's recorded pours over the last 30 days.
+/// Collection history — what the node collected over the last 30 days.
 /// Two navigation modes: a day accordion (collapsed day summaries that expand
 /// into PM/AM shift groups) and a by-farmer list that drills into one farmer's
 /// history. A shift filter (All / AM / PM) narrows both. Body widget.
+///
+/// Milk reaches this screen two ways. A VMCC that logs farmer pours reads its
+/// own entries. A VMCC whose farmers aren't tracked — the CC keys its arrivals
+/// by hand — has no pours at all, and used to find this screen permanently
+/// empty despite supplying every day; its days come from those CC receipts
+/// instead. A node doing both shows both, per day, clearly attributed.
 class VmccCollectionHistory extends ConsumerStatefulWidget {
   const VmccCollectionHistory({super.key, required this.node});
   final MpNode node;
@@ -43,11 +50,18 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   Future<void> _refresh() async {
     ref.invalidate(nodeHistoryPoursProvider(node.id));
-    await ref.read(nodeHistoryPoursProvider(node.id).future);
+    ref.invalidate(nodeSuppliedHistoryProvider(node.id));
+    await Future.wait([
+      ref.read(nodeHistoryPoursProvider(node.id).future),
+      ref.read(nodeSuppliedHistoryProvider(node.id).future),
+    ]);
   }
 
   List<MpPour> _filtered(List<MpPour> pours) =>
       _shift == null ? pours : [for (final p in pours) if (p.shift == _shift) p];
+
+  List<MpSuppliedLine> _filteredSupply(List<MpSuppliedLine> lines) =>
+      _shift == null ? lines : [for (final s in lines) if (s.shift == _shift) s];
 
   void _openPour(MpPour p, MpFarmer? farmer) => showPourDetailSheet(
         context,
@@ -64,39 +78,60 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final poursAsync = ref.watch(nodeHistoryPoursProvider(node.id));
+    final supplyAsync = ref.watch(nodeSuppliedHistoryProvider(node.id));
     final farmers = ref.watch(nodeFarmersProvider(node.id)).asData?.value ?? const <MpFarmer>[];
     final byId = {for (final f in farmers) f.id: f};
     _bands = ref.watch(qualityBandsProvider(node.id)).valueOrNull;
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: poursAsync.when(
-        loading: () => const DhenuLoadingList(rows: 5),
-        error: (e, _) => ListView(children: [
+    // Either source alone is a complete history for the node it belongs to, so
+    // the screen waits for both but fails only if both fail — a CC-recorded
+    // node must not be blanked by a pour query it never uses, or vice versa.
+    if (poursAsync.isLoading || supplyAsync.isLoading) {
+      return const DhenuLoadingList(rows: 5);
+    }
+    if (poursAsync.hasError && supplyAsync.hasError) {
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(children: [
           const SizedBox(height: DhenuSpacing.x4),
           DhenuEmptyState(
-              icon: DhenuIcons.cloudOff, title: l.historyLoadError, subtitle: '$e'),
+              icon: DhenuIcons.cloudOff,
+              title: l.historyLoadError,
+              subtitle: '${poursAsync.error}'),
         ]),
-        data: (pours) => _body(t, l, _filtered(pours), byId),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: _body(
+        t, l,
+        _filtered(poursAsync.valueOrNull ?? const []),
+        _filteredSupply(supplyAsync.valueOrNull ?? const []),
+        byId,
       ),
     );
   }
 
-  Widget _body(DhenuTokens t, AppLocalizations l, List<MpPour> pours, Map<String, MpFarmer> byId) {
+  Widget _body(DhenuTokens t, AppLocalizations l, List<MpPour> pours,
+      List<MpSuppliedLine> supply, Map<String, MpFarmer> byId) {
+    // Nothing to group by farmer when the node's milk is only ever recorded in
+    // bulk at the CC, so that view — and its toggle — stay out of the way.
+    final byFarmerAvailable = pours.isNotEmpty;
+    final view = byFarmerAvailable ? _view : _HistoryView.byDay;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(
           DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
       children: [
-        _controls(t, l),
+        _controls(t, l, view, byFarmerAvailable),
         const SizedBox(height: DhenuSpacing.lg),
-        if (pours.isEmpty)
+        if (pours.isEmpty && supply.isEmpty)
           DhenuEmptyState(
             icon: DhenuIcons.history,
             title: l.historyNoHistory,
             subtitle: l.historyNoHistorySubtitle,
           )
-        else if (_view == _HistoryView.byDay)
-          ..._byDay(t, l, pours, byId)
+        else if (view == _HistoryView.byDay)
+          ..._byDay(t, l, pours, supply, byId)
         else
           ..._byFarmer(t, l, pours, byId),
       ],
@@ -105,16 +140,20 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   // ── Controls ──────────────────────────────────────────────────────────────
 
-  Widget _controls(DhenuTokens t, AppLocalizations l) => Column(children: [
-        DhenuSegmented<_HistoryView>(
-          current: _view,
-          onSelect: (v) => setState(() => _view = v),
-          options: [
-            (_HistoryView.byDay, l.historyByDay, null),
-            (_HistoryView.byFarmer, l.historyByFarmer, null),
-          ],
-        ),
-        const SizedBox(height: DhenuSpacing.sm),
+  Widget _controls(
+          DhenuTokens t, AppLocalizations l, _HistoryView view, bool byFarmerAvailable) =>
+      Column(children: [
+        if (byFarmerAvailable) ...[
+          DhenuSegmented<_HistoryView>(
+            current: view,
+            onSelect: (v) => setState(() => _view = v),
+            options: [
+              (_HistoryView.byDay, l.historyByDay, null),
+              (_HistoryView.byFarmer, l.historyByFarmer, null),
+            ],
+          ),
+          const SizedBox(height: DhenuSpacing.sm),
+        ],
         DhenuSegmented<Shift?>(
           current: _shift,
           onSelect: (v) => setState(() => _shift = v),
@@ -124,7 +163,7 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
             (Shift.am, l.shiftAm, DhenuIcons.sun),
           ],
         ),
-        if (_view == _HistoryView.byFarmer) ...[
+        if (view == _HistoryView.byFarmer) ...[
           const SizedBox(height: DhenuSpacing.sm),
           _searchField(t, l),
         ],
@@ -148,32 +187,45 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
 
   // ── By day ────────────────────────────────────────────────────────────────
 
-  List<Widget> _byDay(DhenuTokens t, AppLocalizations l, List<MpPour> pours, Map<String, MpFarmer> byId) {
+  List<Widget> _byDay(DhenuTokens t, AppLocalizations l, List<MpPour> pours,
+      List<MpSuppliedLine> supply, Map<String, MpFarmer> byId) {
     final groups = <String, List<MpPour>>{};
     for (final p in pours) {
       (groups[p.collectionDate] ??= []).add(p);
     }
-    final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final supplyGroups = <String, List<MpSuppliedLine>>{};
+    for (final s in supply) {
+      (supplyGroups[s.date] ??= []).add(s);
+    }
+    final dates = {...groups.keys, ...supplyGroups.keys}.toList()
+      ..sort((a, b) => b.compareTo(a));
     if (!_seededExpand && dates.isNotEmpty) {
       _expanded.add(dates.first); // newest day open by default
       _seededExpand = true;
     }
     return [
       for (final d in dates) ...[
-        _daySection(t, l, d, groups[d]!, byId),
+        _daySection(t, l, d, groups[d] ?? const [], supplyGroups[d] ?? const [], byId),
         const SizedBox(height: DhenuSpacing.md),
       ],
     ];
   }
 
+  /// One day, from whichever source recorded it — pours, CC receipts, or both.
+  /// The header totals everything the day carried; the body keeps the two
+  /// apart, because an operator reconciling a figure needs to know which of
+  /// them they can still edit.
   Widget _daySection(DhenuTokens t, AppLocalizations l, String date, List<MpPour> dayPours,
-      Map<String, MpFarmer> byId) {
+      List<MpSuppliedLine> daySupply, Map<String, MpFarmer> byId) {
     final isOpen = _expanded.contains(date);
-    final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres);
-    final gross = dayPours.fold<double>(0, (a, p) => a + p.lineAmount);
+    final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres) + suppliedLitres(daySupply);
+    final gross =
+        dayPours.fold<double>(0, (a, p) => a + p.lineAmount) + suppliedAmount(daySupply);
     final farmerCount = dayPours.map((p) => p.farmerId).toSet().length;
-    final pmL = dayPours.where((p) => p.shift == Shift.pm).fold<double>(0, (a, p) => a + p.qtyLitres);
-    final amL = dayPours.where((p) => p.shift == Shift.am).fold<double>(0, (a, p) => a + p.qtyLitres);
+    final pmL = dayPours.where((p) => p.shift == Shift.pm).fold<double>(0, (a, p) => a + p.qtyLitres)
+        + suppliedShiftLitres(daySupply, Shift.pm);
+    final amL = dayPours.where((p) => p.shift == Shift.am).fold<double>(0, (a, p) => a + p.qtyLitres)
+        + suppliedShiftLitres(daySupply, Shift.am);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       DhenuCard(
         padding: EdgeInsets.zero,
@@ -187,7 +239,10 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(prettyDate(date), style: DhenuText.title.copyWith(color: t.ink)),
-                Text(l.historyDaySubtitle(farmerCount, litres(pmL), litres(amL)),
+                Text(
+                    dayPours.isEmpty
+                        ? l.historyDaySupplySubtitle(litres(pmL), litres(amL))
+                        : l.historyDaySubtitle(farmerCount, litres(pmL), litres(amL)),
                     style: DhenuText.caption.copyWith(color: t.inkSoft)),
               ]),
             ),
@@ -200,7 +255,13 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       ),
       if (isOpen) ...[
         const SizedBox(height: DhenuSpacing.sm),
-        ShiftGroupedPours(pours: dayPours, farmersById: byId, bands: _bands, onTapPour: _openPour),
+        if (dayPours.isNotEmpty)
+          ShiftGroupedPours(
+              pours: dayPours, farmersById: byId, bands: _bands, onTapPour: _openPour),
+        if (daySupply.isNotEmpty) ...[
+          if (dayPours.isNotEmpty) const SizedBox(height: DhenuSpacing.sm),
+          SuppliedShiftRows(node: node, lines: daySupply, bands: _bands),
+        ],
       ],
     ]);
   }

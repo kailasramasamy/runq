@@ -664,6 +664,50 @@ class MpPourDay {
   );
 }
 
+/// One (day, shift, milk type) of milk a VMCC supplied, as recorded by the
+/// receiving CC. The record for a VMCC that doesn't log farmer pours — its milk
+/// exists only as the CC's manual receipt, so this is what its operator reads
+/// in place of a pour history. [ratePerLitre] is null when no rate chart
+/// matched, in which case [amount] is not a real figure.
+class MpSuppliedLine {
+  final String date, toNodeId;
+  final Shift shift;
+  final MilkType milkType;
+  /// Name of the CC that recorded the receipt — the app can't look this up
+  /// itself: a VMCC operator's node scope stops at their own centre.
+  final String? toNodeName;
+  final double qtyLitres, amount;
+  final double? fat, snf, water, ratePerLitre;
+
+  MpSuppliedLine({
+    required this.date,
+    required this.shift,
+    required this.milkType,
+    required this.toNodeId,
+    required this.qtyLitres,
+    required this.amount,
+    this.fat,
+    this.snf,
+    this.water,
+    this.ratePerLitre,
+    this.toNodeName,
+  });
+
+  factory MpSuppliedLine.fromJson(Map<String, dynamic> j) => MpSuppliedLine(
+    date: _s(j['date']),
+    shift: shiftFrom(_sn(j['shift'])),
+    milkType: milkTypeFrom(_sn(j['milkType'])),
+    toNodeId: _s(j['toNodeId']),
+    toNodeName: _sn(j['toNodeName']),
+    qtyLitres: _d(j['qtyLitres']),
+    amount: _d(j['amount']),
+    fat: _dn(j['fat']),
+    snf: _dn(j['snf']),
+    water: _dn(j['water']),
+    ratePerLitre: _dn(j['ratePerLitre']),
+  );
+}
+
 class MpLedgerEntry {
   final String id, farmerId, entryType, occurredOn;
   final double amount, balanceAfter;
@@ -988,6 +1032,58 @@ class MpQcTest {
   );
 }
 
+/// One VMCC's settlement for a cycle — the money side of a centre whose milk
+/// is bought in bulk rather than farmer by farmer. [totalAmount] is milk cost
+/// plus whatever operator compensation the bill folds in; [paymentDate] is set
+/// once it has actually been paid out.
+class MpVmccBill {
+  final String id, billNo, cycleNo, periodStart, periodEnd, status;
+  final double qtyLitres, milkCost, commission, salary, rent, totalAmount;
+  final String? paymentDate, paymentMode, txnReference;
+
+  MpVmccBill({
+    required this.id,
+    required this.billNo,
+    required this.cycleNo,
+    required this.periodStart,
+    required this.periodEnd,
+    required this.status,
+    required this.qtyLitres,
+    required this.milkCost,
+    required this.commission,
+    required this.salary,
+    required this.rent,
+    required this.totalAmount,
+    this.paymentDate,
+    this.paymentMode,
+    this.txnReference,
+  });
+
+  bool get isPaid => status == 'paid';
+  bool get isReversed => status == 'reversed';
+
+  /// Operator compensation folded into the bill, over and above the milk.
+  double get operatorComp => commission + salary + rent;
+
+  factory MpVmccBill.fromJson(Map<String, dynamic> j) => MpVmccBill(
+    id: _s(j['id']),
+    billNo: _s(j['billNo']),
+    cycleNo: _s(j['cycleNo']),
+    periodStart: _s(j['periodStart']),
+    periodEnd: _s(j['periodEnd']),
+    status: _s(j['status']),
+    qtyLitres: _d(j['qtyLitres']),
+    milkCost: _d(j['milkCost']),
+    commission: _d(j['commission']),
+    salary: _d(j['salary']),
+    rent: _d(j['rent']),
+    totalAmount: _d(j['totalAmount']),
+    paymentDate: _sn(j['paymentDate']),
+    paymentMode: _sn(j['paymentMode']),
+    txnReference: _sn(j['txnReference']),
+  );
+}
+
 class MpPayoutCycle {
   final String id, cycleNo, periodStart, periodEnd, status;
   final String? scopeNodeId;
@@ -1180,6 +1276,11 @@ class QualityBands {
   final Map<MilkType, Map<String, QualityBand>> _bands;
 
   static const empty = QualityBands({});
+
+  /// The configured thresholds themselves, for callers that must draw the
+  /// bands rather than classify one value against them — the QC trend charts
+  /// shade good/watch/low as zones behind the line. Null when unconfigured.
+  QualityBand? bandFor(MilkType type, String metric) => _bands[type]?[metric];
 
   /// Returns null when no band is configured for [type]+[metric] (no coloring).
   QualityLevel? levelFor(MilkType type, String metric, double value) {

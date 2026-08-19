@@ -19,6 +19,7 @@ import '../../widgets/pour_detail_sheet.dart';
 import '../../widgets/sync_queue_sheet.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/shift_grouped_pours.dart';
+import '../../widgets/supplied_shift_rows.dart';
 import '../../widgets/sync_status.dart';
 import '../../widgets/pending_dispatch_alert.dart';
 import '../../widgets/quick_link_card.dart';
@@ -29,7 +30,7 @@ import 'vmcc_dispatch_entry.dart';
 import 'vmcc_dispatch_tab.dart';
 import 'vmcc_collection_history.dart';
 import 'vmcc_farmers_tab.dart';
-import 'vmcc_reports_tab.dart';
+import 'vmcc_qc_report.dart';
 import 'vmcc_shift_hero.dart';
 
 /// VMCC operator home tab — the capture-centric dashboard (spec §5.2). Rendered
@@ -41,6 +42,7 @@ class VmccHome extends ConsumerWidget {
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeTodaySummaryProvider(node.id));
     ref.invalidate(nodeTodayPoursProvider(node.id));
+    ref.invalidate(nodeSuppliedHistoryProvider(node.id));
     ref.invalidate(nodeOutboundConsignmentsProvider(node.id));
     ref.invalidate(shiftStatusProvider(node.id));
     ref.invalidate(pendingDispatchProvider(node.id));
@@ -123,7 +125,7 @@ class VmccHome extends ConsumerWidget {
               VmccCollectionHistory(node: node))),
           const SizedBox(width: DhenuSpacing.md),
           Expanded(child: _linkCard(context, t, DhenuIcons.barChart, l.homeReports,
-              VmccReportsTab(node: node))),
+              VmccQcReport(node: node))),
         ]),
       );
 
@@ -163,6 +165,14 @@ class VmccHome extends ConsumerWidget {
         ]),
         const SizedBox(height: DhenuSpacing.xs),
         Row(children: [
+          // The shift mark is a themed Lucide glyph, not a ☀/☾ baked into the
+          // translated string — those render in the system font and ignore the
+          // theme, the same reason SourceRow takes a titleIcon.
+          Icon(
+            shiftFrom(currentShift()) == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
+            size: 13, color: t.inkSoft,
+          ),
+          const SizedBox(width: DhenuSpacing.xs),
           Expanded(
             child: Text(
               shiftFrom(currentShift()) == Shift.am ? l.homeAmShiftInProgress : l.homePmShiftInProgress,
@@ -358,7 +368,16 @@ class VmccHome extends ConsumerWidget {
           error: (e, _) => DhenuEmptyState(
               icon: DhenuIcons.cloudOff, title: l.homeLoadError, subtitle: friendlyError(context, e)),
           data: (pours) {
-            if (pours.isEmpty && pending.isEmpty) {
+            // A VMCC whose farmers aren't tracked records nothing here — its
+            // day exists only as the CC's manual receipt, so that stands in
+            // rather than a "no collection today" that flatly contradicts the
+            // litres in the hero above.
+            final supplied = [
+              for (final s in ref.watch(nodeSuppliedHistoryProvider(node.id)).valueOrNull
+                      ?? const <MpSuppliedLine>[])
+                if (s.date == today) s,
+            ];
+            if (pours.isEmpty && pending.isEmpty && supplied.isEmpty) {
               return DhenuEmptyState(
                 icon: DhenuIcons.drop,
                 title: l.homeNoCollectionToday,
@@ -367,6 +386,12 @@ class VmccHome extends ConsumerWidget {
             }
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               PendingPoursStrip(pending: pending, farmersById: byId),
+              if (supplied.isNotEmpty)
+                SuppliedShiftRows(
+                  node: node,
+                  lines: supplied,
+                  bands: ref.watch(qualityBandsProvider(node.id)).valueOrNull,
+                ),
               if (pours.isNotEmpty)
                 ShiftGroupedPours(
                   pours: pours,

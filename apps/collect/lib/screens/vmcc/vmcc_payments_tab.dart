@@ -19,10 +19,16 @@ import '../../widgets/sheet_grabber.dart';
 import '../../widgets/source_row.dart';
 import 'cycle_detail_screen.dart';
 import 'farmer_payouts.dart';
+import 'vmcc_bills_view.dart';
 
 /// VMCC Payments tab — the node's payout cycles (and starting one), plus the
 /// same money read per farmer. Two views of one ledger: a cycle says who is
 /// still owed this fortnight, a farmer says what they have earned all year.
+///
+/// A centre with no farmers registered is settled in bulk instead, so it reads
+/// [VmccBillsView]. Neither half of this screen can serve it: there are no
+/// farmers to list, and the cycle it would ask for is the parent CC's, which a
+/// VMCC operator is not scoped to — the tab came up empty or errored outright.
 class VmccPaymentsTab extends ConsumerStatefulWidget {
   const VmccPaymentsTab({super.key, required this.node});
   final MpNode node;
@@ -75,6 +81,12 @@ class _VmccPaymentsTabState extends ConsumerState<VmccPaymentsTab> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
+    // Withheld while the roster loads, so a bulk centre never flashes the
+    // farmer screens it can't use on the way to its bills.
+    final farmers = ref.watch(nodeFarmersProvider(node.id)).valueOrNull;
+    if (farmers != null && farmers.isEmpty) {
+      return Scaffold(body: VmccBillsView(node: node));
+    }
     final cyclesAsync = ref.watch(nodeCyclesProvider(node.payoutScopeNodeId));
     return Scaffold(
       body: RefreshIndicator(

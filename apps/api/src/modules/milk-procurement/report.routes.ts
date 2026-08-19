@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { collectionReportSchema, receivedDailySchema, poursDailySchema, qualityTrendSchema, nodeDailySchema, farmerDailySchema, flowReportSchema } from '@runq/validators';
+import { collectionReportSchema, receivedDailySchema, poursDailySchema, suppliedDailySchema, qualityTrendSchema, nodeDailySchema, farmerDailySchema, flowReportSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReportService } from './report.service';
 import { resolveMpPrincipal, assertNodeAccess } from './access-scope';
@@ -32,6 +32,16 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
     if (principal.kind === 'operator') assertNodeAccess(principal, q.nodeId);
     const service = new ReportService(request.server.db, request.tenantId);
     return { data: await service.poursDaily(q, principal) };
+  });
+
+  // A VMCC whose farmers aren't tracked: its supply exists only as the CC's
+  // manual receipts, so this is what its own operator reads instead of pours.
+  app.get('/supplied-daily', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = suppliedDailySchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator') assertNodeAccess(principal, q.nodeId);
+    const service = new ReportService(request.server.db, request.tenantId);
+    return { data: await service.suppliedDaily(q, principal) };
   });
 
   app.get('/quality-trend', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {

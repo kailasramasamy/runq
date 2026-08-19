@@ -107,6 +107,33 @@ class MpRepo {
     );
   }
 
+  /// One VMCC's own settlement bills, newest first. Role scoping already limits
+  /// an operator to their own centre; [nodeId] is what makes it right for an
+  /// owner operating a centre through the switcher, who is tenant-wide.
+  Future<List<MpVmccBill>> vmccBills({required String nodeId, int limit = 24}) async {
+    final res = await _api.get(
+      '$_base/billing/bills${_qs({'vmccNodeId': nodeId, 'limit': '$limit'})}',
+    );
+    return _list(res).map(MpVmccBill.fromJson).toList();
+  }
+
+  /// A VMCC's bill statement for one cycle — the day-and-shift supply behind
+  /// the amount, rendered server-side so app and web hand over the same paper.
+  /// Addressed by the cycle's real dates: cadence is tenant-set, so a bill's
+  /// window doesn't always fall on a half-month.
+  Future<({Uint8List bytes, String filename})> vmccBillStatementPdf({
+    required String nodeId,
+    required String from,
+    required String to,
+  }) async {
+    final qs = _qs({'vmccNodeId': nodeId, 'from': from, 'to': to, 'format': 'pdf'});
+    final res = await _api.getBytes('$_base/billing/vmcc-detail$qs');
+    return (
+      bytes: Uint8List.fromList(res.bytes),
+      filename: res.filename ?? 'bill.pdf',
+    );
+  }
+
   /// Printable rate chart (matrix/CLR/flat + bonus slabs) as a PDF, with the
   /// server's own download name. Reuses GET /rate-charts/:id/print.
   Future<({Uint8List bytes, String filename})> rateChartPdf(String id) async {
@@ -374,6 +401,19 @@ class MpRepo {
       '$_base/reports/pours-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to, 'farmerId': farmerId})}',
     );
     return _list(res).map(MpPourDay.fromJson).toList();
+  }
+
+  /// What a VMCC supplied per (day, shift, milk type) through the CC's manual
+  /// receipts, priced from its rate chart. Newest day first, PM before AM.
+  Future<List<MpSuppliedLine>> suppliedDaily({
+    required String nodeId,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _api.get(
+      '$_base/reports/supplied-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to})}',
+    );
+    return _list(res).map(MpSuppliedLine.fromJson).toList();
   }
 
   // ── farmer ledger ───────────────────────────────────────────────────────────

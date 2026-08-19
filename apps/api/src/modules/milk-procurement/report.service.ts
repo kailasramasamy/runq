@@ -1,10 +1,10 @@
-import { and, eq, ne, or, sql, gte, lte } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql, gte, lte } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { mpPours, mpConsignments, mpNodes } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
   CollectionReportQuery, ReceivedDailyQuery, PoursDailyQuery, FlowReportQuery,
-  QualityTrendQuery, NodeDailyQuery, FarmerDailyQuery, ResolveRateInput,
+  QualityTrendQuery, NodeDailyQuery, FarmerDailyQuery, SuppliedDailyQuery, ResolveRateInput,
 } from '@runq/validators';
 import { MpPrincipal, scopePours, scopeConsignments } from './access-scope';
 import { RateChartService } from './rate-chart.service';
@@ -24,6 +24,24 @@ export interface DrGross {
   snf: number | null;
   water: number | null;
   ratePerLitre: number | null;
+}
+
+/** One (day, shift, milk type) of a VMCC's manually-received supply, priced.
+ * The pourless VMCC's answer to "how much milk did I send, and for how much". */
+export interface SuppliedLine {
+  date: string;
+  shift: 'am' | 'pm';
+  milkType: string;
+  /** The CC that recorded the receipt — named in the app so the operator knows
+   *  where the figure came from. */
+  toNodeId: string;
+  toNodeName: string | null;
+  qtyLitres: number;
+  fat: number | null;
+  snf: number | null;
+  water: number | null;
+  ratePerLitre: number | null;
+  amount: number;
 }
 
 /** One node's movement on a given day: what came in, what left, what remains. */
@@ -419,9 +437,48 @@ export class ReportService {
     }));
   }
 
-  /** One qty-weighted QC rollup row per collection_date of recorded pours at a
-   * node, newest day first — optionally scoped to a single farmer. Powers the
-   * VMCC QC trend chart without shipping every pour to the client. */
+  /**
+   * What one VMCC supplied, day by day and shift by shift, as recorded by the
+   * receiving CC. A VMCC that doesn't log farmer pours has no pour history at
+   * all — the CC's manual receipt is the only record its operator can be shown,
+   * so this is the direct-receive mirror of [poursDaily]. Priced from the VMCC's
+   * own rate chart; a line with no matching chart carries a null rate rather
+   * than a misleading zero. Newest day first, PM before AM to match the shift
+   * order the app reads a day in.
+   */
+  async suppliedDaily(q: SuppliedDailyQuery, principal?: MpPrincipal): Promise<SuppliedLine[]> {
+    const priced = (await this.pricedDrGross(q.from, q.to, q.nodeId, principal))
+      .filter((g) => g.fromNodeId === q.nodeId);
+    // The receiving CC is named on the row: a VMCC operator's node scope stops
+    // at their own centre, so the app can't look its parent's name up itself.
+    const ccIds = [...new Set(priced.map((g) => g.toNodeId))];
+    const ccs = ccIds.length
+      ? await this.db.select({ id: mpNodes.id, name: mpNodes.name }).from(mpNodes)
+        .where(and(eq(mpNodes.tenantId, this.tenantId), inArray(mpNodes.id, ccIds)))
+      : [];
+    const ccName = new Map(ccs.map((c) => [c.id, c.name]));
+    return priced
+      .map((g) => ({
+        date: g.date, shift: g.shift, milkType: g.milkType,
+        toNodeId: g.toNodeId, toNodeName: ccName.get(g.toNodeId) ?? null,
+        qtyLitres: g.qty, fat: g.fat, snf: g.snf, water: g.water,
+        ratePerLitre: g.ratePerLitre, amount: g.gross,
+      }))
+      .sort((a, b) => (a.date === b.date ? b.shift.localeCompare(a.shift) : b.date.localeCompare(a.date)));
+  }
+
+  /**
+   * One qty-weighted QC rollup row per collection_date at a node, newest day
+   * first — optionally scoped to a single farmer. Powers the QC trend chart
+   * without shipping every pour to the client.
+   *
+   * Unscoped, this is the node's whole day, so manual CC receipts are blended
+   * in the way every other rollup here blends them — a VMCC that doesn't log
+   * pours measures FAT/SNF all the same, and reading its chart as flat-empty
+   * said its milk had no quality rather than no pours. Scoped to a farmer it
+   * stays pour-only: a receipt names no farmer, so folding it into one would
+   * attribute the whole centre's milk to whoever was picked.
+   */
   async poursDaily(q: PoursDailyQuery, principal?: MpPrincipal): Promise<PourDay[]> {
     const wq = (col: AnyPgColumn) =>
       sql<string | null>`round(sum(${mpPours.qtyLitres} * ${col}) / nullif(sum(${mpPours.qtyLitres}) filter (where ${col} is not null), 0), 2)`;
@@ -445,14 +502,41 @@ export class ReportService {
     }).from(mpPours).where(and(...conds))
       .groupBy(mpPours.collectionDate)
       .orderBy(sql`${mpPours.collectionDate} desc`);
-    return rows.map((r) => ({
+    const days = new Map<string, PourDay>(rows.map((r) => [r.date, {
       date: r.date,
       totalQty: Number(r.totalQty ?? 0),
       farmerCount: r.farmerCount ?? 0,
       fat: numOrNull2(r.fat),
       snf: numOrNull2(r.snf),
       water: numOrNull2(r.water),
-    }));
+    }]));
+    if (q.farmerId) return [...days.values()];
+    const drwq = (col: AnyPgColumn) =>
+      sql<string | null>`round(sum(${mpConsignments.receiptQty} * ${col}) / nullif(sum(${mpConsignments.receiptQty}) filter (where ${col} is not null), 0), 2)`;
+    const drRows = await this.db.select({
+      date: mpConsignments.collectionDate,
+      totalQty: sql<string>`coalesce(sum(${mpConsignments.receiptQty}), 0)`,
+      fat: drwq(mpConsignments.receiptFat),
+      snf: drwq(mpConsignments.receiptSnf),
+      water: drwq(mpConsignments.receiptWater),
+    }).from(mpConsignments).where(and(...this.drBaseConds(q.from, q.to, q.nodeId, principal)))
+      .groupBy(mpConsignments.collectionDate);
+    for (const r of drRows) {
+      // farmerCount stays the pour side's: a manual receipt has no farmers, so
+      // adding zero of them must not read as "this day had none".
+      const dr: PourDay = {
+        date: r.date, totalQty: Number(r.totalQty ?? 0), farmerCount: 0,
+        fat: numOrNull2(r.fat), snf: numOrNull2(r.snf), water: numOrNull2(r.water),
+      };
+      const pour = days.get(r.date);
+      if (!pour) { days.set(r.date, dr); continue; }
+      const b = blendQc({ ...pour, milkType: '' }, { ...dr, milkType: '' });
+      days.set(r.date, {
+        date: b.date, totalQty: b.totalQty, farmerCount: pour.farmerCount,
+        fat: b.fat, snf: b.snf, water: b.water,
+      });
+    }
+    return [...days.values()].sort(byDateDesc);
   }
 
   /** Per-(date, milk type) qty-weighted QC rollup across the tenant, optionally

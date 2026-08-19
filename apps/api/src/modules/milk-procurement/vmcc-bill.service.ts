@@ -18,6 +18,16 @@ import { ReportService } from './report.service';
 import { MpPrincipal, assertNodeAccess } from './access-scope';
 
 /** [start, end] ISO dates for a calendar half-month. `first` → 1–15, `second` → 16–EOM. */
+/** Either a half-month selection or the window itself, already resolved. */
+export type PeriodSelection = BillingPeriod | { from: string; to: string };
+
+/** Resolve whichever form the caller used. Explicit dates win — they came from
+ * a real payout cycle, which need not align to a half-month at all. */
+export function resolvePeriod(sel: PeriodSelection): { periodStart: string; periodEnd: string } {
+  if ('from' in sel && sel.from && sel.to) return { periodStart: sel.from, periodEnd: sel.to };
+  return periodFromSelection(sel as BillingPeriod);
+}
+
 export function periodFromSelection(p: BillingPeriod): { periodStart: string; periodEnd: string } {
   const mm = String(p.month).padStart(2, '0');
   if (p.half === 'first') return { periodStart: `${p.year}-${mm}-01`, periodEnd: `${p.year}-${mm}-15` };
@@ -176,10 +186,10 @@ export class VmccBillService {
    * is the audit trail behind the bill's milk cost.
    */
   async billDetail(
-    sel: BillingPeriod, vmccNodeId: string, principal?: MpPrincipal,
+    sel: PeriodSelection, vmccNodeId: string, principal?: MpPrincipal,
   ): Promise<VmccBillDetail> {
     if (principal?.kind === 'operator') assertNodeAccess(principal, vmccNodeId);
-    const { periodStart, periodEnd } = periodFromSelection(sel);
+    const { periodStart, periodEnd } = resolvePeriod(sel);
     const priced = (await new ReportService(this.db, this.tenantId)
       .pricedDrGross(periodStart, periodEnd, undefined, principal))
       .filter((g) => g.fromNodeId === vmccNodeId);
@@ -203,7 +213,7 @@ export class VmccBillService {
    * name, and the operator commission folded into a via_vmcc bill. Kept separate
    * from [billDetail] so the on-screen modal stays a lean query.
    */
-  async billStatementData(sel: BillingPeriod, vmccNodeId: string, principal?: MpPrincipal) {
+  async billStatementData(sel: PeriodSelection, vmccNodeId: string, principal?: MpPrincipal) {
     const detail = await this.billDetail(sel, vmccNodeId, principal);
     const [vmcc] = await this.db.select({
       name: mpNodes.name, code: mpNodes.code, parentNodeId: mpNodes.parentNodeId,
@@ -545,25 +555,42 @@ export class VmccBillService {
 
   async list(
     filters: VmccBillFilter, pagination: { page: number; limit: number }, principal?: MpPrincipal,
-  ): Promise<{ data: (MpVmccBillRow & { vmccName: string; vmccCode: string })[]; meta: PaginationMeta }> {
+  ): Promise<{
+    data: (MpVmccBillRow & {
+      vmccName: string; vmccCode: string;
+      cycleNo: string; periodStart: string; periodEnd: string;
+    })[];
+    meta: PaginationMeta;
+  }> {
     const { page, limit } = pagination;
     const { offset } = applyPagination(page, limit);
     const conds = [eq(mpVmccBills.tenantId, this.tenantId)];
     if (filters.cycleId) conds.push(eq(mpVmccBills.payoutCycleId, filters.cycleId));
     if (filters.ccNodeId) conds.push(eq(mpVmccBills.ccNodeId, filters.ccNodeId));
+    if (filters.vmccNodeId) conds.push(eq(mpVmccBills.vmccNodeId, filters.vmccNodeId));
     if (filters.status) conds.push(eq(mpVmccBills.status, filters.status));
     if (principal?.kind === 'operator') {
       conds.push(principal.nodeIds.size ? inArray(mpVmccBills.vmccNodeId, [...principal.nodeIds]) : sql`false`);
     }
     const where = and(...conds);
+    // The period lives on the cycle, not the bill — carried here so a caller can
+    // label the bill and ask for its statement without a second round trip.
     const [rows, countResult] = await Promise.all([
-      this.db.select({ bill: mpVmccBills, vmccName: mpNodes.name, vmccCode: mpNodes.code })
+      this.db.select({
+        bill: mpVmccBills, vmccName: mpNodes.name, vmccCode: mpNodes.code,
+        cycleNo: mpPayoutCycles.cycleNo,
+        periodStart: mpPayoutCycles.periodStart, periodEnd: mpPayoutCycles.periodEnd,
+      })
         .from(mpVmccBills).innerJoin(mpNodes, eq(mpNodes.id, mpVmccBills.vmccNodeId))
+        .innerJoin(mpPayoutCycles, eq(mpPayoutCycles.id, mpVmccBills.payoutCycleId))
         .where(where).orderBy(desc(mpVmccBills.generatedAt)).limit(limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpVmccBills).where(where),
     ]);
     const total = countResult[0]?.count ?? 0;
-    const data = rows.map((r) => ({ ...r.bill, vmccName: r.vmccName, vmccCode: r.vmccCode }));
+    const data = rows.map((r) => ({
+      ...r.bill, vmccName: r.vmccName, vmccCode: r.vmccCode,
+      cycleNo: r.cycleNo, periodStart: r.periodStart, periodEnd: r.periodEnd,
+    }));
     return { data, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 

@@ -370,8 +370,8 @@
     }
   },
   "homeSeeFullHistory": "See full history",
-  "homeAmShiftInProgress": "☀️ AM shift · in progress",
-  "homePmShiftInProgress": "☾ PM shift · in progress",
+  "homeAmShiftInProgress": "AM shift · in progress",
+  "homePmShiftInProgress": "PM shift · in progress",
   "homeJustNow": "just now",
   "homeHeroToday": "TODAY",
   "homeHeroTotalToday": "Total today",
@@ -690,25 +690,7 @@
   "herdBreedSahiwal": "Sahiwal",
   "herdBreedMurrah": "Murrah",
   "herdBreedOther": "Other",
-  "reportsCouldNotLoadSummary": "Could not load summary",
-  "reportsNoCollectionToday": "No collection on this date",
-  "reportsTotalCollected": "Total collected",
-  "reportsTabSummary": "Summary",
   "reportsTabQc": "QC",
-  "reportsFarmersPoursStat": "{farmerCount} farmers · {pourCount} pours",
-  "@reportsFarmersPoursStat": {
-    "placeholders": {
-      "farmerCount": {},
-      "pourCount": {}
-    }
-  },
-  "reportsStatAmLabel": "☀️ AM",
-  "reportsStatPmLabel": "☾ PM",
-  "reportsStatAvgFat": "Avg FAT",
-  "reportsStatAvgSnf": "Avg SNF",
-  "reportsStatAvgWater": "Avg Water %",
-  "reportsStatFarmers": "Farmers",
-  "reportsStatGross": "Gross",
   "cycleCycle": "Cycle",
   "cycleCouldNotLoad": "Could not load cycle",
   "cycleNotFound": "Cycle not found",
@@ -2348,5 +2330,41 @@
   "farmerPaymentsModeUpi": "UPI",
   "farmerPaymentsModeCash": "Cash",
   "farmerPaymentsModeCheque": "Cheque",
-  "farmerPaymentsModeOther": "Other"
+  "farmerPaymentsModeOther": "Other",
+  "suppliedRecordedAtCc": "Recorded at the chilling centre",
+  "suppliedRecordedAtNamedCc": "Recorded at {cc}",
+  "@suppliedRecordedAtNamedCc": {
+    "placeholders": {
+      "cc": {
+        "type": "String"
+      }
+    }
+  },
+  "suppliedWholeDay": "Whole day",
+  "suppliedNotPriced": "Rate not set",
+  "historyDaySupplySubtitle": "☾ {pm} · ☀️ {am}",
+  "@historyDaySupplySubtitle": {
+    "placeholders": {
+      "pm": {
+        "type": "String"
+      },
+      "am": {
+        "type": "String"
+      }
+    }
+  },
+  "dispatchHistoryRecordedOnArrival": "Recorded on arrival",
+  "paymentsBillsTitle": "Settlement bills",
+  "paymentsBillsSubtitle": "What this centre was paid, cycle by cycle",
+  "paymentsBillsEmptyTitle": "No bills yet",
+  "paymentsBillsEmptySubtitle": "A bill appears here once the chilling centre settles a cycle",
+  "paymentsBillMilk": "Milk",
+  "paymentsBillOperator": "Operator",
+  "paymentsBillReversed": "Reversed",
+  "paymentsBillStatement": "Statement",
+  "paymentsBillsPaidTotal": "Paid to date",
+  "paymentsBillsDueTotal": "Awaiting payment",
+  "paymentsBillTotal": "Total",
+  "paymentsBillStatusPaid": "Paid",
+  "paymentsBillStatusDue": "Due"
 }

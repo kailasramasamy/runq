@@ -177,8 +177,8 @@ class QcReportView extends StatelessWidget {
   /// each ~82% of the width so the next card peeks, signalling more to swipe.
   Widget _trendStrip(BuildContext context, DhenuTokens t, AppLocalizations l, List<_DayQc> daily) {
     final cardW = (MediaQuery.sizeOf(context).width - DhenuSpacing.screen * 2) * 0.82;
-    Widget card(String title, Color color, double? Function(_DayQc) sel) =>
-        SizedBox(width: cardW, child: _chartCard(t, l, title, '%', color, daily, sel));
+    Widget card(String title, String? metric, Color color, double? Function(_DayQc) sel) =>
+        SizedBox(width: cardW, child: _chartCard(t, l, title, '%', metric, color, daily, sel));
     return SizedBox(
       height: 232,
       child: ListView(
@@ -186,26 +186,33 @@ class QcReportView extends StatelessWidget {
         padding: EdgeInsets.zero,
         clipBehavior: Clip.none,
         children: [
-          card('FAT', t.brand, (d) => d.fat),
+          card('FAT', 'fat', t.brand, (d) => d.fat),
           const SizedBox(width: DhenuSpacing.md),
-          card('SNF', t.am, (d) => d.snf),
+          card('SNF', 'snf', t.am, (d) => d.snf),
           const SizedBox(width: DhenuSpacing.md),
-          card('Water', t.pm, (d) => d.water),
+          // Water carries no band — it is a contamination read, not a grade.
+          card('Water', null, t.pm, (d) => d.water),
         ],
       ),
     );
   }
 
   /// Per-day vertical bar chart of the metric's daily qty-weighted value.
-  Widget _chartCard(DhenuTokens t, AppLocalizations l, String title, String unit, Color color,
-      List<_DayQc> days, double? Function(_DayQc) sel) {
-    final points = [for (final d in days) if (sel(d) != null) (_barLabel(d.date), sel(d)!)];
+  Widget _chartCard(DhenuTokens t, AppLocalizations l, String title, String unit,
+      String? metric, Color color, List<_DayQc> days, double? Function(_DayQc) sel) {
+    // Days with no reading stay in the series as nulls: the line breaks over
+    // them rather than joining across, so a centre that skipped a day doesn't
+    // read as a smooth trend through it.
+    final points = [for (final d in days) (_pointLabel(d.date), sel(d))];
+    final band = (metric == null || bands == null || milkType == null)
+        ? null
+        : bands!.bandFor(milkType!, metric);
     return DhenuCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('$title  ($unit)',
             style: DhenuText.label.copyWith(color: color, letterSpacing: 0.6)),
         const SizedBox(height: DhenuSpacing.md),
-        if (points.isEmpty)
+        if (points.every((p) => p.$2 == null))
           SizedBox(
             height: 100,
             child: Center(child: Text(l.ccQcReportNoReadings,
@@ -216,71 +223,172 @@ class QcReportView extends StatelessWidget {
             height: 165,
             width: double.infinity,
             child: CustomPaint(
-              painter: _QcBarPainter(points: points, color: color, label: t.inkSoft),
+              painter: _QcLinePainter(
+                points: points,
+                color: color,
+                label: t.inkSoft,
+                band: band,
+                good: t.gradeA,
+                watch: t.gradeB,
+                low: t.gradeC,
+              ),
             ),
           ),
       ]),
     );
   }
 
-  /// Compact bar label — the day-of-month number.
-  String _barLabel(String iso) {
+  /// Compact x-axis label — the day-of-month number.
+  String _pointLabel(String iso) {
     final d = iso.length >= 10 ? iso.substring(8, 10) : iso;
     return int.tryParse(d)?.toString() ?? d;
   }
 }
 
-/// Per-day vertical bars with the value on top and the day below. Scales to the
-/// window's max value with headroom; labels are dropped when bars get too thin.
-class _QcBarPainter extends CustomPainter {
-  _QcBarPainter({required this.points, required this.color, required this.label});
-  final List<(String, double)> points;
+/// Per-day QC trend as a line over shaded quality bands.
+///
+/// A line, not bars, because these are narrow-range percentages: FAT lives
+/// around 3–4.5 and SNF around 7–8.5, so a zero-baselined bar spends most of
+/// its height on range no reading ever visits, and a move that changes what the
+/// milk is worth barely changes the bar. The y-axis here spans only the data,
+/// which is what makes a day-to-day shift visible at all.
+///
+/// Missing days are nulls in [points], and the line breaks over them — joining
+/// across a day nobody collected would draw a trend through evidence that
+/// doesn't exist. A reading with no neighbour on either side gets a dot, so an
+/// isolated day still shows up rather than vanishing for want of a segment.
+class _QcLinePainter extends CustomPainter {
+  _QcLinePainter({
+    required this.points,
+    required this.color,
+    required this.label,
+    required this.band,
+    required this.good,
+    required this.watch,
+    required this.low,
+  });
+
+  /// (x-axis label, value) per day in the window; null value = no reading.
+  final List<(String, double?)> points;
   final Color color, label;
 
-  static const _topPad = 16.0, _bottomPad = 16.0;
+  /// The metric's configured thresholds, drawn as zones behind the line.
+  /// Null for an unbanded metric (Water) or an unconfigured type.
+  final QualityBand? band;
+  final Color good, watch, low;
+
+  static const _topPad = 18.0, _bottomPad = 16.0, _leftPad = 30.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
-    final maxV = points.map((p) => p.$2).reduce(math.max);
-    final denom = maxV <= 0 ? 1.0 : maxV * 1.18;
-    final n = points.length;
-    final showLabels = n <= 12;
-    // Tighten the gap as bars multiply so a 90-day window still renders visible
-    // bars instead of sub-pixel slivers.
-    final gap = n <= 14 ? 8.0 : (n <= 31 ? 3.0 : 1.0);
-    var bw = (size.width - gap * (n - 1)) / n;
-    bw = math.min(bw, 40.0);
-    final totalW = bw * n + gap * (n - 1);
-    final startX = (size.width - totalW) / 2;
-    final radius = Radius.circular(math.min(bw * 0.3, 4));
+    final values = [for (final p in points) if (p.$2 != null) p.$2!];
+    if (values.isEmpty) return;
     final baseY = size.height - _bottomPad;
-    final usableH = baseY - _topPad;
-    final barPaint = Paint()..color = color.withValues(alpha: 0.85);
-    for (var i = 0; i < n; i++) {
-      final (dayLabel, v) = points[i];
-      final h = (v / denom) * usableH;
-      final x = startX + i * (bw + gap);
-      final rect = Rect.fromLTWH(x, baseY - h, bw, h);
-      canvas.drawRRect(
-          RRect.fromRectAndCorners(rect, topLeft: radius, topRight: radius), barPaint);
-      if (showLabels) {
-        _text(canvas, v.toStringAsFixed(1), x + bw / 2, baseY - h - 13, color, 10);
-        _text(canvas, dayLabel, x + bw / 2, baseY + 3, label, 9);
-      }
+    final plot = Rect.fromLTRB(_leftPad, _topPad, size.width, baseY);
+    if (plot.height <= 0 || plot.width <= 0) return;
+
+    // Scale to the readings, not to zero. A flat series still needs a band of
+    // room or the line would sit on the frame edge.
+    final lo = values.reduce(math.min), hi = values.reduce(math.max);
+    final span = hi - lo;
+    final pad = span > 0 ? span * 0.12 : 0.3;
+    final yLo = lo - pad, yHi = hi + pad;
+    double yOf(double v) => plot.bottom - ((v - yLo) / (yHi - yLo)) * plot.height;
+
+    _paintBands(canvas, plot, yOf, yLo, yHi);
+    _paintAxis(canvas, plot, yLo, yHi);
+    _paintLine(canvas, plot, yOf);
+  }
+
+  /// Good / watch / low as horizontal zones, clipped to what the axis shows. A
+  /// threshold outside the window simply leaves the view in one zone — which is
+  /// the true reading: every day in range sat on the same side of it.
+  void _paintBands(Canvas canvas, Rect plot, double Function(double) yOf, double yLo, double yHi) {
+    final b = band;
+    if (b == null) return;
+    void zone(double from, double to, Color c) {
+      final top = math.max(plot.top, yOf(math.min(to, yHi)));
+      final bottom = math.min(plot.bottom, yOf(math.max(from, yLo)));
+      if (bottom - top <= 0.5) return;
+      canvas.drawRect(Rect.fromLTRB(plot.left, top, plot.right, bottom),
+          Paint()..color = c.withValues(alpha: 0.13));
+    }
+
+    zone(b.goodMin, yHi, good);
+    zone(b.watchMin, b.goodMin, watch);
+    zone(yLo, b.watchMin, low);
+    // The boundaries themselves, so "just above" and "just below" are legible.
+    for (final (v, c) in [(b.goodMin, good), (b.watchMin, watch)]) {
+      if (v <= yLo || v >= yHi) continue;
+      final y = yOf(v);
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y),
+          Paint()..color = c.withValues(alpha: 0.45)..strokeWidth = 1);
     }
   }
 
-  void _text(Canvas canvas, String s, double cx, double y, Color col, double fontSize) {
+  /// Min/max of the visible range on the left. Without them a scale that no
+  /// longer starts at zero would be unreadable — which is the trade the line
+  /// makes for showing the movement at all.
+  void _paintAxis(Canvas canvas, Rect plot, double yLo, double yHi) {
+    _text(canvas, yHi.toStringAsFixed(1), _leftPad - 4, plot.top - 5, label, 9,
+        align: TextAlign.right);
+    _text(canvas, yLo.toStringAsFixed(1), _leftPad - 4, plot.bottom - 5, label, 9,
+        align: TextAlign.right);
+  }
+
+  void _paintLine(Canvas canvas, Rect plot, double Function(double) yOf) {
+    final n = points.length;
+    final step = n > 1 ? plot.width / (n - 1) : 0.0;
+    double xOf(int i) => n > 1 ? plot.left + i * step : plot.center.dx;
+    final showLabels = n <= 12;
+    final showDots = n <= 14;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final dot = Paint()..color = color;
+
+    Path? run;
+    for (var i = 0; i < n; i++) {
+      final v = points[i].$2;
+      if (v == null) {
+        if (run != null) canvas.drawPath(run, stroke);
+        run = null;
+        continue;
+      }
+      final o = Offset(xOf(i), yOf(v));
+      if (run == null) {
+        run = Path()..moveTo(o.dx, o.dy);
+      } else {
+        run.lineTo(o.dx, o.dy);
+      }
+      // A day whose neighbours are both missing draws no segment, so it needs a
+      // mark of its own or the reading disappears.
+      final orphan = (i == 0 || points[i - 1].$2 == null) &&
+          (i == n - 1 || points[i + 1].$2 == null);
+      if (showDots || orphan) canvas.drawCircle(o, orphan ? 3 : 2.5, dot);
+      if (showLabels) {
+        _text(canvas, v.toStringAsFixed(1), o.dx, o.dy - 15, color, 10);
+        _text(canvas, points[i].$1, o.dx, plot.bottom + 3, label, 9);
+      }
+    }
+    if (run != null) canvas.drawPath(run, stroke);
+  }
+
+  void _text(Canvas canvas, String s, double cx, double y, Color col, double fontSize,
+      {TextAlign align = TextAlign.center}) {
     final tp = TextPainter(
       text: TextSpan(text: s,
           style: TextStyle(color: col, fontSize: fontSize, fontWeight: FontWeight.w600)),
       textDirection: TextDirection.ltr,
     )..layout();
-    tp.paint(canvas, Offset(cx - tp.width / 2, y));
+    final dx = align == TextAlign.right ? cx - tp.width : cx - tp.width / 2;
+    tp.paint(canvas, Offset(dx, y));
   }
 
   @override
-  bool shouldRepaint(covariant _QcBarPainter old) =>
-      old.points != points || old.color != color;
+  bool shouldRepaint(covariant _QcLinePainter old) =>
+      old.points != points || old.color != color || old.band != band;
 }

@@ -96,15 +96,31 @@ class _NumberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Hero figures scale with the window they summarise — a 90-day total at a
+    // CC runs to five digits and used to overflow the row. Scaled down to fit
+    // rather than ellipsised: half a number is worse than a small one.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(primary, style: DhenuText.hero.copyWith(color: ink)),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(primary, maxLines: 1, style: DhenuText.hero.copyWith(color: ink)),
+          ),
+        ),
         if (secondary != null) ...[
           const SizedBox(width: DhenuSpacing.lg),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Text(secondary!, style: DhenuText.display.copyWith(color: ink)),
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(secondary!, maxLines: 1,
+                    style: DhenuText.display.copyWith(color: ink)),
+              ),
+            ),
           ),
         ],
       ],

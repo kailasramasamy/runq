@@ -593,10 +593,10 @@ class AppLocalizationsKn extends AppLocalizations {
   String get homeSeeFullHistory => 'ಪೂರ್ಣ ಇತಿಹಾಸ ನೋಡಿ';
 
   @override
-  String get homeAmShiftInProgress => '☀️ ಬೆಳಿಗ್ಗೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
+  String get homeAmShiftInProgress => 'ಬೆಳಿಗ್ಗೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
 
   @override
-  String get homePmShiftInProgress => '☾ ಸಂಜೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
+  String get homePmShiftInProgress => 'ಸಂಜೆ ಪಾಳಿ · ಪ್ರಗತಿಯಲ್ಲಿದೆ';
 
   @override
   String get homeJustNow => 'ಈಗಷ್ಟೇ';
@@ -1228,45 +1228,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get herdBreedOther => 'ಇತರ';
 
   @override
-  String get reportsCouldNotLoadSummary => 'ಸಾರಾಂಶ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
-
-  @override
-  String get reportsNoCollectionToday => 'ಈ ದಿನಾಂಕದಂದು ಯಾವುದೇ ಸಂಗ್ರಹವಿಲ್ಲ';
-
-  @override
-  String get reportsTotalCollected => 'ಒಟ್ಟು ಸಂಗ್ರಹ';
-
-  @override
-  String get reportsTabSummary => 'ಸಾರಾಂಶ';
-
-  @override
   String get reportsTabQc => 'ಗುಣಮಟ್ಟ';
-
-  @override
-  String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
-    return '$farmerCount ರೈತರು · $pourCount ಸುರಿತಗಳು';
-  }
-
-  @override
-  String get reportsStatAmLabel => '☀️ AM';
-
-  @override
-  String get reportsStatPmLabel => '☾ PM';
-
-  @override
-  String get reportsStatAvgFat => 'ಸರಾಸರಿ FAT';
-
-  @override
-  String get reportsStatAvgSnf => 'ಸರಾಸರಿ SNF';
-
-  @override
-  String get reportsStatAvgWater => 'ಸರಾಸರಿ Water %';
-
-  @override
-  String get reportsStatFarmers => 'ರೈತರು';
-
-  @override
-  String get reportsStatGross => 'ಒಟ್ಟು';
 
   @override
   String get cycleCycle => 'ಚಕ್ರ';
@@ -3244,4 +3206,67 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get farmerPaymentsModeOther => 'ಇತರೆ';
+
+  @override
+  String get suppliedRecordedAtCc => 'ಶೀತಲೀಕರಣ ಕೇಂದ್ರದಲ್ಲಿ ದಾಖಲಾಗಿದೆ';
+
+  @override
+  String suppliedRecordedAtNamedCc(String cc) {
+    return '$cc ನಲ್ಲಿ ದಾಖಲಾಗಿದೆ';
+  }
+
+  @override
+  String get suppliedWholeDay => 'ಇಡೀ ದಿನ';
+
+  @override
+  String get suppliedNotPriced => 'ದರ ನಿಗದಿಯಾಗಿಲ್ಲ';
+
+  @override
+  String historyDaySupplySubtitle(String pm, String am) {
+    return '☾ $pm · ☀️ $am';
+  }
+
+  @override
+  String get dispatchHistoryRecordedOnArrival => 'ಬಂದಾಗ ದಾಖಲಾಗಿದೆ';
+
+  @override
+  String get paymentsBillsTitle => 'ಪಾವತಿ ಬಿಲ್‌ಗಳು';
+
+  @override
+  String get paymentsBillsSubtitle =>
+      'ಈ ಕೇಂದ್ರಕ್ಕೆ ಪ್ರತಿ ಚಕ್ರದಲ್ಲಿ ಪಾವತಿಸಿದ ಮೊತ್ತ';
+
+  @override
+  String get paymentsBillsEmptyTitle => 'ಇನ್ನೂ ಬಿಲ್‌ಗಳಿಲ್ಲ';
+
+  @override
+  String get paymentsBillsEmptySubtitle =>
+      'ಶೀತಲೀಕರಣ ಕೇಂದ್ರವು ಚಕ್ರವನ್ನು ಇತ್ಯರ್ಥಗೊಳಿಸಿದ ನಂತರ ಬಿಲ್ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ';
+
+  @override
+  String get paymentsBillMilk => 'ಹಾಲು';
+
+  @override
+  String get paymentsBillOperator => 'ನಿರ್ವಾಹಕ';
+
+  @override
+  String get paymentsBillReversed => 'ಹಿಂಪಡೆಯಲಾಗಿದೆ';
+
+  @override
+  String get paymentsBillStatement => 'ವಿವರ ಪಟ್ಟಿ';
+
+  @override
+  String get paymentsBillsPaidTotal => 'ಇಲ್ಲಿಯವರೆಗೆ ಪಾವತಿಸಿದ್ದು';
+
+  @override
+  String get paymentsBillsDueTotal => 'ಪಾವತಿ ಬಾಕಿ';
+
+  @override
+  String get paymentsBillTotal => 'ಒಟ್ಟು';
+
+  @override
+  String get paymentsBillStatusPaid => 'ಪಾವತಿಸಲಾಗಿದೆ';
+
+  @override
+  String get paymentsBillStatusDue => 'ಬಾಕಿ';
 }

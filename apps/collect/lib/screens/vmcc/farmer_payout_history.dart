@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -258,14 +259,6 @@ class _PayoutLineSheet extends StatelessWidget {
         _ => l.farmerPaymentsDeductionOther,
       };
 
-  String _modeLabel(AppLocalizations l, String mode) => switch (mode) {
-        'bank_transfer' => l.farmerPaymentsModeBankTransfer,
-        'upi' => l.farmerPaymentsModeUpi,
-        'cash' => l.farmerPaymentsModeCash,
-        'cheque' => l.farmerPaymentsModeCheque,
-        _ => l.farmerPaymentsModeOther,
-      };
-
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
@@ -350,7 +343,7 @@ class _PayoutLineSheet extends StatelessWidget {
       if (paidOn != null)
         _row(t, l.farmerPaymentsPaidOnLabel, prettyDate(paidOn)),
       if (line.paymentMode != null)
-        _row(t, l.farmerPaymentsPaymentMode, _modeLabel(l, line.paymentMode!)),
+        _row(t, l.farmerPaymentsPaymentMode, paymentModeL10n(l, line.paymentMode!)),
       if (line.paymentReference != null)
         _row(t, l.farmerPaymentsReference, line.paymentReference!),
       if (line.statementNo != null)

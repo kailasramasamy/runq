@@ -64,3 +64,13 @@ String farmerName(BuildContext context, MpFarmer f) {
 String shortMonth(BuildContext context, int month) =>
     DateFormat.MMM(Localizations.localeOf(context).toLanguageTag())
         .format(DateTime(2024, month));
+
+/// How a payment was made ("UPI", "Bank transfer"). Shared by the farmer payout
+/// history and the VMCC bill card, which name the same modes.
+String paymentModeL10n(AppLocalizations l, String mode) => switch (mode) {
+      'bank_transfer' => l.farmerPaymentsModeBankTransfer,
+      'upi' => l.farmerPaymentsModeUpi,
+      'cash' => l.farmerPaymentsModeCash,
+      'cheque' => l.farmerPaymentsModeCheque,
+      _ => l.farmerPaymentsModeOther,
+    };

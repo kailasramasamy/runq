@@ -163,8 +163,13 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
         ],
       ];
 
-  String _subtitle(AppLocalizations l, MpConsignment c) =>
-      '${consignmentSlotL10n(l, c.shift)} · ${c.consignmentNo}';
+  /// A direct-receive leg was never dispatched from here — the destination
+  /// keyed it on arrival. Saying so stops the sending operator reading it as a
+  /// dispatch they made and forgot, which is the one thing this list is for.
+  String _subtitle(AppLocalizations l, MpConsignment c) {
+    final base = '${consignmentSlotL10n(l, c.shift)} · ${c.consignmentNo}';
+    return c.directReceive ? '$base · ${l.dispatchHistoryRecordedOnArrival}' : base;
+  }
 
   Widget _status(DhenuTokens t, AppLocalizations l, MpConsignment c) {
     if (c.status == 'reversed') {

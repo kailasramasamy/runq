@@ -601,10 +601,10 @@ class AppLocalizationsTa extends AppLocalizations {
   String get homeSeeFullHistory => 'முழு வரலாற்றைக் காண்க';
 
   @override
-  String get homeAmShiftInProgress => '☀️ காலை ஷிஃப்ட் · நடைபெறுகிறது';
+  String get homeAmShiftInProgress => 'காலை ஷிஃப்ட் · நடைபெறுகிறது';
 
   @override
-  String get homePmShiftInProgress => '☾ மாலை ஷிஃப்ட் · நடைபெறுகிறது';
+  String get homePmShiftInProgress => 'மாலை ஷிஃப்ட் · நடைபெறுகிறது';
 
   @override
   String get homeJustNow => 'இப்போதுதான்';
@@ -1238,45 +1238,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get herdBreedOther => 'மற்றவை';
 
   @override
-  String get reportsCouldNotLoadSummary => 'சுருக்கத்தை ஏற்ற முடியவில்லை';
-
-  @override
-  String get reportsNoCollectionToday => 'இந்த தேதியில் சேகரிப்பு இல்லை';
-
-  @override
-  String get reportsTotalCollected => 'மொத்த சேகரிப்பு';
-
-  @override
-  String get reportsTabSummary => 'சுருக்கம்';
-
-  @override
   String get reportsTabQc => 'தரம்';
-
-  @override
-  String reportsFarmersPoursStat(Object farmerCount, Object pourCount) {
-    return '$farmerCount விவசாயிகள் · $pourCount ஊற்றுகள்';
-  }
-
-  @override
-  String get reportsStatAmLabel => '☀️ AM';
-
-  @override
-  String get reportsStatPmLabel => '☾ PM';
-
-  @override
-  String get reportsStatAvgFat => 'சராசரி FAT';
-
-  @override
-  String get reportsStatAvgSnf => 'சராசரி SNF';
-
-  @override
-  String get reportsStatAvgWater => 'சராசரி Water %';
-
-  @override
-  String get reportsStatFarmers => 'விவசாயிகள்';
-
-  @override
-  String get reportsStatGross => 'மொத்தம்';
 
   @override
   String get cycleCycle => 'சுழற்சி';
@@ -3268,4 +3230,68 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get farmerPaymentsModeOther => 'பிற';
+
+  @override
+  String get suppliedRecordedAtCc =>
+      'குளிரூட்டும் மையத்தில் பதிவு செய்யப்பட்டது';
+
+  @override
+  String suppliedRecordedAtNamedCc(String cc) {
+    return '$cc இல் பதிவு செய்யப்பட்டது';
+  }
+
+  @override
+  String get suppliedWholeDay => 'முழு நாள்';
+
+  @override
+  String get suppliedNotPriced => 'விலை நிர்ணயிக்கப்படவில்லை';
+
+  @override
+  String historyDaySupplySubtitle(String pm, String am) {
+    return '☾ $pm · ☀️ $am';
+  }
+
+  @override
+  String get dispatchHistoryRecordedOnArrival => 'வந்தபோது பதிவு செய்யப்பட்டது';
+
+  @override
+  String get paymentsBillsTitle => 'பணப் பட்டியல்கள்';
+
+  @override
+  String get paymentsBillsSubtitle =>
+      'இந்த மையத்திற்கு ஒவ்வொரு சுழற்சியிலும் வழங்கப்பட்ட தொகை';
+
+  @override
+  String get paymentsBillsEmptyTitle => 'இதுவரை பட்டியல் இல்லை';
+
+  @override
+  String get paymentsBillsEmptySubtitle =>
+      'குளிரூட்டும் மையம் ஒரு சுழற்சியை முடித்ததும் பட்டியல் இங்கே காணப்படும்';
+
+  @override
+  String get paymentsBillMilk => 'பால்';
+
+  @override
+  String get paymentsBillOperator => 'இயக்குநர்';
+
+  @override
+  String get paymentsBillReversed => 'திரும்பப் பெறப்பட்டது';
+
+  @override
+  String get paymentsBillStatement => 'விவரப் பட்டியல்';
+
+  @override
+  String get paymentsBillsPaidTotal => 'இதுவரை வழங்கியது';
+
+  @override
+  String get paymentsBillsDueTotal => 'வழங்க வேண்டியது';
+
+  @override
+  String get paymentsBillTotal => 'மொத்தம்';
+
+  @override
+  String get paymentsBillStatusPaid => 'வழங்கப்பட்டது';
+
+  @override
+  String get paymentsBillStatusDue => 'நிலுவை';
 }

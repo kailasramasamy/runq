@@ -22,10 +22,20 @@ export type BillingPeriod = z.infer<typeof billingPeriodSchema>;
 
 /** The day-by-day supply behind one VMCC's bill. `format=pdf` returns the
  *  official bill document instead of JSON. */
-export const vmccBillDetailSchema = billingPeriodSchema.extend({
+export const vmccBillDetailSchema = billingPeriodSchema.partial().extend({
   vmccNodeId: z.string().uuid(),
   format: z.enum(['json', 'pdf']).default('json'),
-});
+  // A bill's window is its payout cycle's, and cycle cadence is tenant-set —
+  // a 10-day cycle has no half-month to name. Callers holding the real dates
+  // (the app lists bills with their cycle period) pass them straight through;
+  // the year/month/half form stays for callers picking a period to bill.
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
+}).refine(
+  (v) => (v.from != null && v.to != null) ||
+    (v.year != null && v.month != null && v.half != null),
+  { message: 'Pass from+to, or year+month+half' },
+);
 export type VmccBillDetailQuery = z.infer<typeof vmccBillDetailSchema>;
 
 /** Generate bills for a half-month period: all via_vmcc VMCCs under a CC, or one. */
@@ -57,6 +67,10 @@ export type SettleOperatorInput = z.infer<typeof settleOperatorSchema>;
 export const vmccBillFilterSchema = z.object({
   cycleId: z.string().uuid().optional(),
   ccNodeId: z.string().uuid().optional(),
+  // One VMCC's own bills — what its operator reads on the app's Payments tab.
+  // Role scoping already limits an operator to their nodes, but an owner
+  // operating a centre through the switcher is tenant-wide and needs the filter.
+  vmccNodeId: z.string().uuid().optional(),
   status: z.enum(['generated', 'paid', 'reversed']).optional(),
 });
 

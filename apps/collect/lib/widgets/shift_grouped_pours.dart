@@ -130,37 +130,53 @@ class ShiftGroupedPours extends StatelessWidget {
 /// grade letter (and per-metric values when bands are provided) carrying color.
 /// Shared with Collection History's by-farmer day cards, which lay their pours
 /// out per shift rather than per farmer but read quality identically.
-Widget pourQualityLine(BuildContext context, MpPour p, QualityBands? bands) {
+Widget pourQualityLine(BuildContext context, MpPour p, QualityBands? bands) =>
+    qualityMetricsLine(context,
+        milkType: p.milkType, fat: p.fat, snf: p.snf, water: p.water,
+        grade: p.qualityGrade, bands: bands);
+
+/// The same read for any measured milk, pour or not — a CC's manual receipt of
+/// a VMCC's supply carries qty-weighted FAT/SNF but no farmer and no graded
+/// pour, so it renders through this rather than [pourQualityLine].
+Widget qualityMetricsLine(
+  BuildContext context, {
+  required MilkType milkType,
+  double? fat,
+  double? snf,
+  double? water,
+  Grade grade = Grade.unknown,
+  QualityBands? bands,
+}) {
   final t = DT(context);
   final muted = DhenuText.caption.copyWith(color: t.inkSoft);
-  final hasGrade = p.qualityGrade != Grade.unknown;
+  final hasGrade = grade != Grade.unknown;
 
   Color metricColor(String metric, double? value) {
     if (bands == null || value == null) return t.inkSoft;
-    final level = bands.levelFor(p.milkType, metric, value);
+    final level = bands.levelFor(milkType, metric, value);
     return level == null ? t.inkSoft : QualityBadge.levelColor(level, t);
   }
 
   return Text.rich(
     TextSpan(children: [
-      if (p.fat != null) TextSpan(
-        text: 'FAT ${p.fat!.toStringAsFixed(1)}',
-        style: muted.copyWith(color: metricColor('fat', p.fat)),
+      if (fat != null) TextSpan(
+        text: 'FAT ${fat.toStringAsFixed(1)}',
+        style: muted.copyWith(color: metricColor('fat', fat)),
       ),
-      if (p.snf != null) ...[
+      if (snf != null) ...[
         TextSpan(text: '  ·  ', style: muted),
         TextSpan(
-          text: 'SNF ${p.snf!.toStringAsFixed(1)}',
-          style: muted.copyWith(color: metricColor('snf', p.snf)),
+          text: 'SNF ${snf.toStringAsFixed(1)}',
+          style: muted.copyWith(color: metricColor('snf', snf)),
         ),
       ],
-      if (p.water != null) TextSpan(text: '  ·  W ${p.water!.toStringAsFixed(1)}', style: muted),
+      if (water != null) TextSpan(text: '  ·  W ${water.toStringAsFixed(1)}', style: muted),
       if (hasGrade) ...[
         TextSpan(text: '  ·  ', style: muted),
         TextSpan(
-          text: QualityBadge.gradeLetter(p.qualityGrade),
+          text: QualityBadge.gradeLetter(grade),
           style: muted.copyWith(
-              color: QualityBadge.gradeColor(p.qualityGrade, t),
+              color: QualityBadge.gradeColor(grade, t),
               fontWeight: FontWeight.w700),
         ),
       ],
