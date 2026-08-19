@@ -109,7 +109,7 @@ export class PayoutService {
   async ledgerForFarmer(
     farmerId: string | undefined,
     principal: MpPrincipal,
-  ): Promise<{ balance: number; entries: LedgerRow[] }> {
+  ): Promise<{ balance: number; outstanding: { advance: number; feedLoan: number }; entries: LedgerRow[] }> {
     // a farmer can only read their own ledger, whatever they ask for
     const effectiveFarmerId = principal.kind === 'farmer' ? principal.farmerId : farmerId;
     if (!effectiveFarmerId) throw new NotFoundError('farmerId is required');
@@ -119,7 +119,11 @@ export class PayoutService {
     const entries = await this.db.select().from(mpFarmerLedger)
       .where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, effectiveFarmerId)))
       .orderBy(desc(mpFarmerLedger.occurredOn), desc(mpFarmerLedger.createdAt));
-    return { balance: entries[0] ? Number(entries[0].balanceAfter) : 0, entries };
+    // The blended balance answers "how much is owed"; the split answers "against
+    // what" — the same breakdown the next cycle's deductions will recover, so it
+    // reads from the one rule rather than a second derivation on the client.
+    const outstanding = await this.outstandingByType(effectiveFarmerId);
+    return { balance: entries[0] ? Number(entries[0].balanceAfter) : 0, outstanding, entries };
   }
 
   /** A farmer's own payout lines (with cycle window + status), newest first. */

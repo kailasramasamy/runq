@@ -3143,4 +3143,119 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dispatchDestCcGeneric => 'Dispatch to the chilling centre';
+
+  @override
+  String get farmerPaymentsSegPayouts => 'Payouts';
+
+  @override
+  String get farmerPaymentsSegLedger => 'Advances & loans';
+
+  @override
+  String get farmerPaymentsLastPayout => 'Last payout';
+
+  @override
+  String get farmerPaymentsNoPayouts => 'No payouts yet';
+
+  @override
+  String get farmerPaymentsNoPayoutsSubtitle =>
+      'Cycle payouts appear here once a cycle is created';
+
+  @override
+  String get farmerPaymentsPayoutsLoadError => 'Could not load payouts';
+
+  @override
+  String farmerPaymentsLitresNet(String litres, String amount) {
+    return '$litres L · net $amount';
+  }
+
+  @override
+  String get farmerPaymentsMarkPaid => 'Mark paid';
+
+  @override
+  String get farmerPaymentsMarkPaidError => 'Could not update payment status';
+
+  @override
+  String get farmerPaymentsUnpaid => 'UNPAID';
+
+  @override
+  String farmerPaymentsPaidOn(String date) {
+    return 'Paid $date';
+  }
+
+  @override
+  String get farmerPaymentsBreakdown => 'Breakdown';
+
+  @override
+  String get farmerPaymentsGross => 'Gross';
+
+  @override
+  String get farmerPaymentsBonus => 'Quality bonus';
+
+  @override
+  String get farmerPaymentsNet => 'Net payable';
+
+  @override
+  String get farmerPaymentsDeductionAdvance => 'Advance recovery';
+
+  @override
+  String get farmerPaymentsDeductionFeedLoan => 'Feed loan recovery';
+
+  @override
+  String get farmerPaymentsDeductionOther => 'Other deduction';
+
+  @override
+  String get farmerPaymentsPaymentMode => 'Paid by';
+
+  @override
+  String get farmerPaymentsStatementNo => 'Statement no.';
+
+  @override
+  String farmerPaymentsAdvanceDue(String amount) {
+    return 'Advance $amount';
+  }
+
+  @override
+  String farmerPaymentsFeedLoanDue(String amount) {
+    return 'Feed loan $amount';
+  }
+
+  @override
+  String get farmerPaymentsRecordEntryButton =>
+      'Record advance, loan or repayment';
+
+  @override
+  String get farmerPaymentsEntrySaved => 'Entry recorded';
+
+  @override
+  String get farmerPaymentsEarnings => 'Earnings';
+
+  @override
+  String get farmerPaymentsDeductions => 'Deductions';
+
+  @override
+  String get farmerPaymentsPaymentSection => 'Payment';
+
+  @override
+  String get farmerPaymentsPaidOnLabel => 'Paid on';
+
+  @override
+  String get farmerPaymentsReference => 'UTR / Ref';
+
+  @override
+  String get farmerPaymentsNotConfirmed => 'Not confirmed yet';
+
+  @override
+  String get farmerPaymentsModeBankTransfer => 'Bank transfer';
+
+  @override
+  String get farmerPaymentsModeUpi => 'UPI';
+
+  @override
+  String get farmerPaymentsModeCash => 'Cash';
+
+  @override
+  String get farmerPaymentsModeCheque => 'Cheque';
+
+  @override
+  String get farmerPaymentsModeOther => 'Other';
 }

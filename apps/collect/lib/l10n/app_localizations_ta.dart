@@ -3152,4 +3152,120 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get dispatchDestCcGeneric => 'குளிரூட்டும் மையத்திற்கு அனுப்பு';
+
+  @override
+  String get farmerPaymentsSegPayouts => 'கொடுப்பனவுகள்';
+
+  @override
+  String get farmerPaymentsSegLedger => 'முன்பணம் & கடன்';
+
+  @override
+  String get farmerPaymentsLastPayout => 'கடைசி கொடுப்பனவு';
+
+  @override
+  String get farmerPaymentsNoPayouts => 'இதுவரை கொடுப்பனவு இல்லை';
+
+  @override
+  String get farmerPaymentsNoPayoutsSubtitle =>
+      'சுழற்சி உருவாக்கப்பட்ட பிறகு சுழற்சி கொடுப்பனவுகள் இங்கே தோன்றும்';
+
+  @override
+  String get farmerPaymentsPayoutsLoadError => 'கொடுப்பனவுகளை ஏற்ற முடியவில்லை';
+
+  @override
+  String farmerPaymentsLitresNet(String litres, String amount) {
+    return '$litres லி · நிகர $amount';
+  }
+
+  @override
+  String get farmerPaymentsMarkPaid => 'பணம் செலுத்தியதாகக் குறி';
+
+  @override
+  String get farmerPaymentsMarkPaidError =>
+      'கொடுப்பனவு நிலையைப் புதுப்பிக்க முடியவில்லை';
+
+  @override
+  String get farmerPaymentsUnpaid => 'செலுத்தப்படவில்லை';
+
+  @override
+  String farmerPaymentsPaidOn(String date) {
+    return '$date அன்று செலுத்தப்பட்டது';
+  }
+
+  @override
+  String get farmerPaymentsBreakdown => 'விவரம்';
+
+  @override
+  String get farmerPaymentsGross => 'மொத்தம்';
+
+  @override
+  String get farmerPaymentsBonus => 'தர ஊக்கத்தொகை';
+
+  @override
+  String get farmerPaymentsNet => 'நிகர கொடுப்பனவு';
+
+  @override
+  String get farmerPaymentsDeductionAdvance => 'முன்பணம் வசூல்';
+
+  @override
+  String get farmerPaymentsDeductionFeedLoan => 'தீவன கடன் வசூல்';
+
+  @override
+  String get farmerPaymentsDeductionOther => 'பிற பிடித்தம்';
+
+  @override
+  String get farmerPaymentsPaymentMode => 'செலுத்திய முறை';
+
+  @override
+  String get farmerPaymentsStatementNo => 'அறிக்கை எண்';
+
+  @override
+  String farmerPaymentsAdvanceDue(String amount) {
+    return 'முன்பணம் $amount';
+  }
+
+  @override
+  String farmerPaymentsFeedLoanDue(String amount) {
+    return 'தீவன கடன் $amount';
+  }
+
+  @override
+  String get farmerPaymentsRecordEntryButton =>
+      'முன்பணம், கடன் அல்லது திருப்பிச் செலுத்துதலைப் பதிவு செய்';
+
+  @override
+  String get farmerPaymentsEntrySaved => 'பதிவு சேமிக்கப்பட்டது';
+
+  @override
+  String get farmerPaymentsEarnings => 'வருவாய்';
+
+  @override
+  String get farmerPaymentsDeductions => 'பிடித்தங்கள்';
+
+  @override
+  String get farmerPaymentsPaymentSection => 'கொடுப்பனவு';
+
+  @override
+  String get farmerPaymentsPaidOnLabel => 'செலுத்திய தேதி';
+
+  @override
+  String get farmerPaymentsReference => 'UTR / குறிப்பு';
+
+  @override
+  String get farmerPaymentsNotConfirmed => 'இன்னும் உறுதி செய்யப்படவில்லை';
+
+  @override
+  String get farmerPaymentsModeBankTransfer => 'வங்கி பரிமாற்றம்';
+
+  @override
+  String get farmerPaymentsModeUpi => 'UPI';
+
+  @override
+  String get farmerPaymentsModeCash => 'ரொக்கம்';
+
+  @override
+  String get farmerPaymentsModeCheque => 'காசோலை';
+
+  @override
+  String get farmerPaymentsModeOther => 'பிற';
 }

@@ -377,7 +377,10 @@ class MpRepo {
   }
 
   // ── farmer ledger ───────────────────────────────────────────────────────────
-  Future<({double balance, List<MpLedgerEntry> entries})> farmerLedger({
+  /// [balance] is the blended amount owed; [advanceDue] / [feedLoanDue] are the
+  /// server's split of it by what the debt is against — the same buckets the
+  /// next cycle's deductions recover from, so the client never re-derives them.
+  Future<MpFarmerLedger> farmerLedger({
     String? farmerId,
   }) async {
     final res = await _api.get(
@@ -387,10 +390,13 @@ class MpRepo {
     final entries = ((m['entries'] as List?) ?? [])
         .map((e) => MpLedgerEntry.fromJson(e as Map<String, dynamic>))
         .toList();
-    final balance = m['balance'] == null
-        ? 0.0
-        : (m['balance'] as num).toDouble();
-    return (balance: balance, entries: entries);
+    final out = (m['outstanding'] as Map<String, dynamic>?) ?? const {};
+    return (
+      balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
+      advanceDue: (out['advance'] as num?)?.toDouble() ?? 0.0,
+      feedLoanDue: (out['feedLoan'] as num?)?.toDouble() ?? 0.0,
+      entries: entries,
+    );
   }
 
   /// The farmer's payout statements — server-authoritative lines joined with

@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
-import '../../theme/dhenu_icons.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
-import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/mp_payout_providers.dart';
+import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/dhenu_card.dart';
+import '../../widgets/dhenu_segmented.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/payout_status_chip.dart';
 import '../../widgets/primary_action.dart';
+import 'farmer_ledger_sheet.dart';
+import 'farmer_payout_history.dart';
 
-const _entryTypeCodes = ['advance_given', 'feed_loan_given', 'repayment'];
+enum _PaymentsView { payouts, ledger }
 
+/// A farmer's Payments hub, as the VMCC operator sees it. Two halves of the same
+/// money story: what the farmer was paid per cycle (server-authoritative payout
+/// lines, with statement and disbursement flag) and what they owe against
+/// advances and feed loans.
 class FarmerPaymentsTab extends ConsumerStatefulWidget {
   const FarmerPaymentsTab({super.key, required this.farmer});
 
@@ -24,258 +31,178 @@ class FarmerPaymentsTab extends ConsumerStatefulWidget {
 }
 
 class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
-  final _amount = TextEditingController();
-  String _entryType = 'advance_given';
-  String _refType = 'advance';
-  bool _saving = false;
-  String? _error;
+  _PaymentsView _view = _PaymentsView.payouts;
 
-  @override
-  void dispose() {
-    _amount.dispose();
-    super.dispose();
-  }
+  MpFarmer get farmer => widget.farmer;
 
-  Future<void> _save(AppLocalizations l) async {
-    final amt = double.tryParse(_amount.text);
-    if (amt == null || amt <= 0) {
-      setState(() => _error = l.farmerPaymentsInvalidAmount);
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await mpRepo.addLedgerEntry({
-        'farmerId': widget.farmer.id,
-        'entryType': _entryType,
-        'amount': amt,
-        'occurredOn': todayIso(),
-        if (_entryType == 'repayment') 'refType': _refType,
-      });
-      _amount.clear();
-      setState(() => _saving = false);
-      ref.invalidate(farmerLedgerProvider(widget.farmer.id));
-    } catch (e) {
-      setState(() {
-        _saving = false;
-        _error = '$e';
-      });
-    }
+  Future<void> _refresh() async {
+    ref.invalidate(farmerLedgerProvider(farmer.id));
+    ref.invalidate(payoutLinesForFarmerProvider(farmer.id));
+    await Future.wait([
+      ref.read(farmerLedgerProvider(farmer.id).future),
+      ref.read(payoutLinesForFarmerProvider(farmer.id).future),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    final ledgerAsync = ref.watch(farmerLedgerProvider(widget.farmer.id));
-    return ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: EdgeInsets.fromLTRB(
-        DhenuSpacing.lg,
-        DhenuSpacing.lg,
-        DhenuSpacing.lg,
-        DhenuSpacing.x4 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      children: [
-        _balanceCard(t, l, ledgerAsync),
-        const SizedBox(height: DhenuSpacing.xl),
-        Text(l.farmerPaymentsAddEntry, style: DhenuText.title.copyWith(color: t.ink)),
-        const SizedBox(height: DhenuSpacing.md),
-        _typeChips(t, l),
-        if (_entryType == 'repayment') ...[
-          const SizedBox(height: DhenuSpacing.md),
-          _refChips(t, l),
-        ],
-        const SizedBox(height: DhenuSpacing.md),
-        TextField(
-          controller: _amount,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textCapitalization: TextCapitalization.none,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-          ],
-          decoration: InputDecoration(
-            hintText: l.farmerPaymentsAmountHint,
-            prefixText: '₹ ',
-          ),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: DhenuSpacing.sm),
-          Text(_error!, style: DhenuText.caption.copyWith(color: t.gradeC)),
-        ],
-        const SizedBox(height: DhenuSpacing.lg),
-        PrimaryAction(
-          label: l.farmerPaymentsRecordEntry,
-          icon: DhenuIcons.check,
-          onPressed: () => _save(l),
-          loading: _saving,
-        ),
-        const SizedBox(height: DhenuSpacing.xl),
-        Text(l.farmerPaymentsHistory, style: DhenuText.title.copyWith(color: t.ink)),
-        const SizedBox(height: DhenuSpacing.sm),
-        _history(t, l, ledgerAsync),
-      ],
-    );
-  }
-
-  Widget _balanceCard(
-    DhenuTokens t,
-    AppLocalizations l,
-    AsyncValue<({double balance, List<MpLedgerEntry> entries})> a,
-  ) {
-    return a.when(
-      loading: () => const DhenuLoadingList(rows: 1),
-      error: (e, _) => Text(
-        l.farmerPaymentsLoadError,
-        style: DhenuText.body.copyWith(color: t.inkSoft),
-      ),
-      data: (d) => Row(
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(DhenuSpacing.screen, DhenuSpacing.lg,
+            DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
-          Text(l.farmerPaymentsOutstanding, style: DhenuText.body.copyWith(color: t.inkSoft)),
-          const Spacer(),
-          Text(
-            rupees(d.balance),
-            style: DhenuText.number(
-              size: 24,
-              color: d.balance > 0 ? t.gradeC : t.gradeA,
-            ),
+          _summary(t, l),
+          const SizedBox(height: DhenuSpacing.lg),
+          DhenuSegmented<_PaymentsView>(
+            current: _view,
+            onSelect: (v) => setState(() => _view = v),
+            options: [
+              (_PaymentsView.payouts, l.farmerPaymentsSegPayouts, null),
+              (_PaymentsView.ledger, l.farmerPaymentsSegLedger, null),
+            ],
           ),
+          const SizedBox(height: DhenuSpacing.lg),
+          if (_view == _PaymentsView.payouts)
+            FarmerPayoutHistory(farmer: farmer)
+          else
+            _ledger(t, l),
         ],
       ),
     );
   }
 
-  Widget _typeChips(DhenuTokens t, AppLocalizations l) {
-    final labels = [
-      l.farmerPaymentsTypeAdvance,
-      l.farmerPaymentsFeedLoan,
-      l.farmerPaymentsRepayment,
-    ];
-    return Row(
-      children: List.generate(_entryTypeCodes.length, (i) {
-        final code = _entryTypeCodes[i];
-        final selected = _entryType == code;
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(right: DhenuSpacing.sm),
-            child: _chip(
-              t,
-              labels[i],
-              selected,
-              () => setState(() => _entryType = code),
-            ),
-          ),
-        );
-      }),
+  // ── Summary ───────────────────────────────────────────────────────────────
+
+  /// Outstanding and last payout side by side — the two numbers an operator is
+  /// asked for at the counter, before they pick a history to read.
+  Widget _summary(DhenuTokens t, AppLocalizations l) {
+    final ledger = ref.watch(farmerLedgerProvider(farmer.id)).valueOrNull;
+    final lines =
+        ref.watch(payoutLinesForFarmerProvider(farmer.id)).valueOrNull ?? const [];
+    final last = lines.isEmpty ? null : lines.first;
+    // IntrinsicHeight, not a stretched Row: the cards must match heights (only
+    // one carries the advance/feed split line), but a bare stretch inside the
+    // ListView asks them to fill an unbounded cross axis.
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(child: _outstandingCard(t, l, ledger)),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(child: _lastPayoutCard(t, l, last)),
+      ]),
     );
   }
 
-  Widget _refChips(DhenuTokens t, AppLocalizations l) => Row(
-    children: [
-      Expanded(
-        child: _chip(
-          t,
-          l.farmerPaymentsAgainstAdvance,
-          _refType == 'advance',
-          () => setState(() => _refType = 'advance'),
-        ),
-      ),
-      const SizedBox(width: DhenuSpacing.sm),
-      Expanded(
-        child: _chip(
-          t,
-          l.farmerPaymentsAgainstFeedLoan,
-          _refType == 'cattle_feed_loan',
-          () => setState(() => _refType = 'cattle_feed_loan'),
-        ),
-      ),
-    ],
-  );
+  Widget _outstandingCard(DhenuTokens t, AppLocalizations l, MpFarmerLedger? d) {
+    final owed = d?.balance ?? 0;
+    return DhenuCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l.farmerPaymentsOutstanding,
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        const SizedBox(height: DhenuSpacing.xs),
+        Text(rupees(owed),
+            style: DhenuText.number(
+                size: 20, color: owed > 0 ? t.gradeC : t.gradeA)),
+        if (d != null && owed > 0) ...[
+          const SizedBox(height: DhenuSpacing.xs),
+          Text(
+            '${l.farmerPaymentsAdvanceDue(rupees(d.advanceDue))} · '
+            '${l.farmerPaymentsFeedLoanDue(rupees(d.feedLoanDue))}',
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+          ),
+        ],
+      ]),
+    );
+  }
 
-  Widget _chip(
-    DhenuTokens t,
-    String label,
-    bool selected,
-    VoidCallback onTap,
-  ) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(DhenuRadii.pill),
-    child: Container(
-      height: 44,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: selected ? t.brandSubtle : Colors.transparent,
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-        border: Border.all(color: selected ? t.brand : t.hairline),
-      ),
-      child: Text(
-        label,
-        style: DhenuText.label.copyWith(color: selected ? t.brand : t.inkSoft),
-      ),
-    ),
-  );
+  Widget _lastPayoutCard(DhenuTokens t, AppLocalizations l, MpPayoutLine? last) {
+    final status = last == null ? null : PayoutStatus.of([last]);
+    return DhenuCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l.farmerPaymentsLastPayout,
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        const SizedBox(height: DhenuSpacing.xs),
+        Text(last == null ? '—' : rupees(last.netAmount),
+            style: DhenuText.number(size: 20, color: t.ink)),
+        if (last != null) ...[
+          const SizedBox(height: DhenuSpacing.xs),
+          Text(
+            last.isPaid && last.paidAt != null
+                ? l.farmerPaymentsPaidOn(prettyDate(
+                    last.paidAt!.toIso8601String().substring(0, 10)))
+                : (status?.label(l) ?? FarmerPayoutHistory.periodLabel(last)),
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+          ),
+        ],
+      ]),
+    );
+  }
 
-  Widget _history(
-    DhenuTokens t,
-    AppLocalizations l,
-    AsyncValue<({double balance, List<MpLedgerEntry> entries})> a,
-  ) {
-    return a.when(
-      loading: () => const DhenuLoadingList(rows: 3),
-      error: (_, _) => const SizedBox.shrink(),
-      data: (d) {
-        if (d.entries.isEmpty) {
-          return DhenuEmptyState(
-            icon: DhenuIcons.receipt,
-            title: l.farmerPaymentsNoEntries,
-          );
-        }
-        return Column(
-          children: d.entries
-              .map(
-                (e) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: DhenuSpacing.sm,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _entryLabel(l, e.entryType),
-                              style: DhenuText.body.copyWith(color: t.ink),
-                            ),
-                            Text(
-                              prettyDate(e.occurredOn),
-                              style: DhenuText.caption.copyWith(
-                                color: t.inkSoft,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        rupees(e.amount),
-                        style: DhenuText.number(size: 16, color: t.ink),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
+  // ── Advances & loans ──────────────────────────────────────────────────────
+
+  Widget _ledger(DhenuTokens t, AppLocalizations l) {
+    final ledgerAsync = ref.watch(farmerLedgerProvider(farmer.id));
+    return Column(children: [
+      PrimaryAction(
+        label: l.farmerPaymentsRecordEntryButton,
+        icon: DhenuIcons.add,
+        onPressed: () => showFarmerLedgerSheet(context, farmer),
+      ),
+      const SizedBox(height: DhenuSpacing.lg),
+      ledgerAsync.when(
+        loading: () => const DhenuLoadingList(rows: 3),
+        error: (e, _) => DhenuEmptyState(
+          icon: DhenuIcons.cloudOff,
+          title: l.farmerPaymentsLoadError,
+          subtitle: '$e',
+        ),
+        data: (d) => d.entries.isEmpty
+            ? DhenuEmptyState(
+                icon: DhenuIcons.receipt, title: l.farmerPaymentsNoEntries)
+            : DhenuCard(
+                padding: EdgeInsets.zero,
+                child: Column(children: [
+                  for (var i = 0; i < d.entries.length; i++) ...[
+                    if (i > 0) Divider(height: 1, color: t.hairline),
+                    _entryRow(t, l, d.entries[i]),
+                  ],
+                ]),
+              ),
+      ),
+    ]);
+  }
+
+  Widget _entryRow(DhenuTokens t, AppLocalizations l, MpLedgerEntry e) {
+    // Ledger amounts are always positive; the entry type carries direction.
+    final isRepayment = e.entryType == 'repayment';
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_entryLabel(l, e.entryType),
+                style: DhenuText.body.copyWith(color: t.ink)),
+            const SizedBox(height: DhenuSpacing.xs),
+            Text(prettyDate(e.occurredOn),
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ]),
+        ),
+        Text('${isRepayment ? '− ' : '+ '}${rupees(e.amount)}',
+            style: DhenuText.number(
+                size: 16, color: isRepayment ? t.gradeA : t.ink)),
+      ]),
     );
   }
 
   String _entryLabel(AppLocalizations l, String entryType) => switch (entryType) {
-    'advance_given' => l.farmerPaymentsAdvanceGiven,
-    'feed_loan_given' => l.farmerPaymentsFeedLoanGiven,
-    'repayment' => l.farmerPaymentsRepaymentLabel,
-    _ => l.farmerPaymentsAdjustment,
-  };
+        'advance_given' => l.farmerPaymentsAdvanceGiven,
+        'feed_loan_given' => l.farmerPaymentsFeedLoanGiven,
+        'repayment' => l.farmerPaymentsRepaymentLabel,
+        _ => l.farmerPaymentsAdjustment,
+      };
 }

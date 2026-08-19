@@ -3129,4 +3129,119 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get dispatchDestCcGeneric => 'ಚಿಲ್ಲಿಂಗ್ ಕೇಂದ್ರಕ್ಕೆ ರವಾನಿಸಿ';
+
+  @override
+  String get farmerPaymentsSegPayouts => 'ಪಾವತಿಗಳು';
+
+  @override
+  String get farmerPaymentsSegLedger => 'ಮುಂಗಡ ಮತ್ತು ಸಾಲ';
+
+  @override
+  String get farmerPaymentsLastPayout => 'ಕೊನೆಯ ಪಾವತಿ';
+
+  @override
+  String get farmerPaymentsNoPayouts => 'ಇನ್ನೂ ಪಾವತಿಗಳಿಲ್ಲ';
+
+  @override
+  String get farmerPaymentsNoPayoutsSubtitle =>
+      'ಚಕ್ರ ರಚಿಸಿದ ನಂತರ ಚಕ್ರ ಪಾವತಿಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ';
+
+  @override
+  String get farmerPaymentsPayoutsLoadError => 'ಪಾವತಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String farmerPaymentsLitresNet(String litres, String amount) {
+    return '$litres ಲೀ · ನಿವ್ವಳ $amount';
+  }
+
+  @override
+  String get farmerPaymentsMarkPaid => 'ಪಾವತಿಸಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಿ';
+
+  @override
+  String get farmerPaymentsMarkPaidError => 'ಪಾವತಿ ಸ್ಥಿತಿಯನ್ನು ನವೀಕರಿಸಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get farmerPaymentsUnpaid => 'ಪಾವತಿಸಿಲ್ಲ';
+
+  @override
+  String farmerPaymentsPaidOn(String date) {
+    return '$date ರಂದು ಪಾವತಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String get farmerPaymentsBreakdown => 'ವಿವರ';
+
+  @override
+  String get farmerPaymentsGross => 'ಒಟ್ಟು';
+
+  @override
+  String get farmerPaymentsBonus => 'ಗುಣಮಟ್ಟ ಬೋನಸ್';
+
+  @override
+  String get farmerPaymentsNet => 'ನಿವ್ವಳ ಪಾವತಿ';
+
+  @override
+  String get farmerPaymentsDeductionAdvance => 'ಮುಂಗಡ ವಸೂಲಿ';
+
+  @override
+  String get farmerPaymentsDeductionFeedLoan => 'ಮೇವು ಸಾಲ ವಸೂಲಿ';
+
+  @override
+  String get farmerPaymentsDeductionOther => 'ಇತರೆ ಕಡಿತ';
+
+  @override
+  String get farmerPaymentsPaymentMode => 'ಪಾವತಿ ವಿಧಾನ';
+
+  @override
+  String get farmerPaymentsStatementNo => 'ಹೇಳಿಕೆ ಸಂ.';
+
+  @override
+  String farmerPaymentsAdvanceDue(String amount) {
+    return 'ಮುಂಗಡ $amount';
+  }
+
+  @override
+  String farmerPaymentsFeedLoanDue(String amount) {
+    return 'ಮೇವು ಸಾಲ $amount';
+  }
+
+  @override
+  String get farmerPaymentsRecordEntryButton =>
+      'ಮುಂಗಡ, ಸಾಲ ಅಥವಾ ಮರುಪಾವತಿ ದಾಖಲಿಸಿ';
+
+  @override
+  String get farmerPaymentsEntrySaved => 'ನಮೂದು ದಾಖಲಾಗಿದೆ';
+
+  @override
+  String get farmerPaymentsEarnings => 'ಗಳಿಕೆ';
+
+  @override
+  String get farmerPaymentsDeductions => 'ಕಡಿತಗಳು';
+
+  @override
+  String get farmerPaymentsPaymentSection => 'ಪಾವತಿ';
+
+  @override
+  String get farmerPaymentsPaidOnLabel => 'ಪಾವತಿಸಿದ ದಿನಾಂಕ';
+
+  @override
+  String get farmerPaymentsReference => 'UTR / ಉಲ್ಲೇಖ';
+
+  @override
+  String get farmerPaymentsNotConfirmed => 'ಇನ್ನೂ ದೃಢೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String get farmerPaymentsModeBankTransfer => 'ಬ್ಯಾಂಕ್ ವರ್ಗಾವಣೆ';
+
+  @override
+  String get farmerPaymentsModeUpi => 'UPI';
+
+  @override
+  String get farmerPaymentsModeCash => 'ನಗದು';
+
+  @override
+  String get farmerPaymentsModeCheque => 'ಚೆಕ್';
+
+  @override
+  String get farmerPaymentsModeOther => 'ಇತರೆ';
 }

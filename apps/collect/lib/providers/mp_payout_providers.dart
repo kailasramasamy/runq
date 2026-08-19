@@ -28,8 +28,7 @@ final payoutLinesForFarmerProvider =
 
 /// A single farmer's ledger balance + entries (advances / loans / repayments).
 final farmerLedgerProvider =
-    FutureProvider.family<({double balance, List<MpLedgerEntry> entries}), String>(
-        (ref, farmerId) async {
+    FutureProvider.family<MpFarmerLedger, String>((ref, farmerId) async {
   return mpRepo.farmerLedger(farmerId: farmerId);
 });
 

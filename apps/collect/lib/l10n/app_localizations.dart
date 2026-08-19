@@ -5397,6 +5397,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dispatch to the chilling centre'**
   String get dispatchDestCcGeneric;
+
+  /// No description provided for @farmerPaymentsSegPayouts.
+  ///
+  /// In en, this message translates to:
+  /// **'Payouts'**
+  String get farmerPaymentsSegPayouts;
+
+  /// No description provided for @farmerPaymentsSegLedger.
+  ///
+  /// In en, this message translates to:
+  /// **'Advances & loans'**
+  String get farmerPaymentsSegLedger;
+
+  /// No description provided for @farmerPaymentsLastPayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Last payout'**
+  String get farmerPaymentsLastPayout;
+
+  /// No description provided for @farmerPaymentsNoPayouts.
+  ///
+  /// In en, this message translates to:
+  /// **'No payouts yet'**
+  String get farmerPaymentsNoPayouts;
+
+  /// No description provided for @farmerPaymentsNoPayoutsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle payouts appear here once a cycle is created'**
+  String get farmerPaymentsNoPayoutsSubtitle;
+
+  /// No description provided for @farmerPaymentsPayoutsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load payouts'**
+  String get farmerPaymentsPayoutsLoadError;
+
+  /// Farmer Payments hub
+  ///
+  /// In en, this message translates to:
+  /// **'{litres} L · net {amount}'**
+  String farmerPaymentsLitresNet(String litres, String amount);
+
+  /// No description provided for @farmerPaymentsMarkPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark paid'**
+  String get farmerPaymentsMarkPaid;
+
+  /// No description provided for @farmerPaymentsMarkPaidError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update payment status'**
+  String get farmerPaymentsMarkPaidError;
+
+  /// No description provided for @farmerPaymentsUnpaid.
+  ///
+  /// In en, this message translates to:
+  /// **'UNPAID'**
+  String get farmerPaymentsUnpaid;
+
+  /// Farmer Payments hub
+  ///
+  /// In en, this message translates to:
+  /// **'Paid {date}'**
+  String farmerPaymentsPaidOn(String date);
+
+  /// No description provided for @farmerPaymentsBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Breakdown'**
+  String get farmerPaymentsBreakdown;
+
+  /// No description provided for @farmerPaymentsGross.
+  ///
+  /// In en, this message translates to:
+  /// **'Gross'**
+  String get farmerPaymentsGross;
+
+  /// No description provided for @farmerPaymentsBonus.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality bonus'**
+  String get farmerPaymentsBonus;
+
+  /// No description provided for @farmerPaymentsNet.
+  ///
+  /// In en, this message translates to:
+  /// **'Net payable'**
+  String get farmerPaymentsNet;
+
+  /// No description provided for @farmerPaymentsDeductionAdvance.
+  ///
+  /// In en, this message translates to:
+  /// **'Advance recovery'**
+  String get farmerPaymentsDeductionAdvance;
+
+  /// No description provided for @farmerPaymentsDeductionFeedLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed loan recovery'**
+  String get farmerPaymentsDeductionFeedLoan;
+
+  /// No description provided for @farmerPaymentsDeductionOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other deduction'**
+  String get farmerPaymentsDeductionOther;
+
+  /// No description provided for @farmerPaymentsPaymentMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid by'**
+  String get farmerPaymentsPaymentMode;
+
+  /// No description provided for @farmerPaymentsStatementNo.
+  ///
+  /// In en, this message translates to:
+  /// **'Statement no.'**
+  String get farmerPaymentsStatementNo;
+
+  /// Farmer Payments hub
+  ///
+  /// In en, this message translates to:
+  /// **'Advance {amount}'**
+  String farmerPaymentsAdvanceDue(String amount);
+
+  /// Farmer Payments hub
+  ///
+  /// In en, this message translates to:
+  /// **'Feed loan {amount}'**
+  String farmerPaymentsFeedLoanDue(String amount);
+
+  /// No description provided for @farmerPaymentsRecordEntryButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Record advance, loan or repayment'**
+  String get farmerPaymentsRecordEntryButton;
+
+  /// No description provided for @farmerPaymentsEntrySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry recorded'**
+  String get farmerPaymentsEntrySaved;
+
+  /// No description provided for @farmerPaymentsEarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Earnings'**
+  String get farmerPaymentsEarnings;
+
+  /// No description provided for @farmerPaymentsDeductions.
+  ///
+  /// In en, this message translates to:
+  /// **'Deductions'**
+  String get farmerPaymentsDeductions;
+
+  /// No description provided for @farmerPaymentsPaymentSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment'**
+  String get farmerPaymentsPaymentSection;
+
+  /// No description provided for @farmerPaymentsPaidOnLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid on'**
+  String get farmerPaymentsPaidOnLabel;
+
+  /// No description provided for @farmerPaymentsReference.
+  ///
+  /// In en, this message translates to:
+  /// **'UTR / Ref'**
+  String get farmerPaymentsReference;
+
+  /// No description provided for @farmerPaymentsNotConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not confirmed yet'**
+  String get farmerPaymentsNotConfirmed;
+
+  /// No description provided for @farmerPaymentsModeBankTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank transfer'**
+  String get farmerPaymentsModeBankTransfer;
+
+  /// No description provided for @farmerPaymentsModeUpi.
+  ///
+  /// In en, this message translates to:
+  /// **'UPI'**
+  String get farmerPaymentsModeUpi;
+
+  /// No description provided for @farmerPaymentsModeCash.
+  ///
+  /// In en, this message translates to:
+  /// **'Cash'**
+  String get farmerPaymentsModeCash;
+
+  /// No description provided for @farmerPaymentsModeCheque.
+  ///
+  /// In en, this message translates to:
+  /// **'Cheque'**
+  String get farmerPaymentsModeCheque;
+
+  /// No description provided for @farmerPaymentsModeOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get farmerPaymentsModeOther;
 }
 
 class _AppLocalizationsDelegate

@@ -111,12 +111,23 @@
   "dispatchPendingTitle": "{count, plural, one{{count} dispatch pending} other{{count} dispatches pending}}",
   "@dispatchPendingTitle": {
     "description": "Home alert + dispatch badge — slots holding milk that was never sent onward",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "dispatchPendingOldest": "Oldest: {slot} · {qty}",
   "@dispatchPendingOldest": {
     "description": "Subtitle naming the oldest undispatched slot, e.g. 'Oldest: PM · 4 Aug · 320.0 L'",
-    "placeholders": { "slot": { "type": "String" }, "qty": { "type": "String" } }
+    "placeholders": {
+      "slot": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
+      }
+    }
   },
   "pendingWorkCloseScreenTitle": "Collections to close",
   "@pendingWorkCloseScreenTitle": {
@@ -137,7 +148,11 @@
   "pendingWorkDaysAgo": "{days, plural, one{{days} day ago} other{{days} days ago}}",
   "@pendingWorkDaysAgo": {
     "description": "How stale a pending slot is, shown on each row",
-    "placeholders": { "days": { "type": "int" } }
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
   },
   "dispatchUntypedTitle": "Milk type not recorded",
   "@dispatchUntypedTitle": {
@@ -154,7 +169,11 @@
   "dispatchPendingCloseTitle": "{count, plural, one{{count} collection to close} other{{count} collections to close}}",
   "@dispatchPendingCloseTitle": {
     "description": "Home alert — past slots still holding milk whose collection was never closed, so dispatch is still gated",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "dispatchCloseFirstDay": "Close today's collection before dispatching.",
   "historyLoadError": "Could not load history",
@@ -208,12 +227,21 @@
   "ppHomeTankersToReceive": "{count, plural, =1{1 tanker to receive} other{{count} tankers to receive}}",
   "@ppHomeTankersToReceive": {
     "description": "PP home banner — consignments in transit awaiting receipt",
-    "placeholders": { "count": { "type": "num", "format": "compact" } }
+    "placeholders": {
+      "count": {
+        "type": "num",
+        "format": "compact"
+      }
+    }
   },
   "ccReceivePoolWaitsForMorning": "Evening milk leaves with the next morning's collection. Close and dispatch this pool on {date}.",
   "@ccReceivePoolWaitsForMorning": {
     "description": "Shown on the PM half of an overnight pool — close/dispatch belong to the anchor (AM) day",
-    "placeholders": { "date": { "type": "String" } }
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
   },
   "consignmentSlotPooled": "Pooled",
   "@consignmentSlotPooled": {
@@ -2072,7 +2100,7 @@
   "ppHistoryNoReceiptsSubtitle": "Tankers received from CCs over the last 30 days show here",
   "ppQcScopeByCc": "By CC",
   "ppQcHeroFooterAll": "Qty-weighted quality across all CC tankers",
-  "ppQcHeroLabelCc": "{name} \u00b7 LAST {days} DAYS",
+  "ppQcHeroLabelCc": "{name} · LAST {days} DAYS",
   "@ppQcHeroLabelCc": {
     "description": "PP QC report hero label, single CC",
     "placeholders": {
@@ -2086,7 +2114,7 @@
   "ppQcEmptySubtitleCc": "No milk received from this CC in this window",
   "ppQcSelectCcTitle": "Select CC",
   "ppQcSelectCcPlaceholder": "Select a CC",
-  "ppQcRankingSummary": "{active} of {total} CCs delivered \u00b7 last {days} days",
+  "ppQcRankingSummary": "{active} of {total} CCs delivered · last {days} days",
   "@ppQcRankingSummary": {
     "description": "PP QC ranking summary card",
     "placeholders": {
@@ -2103,152 +2131,222 @@
   },
   "fastTrackTitle": "Send to {plant}?",
   "@fastTrackTitle": {
-      "description": "Confirm sheet title",
-      "placeholders": {
-          "plant": {
-              "type": "String"
-          }
+    "description": "Confirm sheet title",
+    "placeholders": {
+      "plant": {
+        "type": "String"
       }
+    }
   },
   "fastTrackChecking": "Checking what's ready…",
   "@fastTrackChecking": {
-      "description": "Loading state while the plan is fetched"
+    "description": "Loading state while the plan is fetched"
   },
   "fastTrackSend": "Send",
   "@fastTrackSend": {
-      "description": "Confirm button on the fast-track sheet"
+    "description": "Confirm button on the fast-track sheet"
   },
   "fastTrackNothingTitle": "Nothing to send",
   "@fastTrackNothingTitle": {
-      "description": "Empty plan title"
+    "description": "Empty plan title"
   },
   "fastTrackNothingSubtitle": "No milk is waiting to go to the plant right now.",
   "@fastTrackNothingSubtitle": {
-      "description": "Empty plan subtitle"
+    "description": "Empty plan subtitle"
   },
   "fastTrackClosesWholeDay": "This closes the whole day's collection at this centre — anything poured afterwards needs the slot reopened.",
   "@fastTrackClosesWholeDay": {
-      "description": "Warning shown when a pooled node's close covers both shifts"
+    "description": "Warning shown when a pooled node's close covers both shifts"
   },
   "fastTrackSuccess": "{qty} sent to {plant}",
   "@fastTrackSuccess": {
-      "description": "Toast after a full run",
-      "placeholders": {
-          "qty": {
-              "type": "String"
-          },
-          "plant": {
-              "type": "String"
-          }
+    "description": "Toast after a full run",
+    "placeholders": {
+      "qty": {
+        "type": "String"
+      },
+      "plant": {
+        "type": "String"
       }
+    }
   },
   "fastTrackPartial": "Stopped at {vmcc}. Everything before it was recorded — finish the rest on the dispatch screen.",
   "@fastTrackPartial": {
-      "description": "Toast when the chain failed part-way",
-      "placeholders": {
-          "vmcc": {
-              "type": "String"
-          }
+    "description": "Toast when the chain failed part-way",
+    "placeholders": {
+      "vmcc": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestTitle": "Where is this going?",
   "@dispatchDestTitle": {
-      "description": "Title of the dispatch destination chooser on a single-site VMCC"
+    "description": "Title of the dispatch destination chooser on a single-site VMCC"
   },
   "dispatchDestPlant": "Send to {plant}",
   "@dispatchDestPlant": {
-      "description": "Chooser option: run the whole chain to the plant",
-      "placeholders": {
-          "plant": {
-              "type": "String"
-          }
+    "description": "Chooser option: run the whole chain to the plant",
+    "placeholders": {
+      "plant": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestPlantSub": "Closes the chilling centre and takes the milk into raw-milk stock — the whole chain, in one step",
   "@dispatchDestPlantSub": {
-      "description": "Subtitle for the plant option"
+    "description": "Subtitle for the plant option"
   },
   "dispatchDestCc": "Dispatch to {cc}",
   "@dispatchDestCc": {
-      "description": "Chooser option: the ordinary VMCC to CC leg",
-      "placeholders": {
-          "cc": {
-              "type": "String"
-          }
+    "description": "Chooser option: the ordinary VMCC to CC leg",
+    "placeholders": {
+      "cc": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestCcSub": "The usual leg — the chilling centre receives and weighs it",
   "@dispatchDestCcSub": {
-      "description": "Subtitle for the CC option"
+    "description": "Subtitle for the CC option"
   },
   "fastTrackChainSummary": "Closes both centres, records the dispatch and receipt on each leg, and takes the milk into raw-milk stock.",
   "@fastTrackChainSummary": {
-      "description": "One-line explanation of what the whole chain does, under the route"
+    "description": "One-line explanation of what the whole chain does, under the route"
   },
   "ccHomeShiftAwaitingVmcc": "Yet to receive",
   "@ccHomeShiftAwaitingVmcc": {
-      "description": "Pill on the CC hero when a shift's milk is still at the VMCC — collected there, not dispatched"
+    "description": "Pill on the CC hero when a shift's milk is still at the VMCC — collected there, not dispatched"
   },
   "homeDispatchShiftQty": "Dispatch {shift} · {qty}",
   "@homeDispatchShiftQty": {
-      "description": "Primary action naming the exact slot that will be dispatched, e.g. 'Dispatch PM · 197.5 L'",
-      "placeholders": {
-          "shift": {
-              "type": "String"
-          },
-          "qty": {
-              "type": "String"
-          }
+    "description": "Primary action naming the exact slot that will be dispatched, e.g. 'Dispatch PM · 197.5 L'",
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
       }
+    }
   },
   "homeDispatchSlotDated": "Dispatch {shift} · {date} · {qty}",
   "@homeDispatchSlotDated": {
-      "description": "Primary action when the waiting slot is from an earlier day — the date is named so it can't read as today's shift",
-      "placeholders": {
-          "shift": {
-              "type": "String"
-          },
-          "date": {
-              "type": "String"
-          },
-          "qty": {
-              "type": "String"
-          }
+    "description": "Primary action when the waiting slot is from an earlier day — the date is named so it can't read as today's shift",
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
       }
+    }
   },
   "homeDispatchBothShifts": "Dispatch AM & PM · {qty}",
   "@homeDispatchBothShifts": {
-      "description": "Primary action when both of today's shifts are closed and waiting",
-      "placeholders": {
-          "qty": {
-              "type": "String"
-          }
+    "description": "Primary action when both of today's shifts are closed and waiting",
+    "placeholders": {
+      "qty": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestPlantSubBoth": "Both shifts · {qty}",
   "@dispatchDestPlantSubBoth": {
-      "description": "Plant option subtitle when the chain will send AM and PM together",
-      "placeholders": {
-          "qty": {
-              "type": "String"
-          }
+    "description": "Plant option subtitle when the chain will send AM and PM together",
+    "placeholders": {
+      "qty": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestCcSubOne": "One shift at a time — starts with {shift}",
   "@dispatchDestCcSubOne": {
-      "description": "CC option subtitle when two shifts are waiting but the dispatch screen takes one",
-      "placeholders": {
-          "shift": {
-              "type": "String"
-          }
+    "description": "CC option subtitle when two shifts are waiting but the dispatch screen takes one",
+    "placeholders": {
+      "shift": {
+        "type": "String"
       }
+    }
   },
   "dispatchDestPlantGeneric": "Send to the main plant",
   "@dispatchDestPlantGeneric": {
-      "description": "Plant option title while the plant's name is still loading, or if it can't be resolved"
+    "description": "Plant option title while the plant's name is still loading, or if it can't be resolved"
   },
   "dispatchDestCcGeneric": "Dispatch to the chilling centre",
   "@dispatchDestCcGeneric": {
-      "description": "CC option title while the centre's name is still loading"
-  }
+    "description": "CC option title while the centre's name is still loading"
+  },
+  "farmerPaymentsSegPayouts": "Payouts",
+  "farmerPaymentsSegLedger": "Advances & loans",
+  "farmerPaymentsLastPayout": "Last payout",
+  "farmerPaymentsNoPayouts": "No payouts yet",
+  "farmerPaymentsNoPayoutsSubtitle": "Cycle payouts appear here once a cycle is created",
+  "farmerPaymentsPayoutsLoadError": "Could not load payouts",
+  "farmerPaymentsLitresNet": "{litres} L · net {amount}",
+  "@farmerPaymentsLitresNet": {
+    "description": "Farmer Payments hub",
+    "placeholders": {
+      "litres": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsMarkPaid": "Mark paid",
+  "farmerPaymentsMarkPaidError": "Could not update payment status",
+  "farmerPaymentsUnpaid": "UNPAID",
+  "farmerPaymentsPaidOn": "Paid {date}",
+  "@farmerPaymentsPaidOn": {
+    "description": "Farmer Payments hub",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsBreakdown": "Breakdown",
+  "farmerPaymentsGross": "Gross",
+  "farmerPaymentsBonus": "Quality bonus",
+  "farmerPaymentsNet": "Net payable",
+  "farmerPaymentsDeductionAdvance": "Advance recovery",
+  "farmerPaymentsDeductionFeedLoan": "Feed loan recovery",
+  "farmerPaymentsDeductionOther": "Other deduction",
+  "farmerPaymentsPaymentMode": "Paid by",
+  "farmerPaymentsStatementNo": "Statement no.",
+  "farmerPaymentsAdvanceDue": "Advance {amount}",
+  "@farmerPaymentsAdvanceDue": {
+    "description": "Farmer Payments hub",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsFeedLoanDue": "Feed loan {amount}",
+  "@farmerPaymentsFeedLoanDue": {
+    "description": "Farmer Payments hub",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsRecordEntryButton": "Record advance, loan or repayment",
+  "farmerPaymentsEntrySaved": "Entry recorded",
+  "farmerPaymentsEarnings": "Earnings",
+  "farmerPaymentsDeductions": "Deductions",
+  "farmerPaymentsPaymentSection": "Payment",
+  "farmerPaymentsPaidOnLabel": "Paid on",
+  "farmerPaymentsReference": "UTR / Ref",
+  "farmerPaymentsNotConfirmed": "Not confirmed yet",
+  "farmerPaymentsModeBankTransfer": "Bank transfer",
+  "farmerPaymentsModeUpi": "UPI",
+  "farmerPaymentsModeCash": "Cash",
+  "farmerPaymentsModeCheque": "Cheque",
+  "farmerPaymentsModeOther": "Other"
 }

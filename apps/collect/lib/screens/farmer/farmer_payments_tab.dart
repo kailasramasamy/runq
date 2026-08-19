@@ -28,6 +28,7 @@ import '../../widgets/audio_play.dart';
 import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/payout_status_chip.dart';
 import '../../widgets/section_header.dart';
 import '../pdf_viewer_screen.dart';
 import 'farmer_insights.dart';
@@ -109,7 +110,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
     DhenuTokens t,
     AppLocalizations l,
     AsyncValue<List<MpPour>> cyclePoursAsync,
-    AsyncValue<({double balance, List<MpLedgerEntry> entries})> ledgerAsync,
+    AsyncValue<MpFarmerLedger> ledgerAsync,
     MpCyclePeriod? period,
   ) {
     final periodLabel = period?.label ?? '';
@@ -342,7 +343,7 @@ class _HistoryRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: DhenuSpacing.md),
-            ..._statusChip(t, l, matching),
+            ..._statusChip(matching),
             Text(
               rupees(totalRs),
               style: DhenuText.number(size: 16, w: FontWeight.w800, color: t.ink),
@@ -354,25 +355,12 @@ class _HistoryRow extends ConsumerWidget {
     );
   }
 
-  /// Paid: every line disbursed (operator mark-paid) or its cycle paid via GL.
-  /// Pending: any cycle still open. Processing: locked, awaiting payment.
   /// No matching line → no chip (status unknown, show period + gross only).
-  List<Widget> _statusChip(DhenuTokens t, AppLocalizations l, List<MpPayoutLine> matching) {
-    if (matching.isEmpty) return const [];
-    final String label;
-    final Color color;
-    if (matching.every((ln) => ln.isPaid || ln.cycleStatus == 'paid')) {
-      label = l.farmerPaymentsPaid;
-      color = t.gradeA;
-    } else if (matching.any((ln) => ln.cycleStatus == 'open')) {
-      label = l.farmerPaymentsStatusPending;
-      color = t.inkSoft;
-    } else {
-      label = l.farmerPaymentsStatusProcessing;
-      color = t.gradeB;
-    }
+  List<Widget> _statusChip(List<MpPayoutLine> matching) {
+    final status = PayoutStatus.of(matching);
+    if (status == null) return const [];
     return [
-      _StatusChip(label: label, color: color),
+      PayoutStatusChip(status: status),
       const SizedBox(width: DhenuSpacing.sm),
     ];
   }
@@ -428,29 +416,6 @@ class _DownloadStatementIconState extends ConsumerState<_DownloadStatementIcon> 
       icon: _busy
           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
           : Icon(DhenuIcons.download, size: 18, color: t.brand),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      ),
-      child: Text(
-        label,
-        style: DhenuText.caption
-            .copyWith(color: color, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-      ),
     );
   }
 }

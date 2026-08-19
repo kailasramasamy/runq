@@ -872,6 +872,15 @@ class MpShiftStatus {
   bool get dayClosed => am && pm;
 }
 
+/// A farmer's ledger as the API returns it: the blended balance, its split by
+/// debt type, and every entry newest-first.
+typedef MpFarmerLedger = ({
+  double balance,
+  double advanceDue,
+  double feedLoanDue,
+  List<MpLedgerEntry> entries,
+});
+
 class MpPayoutDeduction {
   final String id, deductionType;
   final double amount;
@@ -890,8 +899,13 @@ class MpPayoutDeduction {
 
 class MpPayoutLine {
   final String id, farmerId;
+  // The owning cycle. Present on every payload; needed to mark a line paid from
+  // a farmer-scoped list, where no cycle screen supplies the id.
+  final String payoutCycleId;
   final double qtyLitres, grossAmount, bonusAmount, deductionTotal, netAmount;
   final String? paymentId, settledViaNodeId, statementNo;
+  /// Bank/UPI txn reference (UTR) captured when the payout was confirmed.
+  final String? paymentReference;
   final DateTime? paidAt;
   final List<MpPayoutDeduction> deductions;
   // Set only by GET /payouts/my-lines (line joined with its cycle); null when
@@ -900,6 +914,7 @@ class MpPayoutLine {
   MpPayoutLine({
     required this.id,
     required this.farmerId,
+    this.payoutCycleId = '',
     required this.qtyLitres,
     required this.grossAmount,
     required this.bonusAmount,
@@ -908,6 +923,7 @@ class MpPayoutLine {
     this.paymentId,
     this.settledViaNodeId,
     this.statementNo,
+    this.paymentReference,
     this.paidAt,
     this.deductions = const [],
     this.periodStart,
@@ -923,6 +939,7 @@ class MpPayoutLine {
   factory MpPayoutLine.fromJson(Map<String, dynamic> j) => MpPayoutLine(
     id: _s(j['id']),
     farmerId: _s(j['farmerId']),
+    payoutCycleId: _s(j['payoutCycleId']),
     qtyLitres: _d(j['qtyLitres']),
     grossAmount: _d(j['grossAmount']),
     bonusAmount: _d(j['bonusAmount']),
@@ -931,6 +948,7 @@ class MpPayoutLine {
     paymentId: _sn(j['paymentId']),
     settledViaNodeId: _sn(j['settledViaNodeId']),
     statementNo: _sn(j['statementNo']),
+    paymentReference: _sn(j['paymentReference']),
     paidAt: j['paidAt'] == null
         ? null
         : DateTime.tryParse(j['paidAt'].toString()),

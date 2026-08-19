@@ -46,8 +46,7 @@ final farmerStreakPoursProvider = FutureProvider<List<MpPour>>((ref) async {
 });
 
 /// Ledger for the resolved farmer (balance + all entries).
-final farmerLedgerProvider =
-    FutureProvider<({double balance, List<MpLedgerEntry> entries})>((ref) async {
+final farmerLedgerProvider = FutureProvider<MpFarmerLedger>((ref) async {
   return mpRepo.farmerLedger(farmerId: ref.watch(_farmerScopeId));
 });
 
