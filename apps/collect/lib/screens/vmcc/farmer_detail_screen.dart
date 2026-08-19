@@ -12,7 +12,6 @@ import '../../widgets/farmer_avatar.dart';
 import '../../widgets/farmer_photo_viewer.dart';
 import 'add_farmer_herd_section.dart';
 import 'add_farmer_screen.dart';
-import 'add_farmer_form_sections.dart';
 import 'farmer_payments_tab.dart';
 import 'farmer_pours_tab.dart';
 import 'farmer_qc_tab.dart';
@@ -132,16 +131,26 @@ class _FarmerDetailsTab extends StatelessWidget {
       ),
       children: [
         _avatarBlock(context, t, l),
-        const SizedBox(height: DhenuSpacing.lg),
-        _contactSection(t, l),
         const SizedBox(height: DhenuSpacing.md),
-        _locationSection(t, l),
-        const SizedBox(height: DhenuSpacing.md),
-        _herdSection(t, l),
-        const SizedBox(height: DhenuSpacing.md),
-        _identitySection(t, l),
-        const SizedBox(height: DhenuSpacing.md),
-        _paymentSection(t, l),
+        // One card, hairline-separated groups. A card per group gives every
+        // section its own border, padding and 32px icon chip — which on a
+        // read-only profile of mostly one-line facts is nearly all whitespace.
+        DhenuCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg,
+            vertical: DhenuSpacing.sm,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ..._contactSection(t, l),
+              ..._locationSection(t, l),
+              ..._herdSection(t, l),
+              ..._identitySection(t, l),
+              ..._paymentSection(t, l),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -207,18 +216,16 @@ class _FarmerDetailsTab extends StatelessWidget {
     );
   }
 
-  Widget _contactSection(DhenuTokens t, AppLocalizations l) {
-    final rows = [_row(t, l.farmerDetailPhone, farmer.phone)];
-    return _section(
-      t,
-      l,
-      icon: DhenuIcons.user,
-      title: l.farmerDetailContact,
-      rows: rows,
-    );
-  }
+  List<Widget> _contactSection(DhenuTokens t, AppLocalizations l) => _group(
+        t,
+        l,
+        icon: DhenuIcons.user,
+        title: l.farmerDetailContact,
+        rows: [_row(t, l.farmerDetailPhone, farmer.phone)],
+        first: true,
+      );
 
-  Widget _locationSection(DhenuTokens t, AppLocalizations l) {
+  List<Widget> _locationSection(DhenuTokens t, AppLocalizations l) {
     final hasGps = farmer.lat != null && farmer.lng != null;
     final rows = [
       _row(t, l.farmerDetailVillage, farmer.village),
@@ -230,16 +237,10 @@ class _FarmerDetailsTab extends StatelessWidget {
           '${farmer.lat!.toStringAsFixed(5)}, ${farmer.lng!.toStringAsFixed(5)}',
         ),
     ];
-    return _section(
-      t,
-      l,
-      icon: DhenuIcons.mapPin,
-      title: l.farmerDetailLocation,
-      rows: rows,
-    );
+    return _group(t, l, icon: DhenuIcons.mapPin, title: l.farmerDetailLocation, rows: rows);
   }
 
-  Widget _herdSection(DhenuTokens t, AppLocalizations l) {
+  List<Widget> _herdSection(DhenuTokens t, AppLocalizations l) {
     final totalCattle =
         farmer.cattleCount ??
         farmer.cattleBreeds.fold<int>(0, (s, b) => s + b.count);
@@ -251,71 +252,73 @@ class _FarmerDetailsTab extends StatelessWidget {
       if (farmer.inMilkCount != null)
         _row(t, l.farmerDetailCurrentlyMilking, '${farmer.inMilkCount}'),
     ];
-    return _section(t, l, icon: DhenuIcons.pets, title: l.farmerDetailHerd, rows: rows);
+    return _group(t, l, icon: DhenuIcons.pets, title: l.farmerDetailHerd, rows: rows);
   }
 
-  Widget _identitySection(DhenuTokens t, AppLocalizations l) {
-    final rows = [_row(t, l.farmerDetailAadhaar, farmer.aadhaar)];
-    return _section(
-      t,
-      l,
-      icon: DhenuIcons.idCard,
-      title: l.farmerDetailIdentity,
-      rows: rows,
-    );
-  }
+  List<Widget> _identitySection(DhenuTokens t, AppLocalizations l) => _group(
+        t,
+        l,
+        icon: DhenuIcons.idCard,
+        title: l.farmerDetailIdentity,
+        rows: [_row(t, l.farmerDetailAadhaar, farmer.aadhaar)],
+      );
 
-  Widget _paymentSection(DhenuTokens t, AppLocalizations l) {
+  List<Widget> _paymentSection(DhenuTokens t, AppLocalizations l) {
     final rows = [
       _row(t, l.farmerDetailBankName, farmer.bankName),
       _row(t, l.farmerDetailAccountNumber, farmer.bankAccountNumber),
       _row(t, l.farmerDetailIfsc, farmer.bankIfsc),
       _row(t, l.farmerDetailUpiId, farmer.upiId),
     ];
-    return _section(
-      t,
-      l,
-      icon: DhenuIcons.payments,
-      title: l.farmerDetailPayment,
-      rows: rows,
-    );
+    return _group(t, l, icon: DhenuIcons.payments, title: l.farmerDetailPayment, rows: rows);
   }
 
-  Widget _section(
+  /// A group inside the shared card: a hairline rule, a compact icon + title
+  /// line, then its rows. An empty group collapses onto its own header line
+  /// rather than spending three lines saying nothing.
+  List<Widget> _group(
     DhenuTokens t,
     AppLocalizations l, {
     required IconData icon,
     required String title,
     required List<Widget?> rows,
+    bool first = false,
   }) {
     final visible = rows.whereType<Widget>().toList();
-    final children = visible.isNotEmpty
-        ? visible
-        : [
-            Text(
-              l.farmerDetailNotProvided,
-              style: DhenuText.body.copyWith(color: t.inkSoft),
-            ),
-          ];
-    return FormSectionCard(icon: icon, title: title, children: children);
+    return [
+      if (!first) Divider(height: DhenuSpacing.lg, color: t.hairline),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
+        child: Row(children: [
+          Icon(icon, size: 16, color: t.brand),
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(child: Text(title, style: DhenuText.label.copyWith(color: t.ink))),
+          if (visible.isEmpty)
+            Text(l.farmerDetailNotProvided,
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        ]),
+      ),
+      ...visible,
+    ];
   }
 
+  /// Label left, value right on one line — a fixed label column left a wide
+  /// dead gutter between "Phone" and the number.
   Widget? _row(DhenuTokens t, String label, String? value) {
     if (value == null || value.isEmpty) return null;
     return Padding(
-      padding: const EdgeInsets.only(bottom: DhenuSpacing.md),
+      padding: const EdgeInsets.only(bottom: DhenuSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-            ),
-          ),
+          Text(label, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          const SizedBox(width: DhenuSpacing.lg),
           Expanded(
-            child: Text(value, style: DhenuText.body.copyWith(color: t.ink)),
+            child: Text(
+              value,
+              style: DhenuText.body.copyWith(color: t.ink),
+              textAlign: TextAlign.right,
+            ),
           ),
         ],
       ),
