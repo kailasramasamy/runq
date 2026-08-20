@@ -158,13 +158,15 @@ class QcReportView extends StatelessWidget {
               textAlign: TextAlign.right, style: DhenuText.number(size: 14, color: t.ink))),
           Expanded(flex: 2, child: _qcCell(t, 'fat', d.fat)),
           Expanded(flex: 2, child: _qcCell(t, 'snf', d.snf)),
-          Expanded(flex: 2, child: _qcCell(t, null, d.water)),
+          Expanded(flex: 2, child: _qcCell(t, 'water', d.water)),
         ]),
       );
 
-  Widget _qcCell(DhenuTokens t, String? metric, double? v) {
-    final banded = metric == null
-        ? null
+  Widget _qcCell(DhenuTokens t, String metric, double? v) {
+    // Water has no configurable band — it is scored on its own descending
+    // scale, so it colours even where FAT/SNF can't (no bands / mixed type).
+    final banded = metric == 'water'
+        ? QualityBadge.waterColor(v, t)
         : QualityBadge.bandColor(bands, milkType, metric, v, t);
     return Text(
       v == null ? '—' : oneDp(v),
@@ -190,8 +192,7 @@ class QcReportView extends StatelessWidget {
           const SizedBox(width: DhenuSpacing.md),
           card('SNF', 'snf', t.am, (d) => d.snf),
           const SizedBox(width: DhenuSpacing.md),
-          // Water carries no band — it is a contamination read, not a grade.
-          card('Water', null, t.pm, (d) => d.water),
+          card('Water', 'water', t.pm, (d) => d.water),
         ],
       ),
     );
@@ -204,9 +205,14 @@ class QcReportView extends StatelessWidget {
     // them rather than joining across, so a centre that skipped a day doesn't
     // read as a smooth trend through it.
     final points = [for (final d in days) (_pointLabel(d.date), sel(d))];
-    final band = (metric == null || bands == null || milkType == null)
-        ? null
-        : bands!.bandFor(milkType!, metric);
+    // Water's zones are fixed and run downwards (less is better); FAT/SNF read
+    // their configured band and run upwards.
+    final descending = metric == 'water';
+    final band = descending
+        ? const QualityBand(goodMin: kWaterGoodMax, watchMin: kWaterWatchMax)
+        : ((metric == null || bands == null || milkType == null)
+            ? null
+            : bands!.bandFor(milkType!, metric));
     return DhenuCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('$title  ($unit)',
@@ -228,6 +234,7 @@ class QcReportView extends StatelessWidget {
                 color: color,
                 label: t.inkSoft,
                 band: band,
+                descending: descending,
                 good: t.gradeA,
                 watch: t.gradeB,
                 low: t.gradeC,
@@ -263,6 +270,7 @@ class _QcLinePainter extends CustomPainter {
     required this.color,
     required this.label,
     required this.band,
+    required this.descending,
     required this.good,
     required this.watch,
     required this.low,
@@ -272,9 +280,13 @@ class _QcLinePainter extends CustomPainter {
   final List<(String, double?)> points;
   final Color color, label;
 
-  /// The metric's configured thresholds, drawn as zones behind the line.
-  /// Null for an unbanded metric (Water) or an unconfigured type.
+  /// The metric's thresholds, drawn as zones behind the line. Null for an
+  /// unconfigured type.
   final QualityBand? band;
+
+  /// True when lower is better (water): the good zone sits below [QualityBand
+  /// .goodMin] and low above [QualityBand.watchMin], the reverse of FAT/SNF.
+  final bool descending;
   final Color good, watch, low;
 
   static const _topPad = 18.0, _bottomPad = 16.0, _leftPad = 30.0;
@@ -314,9 +326,15 @@ class _QcLinePainter extends CustomPainter {
           Paint()..color = c.withValues(alpha: 0.13));
     }
 
-    zone(b.goodMin, yHi, good);
-    zone(b.watchMin, b.goodMin, watch);
-    zone(yLo, b.watchMin, low);
+    if (descending) {
+      zone(yLo, b.goodMin, good);
+      zone(b.goodMin, b.watchMin, watch);
+      zone(b.watchMin, yHi, low);
+    } else {
+      zone(b.goodMin, yHi, good);
+      zone(b.watchMin, b.goodMin, watch);
+      zone(yLo, b.watchMin, low);
+    }
     // The boundaries themselves, so "just above" and "just below" are legible.
     for (final (v, c) in [(b.goodMin, good), (b.watchMin, watch)]) {
       if (v <= yLo || v >= yHi) continue;
@@ -390,5 +408,6 @@ class _QcLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _QcLinePainter old) =>
-      old.points != points || old.color != color || old.band != band;
+      old.points != points || old.color != color || old.band != band ||
+      old.descending != descending;
 }

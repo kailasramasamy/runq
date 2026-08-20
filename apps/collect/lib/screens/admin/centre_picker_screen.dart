@@ -17,15 +17,14 @@ import '../../widgets/quality_badge.dart';
 import '../../widgets/sheet_grabber.dart';
 import '../profile_tab.dart';
 
-/// Fixed-threshold colour for added-water %: lower is better. Quality bands only
-/// cover fat/SNF/CLR, so water has no configurable band — this is a sensible
-/// default (≤0.5 good · ≤1.5 watch · else low).
+/// Added-water colour comes from the app-wide descending scale ([waterLevel]),
+/// so every screen reads the same number the same way.
 Color _waterColor(double w, DhenuTokens t) =>
-    w <= 0.5 ? t.gradeA : (w <= 1.5 ? t.gradeB : t.gradeC);
+    QualityBadge.levelColor(waterLevel(w), t);
 
 /// Coloured "FAT x · SNF y · W z" spans. Fat/SNF take their quality-band colour
 /// for [milkType] (null when the row mixes types — then they stay neutral);
-/// water always uses the fixed threshold. Bolded when a colour applies.
+/// water always uses its own descending scale. Bolded when a colour applies.
 List<InlineSpan> _qcSpans(
     DhenuTokens t, QualityBands? bands, MilkType? milkType, double fat, double snf, double water) {
   final base = DhenuText.caption.copyWith(color: t.inkSoft);

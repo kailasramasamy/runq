@@ -18,11 +18,11 @@ const MILK_TYPES: MilkType[] = ['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2'];
 
 // Cow-family (legacy cow + A1 + A2) share the same normal range; buffalo milk is
 // far richer, so a single global threshold would mis-grade both. These seed the
-// effective bands when a tenant has configured none — they reproduce the prior
-// hardcoded heuristic for cow and add sensible buffalo/CLR defaults.
+// effective bands only when a tenant has configured none; a tenant/node row in
+// mp_quality_bands overrides them.
 const COW: MetricBands = {
   fat: { goodMin: 4.0, watchMin: 3.5 },
-  snf: { goodMin: 8.5, watchMin: 8.0 },
+  snf: { goodMin: 8.0, watchMin: 7.5 },
   clr: { goodMin: 27, watchMin: 26 },
 };
 const SEED: Record<MilkType, MetricBands> = {

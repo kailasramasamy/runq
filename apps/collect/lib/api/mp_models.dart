@@ -1262,6 +1262,20 @@ class MpOperatorPayoutLine {
 
 enum QualityLevel { good, watch, low }
 
+/// Added-water % thresholds. Water runs the opposite way to FAT/SNF — lower is
+/// better — so it can't ride [QualityBands], whose every band is `value >= min`.
+/// It also isn't configurable: water is adulteration, not a milk characteristic
+/// that shifts with breed or season, so one scale serves every tenant.
+///   ≤ 2 good · ≤ 7 watch · above 7 low
+const kWaterGoodMax = 2.0;
+const kWaterWatchMax = 7.0;
+
+/// Which band an added-water reading falls in (descending: lower is better).
+/// Colour only — water never feeds the A/B/C pour grade.
+QualityLevel waterLevel(double value) => value <= kWaterGoodMax
+    ? QualityLevel.good
+    : (value <= kWaterWatchMax ? QualityLevel.watch : QualityLevel.low);
+
 class QualityBand {
   const QualityBand({required this.goodMin, required this.watchMin});
   final double goodMin;

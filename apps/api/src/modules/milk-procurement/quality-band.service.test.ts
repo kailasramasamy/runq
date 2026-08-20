@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { bandLevel, gradeFromBands, type MetricBands } from './quality-band.service';
 
-// Cow-family effective bands (mirrors the seed): FAT 4.0/3.5, SNF 8.5/8.0.
+// Cow-family effective bands (mirrors the seed): FAT 4.0/3.5, SNF 8.0/7.5.
 const COW: MetricBands = {
   fat: { goodMin: 4.0, watchMin: 3.5 },
-  snf: { goodMin: 8.5, watchMin: 8.0 },
+  snf: { goodMin: 8.0, watchMin: 7.5 },
   clr: { goodMin: 27, watchMin: 26 },
 };
 // Buffalo runs far richer — proves grading is milk-type aware, not global.
@@ -34,7 +34,7 @@ describe('gradeFromBands — analyzer (fat/snf)', () => {
     expect(gradeFromBands(COW, { fat: 4.2, snf: 8.6 })).toBe('a');
   });
   it('takes the worse of fat/snf (watered milk: good fat, low snf → C)', () => {
-    expect(gradeFromBands(COW, { fat: 4.5, snf: 7.5 })).toBe('c');
+    expect(gradeFromBands(COW, { fat: 4.5, snf: 7.2 })).toBe('c');
   });
   it('grades B when the worse metric is only watch', () => {
     expect(gradeFromBands(COW, { fat: 3.7, snf: 8.6 })).toBe('b');

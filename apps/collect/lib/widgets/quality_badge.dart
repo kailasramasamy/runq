@@ -11,7 +11,8 @@ import '../l10n/l10n_helpers.dart';
 ///  - valueLabel → "4.2 FAT, 8.6 SNF · A"
 enum QualityFormat { full, compact, valueLabel }
 
-/// Pill badge showing FAT · SNF · Water · Grade, coloured by grade. Pass
+/// Pill badge showing FAT · SNF · Water · Grade. FAT/SNF take their configured
+/// band colour; water takes its own fixed descending scale ([waterLevel]). Pass
 /// [format], or the legacy [compact] shortcut. Water % is omitted when null.
 class QualityBadge extends StatelessWidget {
   const QualityBadge({
@@ -87,7 +88,7 @@ class QualityBadge extends StatelessWidget {
       if (water != null)
         TextSpan(
           text: valueFirst ? '  ·  ${water!.toStringAsFixed(1)} W' : '  ·  W ${water!.toStringAsFixed(1)}',
-          style: muted,
+          style: muted.copyWith(color: waterColor(water, t)),
         ),
       if (hasGrade) ...[sep, gradeSpan],
     ];
@@ -149,6 +150,11 @@ class QualityBadge extends StatelessWidget {
     final level = bands.levelFor(milkType, metric, value);
     return level == null ? null : levelColor(level, t);
   }
+
+  /// Colour for an added-water reading — its own descending scale, since water
+  /// is not a [QualityBands] metric. Null when there is no reading.
+  static Color? waterColor(double? value, DhenuTokens t) =>
+      value == null ? null : levelColor(waterLevel(value), t);
 
   static Color _gradeColor(Grade g, DhenuTokens t) {
     switch (g) {
