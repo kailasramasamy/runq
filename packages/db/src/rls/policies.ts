@@ -114,6 +114,7 @@ export const RLS_TABLES = [
   'integration_logs',
   'bill_sync_sources',
   'bill_sync_logs',
+  'partner_api_keys',
   'extraction_corrections',
   'webhook_endpoints',
   'webhook_events',

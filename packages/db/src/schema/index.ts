@@ -66,6 +66,7 @@ export * from './dashboard/widgets';
 export * from './dashboard/scheduled-reports';
 export * from './integrations/integrations';
 export * from './integrations/bill-sync-sources';
+export * from './integrations/partner-api-keys';
 export * from './ap/payment-schedules';
 export * from './hr/expense-claims';
 export * from './hr/departments';

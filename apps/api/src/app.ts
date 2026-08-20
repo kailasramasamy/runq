@@ -38,6 +38,7 @@ import { vendorPortalRoutes } from './modules/ap/vendor-portal.routes';
 import { reportsRoutes } from './modules/reports/routes';
 import { integrationRoutes } from './modules/integrations/routes';
 import { billSyncPushRoutes } from './modules/bill-sync/push.routes';
+import { partnerApiRoutes } from './modules/partner-api/routes';
 import { billSyncAdminRoutes } from './modules/bill-sync/admin.routes';
 import { workflowRoutes } from './modules/workflows/routes';
 import { vendorManagementRoutes } from './modules/vendor-management/routes';
@@ -114,6 +115,7 @@ export async function buildApp() {
   }, { prefix: '/api/v1/public' });
   await app.register(webhookRoutes, { prefix: '/api/v1/webhooks' });
   await app.register(billSyncPushRoutes, { prefix: '/api/v1/bill-sync' });
+  await app.register(partnerApiRoutes, { prefix: '/api/v1/partner' });
   await app.register(invoicePrintRoutes, { prefix: '/api/v1/ar/invoices' });
   // Public token-signed milk-procurement statement PDFs (WhatsApp document fetch).
   await app.register(mpStatementRoutes, { prefix: '/api/v1/mp' });
