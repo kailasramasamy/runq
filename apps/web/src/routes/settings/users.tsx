@@ -23,6 +23,8 @@ import { useToast } from '@/components/ui';
 import { AddEmployeeSection } from '@/components/settings/add-employee-section';
 import { InviteUserSection } from '@/components/settings/invite-user-section';
 import { TenantModulesCard, ModuleGrantEditor } from '@/components/settings/module-access';
+import { DhenuAccessCell } from '@/components/settings/dhenu-app-access';
+import { useMpAppAccess, type MpAppAccessRow } from '@/hooks/queries/use-milk-procurement';
 import {
   assignableRoleOptions,
   isInlineEditableRole,
@@ -42,12 +44,15 @@ function UserRow({
   isSelf,
   actorRole,
   enabledModules,
+  appAccess,
   onDelete,
 }: {
   user: TenantUser;
   isSelf: boolean;
   actorRole?: string;
   enabledModules: ModuleCode[];
+  /** Dhenu app-access row for this user; undefined when the module is off. */
+  appAccess?: MpAppAccessRow;
   onDelete: (user: TenantUser) => void;
 }) {
   const updateUser = useUpdateUser();
@@ -94,6 +99,11 @@ function UserRow({
       <TableCell>
         <ModuleGrantEditor user={user} enabledModules={enabledModules} />
       </TableCell>
+      {enabledModules.includes('milk_procurement') && (
+        <TableCell>
+          <DhenuAccessCell row={appAccess} />
+        </TableCell>
+      )}
       <TableCell>
         <Badge variant={user.isActive ? 'success' : 'default'}>
           {user.isActive ? 'Active' : 'Inactive'}
@@ -129,6 +139,14 @@ export function UsersPage() {
   const { toast } = useToast();
 
   const enabledModules = modulesData?.data.enabledModules ?? [];
+  // Only fetched when the module is on — the endpoint sits behind the
+  // milk_procurement gate and would 403 for everyone else.
+  const mpEnabled = enabledModules.includes('milk_procurement');
+  const { data: appAccessData } = useMpAppAccess(mpEnabled);
+  const appAccessByUser = useMemo(
+    () => new Map((appAccessData?.data ?? []).map((r) => [r.userId, r])),
+    [appAccessData],
+  );
   const [deleteTarget, setDeleteTarget] = useState<TenantUser | null>(null);
   const [search, setSearch] = useState('');
 
@@ -232,6 +250,12 @@ export function UsersPage() {
                   <span className="text-xs text-zinc-500">Modules</span>
                   <ModuleGrantEditor user={u} enabledModules={enabledModules} />
                 </div>
+                {mpEnabled && (
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-xs text-zinc-500">Dhenu app</span>
+                    <DhenuAccessCell row={appAccessByUser.get(u.id)} />
+                  </div>
+                )}
                 {canManage && (
                   <div className="mt-2 flex justify-end">
                     <Button
@@ -260,16 +284,17 @@ export function UsersPage() {
                 <Th>Email</Th>
                 <Th>Role</Th>
                 <Th>Modules</Th>
+                {mpEnabled && <Th>Dhenu app</Th>}
                 <Th>Status</Th>
                 <Th align="right">Actions</Th>
               </tr>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableSkeleton rows={4} cols={6} />
+                <TableSkeleton rows={4} cols={mpEnabled ? 7 : 6} />
               ) : filteredUsers.length === 0 ? (
                 <TableEmpty
-                  colSpan={6}
+                  colSpan={mpEnabled ? 7 : 6}
                   message={query ? 'No users match your search.' : 'No users yet. Add one above.'}
                 />
               ) : (
@@ -280,6 +305,7 @@ export function UsersPage() {
                     isSelf={u.id === currentUser?.id}
                     actorRole={currentUser?.role}
                     enabledModules={enabledModules}
+                    appAccess={appAccessByUser.get(u.id)}
                     onDelete={setDeleteTarget}
                   />
                 ))

@@ -134,6 +134,7 @@ export const MP_KEYS = {
   collection: (f?: unknown) => ['mp', 'reports', 'collection', f] as const,
   qualityBands: (nodeId?: string) => ['mp', 'quality-bands', nodeId ?? null] as const,
   qualityBandsConfig: (nodeId?: string) => ['mp', 'quality-bands-config', nodeId ?? null] as const,
+  appAccess: () => ['mp', 'app-access'] as const,
 };
 
 function qs(params: Record<string, string | number | boolean | undefined>): string {
@@ -1069,5 +1070,40 @@ export function useUpsertQualityBands() {
   return useMutation({
     mutationFn: (d: UpsertQualityBandsInput) => api.put<ApiSuccess<void>>(`${BASE}/quality-bands`, d),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'quality-bands'] }),
+  });
+}
+
+// ── Dhenu app access ──────────────────────────────────────────────────────
+// Who may sign in to the mobile app. Dhenu login resolves a phone against
+// mp_credentials, so a web user — however privileged — is turned away until one
+// is provisioned. Farmers and operators get theirs from their own record; this
+// is the grant for owners/accountants who operate centres from the app.
+export interface MpAppAccessRow {
+  userId: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  granted: boolean;
+  credentialRole: 'farmer' | 'field_operator' | 'admin' | null;
+  grantable: boolean;
+}
+
+export function useMpAppAccess(enabled = true) {
+  return useQuery({
+    queryKey: MP_KEYS.appAccess(),
+    queryFn: () => api.get<ApiSuccess<MpAppAccessRow[]>>(`${BASE}/app-access`),
+    enabled,
+  });
+}
+
+export function useSetMpAppAccess() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, granted }: { userId: string; granted: boolean }) =>
+      granted
+        ? api.post<ApiSuccess<MpAppAccessRow>>(`${BASE}/app-access/${userId}`, {})
+        : api.delete<ApiSuccess<MpAppAccessRow>>(`${BASE}/app-access/${userId}`),
+    onSuccess: () => c.invalidateQueries({ queryKey: MP_KEYS.appAccess() }),
   });
 }

@@ -10,7 +10,7 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 export interface UpsertCredentialInput {
   tenantId: string;
   phone: string;
-  role: 'farmer' | 'field_operator';
+  role: 'farmer' | 'field_operator' | 'admin';
   farmerId?: string | null;
   userId?: string | null;
 }

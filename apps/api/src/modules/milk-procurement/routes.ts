@@ -20,6 +20,7 @@ import { billingRoutes } from './billing.routes';
 import { configRoutes } from './config.routes';
 import { reportRoutes } from './report.routes';
 import { accountRoutes } from './account.routes';
+import { appAccessRoutes } from './app-access.routes';
 
 /**
  * Dhenu milk-procurement module. Mounted at /api/v1/milk-procurement behind the
@@ -50,4 +51,6 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(reportRoutes, { prefix: '/reports' });
   // Self-serve account deletion (farmer / field operator).
   await app.register(accountRoutes, { prefix: '/account' });
+  // Who may sign in to the Dhenu app (web Settings → Users toggle).
+  await app.register(appAccessRoutes, { prefix: '/app-access' });
 };

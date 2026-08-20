@@ -58,6 +58,14 @@ async function demoOtpFor(db: FastifyInstance['db'], cred: MpCredentialRow): Pro
   return dobToDDMMYY(cred.dateOfBirth);
 }
 
+// The web role a credential implies, or null for an 'admin' credential — that
+// one only says "may sign in to the app". The person behind it already holds an
+// owner/accountant account (which maps to the app's admin persona), so writing
+// the credential role onto `users` would demote them.
+function webRoleFor(cred: MpCredentialRow): 'farmer' | 'field_operator' | null {
+  return cred.role === 'admin' ? null : cred.role;
+}
+
 // Re-assert a linked credential's Dhenu role on the user + tenant membership on
 // every login. An admin editing this person in Settings → Users can flip their
 // tenant role to the web default 'viewer', which strips `milk_procurement` and
@@ -66,14 +74,16 @@ async function demoOtpFor(db: FastifyInstance['db'], cred: MpCredentialRow): Pro
 // credential proves they're a Dhenu user, so heal it here. Only promotes FROM
 // 'viewer', leaving a deliberate owner/accountant grant intact.
 async function healDhenuRole(db: FastifyInstance['db'], user: any, cred: MpCredentialRow) {
-  await db.update(userTenants).set({ role: cred.role }).where(and(
+  const role = webRoleFor(cred);
+  if (!role) return user;
+  await db.update(userTenants).set({ role }).where(and(
     eq(userTenants.userId, user.id),
     eq(userTenants.tenantId, cred.tenantId),
     eq(userTenants.role, 'viewer'),
   ));
   if (user.role === 'viewer') {
-    await db.update(users).set({ role: cred.role }).where(eq(users.id, user.id));
-    return { ...user, role: cred.role };
+    await db.update(users).set({ role }).where(eq(users.id, user.id));
+    return { ...user, role };
   }
   return user;
 }
@@ -85,6 +95,7 @@ async function healDhenuRole(db: FastifyInstance['db'], user: any, cred: MpCrede
 async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRow) {
   const db = app.db;
   const phone = normalisePhone(cred.phone);
+  const credRole = webRoleFor(cred);
   let user;
   if (cred.userId) {
     [user] = await db.select().from(users).where(eq(users.id, cred.userId)).limit(1);
@@ -103,17 +114,22 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
     if (user) {
       // Promote only the powerless default so the operator/farmer flow resolves
       // (role gates node access) — never downgrade a privileged web user.
-      if (user.role === 'viewer') {
-        await db.update(users).set({ role: cred.role }).where(eq(users.id, user.id));
-        await db.update(userTenants).set({ role: cred.role }).where(and(
+      if (credRole && user.role === 'viewer') {
+        await db.update(users).set({ role: credRole }).where(eq(users.id, user.id));
+        await db.update(userTenants).set({ role: credRole }).where(and(
           eq(userTenants.userId, user.id),
           eq(userTenants.tenantId, cred.tenantId),
           eq(userTenants.role, 'viewer'),
         ));
-        user = { ...user, role: cred.role };
+        user = { ...user, role: credRole };
       }
+    } else if (!credRole) {
+      // An admin credential is granted FROM a web user, so its user must exist.
+      // Minting one here would have to invent a web role — refuse instead of
+      // guessing, and let the owner re-grant from Settings → Users.
+      throw new UnauthorizedError('This Dhenu access is no longer linked to a user');
     } else {
-      let name = cred.role === 'farmer' ? 'Farmer' : 'Field Operator';
+      let name = credRole === 'farmer' ? 'Farmer' : 'Field Operator';
       if (cred.farmerId) {
         const [f] = await db.select({ name: mpFarmers.name }).from(mpFarmers)
           .where(eq(mpFarmers.id, cred.farmerId)).limit(1);
@@ -127,13 +143,13 @@ async function resolveOrProvisionUser(app: FastifyInstance, cred: MpCredentialRo
           email: `mp-${phone}@dhenu.local`,
           name,
           phone,
-          role: cred.role,
+          role: credRole,
           passwordHash: randomHash,
         })
         .returning();
     }
     await db.update(mpCredentials).set({ userId: user.id }).where(eq(mpCredentials.id, cred.id));
-    await ensureMembership(db, user.id, cred.tenantId, cred.role);
+    await ensureMembership(db, user.id, cred.tenantId, credRole ?? user.role);
   }
 
   // Re-assert the credential's role on the tenant membership (see healDhenuRole)

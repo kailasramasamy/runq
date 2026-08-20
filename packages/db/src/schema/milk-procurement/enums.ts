@@ -63,4 +63,4 @@ export const mpOperatorRole = pgEnum('mp_operator_role', ['operator', 'owner']);
 export const mpCompType = pgEnum('mp_comp_type', ['per_litre_commission', 'fixed_salary']);
 // Dhenu app login personas (independent of HR `employees` auth). Each maps 1:1
 // to the matching `user_role` value minted on first login.
-export const mpCredentialRole = pgEnum('mp_credential_role', ['farmer', 'field_operator']);
+export const mpCredentialRole = pgEnum('mp_credential_role', ['farmer', 'field_operator', 'admin']);
