@@ -69,6 +69,8 @@ export class ConfigService {
       qualityBonusAccountId: input.qualityBonusAccountId ?? null,
       advanceAccountId: input.advanceAccountId ?? null,
       feedLoanAccountId: input.feedLoanAccountId ?? null,
+      milkSaleReceivableAccountId: input.milkSaleReceivableAccountId ?? null,
+      milkSaleIncomeAccountId: input.milkSaleIncomeAccountId ?? null,
       rawMilkInventoryAccountId: input.rawMilkInventoryAccountId ?? null,
       commissionExpenseAccountId: input.commissionExpenseAccountId ?? null,
       rawMilkWarehouseId: input.rawMilkWarehouseId ?? null,

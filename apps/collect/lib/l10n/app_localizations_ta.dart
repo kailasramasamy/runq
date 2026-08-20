@@ -1689,7 +1689,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get farmerPaymentsGrossMilk => 'பால் மதிப்பு (அடிப்படை)';
 
   @override
-  String get farmerPaymentsEstimatedDeduction => 'முன்பண வசூல் (மதிப்பீடு)';
+  String get farmerPaymentsEstimatedDeduction => 'முன்பணப் பிடிப்பு';
 
   @override
   String get farmerPaymentsStatusPending => 'நிலுவையில்';
@@ -3119,7 +3119,7 @@ class AppLocalizationsTa extends AppLocalizations {
   String get farmerPaymentsSegPayouts => 'கொடுப்பனவுகள்';
 
   @override
-  String get farmerPaymentsSegLedger => 'முன்பணம் & கடன்';
+  String get farmerPaymentsSegLedger => 'முன்பணம்';
 
   @override
   String get farmerPaymentsLastPayout => 'கடைசி கொடுப்பனவு';
@@ -3294,4 +3294,92 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get paymentsBillStatusDue => 'நிலுவை';
+
+  @override
+  String get farmerSaleTitle => 'விவசாயிக்கு விற்க';
+
+  @override
+  String get farmerSaleRecord => 'விற்பனையை பதிவு செய்';
+
+  @override
+  String get farmerSaleQtyHint => 'அளவு';
+
+  @override
+  String get farmerSaleRateHint => 'விலை / லி';
+
+  @override
+  String get farmerSaleInvalidEntry => 'லிட்டர் மற்றும் விலையை உள்ளிடவும்';
+
+  @override
+  String get farmerSaleSaved => 'விற்பனை பதிவானது';
+
+  @override
+  String farmerSaleAmountNote(String amount) {
+    return '$amount — அடுத்த பணத்திலிருந்து பிடிக்கப்படும்';
+  }
+
+  @override
+  String get farmerPaymentsSold => 'விவசாயிக்கு விற்பனை';
+
+  @override
+  String farmerPaymentsSaleDue(String amount) {
+    return 'கொள்முதல் $amount';
+  }
+
+  @override
+  String get farmerPaymentsBought => 'எங்களிடம் வாங்கியது';
+
+  @override
+  String get farmerPaymentsEarlierPurchases => 'முந்தைய கொள்முதல்கள்';
+
+  @override
+  String get farmerPaymentsSegSold => 'விற்பனை';
+
+  @override
+  String get farmerSaleNoneYet => 'இந்த விவசாயிக்கு இதுவரை எதுவும் விற்கவில்லை';
+
+  @override
+  String get farmerSaleKindMilk => 'பால்';
+
+  @override
+  String get farmerSaleKindProduct => 'பொருள்';
+
+  @override
+  String get farmerSaleProductHint => 'பொருளைத் தேர்ந்தெடு';
+
+  @override
+  String get farmerSaleNoProducts => 'விற்க பொருட்கள் இல்லை';
+
+  @override
+  String get productPickerLoadError => 'பொருட்களை ஏற்ற முடியவில்லை';
+
+  @override
+  String get productPickerNoMatch => 'பொருந்தும் பொருட்கள் இல்லை';
+
+  @override
+  String get commonSave => 'சேமி';
+
+  @override
+  String get farmerSaleEditTitle => 'விற்பனையைத் திருத்து';
+
+  @override
+  String get farmerSaleUpdated => 'விற்பனை புதுப்பிக்கப்பட்டது';
+
+  @override
+  String get farmerSaleEdit => 'திருத்து';
+
+  @override
+  String get farmerSaleDelete => 'நீக்கு';
+
+  @override
+  String get farmerSaleDeleteConfirm =>
+      'இந்த விற்பனையை நீக்கவா? இனி பிடிக்கப்படாது.';
+
+  @override
+  String get farmerSaleDeleted => 'விற்பனை நீக்கப்பட்டது';
+
+  @override
+  String farmerPaymentsStillOwed(String amount) {
+    return 'இந்தப் பணத்திற்குப் பிறகும் $amount பாக்கி';
+  }
 }

@@ -1676,7 +1676,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get farmerPaymentsGrossMilk => 'ಹಾಲಿನ ಮೌಲ್ಯ (ಮೂಲ)';
 
   @override
-  String get farmerPaymentsEstimatedDeduction => 'ಮುಂಗಡ ವಸೂಲಿ (ಅಂದಾಜು)';
+  String get farmerPaymentsEstimatedDeduction => 'ಮುಂಗಡ ವಸೂಲಿ';
 
   @override
   String get farmerPaymentsStatusPending => 'ಬಾಕಿ ಇದೆ';
@@ -3096,7 +3096,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get farmerPaymentsSegPayouts => 'ಪಾವತಿಗಳು';
 
   @override
-  String get farmerPaymentsSegLedger => 'ಮುಂಗಡ ಮತ್ತು ಸಾಲ';
+  String get farmerPaymentsSegLedger => 'ಮುಂಗಡ';
 
   @override
   String get farmerPaymentsLastPayout => 'ಕೊನೆಯ ಪಾವತಿ';
@@ -3269,4 +3269,92 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get paymentsBillStatusDue => 'ಬಾಕಿ';
+
+  @override
+  String get farmerSaleTitle => 'ರೈತರಿಗೆ ಮಾರಾಟ';
+
+  @override
+  String get farmerSaleRecord => 'ಮಾರಾಟ ದಾಖಲಿಸಿ';
+
+  @override
+  String get farmerSaleQtyHint => 'ಪ್ರಮಾಣ';
+
+  @override
+  String get farmerSaleRateHint => 'ದರ / ಲೀ';
+
+  @override
+  String get farmerSaleInvalidEntry => 'ಲೀಟರ್ ಮತ್ತು ದರವನ್ನು ನಮೂದಿಸಿ';
+
+  @override
+  String get farmerSaleSaved => 'ಮಾರಾಟ ದಾಖಲಾಗಿದೆ';
+
+  @override
+  String farmerSaleAmountNote(String amount) {
+    return '$amount — ಮುಂದಿನ ಪಾವತಿಯಿಂದ ಕಡಿತವಾಗುತ್ತದೆ';
+  }
+
+  @override
+  String get farmerPaymentsSold => 'ರೈತರಿಗೆ ಮಾರಾಟ';
+
+  @override
+  String farmerPaymentsSaleDue(String amount) {
+    return 'ಖರೀದಿಗಳು $amount';
+  }
+
+  @override
+  String get farmerPaymentsBought => 'ನಮ್ಮಿಂದ ಖರೀದಿಸಿದ್ದು';
+
+  @override
+  String get farmerPaymentsEarlierPurchases => 'ಹಿಂದಿನ ಖರೀದಿಗಳು';
+
+  @override
+  String get farmerPaymentsSegSold => 'ಮಾರಾಟ';
+
+  @override
+  String get farmerSaleNoneYet => 'ಈ ರೈತರಿಗೆ ಇನ್ನೂ ಏನೂ ಮಾರಿಲ್ಲ';
+
+  @override
+  String get farmerSaleKindMilk => 'ಹಾಲು';
+
+  @override
+  String get farmerSaleKindProduct => 'ಉತ್ಪನ್ನ';
+
+  @override
+  String get farmerSaleProductHint => 'ಉತ್ಪನ್ನ ಆಯ್ಕೆಮಾಡಿ';
+
+  @override
+  String get farmerSaleNoProducts => 'ಮಾರಾಟಕ್ಕೆ ಉತ್ಪನ್ನಗಳಿಲ್ಲ';
+
+  @override
+  String get productPickerLoadError => 'ಉತ್ಪನ್ನಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get productPickerNoMatch => 'ಹೊಂದುವ ಉತ್ಪನ್ನಗಳಿಲ್ಲ';
+
+  @override
+  String get commonSave => 'ಉಳಿಸಿ';
+
+  @override
+  String get farmerSaleEditTitle => 'ಮಾರಾಟ ತಿದ್ದಿ';
+
+  @override
+  String get farmerSaleUpdated => 'ಮಾರಾಟ ನವೀಕರಿಸಲಾಗಿದೆ';
+
+  @override
+  String get farmerSaleEdit => 'ತಿದ್ದಿ';
+
+  @override
+  String get farmerSaleDelete => 'ಅಳಿಸಿ';
+
+  @override
+  String get farmerSaleDeleteConfirm =>
+      'ಈ ಮಾರಾಟವನ್ನು ಅಳಿಸಬೇಕೆ? ಇದು ಇನ್ನು ಕಡಿತವಾಗುವುದಿಲ್ಲ.';
+
+  @override
+  String get farmerSaleDeleted => 'ಮಾರಾಟ ಅಳಿಸಲಾಗಿದೆ';
+
+  @override
+  String farmerPaymentsStillOwed(String amount) {
+    return 'ಈ ಪಾವತಿಯ ನಂತರವೂ $amount ಬಾಕಿ';
+  }
 }

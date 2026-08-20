@@ -433,10 +433,55 @@ class MpRepo {
     final out = (m['outstanding'] as Map<String, dynamic>?) ?? const {};
     return (
       balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
+      saleDue: (out['farmerSale'] as num?)?.toDouble() ?? 0.0,
       advanceDue: (out['advance'] as num?)?.toDouble() ?? 0.0,
       feedLoanDue: (out['feedLoan'] as num?)?.toDouble() ?? 0.0,
       entries: entries,
     );
+  }
+
+  /// Goods sold to a farmer over a window. A farmer token is forced to their own
+  /// rows server-side, so [farmerId] is only meaningful for operators.
+  Future<List<MpFarmerSale>> farmerSales({
+    String? farmerId,
+    String? from,
+    String? to,
+    bool includeReversed = false,
+    int limit = 200,
+  }) async {
+    final res = await _api.get(
+      '$_base/farmer-sales${_qs({
+        'farmerId': farmerId,
+        'from': from,
+        'to': to,
+        if (includeReversed) 'includeReversed': true,
+        'limit': limit,
+      })}',
+    );
+    return _list(res).map(MpFarmerSale.fromJson).toList();
+  }
+
+  /// Record goods sold TO a farmer. Bulk-milk litres come off the centre's
+  /// available-to-dispatch; either way the amount is recovered on the farmer's
+  /// next cycle, ahead of advances.
+  Future<void> createFarmerSale(Map<String, dynamic> body) async {
+    await _api.post('$_base/farmer-sales', body);
+  }
+
+  /// Correct a recorded sale. Rejected once a cycle has recovered it.
+  Future<void> updateFarmerSale(String id, Map<String, dynamic> body) async {
+    await _api.patch('$_base/farmer-sales/$id', body);
+  }
+
+  /// Drop a sale outright (the same-day mis-key fix). Rejected once recovered.
+  Future<void> deleteFarmerSale(String id) async {
+    await _api.delete('$_base/farmer-sales/$id');
+  }
+
+  /// The counter catalogue — what may be sold besides bulk milk.
+  Future<List<MpSellableItem>> sellableItems() async {
+    final res = await _api.get('$_base/farmer-sales/items');
+    return _list(res).map(MpSellableItem.fromJson).toList();
   }
 
   /// The farmer's payout statements — server-authoritative lines joined with

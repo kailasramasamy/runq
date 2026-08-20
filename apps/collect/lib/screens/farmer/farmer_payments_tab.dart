@@ -19,6 +19,7 @@ import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/farmer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -41,6 +42,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
     ref.invalidate(cycleConfigProvider);
     ref.invalidate(farmerCyclePeriodsProvider);
     ref.invalidate(farmerLedgerProvider);
+    ref.invalidate(farmerPurchasesProvider);
     ref.invalidate(farmerPayoutLinesProvider);
     await Future.wait([
       ref.read(farmerCyclePeriodsProvider.future),
@@ -60,6 +62,9 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final cyclePoursAsync = current == null
         ? const AsyncValue<List<MpPour>>.data([])
         : ref.watch(farmerCyclePoursProvider(current));
+    final purchases = current == null
+        ? const <MpFarmerSale>[]
+        : ref.watch(farmerPurchasesProvider(current)).asData?.value ?? const [];
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -71,7 +76,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
         children: [
           _stickyHeader(t, l),
           const SizedBox(height: DhenuSpacing.lg),
-          _netPayableCard(context, t, l, cyclePoursAsync, ledgerAsync, current),
+          _netPayableCard(context, t, l, cyclePoursAsync, ledgerAsync, purchases, current),
           const SizedBox(height: DhenuSpacing.xl),
           _historyHeader(t, l),
           const SizedBox(height: DhenuSpacing.sm),
@@ -111,6 +116,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
     AppLocalizations l,
     AsyncValue<List<MpPour>> cyclePoursAsync,
     AsyncValue<MpFarmerLedger> ledgerAsync,
+    List<MpFarmerSale> purchases,
     MpCyclePeriod? period,
   ) {
     final periodLabel = period?.label ?? '';
@@ -136,6 +142,15 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final outstanding = balance > 0 ? balance : 0.0;
     final estDeduction = outstanding > gross ? gross : outstanding;
     final netPayable = gross - estDeduction;
+    // Split the one estimate the way the cycle actually recovers it — milk the
+    // farmer bought from us first, then advances and loans. Derived from the
+    // total, not re-summed, so the card can never disagree with itself.
+    final boughtDed = (ledger?.saleDue ?? 0).clamp(0, estDeduction).toDouble();
+    final advanceDed = estDeduction - boughtDed;
+    // What this payment can't cover. The rows above already name everything
+    // being recovered, so repeating those totals in a warning strip said
+    // nothing twice; only the leftover is news.
+    final carryForward = outstanding - estDeduction;
     final cycleLabel = periodLabel.isEmpty ? l.farmerHomeThisCycle : periodLabel.toUpperCase();
 
     final proj = period == null
@@ -201,7 +216,8 @@ class FarmerPaymentsTab extends ConsumerWidget {
             segments: [
               BreakdownSegment(baseMilk.clamp(0, double.infinity), t.gradeA),
               if (hasBonus) BreakdownSegment(qualityBonus, t.brand),
-              if (estDeduction > 0) BreakdownSegment(estDeduction, t.gradeC),
+              if (boughtDed > 0) BreakdownSegment(boughtDed, t.gradeB),
+              if (advanceDed > 0) BreakdownSegment(advanceDed, t.gradeC),
             ],
           ),
           const SizedBox(height: DhenuSpacing.lg),
@@ -211,14 +227,22 @@ class FarmerPaymentsTab extends ConsumerWidget {
             _itemRow(t, t.brand, l.farmerPaymentsQualityBonus,
                 '+ ${rupees(qualityBonus)}', t.gradeA),
           ],
-          if (estDeduction > 0) ...[
+          if (boughtDed > 0) ...[
+            _hairline(t),
+            _itemRow(t, t.gradeB, l.farmerPaymentsBought,
+                '− ${rupees(boughtDed)}', t.gradeC),
+            // Always open, never behind a tap: one number quietly shrinking the
+            // payment is exactly what a trader-farmer needs to be able to check.
+            ..._purchaseLines(t, l, purchases, boughtDed),
+          ],
+          if (advanceDed > 0) ...[
             _hairline(t),
             _itemRow(t, t.gradeC, l.farmerPaymentsEstimatedDeduction,
-                '− ${rupees(estDeduction)}', t.gradeC),
+                '− ${rupees(advanceDed)}', t.gradeC),
           ],
-          if (balance > 0) ...[
+          if (carryForward > 1) ...[
             const SizedBox(height: DhenuSpacing.md),
-            _advanceChip(t, l, balance),
+            _chip(t, l.farmerPaymentsStillOwed(rupees(carryForward))),
           ],
         ],
       ),
@@ -247,10 +271,63 @@ class FarmerPaymentsTab extends ConsumerWidget {
     );
   }
 
+  /// Each purchase in this cycle, under the deduction it adds up to. What the
+  /// estimate covers beyond them — a purchase from an earlier cycle that the
+  /// milk was too small to recover — is named rather than silently dropped.
+  ///
+  /// Two lines per purchase: WHAT was bought, then when and at what rate. One
+  /// long string wrapped mid-phrase and pushed the amount out of line, which is
+  /// the opposite of checkable.
+  List<Widget> _purchaseLines(
+      DhenuTokens t, AppLocalizations l, List<MpFarmerSale> sales, double deducted) {
+    final listed = sales.fold<double>(0, (s, x) => s + x.amount);
+    final earlier = deducted - listed;
+    return [
+      for (final s in sales)
+        _detailLine(
+          t,
+          // "2 × 500g Pure Cow Ghee", not "2 500g …", which reads as 2500g.
+          '${_trimQty(s.qty)}${s.isMilk ? ' ' : ' × '}${s.unit} '
+              '${s.itemName ?? (s.milkType == null ? '' : milkTypeL10n(l, s.milkType!))}',
+          '${shortDate(s.saleDate)}'
+              '${s.shift == null ? '' : ' · ${s.shift == 'am' ? l.shiftAm : l.shiftPm}'}'
+              ' · ${rupees(s.ratePerUnit)}/${s.unit}',
+          rupees(s.amount),
+        ),
+      if (earlier > 1)
+        _detailLine(t, l.farmerPaymentsEarlierPurchases, null, rupees(earlier)),
+    ];
+  }
+
+  /// "2" not "2.0", but "1.5" survives — pack counts read as whole numbers.
+  String _trimQty(double q) =>
+      q % 1 == 0 ? q.toStringAsFixed(0) : q.toStringAsFixed(1);
+
+  Widget _detailLine(
+          DhenuTokens t, String title, String? subtitle, String amount) =>
+      Padding(
+        padding: const EdgeInsets.only(
+            left: DhenuSpacing.lg, bottom: DhenuSpacing.sm),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: DhenuText.caption.copyWith(color: t.ink)),
+                  if (subtitle != null)
+                    Text(subtitle,
+                        style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                ]),
+          ),
+          const SizedBox(width: DhenuSpacing.sm),
+          Text(amount, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        ]),
+      );
+
   Widget _hairline(DhenuTokens t) =>
       Divider(height: 1, thickness: 1, color: t.hairline);
 
-  Widget _advanceChip(DhenuTokens t, AppLocalizations l, double balance) {
+  Widget _chip(DhenuTokens t, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.md, vertical: DhenuSpacing.sm),
@@ -264,9 +341,8 @@ class FarmerPaymentsTab extends ConsumerWidget {
         children: [
           Icon(DhenuIcons.warning, size: 14, color: t.gradeC),
           const SizedBox(width: DhenuSpacing.xs),
-          Text(
-            l.farmerPaymentsOutstandingAdvance(rupees(balance.abs())),
-            style: DhenuText.label.copyWith(color: t.gradeC),
+          Flexible(
+            child: Text(label, style: DhenuText.label.copyWith(color: t.gradeC)),
           ),
         ],
       ),

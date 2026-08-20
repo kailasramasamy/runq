@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
+import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -10,12 +12,15 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_segmented.dart';
 import '../../widgets/dhenu_states.dart';
+import '../../widgets/dhenu_toast.dart';
 import '../../widgets/payout_status_chip.dart';
 import '../../widgets/primary_action.dart';
 import 'farmer_ledger_sheet.dart';
+import 'farmer_sale_actions.dart';
+import 'farmer_sale_sheet.dart';
 import 'farmer_payout_history.dart';
 
-enum _PaymentsView { payouts, ledger }
+enum _PaymentsView { payouts, ledger, sold }
 
 /// A farmer's Payments hub, as the VMCC operator sees it. Two halves of the same
 /// money story: what the farmer was paid per cycle (server-authoritative payout
@@ -37,9 +42,11 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
 
   Future<void> _refresh() async {
     ref.invalidate(farmerLedgerProvider(farmer.id));
+    ref.invalidate(farmerSalesProvider(farmer.id));
     ref.invalidate(payoutLinesForFarmerProvider(farmer.id));
     await Future.wait([
       ref.read(farmerLedgerProvider(farmer.id).future),
+      ref.read(farmerSalesProvider(farmer.id).future),
       ref.read(payoutLinesForFarmerProvider(farmer.id).future),
     ]);
   }
@@ -64,13 +71,15 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
             options: [
               (_PaymentsView.payouts, l.farmerPaymentsSegPayouts, null),
               (_PaymentsView.ledger, l.farmerPaymentsSegLedger, null),
+              (_PaymentsView.sold, l.farmerPaymentsSegSold, null),
             ],
           ),
           const SizedBox(height: DhenuSpacing.lg),
-          if (_view == _PaymentsView.payouts)
-            FarmerPayoutHistory(farmer: farmer)
-          else
-            _ledger(t, l),
+          switch (_view) {
+            _PaymentsView.payouts => FarmerPayoutHistory(farmer: farmer),
+            _PaymentsView.ledger => _ledger(t, l),
+            _PaymentsView.sold => _sold(t, l),
+          },
         ],
       ),
     );
@@ -110,8 +119,13 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
         if (d != null && owed > 0) ...[
           const SizedBox(height: DhenuSpacing.xs),
           Text(
-            '${l.farmerPaymentsAdvanceDue(rupees(d.advanceDue))} · '
-            '${l.farmerPaymentsFeedLoanDue(rupees(d.feedLoanDue))}',
+            // Recovery order, so the split reads the way the next cycle pays it.
+            [
+              if (d.saleDue > 0)
+                l.farmerPaymentsSaleDue(rupees(d.saleDue)),
+              l.farmerPaymentsAdvanceDue(rupees(d.advanceDue)),
+              l.farmerPaymentsFeedLoanDue(rupees(d.feedLoanDue)),
+            ].join(' · '),
             style: DhenuText.caption.copyWith(color: t.inkSoft),
           ),
         ],
@@ -152,6 +166,7 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
         icon: DhenuIcons.add,
         onPressed: () => showFarmerLedgerSheet(context, farmer),
       ),
+
       const SizedBox(height: DhenuSpacing.lg),
       ledgerAsync.when(
         loading: () => const DhenuLoadingList(rows: 3),
@@ -160,21 +175,167 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
           title: l.farmerPaymentsLoadError,
           subtitle: '$e',
         ),
-        data: (d) => d.entries.isEmpty
+        // Milk sales have their own tab, with the litres and type this list
+        // cannot show. Leaving them here too read as duplicate advances.
+        data: (d) => _entryList(
+            t, l, d.entries.where((e) => !e.isSale).toList()),
+      ),
+    ]);
+  }
+
+  Widget _entryList(DhenuTokens t, AppLocalizations l, List<MpLedgerEntry> entries) {
+    if (entries.isEmpty) {
+      return DhenuEmptyState(
+          icon: DhenuIcons.receipt, title: l.farmerPaymentsNoEntries);
+    }
+    return DhenuCard(
+      padding: EdgeInsets.zero,
+      child: Column(children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0) Divider(height: 1, color: t.hairline),
+          _entryRow(t, l, entries[i]),
+        ],
+      ]),
+    );
+  }
+
+  // ── Milk sold ─────────────────────────────────────────────────────────────
+
+  /// What this farmer BOUGHT from us — bulk milk or products — with the qty,
+  /// unit and rate the ledger list can't carry. The detail an operator is
+  /// challenged on at the counter.
+  Widget _sold(DhenuTokens t, AppLocalizations l) {
+    final salesAsync = ref.watch(farmerSalesProvider(farmer.id));
+    return Column(children: [
+      PrimaryAction(
+        label: l.farmerSaleTitle,
+        icon: DhenuIcons.milk,
+        onPressed: () async {
+          if (await showFarmerSaleSheet(context, farmer) == true) {
+            ref.invalidate(farmerSalesProvider(farmer.id));
+          }
+        },
+      ),
+      const SizedBox(height: DhenuSpacing.lg),
+      salesAsync.when(
+        loading: () => const DhenuLoadingList(rows: 3),
+        error: (e, _) => DhenuEmptyState(
+          icon: DhenuIcons.cloudOff,
+          title: l.farmerPaymentsLoadError,
+          subtitle: '$e',
+        ),
+        data: (sales) => sales.isEmpty
             ? DhenuEmptyState(
-                icon: DhenuIcons.receipt, title: l.farmerPaymentsNoEntries)
+                icon: DhenuIcons.milk, title: l.farmerSaleNoneYet)
             : DhenuCard(
                 padding: EdgeInsets.zero,
                 child: Column(children: [
-                  for (var i = 0; i < d.entries.length; i++) ...[
+                  for (var i = 0; i < sales.length; i++) ...[
                     if (i > 0) Divider(height: 1, color: t.hairline),
-                    _entryRow(t, l, d.entries[i]),
+                    _saleRow(t, l, sales[i]),
                   ],
                 ]),
               ),
       ),
     ]);
   }
+
+  Widget _saleRow(DhenuTokens t, AppLocalizations l, MpFarmerSale s) {
+    final reversed = s.isReversed;
+    return InkWell(
+      // Tap opens the actions sheet — Edit and Delete both visible, the way a
+      // pour row works. Delete behind a long-press was undiscoverable.
+      onTap: reversed ? null : () => _openActions(l, s),
+      child: Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              '${s.qty.toStringAsFixed(s.qty % 1 == 0 ? 0 : 1)}'
+              '${s.isMilk ? ' ' : ' × '}${s.unit} · ${_soldLabel(l, s)}',
+              style: DhenuText.body.copyWith(
+                color: reversed ? t.inkSoft : t.ink,
+                decoration: reversed ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            const SizedBox(height: DhenuSpacing.xs),
+            Text(
+              '${prettyDate(s.saleDate)}'
+              '${s.shift == null ? '' : ' · ${s.shift == 'am' ? l.shiftAm : l.shiftPm}'}'
+              ' · ${rupees(s.ratePerUnit)}/${s.unit}',
+              style: DhenuText.caption.copyWith(color: t.inkSoft),
+            ),
+          ]),
+        ),
+        Text(
+          rupees(s.amount),
+          style: DhenuText.number(
+              size: 16, color: reversed ? t.inkSoft : t.ink),
+        ),
+        if (!reversed) ...[
+          const SizedBox(width: DhenuSpacing.xs),
+          Icon(DhenuIcons.chevronRight, size: 16, color: t.inkSoft),
+        ],
+      ]),
+      ),
+    );
+  }
+
+  Future<void> _openActions(AppLocalizations l, MpFarmerSale s) async {
+    final action = await showFarmerSaleActions(context, s);
+    // The sheet is gone by now, so the next dialog needs a live tree.
+    if (!mounted) return;
+    switch (action) {
+      case FarmerSaleAction.edit:
+        await _editSale(s);
+      case FarmerSaleAction.delete:
+        await _confirmDelete(l, s);
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _editSale(MpFarmerSale s) async {
+    if (await showFarmerSaleSheet(context, farmer, existing: s) == true) {
+      ref.invalidate(farmerSalesProvider(farmer.id));
+      ref.invalidate(farmerLedgerProvider(farmer.id));
+    }
+  }
+
+  /// Deleting removes the sale AND its deduction, so it asks first — and says
+  /// what stops being deducted, not just "are you sure".
+  Future<void> _confirmDelete(AppLocalizations l, MpFarmerSale s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.farmerSaleDelete),
+        content: Text(l.farmerSaleDeleteConfirm),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l.commonCancel)),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(l.farmerSaleDelete)),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await mpRepo.deleteFarmerSale(s.id);
+      ref.invalidate(farmerSalesProvider(farmer.id));
+      ref.invalidate(farmerLedgerProvider(farmer.id));
+      if (mounted) showDhenuToast(context, l.farmerSaleDeleted);
+    } catch (e) {
+      if (mounted) showDhenuToast(context, '$e', type: DhenuToastType.error);
+    }
+  }
+
+  /// A product names itself; bulk milk names its type.
+  String _soldLabel(AppLocalizations l, MpFarmerSale s) =>
+      s.itemName ?? (s.milkType == null ? '' : milkTypeL10n(l, s.milkType!));
 
   Widget _entryRow(DhenuTokens t, AppLocalizations l, MpLedgerEntry e) {
     // Ledger amounts are always positive; the entry type carries direction.
@@ -200,6 +361,7 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
   }
 
   String _entryLabel(AppLocalizations l, String entryType) => switch (entryType) {
+        'farmer_sale' => l.farmerPaymentsSold,
         'advance_given' => l.farmerPaymentsAdvanceGiven,
         'feed_loan_given' => l.farmerPaymentsFeedLoanGiven,
         'repayment' => l.farmerPaymentsRepaymentLabel,

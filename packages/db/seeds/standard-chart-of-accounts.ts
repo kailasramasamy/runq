@@ -61,6 +61,7 @@ const STANDARD_COA: CoaEntry[] = [
   // Milk procurement (Dhenu) — farmer receivables recovered via payout deductions.
   { code: '1150', name: 'Farmer Advances', type: 'asset', parent: '1100' },
   { code: '1151', name: 'Cattle-Feed Loans', type: 'asset', parent: '1100' },
+  { code: '1152', name: 'Farmer Milk Sales Receivable', type: 'asset', parent: '1100' },
 
   // Fixed Assets
   { code: '1200', name: 'Fixed Assets', type: 'asset', parent: '1000' },
@@ -142,6 +143,7 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '4003', name: 'Export Revenue', type: 'revenue', parent: '4100' },
   { code: '4004', name: 'Sales Returns & Allowances', type: 'revenue', parent: '4100' },
   { code: '4005', name: 'Trade Discounts Given', type: 'revenue', parent: '4100' },
+  { code: '4006', name: 'Sales to Farmers & Traders', type: 'revenue', parent: '4100' },
 
   // Other Income
   { code: '4200', name: 'Other Income', type: 'revenue', parent: '4000' },

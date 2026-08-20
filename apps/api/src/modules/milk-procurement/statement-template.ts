@@ -25,6 +25,28 @@ export interface MilkTypeBreakdown {
   avgSnf: number | null;
 }
 
+/** One deduction the cycle takes off the milk value, with the detail lines the
+ *  farmer needs to check it (which sale, which day). */
+export interface StatementDeduction {
+  type: string;
+  amount: number;
+  lines?: {
+    date: string; qty: number; unit: string; ratePerUnit: number; amount: number;
+    /** One of the two is set: a product names its item, bulk milk its type. */
+    itemName: string | null; milkType: string | null;
+  }[];
+}
+
+/** Gross → deductions → net, as the cycle will actually settle it. */
+export interface StatementSettlement {
+  gross: number;
+  deductions: StatementDeduction[];
+  totalDeductions: number;
+  net: number;
+  /** The cycle hasn't been generated yet, so this is what it WILL recover. */
+  provisional: boolean;
+}
+
 export interface PourStatementData {
   tenantName: string;
   farmer: {
@@ -43,6 +65,8 @@ export interface PourStatementData {
     amLitres: number; pmLitres: number;
     avgFat: number | null; avgSnf: number | null; avgWater: number | null;
   };
+  /** Null when the farmer has nothing to deduct — the milk total is the payout. */
+  settlement: StatementSettlement | null;
   generatedAt: string; // ISO
 }
 
@@ -106,6 +130,73 @@ function byTypeSection(rows: MilkTypeBreakdown[]): string {
     </table>`;
 }
 
+const DEDUCTION_LABEL: Record<string, string> = {
+  farmer_sale: 'Less: purchased from us',
+  advance: 'Less: advance recovered',
+  cattle_feed_loan: 'Less: cattle-feed loan recovered',
+  other: 'Less: other deduction',
+};
+
+/**
+ * The listed purchases and the amount recovered need not match: one bought
+ * after the cycle locked is listed but not yet recovered, and one carried over
+ * from a past cycle is recovered without appearing here. Naming the difference
+ * keeps the block adding up instead of quietly not.
+ */
+function reconcileLine(
+  lines: NonNullable<StatementDeduction['lines']>, recovered: number,
+): string[] {
+  if (!lines.length) return [];
+  const listed = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+  const gap = Math.round((listed - recovered) * 100) / 100;
+  if (Math.abs(gap) < 1) return [];
+  return [gap > 0
+    ? `<em>${inr(gap)} carried to your next payment</em>`
+    : `<em>${inr(-gap)} from purchases before this period</em>`];
+}
+
+/**
+ * Gross → deductions → net. Shown only when something is actually deducted:
+ * for the great majority of farmers the milk total IS the payout, and a block
+ * of zeroes would just invite the question it exists to answer.
+ */
+function settlementSection(st: StatementSettlement | null): string {
+  if (!st || st.totalDeductions <= 0) return '';
+  const rows = st.deductions.filter((d) => d.amount > 0).map((d) => {
+    const lines = d.lines ?? [];
+    const detail = [
+      ...lines.map((l) => {
+        const what = l.itemName ?? milkLabel(l.milkType ?? '');
+        // "2 × 500g Ghee" for a packed product; "80.0 L Cow A1" for bulk milk.
+        const qty = l.milkType
+          ? `${num(l.qty, 1)} ${esc(l.unit)}`
+          : `${num(l.qty, 0)} × ${esc(l.unit)}`;
+        return `${fmtDate(l.date)} · ${qty} ${esc(what)}`
+          + ` @ ₹${num(l.ratePerUnit, 2)}/${esc(l.unit)} · ${inr(l.amount)}`;
+      }),
+      ...reconcileLine(lines, d.amount),
+    ].join('<br/>');
+    return `<tr>
+      <td>${esc(DEDUCTION_LABEL[d.type] ?? DEDUCTION_LABEL.other!)}
+        ${detail ? `<div class="ded-detail">${detail}</div>` : ''}</td>
+      <td class="right">− ${inr(d.amount)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="section-title">Settlement</div>
+    <table class="settle">
+      <tbody>
+        <tr><td>Milk value this period</td><td class="right">${inr(st.gross)}</td></tr>
+        ${rows}
+        <tr class="settle-net">
+          <td>Net payable</td><td class="right grand">${inr(st.net)}</td>
+        </tr>
+      </tbody>
+    </table>
+    ${st.provisional
+      ? '<div class="note">Deductions shown are pending recovery — they will be settled in this cycle\'s payout.</div>'
+      : ''}`;
+}
+
 function bankLine(f: PourStatementData['farmer']): string {
   const parts: string[] = [];
   if (f.bankName || f.bankAccountNumber) {
@@ -143,7 +234,8 @@ export function renderPourStatementHTML(d: PourStatementData): string {
       ${summaryCard('Avg Water %', num(d.totals.avgWater, 1))}
     </div>
     ${byTypeSection(d.byType)}
-    ${d.byType.length > 1 ? '<div class="section-title">Daily detail</div>' : ''}
+    ${settlementSection(d.settlement)}
+    ${d.byType.length > 1 || d.settlement ? '<div class="section-title">Daily detail</div>' : ''}
     <table>
       <thead><tr>
         <th>Date</th><th class="center">Shift</th><th class="center">Type</th>
@@ -157,7 +249,7 @@ export function renderPourStatementHTML(d: PourStatementData): string {
         <td colspan="3" class="tfoot-label">Total</td>
         <td class="right">${num(d.totals.litres, 1)}</td>
         <td colspan="3"></td>
-        <td class="right tfoot-label">Net</td>
+        <td class="right tfoot-label">${d.settlement && d.settlement.totalDeductions > 0 ? 'Gross' : 'Net'}</td>
         <td class="right grand">${inr(d.totals.amount)}</td>
       </tr></tfoot>
     </table>
@@ -313,6 +405,15 @@ const STYLE = `<style>
   .cards { display: flex; gap: 8px; margin-bottom: 14px; }
   .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #5B635C; margin: 2px 0 6px; font-weight: 600; }
   table.breakup { margin-bottom: 16px; }
+  /* Settlement reads as a receipt, not a data table: no zebra, right column
+     carries the money, and the net line is the one the farmer looks for. */
+  table.settle { margin-bottom: 16px; }
+  table.settle tbody td { background: #fff; padding: 6px 8px; }
+  table.settle tbody tr:first-child td { border-top: 1px solid #E9E7DF; }
+  .ded-detail { font-size: 10px; color: #5B635C; margin-top: 2px; }
+  .settle-net td { border-top: 2px solid #0F7A5A; border-bottom: none; font-weight: 700; }
+  .note { font-size: 10px; color: #8a6d1f; background: #FDF6E3; border-radius: 6px;
+    padding: 6px 10px; margin: -8px 0 16px; }
   .card { flex: 1; border: 1px solid #E9E7DF; border-radius: 8px; padding: 8px 10px; }
   .card-v { font-size: 15px; font-weight: 700; color: #14150F; font-variant-numeric: tabular-nums; }
   .card-l { font-size: 10px; color: #5B635C; margin-top: 2px; }

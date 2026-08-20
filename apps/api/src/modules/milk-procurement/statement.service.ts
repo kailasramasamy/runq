@@ -1,10 +1,15 @@
-import { eq } from 'drizzle-orm';
-import { tenants } from '@runq/db';
+import { and, eq, gte, isNull, lte, ne } from 'drizzle-orm';
+import {
+  tenants, items, mpFarmerLedger, mpFarmerSales, mpPayoutCycles, mpPayoutDeductions, mpPayoutLines,
+} from '@runq/db';
 import type { Db } from '@runq/db';
 import { FarmerService } from './farmer.service';
 import { PourService } from './pour.service';
+import { DEDUCTION_TYPES, foldOutstanding, waterfall } from './farmer-ledger';
 import type { MpPrincipal } from './access-scope';
-import type { PourStatementData, StatementPour } from './statement-template';
+import type {
+  PourStatementData, StatementPour, StatementDeduction, StatementSettlement,
+} from './statement-template';
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -81,6 +86,7 @@ export class StatementService {
         receiptNo: r.receiptNo,
       }))
       .sort((a, b) => a.collectionDate.localeCompare(b.collectionDate));
+    const totals = computeTotals(pours);
     const [t] = await this.db.select({ name: tenants.name }).from(tenants)
       .where(eq(tenants.id, this.tenantId)).limit(1);
     return {
@@ -93,8 +99,86 @@ export class StatementService {
       period: { from, to, label: label ?? null },
       pours,
       byType: computeByType(pours),
-      totals: computeTotals(pours),
+      totals,
+      settlement: await this.settlement(farmerId, from, to, totals.amount),
       generatedAt: new Date().toISOString(),
     };
   }
+
+  /**
+   * What the farmer is actually paid: milk value less whatever the cycle
+   * recovers. Reads the generated payout line when there is one — those are the
+   * settled figures — and falls back to a provisional run of the same waterfall
+   * over the outstanding ledger, so a statement pulled mid-cycle still warns the
+   * farmer what is coming off. Null when nothing is owed either way.
+   */
+  private async settlement(
+    farmerId: string, from: string, to: string, gross: number,
+  ): Promise<StatementSettlement | null> {
+    const saleLines = await this.saleDetail(farmerId, from, to);
+    const [line] = await this.db.select({
+      id: mpPayoutLines.id, gross: mpPayoutLines.grossAmount,
+      deducted: mpPayoutLines.deductionTotal, net: mpPayoutLines.netAmount,
+    }).from(mpPayoutLines)
+      .innerJoin(mpPayoutCycles, eq(mpPayoutLines.payoutCycleId, mpPayoutCycles.id))
+      .where(and(
+        eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.farmerId, farmerId),
+        eq(mpPayoutCycles.periodStart, from), eq(mpPayoutCycles.periodEnd, to),
+        ne(mpPayoutCycles.status, 'reversed'),
+      )).limit(1);
+
+    if (line) {
+      const rows = await this.db.select({
+        type: mpPayoutDeductions.deductionType, amount: mpPayoutDeductions.amount,
+      }).from(mpPayoutDeductions).where(eq(mpPayoutDeductions.payoutLineId, line.id));
+      const deductions = rows.map((r) => withDetail(
+        { type: r.type, amount: Number(r.amount) }, saleLines));
+      const totalDeductions = r2(Number(line.deducted));
+      if (!totalDeductions) return null;
+      return { gross: r2(Number(line.gross)), deductions, totalDeductions, net: r2(Number(line.net)), provisional: false };
+    }
+
+    const ledger = await this.db.select({
+      entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
+    }).from(mpFarmerLedger).where(and(
+      eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
+    const taken = waterfall(foldOutstanding(ledger), gross);
+    if (!taken.total) return null;
+    const deductions = DEDUCTION_TYPES
+      .map(([bucket, type]) => withDetail({ type, amount: taken[bucket] }, saleLines))
+      .filter((d) => d.amount > 0);
+    return {
+      gross: r2(gross), deductions, totalDeductions: taken.total,
+      net: r2(gross - taken.total), provisional: true,
+    };
+  }
+
+  /** Per-sale detail lines, so 'purchased from us' can be checked, not just believed. */
+  private async saleDetail(
+    farmerId: string, from: string, to: string,
+  ): Promise<StatementDeduction['lines']> {
+    const rows = await this.db.select({
+      date: mpFarmerSales.saleDate, qty: mpFarmerSales.qty, unit: mpFarmerSales.unit,
+      rate: mpFarmerSales.ratePerUnit, amount: mpFarmerSales.amount,
+      milkType: mpFarmerSales.milkType, itemName: items.name,
+    }).from(mpFarmerSales)
+      .leftJoin(items, eq(mpFarmerSales.itemId, items.id))
+      .where(and(
+      eq(mpFarmerSales.tenantId, this.tenantId), eq(mpFarmerSales.farmerId, farmerId),
+      gte(mpFarmerSales.saleDate, from), lte(mpFarmerSales.saleDate, to),
+      isNull(mpFarmerSales.reversedAt),
+    )).orderBy(mpFarmerSales.saleDate);
+    return rows.map((r) => ({
+      date: r.date, itemName: r.itemName, milkType: r.milkType,
+      qty: Number(r.qty), unit: r.unit, ratePerUnit: Number(r.rate),
+      amount: Number(r.amount),
+    }));
+  }
+}
+
+/** Milk-sale deductions carry their per-sale lines; the rest stand alone. */
+function withDetail(
+  d: { type: string; amount: number }, saleLines: StatementDeduction['lines'],
+): StatementDeduction {
+  return d.type === 'farmer_sale' ? { ...d, lines: saleLines } : d;
 }

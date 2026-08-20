@@ -249,6 +249,14 @@ final farmerCyclePoursProvider =
       farmerId: ref.watch(_farmerScopeId), from: p.start, to: p.end, status: 'recorded', limit: 500);
 });
 
+/// What this farmer bought from us within one cycle window — the detail behind
+/// the payment card's "Bought from us" deduction.
+final farmerPurchasesProvider =
+    FutureProvider.family<List<MpFarmerSale>, MpCyclePeriod>((ref, p) async {
+  return mpRepo.farmerSales(
+      farmerId: ref.watch(_farmerScopeId), from: p.start, to: p.end);
+});
+
 /// The current (in-progress) cycle window — null until cadence resolves.
 final farmerCurrentCyclePeriodProvider = FutureProvider<MpCyclePeriod?>((ref) async {
   final periods = await ref.watch(farmerCyclePeriodsProvider.future);

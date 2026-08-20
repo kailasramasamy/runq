@@ -2965,7 +2965,7 @@ abstract class AppLocalizations {
   /// No description provided for @farmerPaymentsEstimatedDeduction.
   ///
   /// In en, this message translates to:
-  /// **'Advance recovery (estimated)'**
+  /// **'Advance recovery'**
   String get farmerPaymentsEstimatedDeduction;
 
   /// No description provided for @farmerPaymentsStatusPending.
@@ -5335,7 +5335,7 @@ abstract class AppLocalizations {
   /// No description provided for @farmerPaymentsSegLedger.
   ///
   /// In en, this message translates to:
-  /// **'Advances & loans'**
+  /// **'Advances'**
   String get farmerPaymentsSegLedger;
 
   /// No description provided for @farmerPaymentsLastPayout.
@@ -5649,6 +5649,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Due'**
   String get paymentsBillStatusDue;
+
+  /// No description provided for @farmerSaleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sell to farmer'**
+  String get farmerSaleTitle;
+
+  /// No description provided for @farmerSaleRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Record sale'**
+  String get farmerSaleRecord;
+
+  /// No description provided for @farmerSaleQtyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Quantity'**
+  String get farmerSaleQtyHint;
+
+  /// No description provided for @farmerSaleRateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate / L'**
+  String get farmerSaleRateHint;
+
+  /// No description provided for @farmerSaleInvalidEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the litres and the rate'**
+  String get farmerSaleInvalidEntry;
+
+  /// No description provided for @farmerSaleSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Sale recorded'**
+  String get farmerSaleSaved;
+
+  /// Milk-sale sheet
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} — recovered from the next payment'**
+  String farmerSaleAmountNote(String amount);
+
+  /// No description provided for @farmerPaymentsSold.
+  ///
+  /// In en, this message translates to:
+  /// **'Sold to farmer'**
+  String get farmerPaymentsSold;
+
+  /// Farmer Payments hub
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases {amount}'**
+  String farmerPaymentsSaleDue(String amount);
+
+  /// No description provided for @farmerPaymentsBought.
+  ///
+  /// In en, this message translates to:
+  /// **'Bought from us'**
+  String get farmerPaymentsBought;
+
+  /// No description provided for @farmerPaymentsEarlierPurchases.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier purchases'**
+  String get farmerPaymentsEarlierPurchases;
+
+  /// No description provided for @farmerPaymentsSegSold.
+  ///
+  /// In en, this message translates to:
+  /// **'Sold'**
+  String get farmerPaymentsSegSold;
+
+  /// No description provided for @farmerSaleNoneYet.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing sold to this farmer yet'**
+  String get farmerSaleNoneYet;
+
+  /// No description provided for @farmerSaleKindMilk.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk milk'**
+  String get farmerSaleKindMilk;
+
+  /// No description provided for @farmerSaleKindProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'Product'**
+  String get farmerSaleKindProduct;
+
+  /// No description provided for @farmerSaleProductHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a product'**
+  String get farmerSaleProductHint;
+
+  /// No description provided for @farmerSaleNoProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'No products set up to sell'**
+  String get farmerSaleNoProducts;
+
+  /// No description provided for @productPickerLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load products'**
+  String get productPickerLoadError;
+
+  /// No description provided for @productPickerNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching products'**
+  String get productPickerNoMatch;
+
+  /// No description provided for @commonSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get commonSave;
+
+  /// No description provided for @farmerSaleEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit sale'**
+  String get farmerSaleEditTitle;
+
+  /// No description provided for @farmerSaleUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Sale updated'**
+  String get farmerSaleUpdated;
+
+  /// No description provided for @farmerSaleEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get farmerSaleEdit;
+
+  /// No description provided for @farmerSaleDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get farmerSaleDelete;
+
+  /// No description provided for @farmerSaleDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this sale? It will no longer be deducted.'**
+  String get farmerSaleDeleteConfirm;
+
+  /// No description provided for @farmerSaleDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Sale deleted'**
+  String get farmerSaleDeleted;
+
+  /// Farmer payments card
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} still owed after this payment'**
+  String farmerPaymentsStillOwed(String amount);
 }
 
 class _AppLocalizationsDelegate

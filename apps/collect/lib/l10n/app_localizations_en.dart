@@ -1674,7 +1674,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerPaymentsGrossMilk => 'Milk value (base)';
 
   @override
-  String get farmerPaymentsEstimatedDeduction => 'Advance recovery (estimated)';
+  String get farmerPaymentsEstimatedDeduction => 'Advance recovery';
 
   @override
   String get farmerPaymentsStatusPending => 'PENDING';
@@ -3110,7 +3110,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerPaymentsSegPayouts => 'Payouts';
 
   @override
-  String get farmerPaymentsSegLedger => 'Advances & loans';
+  String get farmerPaymentsSegLedger => 'Advances';
 
   @override
   String get farmerPaymentsLastPayout => 'Last payout';
@@ -3283,4 +3283,92 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paymentsBillStatusDue => 'Due';
+
+  @override
+  String get farmerSaleTitle => 'Sell to farmer';
+
+  @override
+  String get farmerSaleRecord => 'Record sale';
+
+  @override
+  String get farmerSaleQtyHint => 'Quantity';
+
+  @override
+  String get farmerSaleRateHint => 'Rate / L';
+
+  @override
+  String get farmerSaleInvalidEntry => 'Enter the litres and the rate';
+
+  @override
+  String get farmerSaleSaved => 'Sale recorded';
+
+  @override
+  String farmerSaleAmountNote(String amount) {
+    return '$amount — recovered from the next payment';
+  }
+
+  @override
+  String get farmerPaymentsSold => 'Sold to farmer';
+
+  @override
+  String farmerPaymentsSaleDue(String amount) {
+    return 'Purchases $amount';
+  }
+
+  @override
+  String get farmerPaymentsBought => 'Bought from us';
+
+  @override
+  String get farmerPaymentsEarlierPurchases => 'Earlier purchases';
+
+  @override
+  String get farmerPaymentsSegSold => 'Sold';
+
+  @override
+  String get farmerSaleNoneYet => 'Nothing sold to this farmer yet';
+
+  @override
+  String get farmerSaleKindMilk => 'Bulk milk';
+
+  @override
+  String get farmerSaleKindProduct => 'Product';
+
+  @override
+  String get farmerSaleProductHint => 'Choose a product';
+
+  @override
+  String get farmerSaleNoProducts => 'No products set up to sell';
+
+  @override
+  String get productPickerLoadError => 'Could not load products';
+
+  @override
+  String get productPickerNoMatch => 'No matching products';
+
+  @override
+  String get commonSave => 'Save';
+
+  @override
+  String get farmerSaleEditTitle => 'Edit sale';
+
+  @override
+  String get farmerSaleUpdated => 'Sale updated';
+
+  @override
+  String get farmerSaleEdit => 'Edit';
+
+  @override
+  String get farmerSaleDelete => 'Delete';
+
+  @override
+  String get farmerSaleDeleteConfirm =>
+      'Delete this sale? It will no longer be deducted.';
+
+  @override
+  String get farmerSaleDeleted => 'Sale deleted';
+
+  @override
+  String farmerPaymentsStillOwed(String amount) {
+    return '$amount still owed after this payment';
+  }
 }

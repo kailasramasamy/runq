@@ -122,6 +122,22 @@ export interface MpLedgerEntry {
   id: string; farmerId: string; entryType: string; amount: string;
   balanceAfter: string; occurredOn: string;
 }
+/** What the farmer still owes, per bucket the next cycle recovers in order. */
+export interface MpOutstanding { farmerSale: number; advance: number; feedLoan: number }
+/** Goods sold to a farmer — bulk milk or a product — netted off their next payout. */
+export interface MpFarmerSale {
+  id: string; farmerId: string; nodeId: string; saleDate: string;
+  kind: 'raw_milk' | 'product';
+  shift: 'am' | 'pm' | null; milkType: MilkType | null; itemId: string | null;
+  qty: string; unit: string; ratePerUnit: string; amount: string;
+  note: string | null; reversedAt: string | null;
+  farmerName: string; farmerCode: string; nodeName: string; itemName: string | null;
+}
+/** A product an operator may sell at the counter (finished / trading goods). */
+export interface MpSellableItem {
+  id: string; name: string; sku: string | null;
+  unit: string | null; defaultSellingPrice: string | null;
+}
 
 export const MP_KEYS = {
   nodes: (f?: unknown) => ['mp', 'nodes', f] as const,
@@ -131,6 +147,7 @@ export const MP_KEYS = {
   resolveRate: (f?: unknown) => ['mp', 'rate-charts', 'resolve', f] as const,
   pours: (f?: unknown) => ['mp', 'pours', f] as const,
   ledger: (farmerId?: string) => ['mp', 'ledger', farmerId] as const,
+  farmerSales: (f?: unknown) => ['mp', 'farmer-sales', f] as const,
   collection: (f?: unknown) => ['mp', 'reports', 'collection', f] as const,
   qualityBands: (nodeId?: string) => ['mp', 'quality-bands', nodeId ?? null] as const,
   qualityBandsConfig: (nodeId?: string) => ['mp', 'quality-bands-config', nodeId ?? null] as const,
@@ -480,7 +497,9 @@ export function useReopenShift() {
 export function useFarmerLedger(farmerId?: string) {
   return useQuery({
     queryKey: MP_KEYS.ledger(farmerId),
-    queryFn: () => api.get<ApiSuccess<{ balance: number; entries: MpLedgerEntry[] }>>(`${BASE}/payouts/ledger${qs({ farmerId })}`),
+    queryFn: () => api.get<ApiSuccess<{
+      balance: number; outstanding: MpOutstanding; entries: MpLedgerEntry[];
+    }>>(`${BASE}/payouts/ledger${qs({ farmerId })}`),
     enabled: !!farmerId,
   });
 }
@@ -489,6 +508,69 @@ export function useAddLedgerEntry() {
   return useMutation({
     mutationFn: (d: CreateLedgerEntryInput) => api.post<ApiSuccess<MpLedgerEntry>>(`${BASE}/payouts/ledger`, d),
     onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'ledger'] }),
+  });
+}
+
+// ── goods sold to farmers ───────────────────────────────────────────────────
+// A farmer buys bulk milk or products (ghee, curd, paneer) from us; the sale is
+// recovered as a deduction on their next cycle, so every write also refreshes
+// the ledger.
+export interface MpFarmerSaleFilter {
+  farmerId?: string; nodeId?: string; kind?: 'raw_milk' | 'product';
+  from?: string; to?: string; limit?: number;
+}
+export interface CreateFarmerSaleInput {
+  farmerId: string; nodeId: string; saleDate: string;
+  kind: 'raw_milk' | 'product';
+  shift?: 'am' | 'pm' | null; milkType?: MilkType | null; itemId?: string | null;
+  qty: number; ratePerUnit: number; note?: string | null;
+}
+export function useFarmerSales(f: MpFarmerSaleFilter, enabled = true) {
+  return useQuery({
+    queryKey: MP_KEYS.farmerSales(f),
+    queryFn: () => api.get<ApiSuccess<MpFarmerSale[]>>(`${BASE}/farmer-sales${qs({ ...f })}`),
+    enabled,
+  });
+}
+export function useSellableItems() {
+  return useQuery({
+    queryKey: ['mp', 'farmer-sales', 'items'],
+    queryFn: () => api.get<ApiSuccess<MpSellableItem[]>>(`${BASE}/farmer-sales/items`),
+  });
+}
+function invalidateAfterSale(c: ReturnType<typeof useQueryClient>) {
+  c.invalidateQueries({ queryKey: ['mp', 'farmer-sales'] });
+  c.invalidateQueries({ queryKey: ['mp', 'ledger'] });
+  // Bulk milk leaving the centre changes what it can still dispatch.
+  c.invalidateQueries({ queryKey: ['mp', 'consignments', 'available'] });
+}
+export function useCreateFarmerSale() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (d: CreateFarmerSaleInput) => api.post<ApiSuccess<MpFarmerSale>>(`${BASE}/farmer-sales`, d),
+    onSuccess: () => invalidateAfterSale(c),
+  });
+}
+export function useUpdateFarmerSale() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...d }: CreateFarmerSaleInput & { id: string }) =>
+      api.patch<ApiSuccess<MpFarmerSale>>(`${BASE}/farmer-sales/${id}`, d),
+    onSuccess: () => invalidateAfterSale(c),
+  });
+}
+export function useDeleteFarmerSale() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`${BASE}/farmer-sales/${id}`),
+    onSuccess: () => invalidateAfterSale(c),
+  });
+}
+export function useReverseFarmerSale() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<MpFarmerSale>>(`${BASE}/farmer-sales/${id}/reverse`, {}),
+    onSuccess: () => invalidateAfterSale(c),
   });
 }
 

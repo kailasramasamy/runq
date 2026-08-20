@@ -13,6 +13,10 @@ import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors
 import { nextDocNo } from './numbering';
 import { MpGlPoster } from './gl-poster';
 import { MpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
+import {
+  BUCKET_BY_DEDUCTION, DEDUCTION_TYPES, appendLedgerEntry, foldOutstanding,
+  ledgerBalance, waterfall, zeroOutstanding, type Outstanding,
+} from './farmer-ledger';
 import { sendFarmerBillNotifications, directModeVmccIds } from './mp-bill-notify';
 import { sendCyclePaymentNotifications } from './mp-payment-notify';
 
@@ -82,34 +86,22 @@ export class PayoutService {
       await assertFarmerAtNode(this.db, this.tenantId, principal, input.farmerId);
     }
     return this.db.transaction(async (tx) => {
-      const prev = await this.balanceTx(tx, input.farmerId);
-      const given = input.entryType === 'advance_given' || input.entryType === 'feed_loan_given';
-      const balanceAfter = round2(prev + (given ? input.amount : -input.amount));
-      const [row] = await tx.insert(mpFarmerLedger).values({
-        tenantId: this.tenantId,
-        farmerId: input.farmerId,
-        entryType: input.entryType,
-        amount: String(input.amount),
-        balanceAfter: String(balanceAfter),
-        refType: input.refType ?? null,
-        occurredOn: input.occurredOn,
-        createdBy: userId ?? null,
-      }).returning();
+      const row = await appendLedgerEntry(tx, this.tenantId, { ...input, createdBy: userId });
       // Cash leaving for a new advance/feed-loan creates the farmer receivable.
       if (input.entryType === 'advance_given' || input.entryType === 'feed_loan_given') {
         await new MpGlPoster(this.tenantId, userId).postGrant(tx, {
-          ledgerId: row!.id, date: input.occurredOn, amount: input.amount,
+          ledgerId: row.id, date: input.occurredOn, amount: input.amount,
           kind: input.entryType === 'feed_loan_given' ? 'feed_loan' : 'advance',
         });
       }
-      return row!;
+      return row;
     });
   }
 
   async ledgerForFarmer(
     farmerId: string | undefined,
     principal: MpPrincipal,
-  ): Promise<{ balance: number; outstanding: { advance: number; feedLoan: number }; entries: LedgerRow[] }> {
+  ): Promise<{ balance: number; outstanding: Outstanding; entries: LedgerRow[] }> {
     // a farmer can only read their own ledger, whatever they ask for
     const effectiveFarmerId = principal.kind === 'farmer' ? principal.farmerId : farmerId;
     if (!effectiveFarmerId) throw new NotFoundError('farmerId is required');
@@ -123,7 +115,7 @@ export class PayoutService {
     // what" — the same breakdown the next cycle's deductions will recover, so it
     // reads from the one rule rather than a second derivation on the client.
     const outstanding = await this.outstandingByType(effectiveFarmerId);
-    return { balance: entries[0] ? Number(entries[0].balanceAfter) : 0, outstanding, entries };
+    return { balance: ledgerBalance(entries), outstanding, entries };
   }
 
   /** A farmer's own payout lines (with cycle window + status), newest first. */
@@ -169,21 +161,15 @@ export class PayoutService {
     return last ? Number(last.b) : 0;
   }
 
-  private async outstandingByType(farmerId: string): Promise<{ advance: number; feedLoan: number }> {
-    const rows = await this.db.select({
+  private async outstandingByType(farmerId: string): Promise<Outstanding> {
+    return foldOutstanding(await this.ledgerRows(this.db, farmerId));
+  }
+
+  private ledgerRows(db: Db | Tx, farmerId: string) {
+    return (db as Db).select({
       entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
     }).from(mpFarmerLedger)
       .where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
-    let advance = 0, feedLoan = 0;
-    for (const r of rows) {
-      const amt = Number(r.amount);
-      if (r.entryType === 'advance_given') advance += amt;
-      else if (r.entryType === 'feed_loan_given') feedLoan += amt;
-      else if (r.entryType === 'repayment') {
-        if (r.refType === 'cattle_feed_loan') feedLoan -= amt; else advance -= amt;
-      }
-    }
-    return { advance: Math.max(0, round2(advance)), feedLoan: Math.max(0, round2(feedLoan)) };
   }
 
   // ── cycles ───────────────────────────────────────────────────────────
@@ -405,11 +391,12 @@ export class PayoutService {
       // advances/loans. A via_vmcc-only CC cycle has no farmer lines — that milk is
       // GL'd through the per-VMCC bills, not here — so there's nothing to accrue.
       // Skip the JE then (a single zero line would fail the ≥2-lines rule).
-      const accrue = totals.net + recovered.advance + recovered.feedLoan > 0;
+      const accrue = totals.net + recovered.advance + recovered.feedLoan + recovered.farmerSale > 0;
       const journalEntryId = accrue
         ? await new MpGlPoster(this.tenantId).postAccrual(tx, {
             cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
             net: totals.net, advance: recovered.advance, feedLoan: recovered.feedLoan,
+            farmerSale: recovered.farmerSale,
           })
         : null;
       const [updated] = await tx.update(mpPayoutCycles).set({
@@ -532,9 +519,11 @@ export class PayoutService {
       const dNet = round2(newNet - oldNet);
       const dAdvance = round2(recovered.advance - oldRecovered.advance);
       const dFeed = round2(recovered.feedLoan - oldRecovered.feedLoan);
+      const dSale = round2(recovered.farmerSale - oldRecovered.farmerSale);
       await new MpGlPoster(this.tenantId, userId).postAccrualDelta(tx, {
         cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
-        gross: round2(dNet + dAdvance + dFeed), net: dNet, advance: dAdvance, feedLoan: dFeed,
+        gross: round2(dNet + dAdvance + dFeed + dSale),
+        net: dNet, advance: dAdvance, feedLoan: dFeed, farmerSale: dSale,
       });
       await this.updateCycleTotals(tx, cycleId);
     });
@@ -556,15 +545,18 @@ export class PayoutService {
     return line!;
   }
 
-  /** Sum recovered advance / feed-loan across a set of payout lines' deductions. */
-  private async recoveredByType(db: Db | Tx, lineIds: string[]): Promise<{ advance: number; feedLoan: number }> {
-    if (!lineIds.length) return { advance: 0, feedLoan: 0 };
+  /** Sum recovered advance / feed-loan / milk-sale across a set of payout lines' deductions. */
+  private async recoveredByType(db: Db | Tx, lineIds: string[]): Promise<Outstanding> {
+    const recovered = zeroOutstanding();
+    if (!lineIds.length) return recovered;
     const rows = await (db as Db).select({
       type: mpPayoutDeductions.deductionType, amt: sql<string>`coalesce(sum(${mpPayoutDeductions.amount}), 0)`,
     }).from(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, lineIds)).groupBy(mpPayoutDeductions.deductionType);
-    let advance = 0, feedLoan = 0;
-    for (const r of rows) { if (r.type === 'cattle_feed_loan') feedLoan = Number(r.amt); else if (r.type === 'advance') advance = Number(r.amt); }
-    return { advance, feedLoan };
+    for (const r of rows) {
+      const bucket = BUCKET_BY_DEDUCTION[r.type];
+      if (bucket) recovered[bucket] = Number(r.amt);
+    }
+    return recovered;
   }
 
   /** Recompute a cycle's header totals from its current lines. */
@@ -650,50 +642,29 @@ export class PayoutService {
   }
 
   private async computeDeductions(farmerId: string, gross: number) {
-    const out = await this.outstandingByType(farmerId);
-    let remaining = gross;
-    const advance = Math.min(out.advance, remaining); remaining -= advance;
-    const feedLoan = Math.min(out.feedLoan, remaining);
-    return { advance: round2(advance), feedLoan: round2(feedLoan), total: round2(advance + feedLoan) };
+    return waterfall(await this.outstandingByType(farmerId), gross);
   }
 
   /** Tx-aware deduction compute — used by rebuild, after old repayments are dropped in the same tx. */
   private async computeDeductionsTx(tx: Tx, farmerId: string, gross: number) {
-    const rows = await tx.select({
-      entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
-    }).from(mpFarmerLedger).where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
-    let advanceOut = 0, feedOut = 0;
-    for (const r of rows) {
-      const amt = Number(r.amount);
-      if (r.entryType === 'advance_given') advanceOut += amt;
-      else if (r.entryType === 'feed_loan_given') feedOut += amt;
-      else if (r.entryType === 'repayment') { if (r.refType === 'cattle_feed_loan') feedOut -= amt; else advanceOut -= amt; }
-    }
-    let remaining = gross;
-    const advance = Math.min(Math.max(0, round2(advanceOut)), remaining); remaining -= advance;
-    const feedLoan = Math.min(Math.max(0, round2(feedOut)), remaining);
-    return { advance: round2(advance), feedLoan: round2(feedLoan), total: round2(advance + feedLoan) };
+    return waterfall(foldOutstanding(await this.ledgerRows(tx, farmerId)), gross);
   }
 
-  private async insertDeductions(tx: Tx, lineId: string, ded: { advance: number; feedLoan: number }) {
-    if (ded.advance > 0) {
-      await tx.insert(mpPayoutDeductions).values({
-        tenantId: this.tenantId, payoutLineId: lineId, deductionType: 'advance', amount: String(ded.advance),
-      });
-    }
-    if (ded.feedLoan > 0) {
-      await tx.insert(mpPayoutDeductions).values({
-        tenantId: this.tenantId, payoutLineId: lineId, deductionType: 'cattle_feed_loan', amount: String(ded.feedLoan),
-      });
-    }
+  private async insertDeductions(tx: Tx, lineId: string, ded: Outstanding) {
+    const rows = DEDUCTION_TYPES
+      .filter(([bucket]) => ded[bucket] > 0)
+      .map(([bucket, deductionType]) => ({
+        tenantId: this.tenantId, payoutLineId: lineId, deductionType, amount: String(ded[bucket]),
+      }));
+    if (rows.length) await tx.insert(mpPayoutDeductions).values(rows);
   }
 
   /** Post the repayment ledger entries and return total ₹ recovered by type
    *  (drives the credit legs of the lock accrual JE). */
   private async postRepayments(
     tx: Tx, cycle: MpPayoutCycleRow, lines: MpPayoutLineRow[],
-  ): Promise<{ advance: number; feedLoan: number }> {
-    const recovered = { advance: 0, feedLoan: 0 };
+  ): Promise<Outstanding> {
+    const recovered = zeroOutstanding();
     const lineIds = lines.map((l) => l.id);
     if (!lineIds.length) return recovered;
     const deds = await tx.select().from(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, lineIds));
@@ -701,12 +672,13 @@ export class PayoutService {
     for (const d of deds) {
       const farmerId = farmerByLine.get(d.payoutLineId)!;
       const prev = await this.balanceTx(tx, farmerId);
-      const isFeed = d.deductionType === 'cattle_feed_loan';
-      if (isFeed) recovered.feedLoan += Number(d.amount); else recovered.advance += Number(d.amount);
+      const bucket = BUCKET_BY_DEDUCTION[d.deductionType];
+      if (!bucket) continue;
+      recovered[bucket] += Number(d.amount);
       await tx.insert(mpFarmerLedger).values({
         tenantId: this.tenantId, farmerId, entryType: 'repayment', amount: d.amount,
         balanceAfter: String(round2(prev - Number(d.amount))),
-        refType: isFeed ? 'cattle_feed_loan' : 'advance',
+        refType: d.deductionType,
         refId: d.payoutLineId, occurredOn: cycle.periodEnd,
       });
     }

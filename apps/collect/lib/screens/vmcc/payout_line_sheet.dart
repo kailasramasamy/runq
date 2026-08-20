@@ -200,6 +200,7 @@ class _PayoutLineSheetState extends ConsumerState<_PayoutLineSheet> {
   }
 
   String _deductionLabel(AppLocalizations l, String type) => switch (type) {
+        'farmer_sale' => l.farmerPaymentsSold,
         'advance' => l.farmerPaymentsTypeAdvance,
         'cattle_feed_loan' => l.farmerPaymentsFeedLoan,
         _ => l.payoutLineOtherDeduction,

@@ -32,6 +32,19 @@ final farmerLedgerProvider =
   return mpRepo.farmerLedger(farmerId: farmerId);
 });
 
+/// Goods sold to one farmer — the detail behind their `farmer_sale` deductions.
+final farmerSalesProvider =
+    FutureProvider.family<List<MpFarmerSale>, String>((ref, farmerId) async {
+  // Reversed sales stay in the operator's list, struck through: a correction
+  // they can't see is a correction they'll make twice.
+  return mpRepo.farmerSales(farmerId: farmerId, includeReversed: true);
+});
+
+/// The counter catalogue, for the sale sheet's product picker.
+final sellableItemsProvider = FutureProvider<List<MpSellableItem>>((ref) async {
+  return mpRepo.sellableItems();
+});
+
 /// Recent cadence-aligned cycle windows to offer when starting a new cycle
 /// (index 0 = the in-progress window). Cadence-only, persona-agnostic.
 final recentCyclePeriodsProvider = FutureProvider<List<MpCyclePeriod>>((ref) async {

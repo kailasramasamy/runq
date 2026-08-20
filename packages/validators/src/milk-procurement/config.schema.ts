@@ -21,6 +21,10 @@ export const upsertGlSettingsSchema = z.object({
   qualityBonusAccountId: z.string().uuid().nullish(),
   advanceAccountId: z.string().uuid().nullish(),
   feedLoanAccountId: z.string().uuid().nullish(),
+  // Milk sold back to a trader-farmer: the receivable it creates and the income
+  // it books (defaults 1152 / 4006).
+  milkSaleReceivableAccountId: z.string().uuid().nullish(),
+  milkSaleIncomeAccountId: z.string().uuid().nullish(),
   rawMilkInventoryAccountId: z.string().uuid().nullish(),
   // Expense account for VMCC operator commission/handling, booked on bill pay.
   commissionExpenseAccountId: z.string().uuid().nullish(),

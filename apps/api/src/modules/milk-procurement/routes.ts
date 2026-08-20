@@ -14,6 +14,7 @@ import { shiftClosureRoutes } from './shift-closure.routes';
 import { consignmentRoutes } from './consignment.routes';
 import { qcTestRoutes } from './qc-test.routes';
 import { payoutRoutes } from './payout.routes';
+import { farmerSaleRoutes } from './farmer-sale.routes';
 import { operatorRoutes } from './operator.routes';
 import { operatorPayoutRoutes } from './operator-payout.routes';
 import { billingRoutes } from './billing.routes';
@@ -44,6 +45,8 @@ export const milkProcurementRoutes: FastifyPluginAsync = async (app) => {
   await app.register(consignmentRoutes, { prefix: '/consignments' });
   await app.register(qcTestRoutes, { prefix: '/qc-tests' });
   await app.register(payoutRoutes, { prefix: '/payouts' });
+  // Milk sold back to a trader-farmer, netted off their next payout.
+  await app.register(farmerSaleRoutes, { prefix: '/farmer-sales' });
   await app.register(operatorRoutes, { prefix: '/operators' });
   await app.register(operatorPayoutRoutes, { prefix: '/operator-payouts' });
   await app.register(billingRoutes, { prefix: '/billing' });

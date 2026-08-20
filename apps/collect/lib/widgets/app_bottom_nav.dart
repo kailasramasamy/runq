@@ -30,6 +30,11 @@ class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
+  /// Painted height, so anything floating above the nav (toasts) can clear it
+  /// without measuring. Mirrors the padding + row height below — keep in step.
+  static const double height =
+      DhenuSpacing.md + DhenuSpacing.minTap + DhenuSpacing.lg;
+
   @override
   Widget build(BuildContext context) {
     final t = DT(context);

@@ -17,6 +17,7 @@ import 'settings/notifications_screen.dart';
 import '../theme/dhenu_icons.dart';
 import '../utils/format.dart';
 import '../theme/dhenu_theme.dart';
+import '../widgets/dhenu_toast.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/dhenu_card.dart';
 import '../widgets/farmer_profile_photo.dart';
@@ -449,8 +450,10 @@ class ProfileTab extends ConsumerWidget {
       await ref.read(authProvider.notifier).deleteAccount();
     } on ApiException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message.isEmpty ? l.profileDeleteAccountError : e.message)),
+      showDhenuToast(
+        context,
+        e.message.isEmpty ? l.profileDeleteAccountError : e.message,
+        type: DhenuToastType.error,
       );
     }
   }

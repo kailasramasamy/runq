@@ -100,11 +100,16 @@ class _Item extends StatelessWidget {
               Icon(icon, size: 14, color: fg),
               const SizedBox(width: 4),
             ],
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-              style: DhenuText.label.copyWith(color: fg),
-              child: Text(label),
+            // Flexible + ellipsis: segments share the width equally, so a
+            // three-up control on a narrow phone can hand a label less room
+            // than its natural size. Overflowing is worse than eliding.
+            Flexible(
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                style: DhenuText.label.copyWith(color: fg),
+                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
             ),
           ],
         ),

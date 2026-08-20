@@ -1,5 +1,5 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
-import { mpConsignments, mpNodes, mpPours, mpShiftClosures } from '@runq/db';
+import { mpConsignments, mpFarmerSales, mpNodes, mpPours, mpShiftClosures } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
 import { assertNodeAccess, type MpPrincipal } from './access-scope';
@@ -57,7 +57,7 @@ export class PendingDispatchService {
 
     const [collected, dispatched, closures] = await Promise.all([
       node.nodeType === 'vmcc' ? this.pouredBySlot(nodeId) : this.receivedBySlot(nodeId),
-      this.dispatchedBySlot(nodeId),
+      this.outflowBySlot(nodeId),
       this.closedSlots(nodeId),
     ]);
 
@@ -116,8 +116,12 @@ export class PendingDispatchService {
    *
    * Reversed consignments are excluded — a corrected-away dispatch left its milk
    * on hand.
+   *
+   * Milk sold to a trader-farmer at the gate counts here too: those litres are
+   * gone, so leaving them out would pin a permanent "never dispatched" badge on
+   * the centre for milk it no longer has.
    */
-  private async dispatchedBySlot(nodeId: string): Promise<Dispatched> {
+  private async outflowBySlot(nodeId: string): Promise<Dispatched> {
     const rows = await this.db.select({
       collectionDate: mpConsignments.collectionDate,
       shift: mpConsignments.shift,
@@ -126,10 +130,19 @@ export class PendingDispatchService {
       .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.fromNodeId, nodeId),
         ne(mpConsignments.status, 'reversed')))
       .groupBy(mpConsignments.collectionDate, mpConsignments.shift);
+    const sales = await this.db.select({
+      collectionDate: mpFarmerSales.saleDate,
+      shift: mpFarmerSales.shift,
+      qty: sql<string>`sum(${mpFarmerSales.qty})`,
+    }).from(mpFarmerSales)
+      .where(and(eq(mpFarmerSales.tenantId, this.tenantId), eq(mpFarmerSales.nodeId, nodeId),
+        // Product sales move no bulk milk, so they owe no dispatch.
+        eq(mpFarmerSales.kind, 'raw_milk'), isNull(mpFarmerSales.reversedAt)))
+      .groupBy(mpFarmerSales.saleDate, mpFarmerSales.shift);
 
     const tagged: Tally = new Map();
     const untagged = new Map<string, number>();
-    for (const r of rows) {
+    for (const r of [...rows, ...sales]) {
       const qty = Number(r.qty ?? 0);
       if (r.shift == null) {
         untagged.set(r.collectionDate, (untagged.get(r.collectionDate) ?? 0) + qty);

@@ -79,6 +79,11 @@ export const mpGlSettings = pgTable('mp_gl_settings', {
   advanceAccountId: uuid('advance_account_id').references(() => accounts.id),
   feedLoanAccountId: uuid('feed_loan_account_id').references(() => accounts.id),
   rawMilkInventoryAccountId: uuid('raw_milk_inventory_account_id').references(() => accounts.id),
+  // Goods sold to a farmer (mp_farmer_sales): the receivable it creates
+  // (default 1152) and the income it books (default 4006). The receivable is
+  // cleared by the next cycle's `farmer_sale` deduction.
+  milkSaleReceivableAccountId: uuid('milk_sale_receivable_account_id').references(() => accounts.id),
+  milkSaleIncomeAccountId: uuid('milk_sale_income_account_id').references(() => accounts.id),
   // Expense account for VMCC operator commission/handling (default code 5060),
   // booked when a VMCC bill is paid. See mp_vmcc_bills.
   commissionExpenseAccountId: uuid('commission_expense_account_id').references(() => accounts.id),

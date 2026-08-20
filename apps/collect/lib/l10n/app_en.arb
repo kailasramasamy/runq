@@ -1058,7 +1058,7 @@
     }
   },
   "farmerPaymentsGrossMilk": "Milk value (base)",
-  "farmerPaymentsEstimatedDeduction": "Advance recovery (estimated)",
+  "farmerPaymentsEstimatedDeduction": "Advance recovery",
   "farmerPaymentsStatusPending": "PENDING",
   "farmerPaymentsStatusProcessing": "PROCESSING",
   "@farmerPaymentsGrossMilk": {
@@ -2262,7 +2262,7 @@
     "description": "CC option title while the centre's name is still loading"
   },
   "farmerPaymentsSegPayouts": "Payouts",
-  "farmerPaymentsSegLedger": "Advances & loans",
+  "farmerPaymentsSegLedger": "Advances",
   "farmerPaymentsLastPayout": "Last payout",
   "farmerPaymentsNoPayouts": "No payouts yet",
   "farmerPaymentsNoPayoutsSubtitle": "Cycle payouts appear here once a cycle is created",
@@ -2366,5 +2366,56 @@
   "paymentsBillsDueTotal": "Awaiting payment",
   "paymentsBillTotal": "Total",
   "paymentsBillStatusPaid": "Paid",
-  "paymentsBillStatusDue": "Due"
+  "paymentsBillStatusDue": "Due",
+  "farmerSaleTitle": "Sell to farmer",
+  "farmerSaleRecord": "Record sale",
+  "farmerSaleQtyHint": "Quantity",
+  "farmerSaleRateHint": "Rate / L",
+  "farmerSaleInvalidEntry": "Enter the litres and the rate",
+  "farmerSaleSaved": "Sale recorded",
+  "farmerSaleAmountNote": "{amount} — recovered from the next payment",
+  "@farmerSaleAmountNote": {
+    "description": "Milk-sale sheet",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsSold": "Sold to farmer",
+  "farmerPaymentsSaleDue": "Purchases {amount}",
+  "@farmerPaymentsSaleDue": {
+    "description": "Farmer Payments hub",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "farmerPaymentsBought": "Bought from us",
+  "farmerPaymentsEarlierPurchases": "Earlier purchases",
+  "farmerPaymentsSegSold": "Sold",
+  "farmerSaleNoneYet": "Nothing sold to this farmer yet",
+  "farmerSaleKindMilk": "Bulk milk",
+  "farmerSaleKindProduct": "Product",
+  "farmerSaleProductHint": "Choose a product",
+  "farmerSaleNoProducts": "No products set up to sell",
+  "productPickerLoadError": "Could not load products",
+  "productPickerNoMatch": "No matching products",
+  "commonSave": "Save",
+  "farmerSaleEditTitle": "Edit sale",
+  "farmerSaleUpdated": "Sale updated",
+  "farmerSaleEdit": "Edit",
+  "farmerSaleDelete": "Delete",
+  "farmerSaleDeleteConfirm": "Delete this sale? It will no longer be deducted.",
+  "farmerSaleDeleted": "Sale deleted",
+  "farmerPaymentsStillOwed": "{amount} still owed after this payment",
+  "@farmerPaymentsStillOwed": {
+    "description": "Farmer payments card",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  }
 }

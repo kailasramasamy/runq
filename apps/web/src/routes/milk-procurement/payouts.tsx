@@ -173,6 +173,13 @@ export function LedgerCard() {
           <>
             <div className="rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800/50">
               Outstanding balance: <span className="font-semibold">₹{ledger?.balance ?? 0}</span>
+              {/* The split is the recovery order the next cycle will follow. */}
+              {ledger?.outstanding && (
+                <span className="ml-2 text-xs text-zinc-500">
+                  purchases {inr(ledger.outstanding.farmerSale)} · advance {inr(ledger.outstanding.advance)}
+                  {' · '}feed loan {inr(ledger.outstanding.feedLoan)}
+                </span>
+              )}
             </div>
             <div className="flex items-end gap-2">
               <div className="flex-1"><Combobox label="Type" value={f.entryType} onChange={(v) => setF({ ...f, entryType: v })} options={LEDGER_TYPES} /></div>

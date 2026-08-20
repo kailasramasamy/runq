@@ -55,9 +55,16 @@ export const mpCycleStatus = pgEnum('mp_cycle_status', ['open', 'locked', 'paid'
 // Per-VMCC settlement bill for a locked cycle. `generated` on creation (amounts
 // already final), `paid` once the VMCC is settled + txn recorded, `reversed` to unwind.
 export const mpBillStatus = pgEnum('mp_bill_status', ['generated', 'paid', 'reversed']);
-export const mpDeduction = pgEnum('mp_deduction', ['advance', 'cattle_feed_loan', 'other']);
+// `farmer_sale` — goods the farmer BOUGHT from us: bulk milk a trader resells,
+// or ghee/curd/paneer off the counter. Recovered before advances — it is the
+// freshest receivable and, unlike a loan, was never meant to sit on the books.
+export const mpDeduction = pgEnum('mp_deduction', ['advance', 'cattle_feed_loan', 'farmer_sale', 'other']);
+// What the farmer bought: bulk milk off the centre's pool, or a finished
+// product (ghee, curd, paneer) from the item master. Only `raw_milk` draws
+// down what the centre can still dispatch.
+export const mpSaleKind = pgEnum('mp_sale_kind', ['raw_milk', 'product']);
 export const mpLedgerEntry = pgEnum('mp_ledger_entry', [
-  'advance_given', 'feed_loan_given', 'repayment', 'adjustment',
+  'advance_given', 'feed_loan_given', 'farmer_sale', 'repayment', 'adjustment',
 ]);
 export const mpOperatorRole = pgEnum('mp_operator_role', ['operator', 'owner']);
 export const mpCompType = pgEnum('mp_comp_type', ['per_litre_commission', 'fixed_salary']);

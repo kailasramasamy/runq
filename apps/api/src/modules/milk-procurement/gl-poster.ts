@@ -17,6 +17,8 @@ const DEFAULT_CODES = {
   farmerPayable: '2150',
   farmerAdvances: '1150',
   feedLoans: '1151',
+  saleReceivable: '1152',
+  saleIncome: '4006',
   bank: '1101',
 } as const;
 
@@ -26,6 +28,7 @@ type Line = { accountCode: string; debit?: number; credit?: number; description?
 /**
  * Posts the milk-procurement payout flow to the GL (P1.1, expense-basis):
  *   • grant   — advance/feed-loan given:  Dr Advances|Feed-Loans / Cr Bank
+ *   • sale    — milk sold to a farmer:     Dr Milk Sales Receivable / Cr Milk Sales
  *   • accrual — cycle lock:               Dr Milk Purchases / Cr Payable + Advances + Feed-Loans
  *   • payment — cycle pay:                Dr Farmer Payable / Cr Bank
  *   • bill milk — VMCC bill pay:          Dr Farmer Payable / Cr Bank
@@ -55,20 +58,72 @@ export class MpGlPoster {
     });
   }
 
+  /**
+   * Milk sold back to a trader-farmer. No cash moves — the receivable is
+   * settled by the next cycle's `farmer_sale` deduction, so this is
+   * Dr Receivable / Cr Income. `reverse` flips the legs.
+   */
+  async postFarmerSale(
+    tx: Tx, p: { saleId: string; date: string; amount: number; reverse?: boolean },
+  ): Promise<string | null> {
+    const amount = round2(p.amount);
+    if (amount <= 0) return null;
+    const c = await this.resolveCodes(tx);
+    const receivable = { accountCode: c.saleReceivable, description: 'Milk sold to farmer' };
+    const income = { accountCode: c.saleIncome, description: 'Milk sales — farmers & traders' };
+    return this.post(tx, {
+      date: p.date, description: `Milk sold to farmer${p.reverse ? ' — reversed' : ''}`,
+      sourceType: p.reverse ? 'mp_farmer_sale_reversal' : 'mp_farmer_sale', sourceId: p.saleId,
+      lines: p.reverse
+        ? [{ ...receivable, credit: amount }, { ...income, debit: amount }]
+        : [{ ...receivable, debit: amount }, { ...income, credit: amount }],
+    });
+  }
+
+  /**
+   * Correction to a recorded sale: posts only the DIFFERENCE, on whichever side
+   * it falls. Keyed separately from the original so both stay auditable — the
+   * sale was made, then amended; the books should say so.
+   */
+  async postFarmerSaleAdjust(
+    tx: Tx, p: { saleId: string; date: string; delta: number },
+  ): Promise<string | null> {
+    const delta = round2(p.delta);
+    if (delta === 0) return null;
+    const c = await this.resolveCodes(tx);
+    const amount = Math.abs(delta);
+    const receivable = { accountCode: c.saleReceivable, description: 'Sale to farmer corrected' };
+    const income = { accountCode: c.saleIncome, description: 'Sales to farmers & traders' };
+    return this.post(tx, {
+      date: p.date, description: 'Sale to farmer corrected',
+      sourceType: 'mp_farmer_sale_adjust', sourceId: p.saleId,
+      lines: delta > 0
+        ? [{ ...receivable, debit: amount }, { ...income, credit: amount }]
+        : [{ ...receivable, credit: amount }, { ...income, debit: amount }],
+    });
+  }
+
   /** Cycle lock accrual. gross is derived from the credits so it always balances. */
   async postAccrual(
     tx: Tx,
-    p: { cycleId: string; cycleNo: string; date: string; net: number; advance: number; feedLoan: number },
+    p: {
+      cycleId: string; cycleNo: string; date: string;
+      net: number; advance: number; feedLoan: number; farmerSale: number;
+    },
   ): Promise<string> {
     const c = await this.resolveCodes(tx);
     const net = round2(p.net), advance = round2(p.advance), feedLoan = round2(p.feedLoan);
-    const gross = round2(net + advance + feedLoan);
+    const farmerSale = round2(p.farmerSale);
+    const gross = round2(net + advance + feedLoan + farmerSale);
     const lines: Line[] = [
       { accountCode: c.milkPurchases, debit: gross, description: `Milk purchases — ${p.cycleNo}` },
     ];
     if (net > 0) lines.push({ accountCode: c.farmerPayable, credit: net, description: 'Net payable to farmers' });
     if (advance > 0) lines.push({ accountCode: c.farmerAdvances, credit: advance, description: 'Advance recovered' });
     if (feedLoan > 0) lines.push({ accountCode: c.feedLoans, credit: feedLoan, description: 'Feed loan recovered' });
+    if (farmerSale > 0) {
+      lines.push({ accountCode: c.saleReceivable, credit: farmerSale, description: 'Milk sold to farmer recovered' });
+    }
     return this.post(tx, {
       date: p.date, description: `Milk procurement payout — ${p.cycleNo}`,
       sourceType: 'mp_payout_cycle', sourceId: p.cycleId, lines,
@@ -79,11 +134,14 @@ export class MpGlPoster {
    * Signed adjustment to a locked cycle's accrual after unpaid lines are rebuilt
    * (milk corrected). Each leg posts on its natural side for a positive delta and
    * the opposite side for a negative one. Balances because gross = net + advance
-   * + feed. Keyed separately from the original accrual. Null if no change.
+   * + feed + milk sale. Keyed separately from the original accrual. Null if no change.
    */
   async postAccrualDelta(
     tx: Tx,
-    p: { cycleId: string; cycleNo: string; date: string; gross: number; net: number; advance: number; feedLoan: number },
+    p: {
+      cycleId: string; cycleNo: string; date: string;
+      gross: number; net: number; advance: number; feedLoan: number; farmerSale: number;
+    },
   ): Promise<string | null> {
     const c = await this.resolveCodes(tx);
     const lines: Line[] = [];
@@ -97,6 +155,7 @@ export class MpGlPoster {
     put(c.farmerPayable, p.net, false, 'Net payable adjustment');
     put(c.farmerAdvances, p.advance, false, 'Advance recovered adjustment');
     put(c.feedLoans, p.feedLoan, false, 'Feed loan recovered adjustment');
+    put(c.saleReceivable, p.farmerSale, false, 'Milk sold to farmer recovered adjustment');
     if (!lines.length) return null;
     return this.post(tx, {
       date: p.date, description: `Milk payout adjustment — ${p.cycleNo}`,
@@ -249,8 +308,12 @@ export class MpGlPoster {
       payable: mpGlSettings.farmerPayableAccountId,
       advance: mpGlSettings.advanceAccountId,
       feed: mpGlSettings.feedLoanAccountId,
+      saleReceivable: mpGlSettings.milkSaleReceivableAccountId,
+      saleIncome: mpGlSettings.milkSaleIncomeAccountId,
     }).from(mpGlSettings).where(eq(mpGlSettings.tenantId, this.tenantId));
-    const ids = [s?.milk, s?.commission, s?.payable, s?.advance, s?.feed].filter(Boolean) as string[];
+    const ids = [
+      s?.milk, s?.commission, s?.payable, s?.advance, s?.feed, s?.saleReceivable, s?.saleIncome,
+    ].filter(Boolean) as string[];
     const codeById = new Map<string, string>();
     if (ids.length) {
       const rows = await tx.select({ id: accounts.id, code: accounts.code }).from(accounts)
@@ -264,6 +327,8 @@ export class MpGlPoster {
       farmerPayable: pick(s?.payable, DEFAULT_CODES.farmerPayable),
       farmerAdvances: pick(s?.advance, DEFAULT_CODES.farmerAdvances),
       feedLoans: pick(s?.feed, DEFAULT_CODES.feedLoans),
+      saleReceivable: pick(s?.saleReceivable, DEFAULT_CODES.saleReceivable),
+      saleIncome: pick(s?.saleIncome, DEFAULT_CODES.saleIncome),
       bank: DEFAULT_CODES.bank,
     };
   }

@@ -711,6 +711,9 @@ class MpSuppliedLine {
 class MpLedgerEntry {
   final String id, farmerId, entryType, occurredOn;
   final double amount, balanceAfter;
+  /// Which bucket the entry is against ('farmer_sale' | 'advance' |
+  /// 'cattle_feed_loan'). Null on older rows and on plain advances.
+  final String? refType;
   MpLedgerEntry({
     required this.id,
     required this.farmerId,
@@ -718,6 +721,7 @@ class MpLedgerEntry {
     required this.occurredOn,
     required this.amount,
     required this.balanceAfter,
+    this.refType,
   });
   factory MpLedgerEntry.fromJson(Map<String, dynamic> j) => MpLedgerEntry(
     id: _s(j['id']),
@@ -726,7 +730,11 @@ class MpLedgerEntry {
     occurredOn: _s(j['occurredOn']),
     amount: _d(j['amount']),
     balanceAfter: _d(j['balanceAfter']),
+    refType: j['refType'] as String?,
   );
+
+  /// True when this row belongs to the Sold-to-farmer ledger, not advances.
+  bool get isSale => entryType == 'farmer_sale' || refType == 'farmer_sale';
 }
 
 class MpConsignment {
@@ -920,10 +928,75 @@ class MpShiftStatus {
 /// debt type, and every entry newest-first.
 typedef MpFarmerLedger = ({
   double balance,
+  double saleDue,
   double advanceDue,
   double feedLoanDue,
   List<MpLedgerEntry> entries,
 });
+
+/// Goods the farmer BOUGHT from us — bulk milk a trader resells, or a product
+/// (ghee, curd, paneer) off the counter. Recovered from their next payment.
+class MpFarmerSale {
+  final String id, saleDate, kind, unit;
+  final String? shift, itemId, itemName, nodeName, reversedAt;
+  /// Set on a bulk-milk line only; a product names its item instead.
+  final MilkType? milkType;
+  final double qty, ratePerUnit, amount;
+  MpFarmerSale({
+    required this.id,
+    required this.saleDate,
+    required this.kind,
+    required this.unit,
+    required this.qty,
+    required this.ratePerUnit,
+    required this.amount,
+    this.milkType,
+    this.shift,
+    this.itemId,
+    this.itemName,
+    this.nodeName,
+    this.reversedAt,
+  });
+  factory MpFarmerSale.fromJson(Map<String, dynamic> j) => MpFarmerSale(
+        id: j['id'] as String,
+        saleDate: j['saleDate'] as String,
+        kind: (j['kind'] as String?) ?? 'raw_milk',
+        unit: (j['unit'] as String?) ?? 'L',
+        shift: j['shift'] as String?,
+        milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
+        itemId: j['itemId'] as String?,
+        itemName: j['itemName'] as String?,
+        qty: double.tryParse('${j['qty']}') ?? 0,
+        ratePerUnit: double.tryParse('${j['ratePerUnit']}') ?? 0,
+        amount: double.tryParse('${j['amount']}') ?? 0,
+        nodeName: j['nodeName'] as String?,
+        reversedAt: j['reversedAt'] as String?,
+      );
+
+  bool get isMilk => kind == 'raw_milk';
+  bool get isReversed => reversedAt != null;
+}
+
+/// A product an operator may sell at the counter.
+class MpSellableItem {
+  final String id, name;
+  final String? sku, unit;
+  final double? defaultSellingPrice;
+  MpSellableItem({
+    required this.id,
+    required this.name,
+    this.sku,
+    this.unit,
+    this.defaultSellingPrice,
+  });
+  factory MpSellableItem.fromJson(Map<String, dynamic> j) => MpSellableItem(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        sku: j['sku'] as String?,
+        unit: j['unit'] as String?,
+        defaultSellingPrice: double.tryParse('${j['defaultSellingPrice']}'),
+      );
+}
 
 class MpPayoutDeduction {
   final String id, deductionType;

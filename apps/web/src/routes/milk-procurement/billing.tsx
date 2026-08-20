@@ -3,6 +3,7 @@ import { Coins, CheckCircle2, Receipt, RotateCcw, Eye, Download } from 'lucide-r
 import { sharePdf } from '@/lib/share-pdf';
 import { Tabs } from '@/components/ar/primitives';
 import { CyclesList, LedgerCard, OperatorsPayoutTab } from './payouts';
+import { FarmerSalesCard } from './farmer-sales';
 import { PaymentHistory } from './_payment-history';
 import {
   PageHeader, Card, CardContent, StatsCard, Combobox, Modal, Input, DateInput,
@@ -376,17 +377,19 @@ export function VmccBillSection({ ccNodeId, period, locked = true }: { ccNodeId:
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function MpBillingPage() {
-  const [tab, setTab] = useState<'cycles' | 'payments' | 'ledger' | 'operators'>('cycles');
+  const [tab, setTab] = useState<'cycles' | 'payments' | 'ledger' | 'sales' | 'operators'>('cycles');
   return (
     <div>
       <PageHeader title="Billing" description="Milk-procurement bills and payouts, organised by cycle." fullWidth />
       <Tabs active={tab} onChange={setTab} tabs={[
         { id: 'cycles', label: 'Cycles' }, { id: 'payments', label: 'Payment history' },
-        { id: 'ledger', label: 'Ledger' }, { id: 'operators', label: 'Operators' },
+        { id: 'ledger', label: 'Ledger' }, { id: 'sales', label: 'Sold to farmers' },
+        { id: 'operators', label: 'Operators' },
       ]} />
       {tab === 'cycles' && <CyclesList />}
       {tab === 'payments' && <PaymentHistory />}
       {tab === 'ledger' && <LedgerCard />}
+      {tab === 'sales' && <FarmerSalesCard />}
       {tab === 'operators' && <OperatorsPayoutTab />}
     </div>
   );

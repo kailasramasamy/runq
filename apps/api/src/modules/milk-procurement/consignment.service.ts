@@ -1,5 +1,7 @@
 import { and, asc, eq, desc, sql, inArray, gte, lte, or, isNull } from 'drizzle-orm';
-import { mpConsignments, mpNodes, mpPours, mpGlSettings, mpRawMilkItems, stockLedger } from '@runq/db';
+import {
+  mpConsignments, mpNodes, mpPours, mpFarmerSales, mpGlSettings, mpRawMilkItems, stockLedger,
+} from '@runq/db';
 import type { Db, MpConsignmentRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
@@ -32,6 +34,8 @@ export interface LegOptions { silent?: boolean }
 export interface ConsignmentAvailability {
   nodeId: string; collectionDate: string; nodeType: string;
   collected: number; dispatched: number; available: number;
+  /** Litres handed to trader-farmers at the gate — off the slot, but not sent onward. */
+  sold: number;
   avgFat: number | null; avgSnf: number | null; avgWater: number | null;
   /** One entry per milk type held at the node, so cow and buffalo are dispatched
    * as separate consignments rather than blended into one untyped tanker. */
@@ -40,7 +44,7 @@ export interface ConsignmentAvailability {
 
 export interface MilkTypeAvailability {
   milkType: MilkType | null;
-  collected: number; dispatched: number; available: number;
+  collected: number; dispatched: number; sold: number; available: number;
   avgFat: number | null; avgSnf: number | null; avgWater: number | null;
 }
 
@@ -437,7 +441,13 @@ export class ConsignmentService {
     const batches = await this.collectedFor(nodeId, node.nodeType, mode, collectionDate, effShift);
     // A pool is dispatched as one tanker dated on the anchor day (shift null), so
     // the dispatched side stays anchored there regardless of the shift filter.
-    const dispatchRows = await this.dispatchedByType(nodeId, collectionDate, effShift);
+    const dispatchRows = await this.outflowsByType(nodeId, collectionDate, effShift);
+    // Sold litres are inside `dispatchRows` (they draw the slot down the same
+    // way), but they are not a dispatch — pulled out again so the figure the
+    // operator reads still means "sent onward".
+    const saleRows = await this.salesByType(nodeId, collectionDate, effShift);
+    const soldOf = (t: MilkType | null) => round3(saleRows
+      .filter((r) => r.milkType === t).reduce((sum, r) => sum + r.qty, 0));
 
     const left = drawDown(batches, dispatchRows);
     const types = [...new Set([
@@ -448,8 +458,10 @@ export class ConsignmentService {
     const byMilkType: MilkTypeAvailability[] = types.map((t) => {
       const collected = weigh(batches.filter((b) => b.milkType === t)).qty;
       const rest = weigh(left.filter((b) => b.milkType === t));
+      const sold = soldOf(t);
       return {
-        milkType: t, collected, dispatched: round3(collected - rest.qty), available: rest.qty,
+        milkType: t, collected, dispatched: round3(collected - rest.qty - sold), sold,
+        available: rest.qty,
         avgFat: rest.fat, avgSnf: rest.snf, avgWater: rest.water,
       };
     }).sort((a, b) => b.available - a.available);
@@ -459,12 +471,13 @@ export class ConsignmentService {
     const scopedLeft = milkType ? left.filter((b) => b.milkType === milkType) : left;
     const collected = round3(scoped.reduce((t, r) => t + r.collected, 0));
     const dispatched = round3(scoped.reduce((t, r) => t + r.dispatched, 0));
+    const sold = round3(scoped.reduce((t, r) => t + r.sold, 0));
     // QC describes what's still on hand, not everything collected — the second
     // dispatch of a day must prefill the remaining batch's FAT/SNF, not the blend.
     const qc = weigh(scopedLeft);
     return {
       nodeId, collectionDate, nodeType: node.nodeType,
-      collected, dispatched, available: round3(collected - dispatched),
+      collected, dispatched, sold, available: round3(collected - dispatched - sold),
       avgFat: qc.fat, avgSnf: qc.snf, avgWater: qc.water,
       byMilkType,
     };
@@ -501,8 +514,8 @@ export class ConsignmentService {
     const batches = nodeType === 'vmcc'
       ? await this.collectedFromPours(nodeId, date, shift)
       : await this.collectedFromReceipts(nodeId, date, shift);
-    const dispatched = await this.dispatchedByType(nodeId, date, shift);
-    return availableOf(batches, dispatched, milkType);
+    const outflows = await this.outflowsByType(nodeId, date, shift);
+    return availableOf(batches, outflows, milkType);
   }
 
   /** Recorded pours at a VMCC, oldest first. */
@@ -574,13 +587,46 @@ export class ConsignmentService {
     nodeId: string, nodeType: string, anchorDate: string, milkType?: MilkType,
   ): Promise<number> {
     const batches = await this.collectedFor(nodeId, nodeType, 'overnight', anchorDate);
-    const dispatched = await this.dispatchedByType(nodeId, anchorDate);
-    return availableOf(batches, dispatched, milkType);
+    const outflows = await this.outflowsByType(nodeId, anchorDate);
+    return availableOf(batches, outflows, milkType);
   }
 
   private async sumDispatched(nodeId: string, date: string, shift?: 'am' | 'pm'): Promise<number> {
     const rows = await this.dispatchedByType(nodeId, date, shift);
     return rows.reduce((t, r) => t + r.qty, 0);
+  }
+
+  /** Everything that left the node: consignments dispatched onward PLUS milk
+   * sold to a trader-farmer at the gate. Both draw the slot down, so both have
+   * to come off availability — otherwise the sold litres look dispatchable and
+   * the next tanker is over-promised. */
+  private async outflowsByType(
+    nodeId: string, date: string, shift?: 'am' | 'pm',
+  ): Promise<{ milkType: MilkType | null; qty: number }[]> {
+    const [dispatched, sold] = await Promise.all([
+      this.dispatchedByType(nodeId, date, shift),
+      this.salesByType(nodeId, date, shift),
+    ]);
+    return [...dispatched, ...sold];
+  }
+
+  /** Bulk milk sold to farmers at this node, by milk type. Reversed sales are
+   * out, and so are product sales — a tin of ghee moves no milk off the pool. */
+  private async salesByType(
+    nodeId: string, date: string, shift?: 'am' | 'pm',
+  ): Promise<{ milkType: MilkType; qty: number }[]> {
+    const rows = await this.db.select({
+      milkType: mpFarmerSales.milkType,
+      q: sql<string>`coalesce(sum(${mpFarmerSales.qty}), 0)`,
+    }).from(mpFarmerSales)
+      .where(and(eq(mpFarmerSales.tenantId, this.tenantId), eq(mpFarmerSales.nodeId, nodeId),
+        eq(mpFarmerSales.kind, 'raw_milk'),
+        eq(mpFarmerSales.saleDate, date), isNull(mpFarmerSales.reversedAt),
+        ...saleShiftCond(shift)))
+      .groupBy(mpFarmerSales.milkType);
+    return rows.flatMap((r) => (r.milkType
+      ? [{ milkType: r.milkType, qty: Number(r.q ?? 0) }]
+      : []));
   }
 
   /** Dispatched litres split by the consignment's milk type. Legacy rows carry a
@@ -762,6 +808,15 @@ interface Batch {
  * that milk as still on hand and let it be dispatched twice. Attributing them to
  * AM can only understate what's available, which is the safe direction.
  */
+/** Same null-folds-onto-AM rule as `receiptShiftCond`: a sale at a pooled node
+ * carries no shift, and must still come off a per-shift reading of that day. */
+function saleShiftCond(shift?: 'am' | 'pm') {
+  if (!shift) return [];
+  return [shift === 'am'
+    ? or(eq(mpFarmerSales.shift, 'am'), isNull(mpFarmerSales.shift))
+    : eq(mpFarmerSales.shift, shift)];
+}
+
 function receiptShiftCond(shift?: 'am' | 'pm') {
   if (!shift) return [];
   return [shift === 'am'
