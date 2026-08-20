@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,15 +6,26 @@ import 'package:flutter/semantics.dart';
 
 import '../api/api_client.dart';
 import '../theme/runq_theme.dart';
-import '../theme/runq_tokens.dart';
 
 /// Severity of a toast. Drives icon, accent colour, on-screen duration and
 /// how assertively screen readers announce it.
 enum SnackKind { success, error, warning, info }
 
-/// Show a runQ-styled toast at the bottom of the screen. Uses the same
-/// surface/ink tokens as the rest of the app so it sits in either theme
-/// without looking foreign.
+/// Deliberately NOT themed. On the light theme the toast used `t.surface` —
+/// a white card on a white page, separated by a half-pixel hairline, which is
+/// barely visible. A charcoal slab reads instantly against either theme and
+/// gives the toast one identity across modes instead of two.
+const _kSnackSurface = Color(0xFF23262B);
+const _kSnackInk = Color(0xFFF3F4F6);
+const _kSnackInkSoft = Color(0xFF9CA3AF);
+
+/// Show a runQ-styled toast at the bottom of the screen: a dark card that
+/// slides up from the bottom edge and slides back down.
+///
+/// Hosted in the root overlay rather than [ScaffoldMessenger]. Flutter's
+/// floating SnackBar only cross-FADES (snack_bar.dart → `snackBarTransition`),
+/// which is why the old toast appeared in place instead of arriving, and it
+/// paints below a modal sheet so a toast fired from one was invisible.
 ///
 /// Duration follows severity rather than a flat timeout: success/info read
 /// fast and clear in 4s, warnings get 5s, errors get 8s, and anything long
@@ -32,7 +44,7 @@ void showRunqSnack(
   VoidCallback? onAction,
   Duration? duration,
 }) =>
-    _show(ScaffoldMessenger.of(context), context, message,
+    _show(null, context, message,
         kind: kind,
         description: description,
         actionLabel: actionLabel,
@@ -51,7 +63,7 @@ void showRunqSnackOn(
   VoidCallback? onAction,
   Duration? duration,
 }) =>
-    _show(messenger, messenger.context, message,
+    _show(null, messenger.context, message,
         kind: kind,
         description: description,
         actionLabel: actionLabel,
@@ -66,8 +78,12 @@ String snackErrorText(Object error,
         {String fallback = 'Something went wrong. Try again.'}) =>
     error is ApiException ? error.message : fallback;
 
+/// The toast on screen, if any. One at a time: a second replaces the first
+/// instantly rather than queueing behind its exit, which reads as a stall.
+OverlayEntry? _current;
+
 void _show(
-  ScaffoldMessengerState messenger,
+  ScaffoldMessengerState? messenger,
   BuildContext context,
   String message, {
   required SnackKind kind,
@@ -84,33 +100,139 @@ void _show(
   final persistent = kind == SnackKind.error && hasAction;
   _announce(context, message, description, kind);
 
-  // Swap instantly rather than waiting out the previous toast's exit —
-  // `hide` animates the old one away first, which reads as a stall.
-  messenger.removeCurrentSnackBar();
-  messenger.showSnackBar(
-    SnackBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      padding: EdgeInsets.zero,
-      duration: duration ?? _durationFor(kind, message, description, hasAction),
-      behavior: SnackBarBehavior.floating,
-      margin: EdgeInsets.fromLTRB(8, 0, 8, _bottomMarginFor(context)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      // SnackBar clips its content to `shape` by default (Clip.hardEdge),
-      // which cuts off the toast's drop shadow. Disable clipping so the
-      // shadow can render freely past the bar's bounds.
-      clipBehavior: Clip.none,
-      dismissDirection: DismissDirection.horizontal,
-      content: _SnackCard(
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  _current?.remove();
+  _current = null;
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => _SnackHost(
+      bottomInset: _bottomInsetFor(context),
+      // Read here, not in the host's initState: an overlay entry builds
+      // outside the caller's subtree and initState may not read inherited
+      // widgets.
+      reduceMotion: MediaQuery.maybeOf(context)?.disableAnimations ?? false,
+      duration:
+          duration ?? _durationFor(kind, message, description, hasAction),
+      persistent: persistent && duration == null,
+      onGone: () {
+        if (_current == entry) _current = null;
+        entry.remove();
+      },
+      builder: (dismiss) => _SnackCard(
         message: message,
         description: description,
         kind: kind,
         actionLabel: hasAction ? actionLabel : null,
         onAction: hasAction ? onAction : null,
         showClose: persistent,
+        onDismiss: dismiss,
       ),
     ),
   );
+  _current = entry;
+  overlay.insert(entry);
+}
+
+/// Positions, animates and times out one toast.
+class _SnackHost extends StatefulWidget {
+  const _SnackHost({
+    required this.bottomInset,
+    required this.reduceMotion,
+    required this.duration,
+    required this.persistent,
+    required this.onGone,
+    required this.builder,
+  });
+
+  final double bottomInset;
+  final bool reduceMotion;
+  final Duration duration;
+  final bool persistent;
+  final VoidCallback onGone;
+  final Widget Function(VoidCallback dismiss) builder;
+
+  @override
+  State<_SnackHost> createState() => _SnackHostState();
+}
+
+class _SnackHostState extends State<_SnackHost>
+    with SingleTickerProviderStateMixin {
+  // Unhurried in, a little quicker out: arriving should feel considered,
+  // leaving should get out of the way without being abrupt.
+  late final AnimationController _controller;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+  Timer? _timer;
+  bool _leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final reduceMotion = widget.reduceMotion;
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: reduceMotion ? 120 : 440),
+      reverseDuration: Duration(milliseconds: reduceMotion ? 100 : 320),
+    );
+    _slide = Tween<Offset>(
+      // A full card-height below its resting place, so it rises from the
+      // bottom edge rather than popping into position. Reduced motion keeps
+      // the fade and drops the travel.
+      begin: reduceMotion ? Offset.zero : const Offset(0, 1.4),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    ));
+    // Fade finishes well before the slide does: a card still fading once it
+    // has settled reads as lag.
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.55, curve: Curves.easeOut),
+      reverseCurve: const Interval(0.35, 1, curve: Curves.easeIn),
+    );
+    _controller.forward();
+    // An actionable error waits for the user; everything else times out.
+    if (!widget.persistent) _timer = Timer(widget.duration, _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (_leaving) return;
+    _leaving = true;
+    _timer?.cancel();
+    if (!mounted) return;
+    await _controller.reverse();
+    if (mounted) widget.onGone();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 8,
+      right: 8,
+      bottom: widget.bottomInset,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: widget.builder(_dismiss),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Severity-named wrappers. These are the preferred call style — they keep
@@ -197,18 +319,37 @@ bool _isDuplicate(SnackKind kind, String message, String? description) {
 
 // ── placement ───────────────────────────────────────────────────────────────
 
-/// SnackBarBehavior.floating already lifts the bar above any
-/// Scaffold.bottomNavigationBar slot — those screens (RootShell tab nav,
-/// HrFormScreen action bar, etc.) need only a tiny breathing gap. For
-/// screens that dock their own action bar inside the body Column instead of
-/// the bottomNavigationBar slot, Flutter doesn't know to push the toast — we
-/// add an extra inset to clear a typical 60-70px tall docked button bar so
-/// the toast doesn't sit under it.
-double _bottomMarginFor(BuildContext context) {
+/// Where the toast rests, measured rather than guessed.
+///
+/// The overlay spans the whole screen, so unlike a floating SnackBar nothing
+/// lifts the toast above a bottom bar for us. runQ has many different ones
+/// (the RootShell nav pill, HrFormScreen's action bar, GstActionBar…), so a
+/// single constant would be wrong for most of them. [ScaffoldGeometry]
+/// reports where the bottom bar's top edge actually is — the same figure
+/// Flutter itself uses to place floating snack bars.
+///
+/// Screens that dock their own action bar inside the body Column instead of
+/// the bottomNavigationBar slot are invisible to that geometry, so they keep
+/// the old allowance for a typical 60-70px docked button bar.
+double _bottomInsetFor(BuildContext context) {
+  const gap = 12.0;
   final scaffold = Scaffold.maybeOf(context);
-  final hasBottomNav = scaffold?.widget.bottomNavigationBar != null ||
-      scaffold?.widget.persistentFooterButtons != null;
-  return hasBottomNav ? 12.0 : 80.0;
+  if (scaffold == null) {
+    return MediaQuery.of(context).viewPadding.bottom + gap;
+  }
+  final hasBottomBar = scaffold.widget.bottomNavigationBar != null ||
+      scaffold.widget.persistentFooterButtons != null;
+  if (!hasBottomBar) return 80.0;
+
+  final geometry = Scaffold.geometryOf(context).value;
+  final navTop = geometry.bottomNavigationBarTop;
+  final screenHeight = MediaQuery.of(context).size.height;
+  // Null before the first layout pass, and nonsense if the scaffold isn't
+  // full-screen; fall back to a gap that at least clears the safe area.
+  if (navTop == null || navTop <= 0 || navTop >= screenHeight) {
+    return MediaQuery.of(context).viewPadding.bottom + gap;
+  }
+  return screenHeight - navTop + gap;
 }
 
 // ── accessibility ───────────────────────────────────────────────────────────
@@ -241,6 +382,7 @@ class _SnackCard extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     required this.showClose,
+    required this.onDismiss,
   });
 
   final String message;
@@ -249,48 +391,36 @@ class _SnackCard extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
   final bool showClose;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: reduceMotion ? 120 : 280),
-      curve: Curves.easeOutCubic,
-      builder: (context, v, child) => Opacity(
-        opacity: v,
-        // Reduced motion keeps the fade but drops the travel.
-        child: reduceMotion
-            ? child
-            : Transform.translate(offset: Offset(0, 16 * (1 - v)), child: child),
-      ),
-      // Inset on each side so the drop shadow has breathing room around the
-      // toast. The outer SnackBar margin is reduced to compensate so the
-      // toast width still matches.
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        // Cap the width so the toast doesn't stretch edge to edge on a tablet.
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Semantics(liveRegion: true, child: _body(context)),
-          ),
+    // Motion lives in _SnackHost now, which owns the exit as well as the
+    // entrance — this card only has to lay itself out.
+    return Padding(
+      // Breathing room for the drop shadow on every side.
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Center(
+        child: ConstrainedBox(
+          // Hug the text: "Saved" should be a small card, not a bar spanning
+          // the screen. The cap keeps a long message from running edge to
+          // edge on a tablet.
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Semantics(liveRegion: true, child: _body(context)),
         ),
       ),
     );
   }
 
   Widget _body(BuildContext context) {
-    final t = RT(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      padding: EdgeInsets.fromLTRB(16, 12, _hasTrailing ? 8 : 16, 12),
       decoration: BoxDecoration(
-        color: t.surface,
+        color: _kSnackSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: t.hairline, width: 0.5),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x33000000),
+              color: Color(0x40000000),
               blurRadius: 28,
               offset: Offset(0, 12),
               spreadRadius: -4),
@@ -299,15 +429,20 @@ class _SnackCard extends StatelessWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
+        // Shrink-wrap the text so the card is as wide as its content and no
+        // wider; Flexible still lets a long message wrap within the cap.
+        mainAxisSize: MainAxisSize.min,
         children: [
           _badge(context),
           const SizedBox(width: 12),
-          Expanded(child: _text(context)),
+          Flexible(child: _text(context)),
           ..._trailing(context),
         ],
       ),
     );
   }
+
+  bool get _hasTrailing => actionLabel != null || showClose;
 
   Widget _badge(BuildContext context) {
     final accent = _accentFor(context, kind);
@@ -324,7 +459,6 @@ class _SnackCard extends StatelessWidget {
   }
 
   Widget _text(BuildContext context) {
-    final t = RT(context);
     final desc = description;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -334,7 +468,7 @@ class _SnackCard extends StatelessWidget {
         children: [
           Text(
             message,
-            style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.3),
+            style: RunqText.bodyStrong.copyWith(color: _kSnackInk, height: 1.3),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -342,7 +476,7 @@ class _SnackCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               desc,
-              style: RunqText.caption.copyWith(color: t.muted, height: 1.35),
+              style: RunqText.caption.copyWith(color: _kSnackInkSoft, height: 1.35),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -358,7 +492,7 @@ class _SnackCard extends StatelessWidget {
       if (label != null)
         TextButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            onDismiss();
             onAction!();
           },
           style: TextButton.styleFrom(
@@ -371,9 +505,9 @@ class _SnackCard extends StatelessWidget {
         ),
       if (showClose)
         IconButton(
-          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+          onPressed: onDismiss,
           icon: const Icon(Icons.close_rounded, size: 18),
-          color: RT(context).muted,
+          color: _kSnackInkSoft,
           tooltip: 'Dismiss',
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
@@ -391,15 +525,12 @@ IconData _iconFor(SnackKind kind) => switch (kind) {
       SnackKind.info => Icons.info_rounded,
     };
 
-/// Accents are theme-split: the light-mode status inks are too dark to clear
-/// 3:1 against the dark surface, so dark mode uses the lighter twin.
-Color _accentFor(BuildContext context, SnackKind kind) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return switch (kind) {
-    SnackKind.success =>
-      isDark ? const Color(0xFF34D399) : RunqColors.greenInk,
-    SnackKind.error => isDark ? const Color(0xFFF87171) : RunqColors.redInk,
-    SnackKind.warning => isDark ? const Color(0xFFFBBF24) : RunqColors.amberInk,
-    SnackKind.info => RT(context).brand,
-  };
-}
+/// The toast surface is dark in BOTH themes, so accents are always the lighter
+/// twins — the light-mode status inks are tuned for a white card and can't
+/// clear 3:1 against charcoal.
+Color _accentFor(BuildContext context, SnackKind kind) => switch (kind) {
+      SnackKind.success => const Color(0xFF34D399),
+      SnackKind.error => const Color(0xFFF87171),
+      SnackKind.warning => const Color(0xFFFBBF24),
+      SnackKind.info => const Color(0xFF7DD3FC),
+    };
