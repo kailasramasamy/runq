@@ -23,6 +23,7 @@ import 'farmer_insights.dart';
 import 'farmer_qc_report.dart';
 import 'farmer_rate_chart.dart';
 import 'farmer_rewards.dart';
+import 'farmer_services_stub.dart';
 
 /// Farmer home (redesign §1): greeting + bell, emerald cycle hero with a
 /// volume sparkline, today's AM/PM accent cards, a streak ring nudge, and
@@ -467,8 +468,9 @@ class FarmerHome extends ConsumerWidget {
   }
 
   // ── Quick links ─────────────────────────────────────────────────────────
-  /// 2×2 grid. Collections switches the shell tab rather than pushing, so the
-  /// farmer lands on the real tab (bottom nav intact) instead of a stacked copy.
+  /// 2×2 grid. Services lives here rather than in the bottom nav — it is a
+  /// preview board, not a daily destination — and took the slot that used to
+  /// duplicate the Collections tab.
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) => Column(
         children: [
           Row(children: [
@@ -485,8 +487,9 @@ class FarmerHome extends ConsumerWidget {
           const SizedBox(height: DhenuSpacing.md),
           Row(children: [
             Expanded(
-              child: _link(context, t, DhenuIcons.collections, t.am, l.navCollections,
-                  () => RoleShell.goToTab(context, _collectionsTab)),
+              child: _link(context, t, DhenuIcons.services, t.am, l.navServices,
+                  () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const FarmerServicesStub()))),
             ),
             const SizedBox(width: DhenuSpacing.md),
             Expanded(

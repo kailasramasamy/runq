@@ -8,10 +8,15 @@ import '../../widgets/app_bottom_nav.dart';
 import 'farmer_collections_tab.dart';
 import 'farmer_home.dart';
 import 'farmer_payments_tab.dart';
-import 'farmer_services_stub.dart';
 
-/// Farmer persona shell — 5-tab home (spec §4.3):
-/// 🏠 Home · 📊 Collections · 💰 Payments · 🛒 Services · 👤 Profile
+/// Farmer persona shell — 4-tab home:
+/// 🏠 Home · 📊 Collections · 💰 Payments · 👤 Profile
+///
+/// Services was the fifth tab, but it is still a "coming soon" board with no
+/// working service behind it — a permanent nav slot for a page that can only be
+/// read once, at the cost of squeezing the four real destinations. It now sits
+/// as a Home quick link ([FarmerServicesStub] pushed as a route) and returns to
+/// the nav when the services themselves do.
 class FarmerShell extends ConsumerWidget {
   const FarmerShell({super.key, this.header});
 
@@ -26,7 +31,6 @@ class FarmerShell extends ConsumerWidget {
       DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
       DhenuNavItem(icon: DhenuIcons.collections, label: l.navCollections),
       DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
-      DhenuNavItem(icon: DhenuIcons.services, label: l.navServices),
       DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
     ];
     return RoleShell(
@@ -36,7 +40,6 @@ class FarmerShell extends ConsumerWidget {
         FarmerHome(),
         FarmerCollectionsTab(),
         FarmerPaymentsTab(),
-        FarmerServicesStub(),
         ProfileTab(),
       ],
     );

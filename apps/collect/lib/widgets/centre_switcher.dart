@@ -9,6 +9,7 @@ import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 import 'dhenu_card.dart';
 import 'dhenu_states.dart';
+import 'farmer_view.dart';
 import 'sheet_grabber.dart';
 
 /// Tier label for a node — the "mode" the app runs in for it.
@@ -93,6 +94,14 @@ class _CentreSwitcherSheet extends ConsumerWidget {
               setActiveNode(ref, n);
               Navigator.of(context).pop();
             },
+            // Farmer mode is reachable from the picker screen's bottom nav but
+            // was missing here, so an admin already inside a centre had no way
+            // into it without backing out. Pops first: the farmer picker is its
+            // own sheet, not a list this one can host.
+            onPickFarmer: () {
+              Navigator.of(context).pop();
+              showFarmerViewPicker(context, ref);
+            },
           ),
         ),
       ]),
@@ -116,9 +125,15 @@ String _abbrForType(String type) => type == 'pp' ? 'PP' : (type == 'cc' ? 'CC' :
 /// that the whole list is on screen and a search box is just another thing to
 /// skip past.
 class CentrePickerList extends ConsumerStatefulWidget {
-  const CentrePickerList({super.key, required this.onPick, this.currentId});
+  const CentrePickerList(
+      {super.key, required this.onPick, this.currentId, this.onPickFarmer});
   final ValueChanged<MpNode> onPick;
   final String? currentId;
+
+  /// When set, a "Farmers" tab sits after the tier tabs — tapping it hands off
+  /// to the tenant-wide farmer picker ("view as farmer") instead of switching
+  /// the list. Omitted where farmer view doesn't apply.
+  final VoidCallback? onPickFarmer;
 
   @override
   ConsumerState<CentrePickerList> createState() => _CentrePickerListState();
@@ -180,8 +195,7 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
                     n.code.toLowerCase().contains(_query)).toList();
             return Column(children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    DhenuSpacing.screen, 0, DhenuSpacing.screen, DhenuSpacing.md),
+                padding: const EdgeInsets.only(bottom: DhenuSpacing.md),
                 child: _tabs(l, t, tiers, tier, active),
               ),
               if (inTier.length > _searchAbove)
@@ -216,40 +230,51 @@ class _CentrePickerListState extends ConsumerState<CentrePickerList> {
 
   /// Tier tabs, each carrying its own count so the operator can see where the
   /// centres are before switching to look.
+  ///
+  /// Scrolls horizontally rather than dividing the width evenly: with the
+  /// Farmers tab added, four equal columns squeezed every label to the point of
+  /// eliding. Each pill now takes the width its own text needs.
   Widget _tabs(AppLocalizations l, DhenuTokens t, List<String> tiers, String current,
       List<MpNode> active) {
-    return Row(children: [
-      for (final ty in tiers) ...[
-        if (ty != tiers.first) const SizedBox(width: DhenuSpacing.sm),
-        Expanded(
-          child: _tab(t, ty, current == ty,
-              active.where((n) => n.nodeType == ty).length),
-        ),
-      ],
-    ]);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.screen),
+      child: Row(children: [
+        for (final ty in tiers) ...[
+          if (ty != tiers.first) const SizedBox(width: DhenuSpacing.sm),
+          _tab(t, _iconForType(ty),
+              '${_abbrForType(ty)} ${active.where((n) => n.nodeType == ty).length}',
+              selected: current == ty,
+              onTap: () => setState(() { _tier = ty; _query = ''; })),
+        ],
+        if (widget.onPickFarmer != null) ...[
+          const SizedBox(width: DhenuSpacing.sm),
+          _tab(t, DhenuIcons.users, l.adminSwitchFarmersNav,
+              selected: false, onTap: widget.onPickFarmer!),
+        ],
+      ]),
+    );
   }
 
-  Widget _tab(DhenuTokens t, String type, bool selected, int count) => Material(
+  Widget _tab(DhenuTokens t, IconData icon, String label,
+          {required bool selected, required VoidCallback onTap}) =>
+      Material(
         color: selected ? t.brand : t.inputFill,
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
         child: InkWell(
-          onTap: selected
-              ? null
-              : () => setState(() { _tier = type; _query = ''; }),
+          onTap: selected ? null : onTap,
           borderRadius: BorderRadius.circular(DhenuRadii.pill),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.sm),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(_iconForType(type), size: 15,
-                  color: selected ? Colors.white : t.inkSoft),
+            padding: const EdgeInsets.symmetric(
+                horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.sm),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 15, color: selected ? Colors.white : t.inkSoft),
               const SizedBox(width: DhenuSpacing.xs),
-              Flexible(
-                child: Text('${_abbrForType(type)} $count',
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: DhenuText.label.copyWith(
-                        color: selected ? Colors.white : t.ink,
-                        fontWeight: FontWeight.w700)),
-              ),
+              Text(label,
+                  maxLines: 1,
+                  style: DhenuText.label.copyWith(
+                      color: selected ? Colors.white : t.ink,
+                      fontWeight: FontWeight.w700)),
             ]),
           ),
         ),

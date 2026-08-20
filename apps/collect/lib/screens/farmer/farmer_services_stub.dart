@@ -6,8 +6,9 @@ import '../../theme/dhenu_tokens.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_toast.dart';
 
-/// Services tab (redesign §6.6): polished "coming soon" state — four service
-/// cards with icon chips + SOON pills, plus the existing Notify-me CTA.
+/// Services (redesign §6.6): polished "coming soon" state — four service cards
+/// with icon chips + SOON pills, plus the existing Notify-me CTA. Pushed as a
+/// route from the farmer home's quick links, so it carries its own scaffold.
 class FarmerServicesStub extends StatelessWidget {
   const FarmerServicesStub({super.key});
 
@@ -15,43 +16,53 @@ class FarmerServicesStub extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    return ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(
-          DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
-      children: [
-        _header(t, l),
-        const SizedBox(height: DhenuSpacing.xxl),
-        _ServiceCard(
-          icon: DhenuIcons.feed,
-          tint: t.gradeB,
-          name: l.farmerServicesCattleFeedName,
-          description: l.farmerServicesCattleFeedDesc,
+    return Scaffold(
+      backgroundColor: t.surface,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(DhenuIcons.chevronLeft, color: t.ink),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        const SizedBox(height: DhenuSpacing.md),
-        _ServiceCard(
-          icon: DhenuIcons.vet,
-          tint: t.brand,
-          name: l.farmerServicesVetName,
-          description: l.farmerServicesVetDesc,
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        _ServiceCard(
-          icon: DhenuIcons.insurance,
-          tint: t.pm,
-          name: l.farmerServicesInsuranceName,
-          description: l.farmerServicesInsuranceDesc,
-        ),
-        const SizedBox(height: DhenuSpacing.md),
-        _ServiceCard(
-          icon: DhenuIcons.loans,
-          tint: t.gradeA,
-          name: l.farmerServicesLoansName,
-          description: l.farmerServicesLoansDesc,
-        ),
-        const SizedBox(height: DhenuSpacing.xxl),
-        _notifyButton(context, t, l),
-      ],
+        title: Text(l.navServices, style: DhenuText.h2.copyWith(color: t.ink)),
+        backgroundColor: t.surface,
+      ),
+      body: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(
+              DhenuSpacing.screen, DhenuSpacing.lg, DhenuSpacing.screen, DhenuSpacing.x4),
+          children: [
+            _header(t, l),
+            const SizedBox(height: DhenuSpacing.xxl),
+            _ServiceCard(
+              icon: DhenuIcons.feed,
+              tint: t.gradeB,
+              name: l.farmerServicesCattleFeedName,
+              description: l.farmerServicesCattleFeedDesc,
+            ),
+            const SizedBox(height: DhenuSpacing.md),
+            _ServiceCard(
+              icon: DhenuIcons.vet,
+              tint: t.brand,
+              name: l.farmerServicesVetName,
+              description: l.farmerServicesVetDesc,
+            ),
+            const SizedBox(height: DhenuSpacing.md),
+            _ServiceCard(
+              icon: DhenuIcons.insurance,
+              tint: t.pm,
+              name: l.farmerServicesInsuranceName,
+              description: l.farmerServicesInsuranceDesc,
+            ),
+            const SizedBox(height: DhenuSpacing.md),
+            _ServiceCard(
+              icon: DhenuIcons.loans,
+              tint: t.gradeA,
+              name: l.farmerServicesLoansName,
+              description: l.farmerServicesLoansDesc,
+            ),
+            const SizedBox(height: DhenuSpacing.xxl),
+            _notifyButton(context, t, l),
+          ]),
     );
   }
 
