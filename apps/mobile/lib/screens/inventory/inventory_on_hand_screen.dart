@@ -65,13 +65,15 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   }
 
   /// Bucket the warehouse+lowOnly-filtered rows by class group so the tab
-  /// strip can show per-bucket counts and hide empty buckets.
+  /// strip can show per-bucket counts and hide empty buckets. Counted on the
+  /// collapsed positions, so the pill agrees with the list under it.
   Map<String, int> _bucketCounts(List<InvOnHandRow> rows) {
     final counts = <String, int>{};
-    for (final r in rows) {
-      if (hideZero && r.qty <= 0) continue;
-      final g = classGroupForItemClass(r.itemClass);
-      counts[g] = (counts[g] ?? 0) + 1;
+    for (final g in collapseOnHandRows(
+      rows.where((r) => !hideZero || r.qty > 0).toList(),
+    )) {
+      final key = classGroupForItemClass(g.lead.itemClass);
+      counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
   }
@@ -105,7 +107,7 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           ),
           data: (rows) {
             final counts = _bucketCounts(rows);
-            final filtered = _apply(rows);
+            final filtered = collapseOnHandRows(_apply(rows));
             // On "All", split into class-group sections; a single-bucket
             // pill renders one flat list, where a lone header would be noise.
             final sections = classGroup == classGroupAll
@@ -196,7 +198,7 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
 
 class _Summary extends StatelessWidget {
   const _Summary({required this.rows});
-  final List<InvOnHandRow> rows;
+  final List<OnHandGroup> rows;
 
   @override
   Widget build(BuildContext context) {
@@ -211,9 +213,9 @@ class _Summary extends StatelessWidget {
           children: [
             Expanded(
               child: InvKpiCard(
-                label: 'Rows',
+                label: 'Items',
                 value: rows.length.toString(),
-                sub: 'items',
+                sub: 'in stock',
                 tint: InvColors.amberTint,
                 borderTint: InvColors.amberHairline,
               ),
@@ -299,15 +301,21 @@ class _Toggles extends StatelessWidget {
 
 class _StockTile extends StatelessWidget {
   const _StockTile({required this.row});
-  final InvOnHandRow row;
+  final OnHandGroup row;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final batches = row.batches.length;
     final metaBits = [
       if (row.itemSku?.isNotEmpty == true) row.itemSku!,
       row.warehouseName,
-      if (row.batchNo.isNotEmpty) 'Batch ${row.batchNo}',
+      // A single batch is worth naming; a hundred milk consignments are not,
+      // so past one the tile states the count and defers to the item screen.
+      if (batches == 1 && row.lead.batchNo.isNotEmpty)
+        'Batch ${row.lead.batchNo}'
+      else if (batches > 1)
+        '$batches batches',
     ];
     final meta = metaBits.join(' · ');
     return InvCard(
@@ -359,8 +367,8 @@ class _StockTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (row.expiryDate != null)
-                      _ExpiryPill(date: row.expiryDate!),
+                    if (row.earliestExpiry != null)
+                      _ExpiryPill(date: row.earliestExpiry!),
                   ],
                 ),
                 if (meta.isNotEmpty) ...[

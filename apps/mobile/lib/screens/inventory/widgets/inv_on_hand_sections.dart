@@ -16,8 +16,63 @@ import '../../../theme/runq_tokens.dart';
 import 'inv_class_tabs.dart';
 import 'inv_primitives.dart';
 
-/// One rendered section — a bucket with at least one row.
-typedef OnHandSection = ({String key, String label, List<InvOnHandRow> rows});
+/// One item at one warehouse, with every batch of it rolled up. Batch-per-
+/// row was unusable for raw milk, where each consignment opens its own batch
+/// and one item filled the screen with a receipt log. The batch breakdown
+/// lives on the item screen; the list states the position.
+class OnHandGroup {
+  OnHandGroup(this.lead, this.batches);
+
+  /// First batch row seen for this (item, warehouse) — carries the item and
+  /// warehouse fields, which are identical across the group.
+  final InvOnHandRow lead;
+  final List<InvOnHandRow> batches;
+
+  String get itemId => lead.itemId;
+  String get itemName => lead.itemName;
+  String? get itemSku => lead.itemSku;
+  String? get itemUnit => lead.itemUnit;
+  String get warehouseName => lead.warehouseName;
+  double? get reorderLevel => lead.reorderLevel;
+
+  double get qty => batches.fold<double>(0, (a, r) => a + r.qty);
+  double get value => batches.fold<double>(0, (a, r) => a + r.value);
+
+  /// Low is a position-level judgement: the reorder level compares against
+  /// total on-hand, not against whichever batch happens to be smallest.
+  bool get isLow => reorderLevel != null && reorderLevel! > 0 && qty <= reorderLevel!;
+
+  /// Earliest expiry across the batches — the one the floor must clear first.
+  String? get earliestExpiry {
+    String? best;
+    for (final r in batches) {
+      final d = r.expiryDate;
+      if (d == null) continue;
+      if (best == null || d.compareTo(best) < 0) best = d;
+    }
+    return best;
+  }
+}
+
+/// Roll batch rows up to one entry per (item, warehouse), preserving the
+/// incoming order of first appearance. Warehouses stay separate: the same
+/// item in two godowns is two positions, not one.
+List<OnHandGroup> collapseOnHandRows(List<InvOnHandRow> rows) {
+  final byKey = <String, OnHandGroup>{};
+  for (final r in rows) {
+    final key = '${r.itemId}|${r.warehouseId}';
+    final g = byKey[key];
+    if (g == null) {
+      byKey[key] = OnHandGroup(r, [r]);
+    } else {
+      g.batches.add(r);
+    }
+  }
+  return byKey.values.toList();
+}
+
+/// One rendered section — a bucket with at least one group.
+typedef OnHandSection = ({String key, String label, List<OnHandGroup> rows});
 
 const List<({String key, String label})> _sectionOrder = [
   (key: classGroupFinished, label: 'Finished Goods'),
@@ -26,13 +81,13 @@ const List<({String key, String label})> _sectionOrder = [
   (key: classGroupOther, label: 'Consumables & Spares'),
 ];
 
-/// Split rows into class-group sections, preserving the incoming row order
+/// Split groups into class-group sections, preserving the incoming order
 /// within each. Empty buckets are dropped so a tenant that only stocks
 /// finished goods sees one section rather than three empty headers.
-List<OnHandSection> groupOnHandRows(List<InvOnHandRow> rows) {
-  final byGroup = <String, List<InvOnHandRow>>{};
+List<OnHandSection> groupOnHandRows(List<OnHandGroup> rows) {
+  final byGroup = <String, List<OnHandGroup>>{};
   for (final r in rows) {
-    byGroup.putIfAbsent(classGroupForItemClass(r.itemClass), () => []).add(r);
+    byGroup.putIfAbsent(classGroupForItemClass(r.lead.itemClass), () => []).add(r);
   }
   return [
     for (final s in _sectionOrder)
@@ -47,7 +102,7 @@ List<OnHandSection> groupOnHandRows(List<InvOnHandRow> rows) {
 class InvGroupHeader extends StatelessWidget {
   const InvGroupHeader({super.key, required this.label, required this.rows});
   final String label;
-  final List<InvOnHandRow> rows;
+  final List<OnHandGroup> rows;
 
   @override
   Widget build(BuildContext context) {

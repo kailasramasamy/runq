@@ -34,11 +34,14 @@ class InvColors {
   /// Amber hairline for tinted cards — matches [amberTint].
   static Color get amberHairline => amber.withValues(alpha: 0.32);
 
-  /// Gradient anchors for hero cards (KPI strip, stock-value tiles).
+  /// Gradient anchors for hero cards (KPI strip, stock-value tiles). Deep
+  /// burnt-orange into brand amber: dark enough that white text and the
+  /// translucent-white KPI tiles read cleanly, and that a solid red alert
+  /// tile still stands out against it.
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFB45309), Color(0xFFF59E0B)],
+    colors: [Color(0xFF7C2D12), Color(0xFFD97706)],
   );
 
   /// Deeper variant for headers that sit on long pages.

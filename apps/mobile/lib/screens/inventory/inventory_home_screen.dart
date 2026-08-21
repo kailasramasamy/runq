@@ -465,8 +465,9 @@ class _WarehousePill extends ConsumerWidget {
   }
 }
 
-// Compact tinted KPI used inside the hero card. Translucent fill so it
-// reads as part of the gradient; alert variant tints red for low-stock.
+// Compact tinted KPI used inside the hero card. Translucent white fill so it
+// reads as part of the gradient; the alert variant goes solid red instead of
+// a red wash — a tint over amber just muddies into orange and disappears.
 class _HeroMiniKpi extends StatelessWidget {
   const _HeroMiniKpi({
     required this.label,
@@ -483,9 +484,8 @@ class _HeroMiniKpi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = alert
-        ? const Color(0xFFEF4444).withValues(alpha: 0.38)
-        : Colors.black.withValues(alpha: 0.28);
+    const alertRed = Color(0xFFDC2626);
+    final bg = alert ? alertRed : Colors.white.withValues(alpha: 0.14);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(10),
@@ -497,7 +497,18 @@ class _HeroMiniKpi extends StatelessWidget {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: alert ? 0.45 : 0.16),
+            ),
+            boxShadow: alert
+                ? [
+                    BoxShadow(
+                      color: alertRed.withValues(alpha: 0.45),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -509,7 +520,7 @@ class _HeroMiniKpi extends StatelessWidget {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.2,
-                  color: Colors.white.withValues(alpha: 0.78),
+                  color: Colors.white.withValues(alpha: alert ? 0.92 : 0.78),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -531,7 +542,7 @@ class _HeroMiniKpi extends StatelessWidget {
                 sub,
                 style: TextStyle(
                   fontSize: 10.5,
-                  color: Colors.white.withValues(alpha: 0.65),
+                  color: Colors.white.withValues(alpha: alert ? 0.82 : 0.65),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
