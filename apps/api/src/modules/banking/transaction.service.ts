@@ -38,6 +38,15 @@ export class TransactionService {
     private readonly tenantId: string,
   ) {}
 
+  /** Matches narration/reference/party name, plus the exact amount when the term parses as a number. */
+  private searchCondition(term: string) {
+    const like = `%${term}%`;
+    const text = sql`(${bankTransactions.narration} ILIKE ${like} OR ${bankTransactions.reference} ILIKE ${like} OR ${vendors.name} ILIKE ${like} OR ${customers.name} ILIKE ${like})`;
+    const numeric = term.replace(/[₹,\s]/g, '');
+    if (!/^\d+(\.\d+)?$/.test(numeric)) return text;
+    return sql`(${text} OR ${bankTransactions.amount}::numeric = ${numeric}::numeric)`;
+  }
+
   async list(bankAccountId: string, params: TransactionListParams): Promise<TransactionListResult> {
     const { page, limit, filters } = params;
     const { offset } = applyPagination(page, limit);
@@ -56,7 +65,7 @@ export class TransactionService {
       filters.dateFrom ? gte(bankTransactions.transactionDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
-      filters.search ? sql`(${bankTransactions.narration} ILIKE ${'%' + filters.search + '%'} OR ${bankTransactions.reference} ILIKE ${'%' + filters.search + '%'} OR ${vendors.name} ILIKE ${'%' + filters.search + '%'} OR ${customers.name} ILIKE ${'%' + filters.search + '%'})` : undefined,
+      filters.search ? this.searchCondition(filters.search) : undefined,
       filters.inSuspense ? sql`${bankTransactions.glAccountId} IN (SELECT id FROM ${accounts} WHERE code = '1116' AND tenant_id = ${this.tenantId})` : undefined,
     ];
 

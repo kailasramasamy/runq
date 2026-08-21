@@ -367,7 +367,7 @@ export function TransactionsPage() {
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Narration or reference…"
+              placeholder="Narration, reference or amount…"
               className="h-8 w-full rounded-md border border-zinc-300 bg-white py-0 pl-8 pr-3 text-[12.5px] text-zinc-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
           </div>
