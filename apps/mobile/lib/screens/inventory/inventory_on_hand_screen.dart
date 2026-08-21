@@ -30,6 +30,7 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   bool lowOnly = false;
   bool hideZero = false;
   String query = '';
+
   /// On-hand opens on "All" — this screen answers "what's in the godown",
   /// and hiding three quarters of it behind a pill made the total on the
   /// summary strip disagree with the list under it. Picking a pill still
@@ -83,7 +84,11 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
     final t = RT(context);
     // Pull the unfiltered set so the tab strip sees every bucket's count.
     // The class-group filter is applied locally in _apply.
-    final args = (warehouseId: warehouseId, lowOnly: lowOnly, itemClassGroup: null as String?);
+    final args = (
+      warehouseId: warehouseId,
+      lowOnly: lowOnly,
+      itemClassGroup: null as String?,
+    );
     final rowsAsync = ref.watch(invOnHandProvider(args));
 
     return Scaffold(
@@ -100,9 +105,11 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           error: (e, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Failed to load: $e',
-                  style: RunqText.caption.copyWith(color: t.muted),
-                  textAlign: TextAlign.center),
+              child: Text(
+                'Failed to load: $e',
+                style: RunqText.caption.copyWith(color: t.muted),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           data: (rows) {
@@ -118,10 +125,12 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _Summary(rows: filtered)),
-                SliverToBoxAdapter(child: _SearchRow(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => query = v),
-                )),
+                SliverToBoxAdapter(
+                  child: _SearchRow(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => query = v),
+                  ),
+                ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -174,7 +183,10 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
                   for (final s in sections)
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
-                        16, 0, 16, s.key == sections.last.key ? 120 : 0,
+                        16,
+                        0,
+                        16,
+                        s.key == sections.last.key ? 120 : 0,
                       ),
                       sliver: SliverList.separated(
                         // +1 for the section header at index 0.
@@ -343,10 +355,26 @@ class _StockTile extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // UOM trails the name — it qualifies the product, and
+                    // under the bold quantity it read as a second number.
                     Expanded(
-                      child: Text(
-                        row.itemName,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                      child: Text.rich(
+                        TextSpan(
+                          text: row.itemName,
+                          style: RunqText.bodyStrong.copyWith(
+                            color: t.ink,
+                            fontSize: 14,
+                          ),
+                          children: [
+                            if (row.itemUnit?.isNotEmpty == true)
+                              TextSpan(
+                                text: '  ${row.itemUnit}',
+                                style: RunqText.caption.copyWith(
+                                  color: t.muted2,
+                                ),
+                              ),
+                          ],
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -354,7 +382,10 @@ class _StockTile extends StatelessWidget {
                     if (row.isLow)
                       Container(
                         margin: const EdgeInsets.only(left: 6, top: 1),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: InvColors.orangeAlertBg,
                           borderRadius: BorderRadius.circular(4),
@@ -390,7 +421,7 @@ class _StockTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Right column — qty, unit, value.
+          // Right column — qty, value.
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
@@ -401,11 +432,6 @@ class _StockTile extends StatelessWidget {
                   color: row.isLow ? InvColors.orangeAlert : t.ink,
                 ),
               ),
-              if (row.itemUnit?.isNotEmpty == true)
-                Text(
-                  row.itemUnit!,
-                  style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0),
-                ),
               const SizedBox(height: 2),
               Text(
                 compactINR(row.value),
@@ -441,14 +467,17 @@ class _ExpiryPill extends StatelessWidget {
     final label = days < 0
         ? 'Expired'
         : days == 0
-            ? 'Today'
-            : days == 1
-                ? 'Tomorrow'
-                : '${days}d';
+        ? 'Today'
+        : days == 1
+        ? 'Tomorrow'
+        : '${days}d';
     return Container(
       margin: const EdgeInsets.only(left: 6, top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Text(
         label,
         style: RunqText.micro.copyWith(color: fg, letterSpacing: 0.2),

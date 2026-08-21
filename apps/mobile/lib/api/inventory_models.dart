@@ -10,20 +10,27 @@ class InvKpis {
   final int outOfStockCount;
   final int todayGrns;
   final int todayDeliveries;
+
   /// Total value of receipts posted today — drives the "Today In" mini-card
   /// on the redesigned Home + Moves hub. 0 when no GRN has been posted yet.
   final double todayGrnsValue;
+
   /// Total value dispatched today (posted DNs).
   final double todayDnsValue;
+
   /// Transfers currently in_transit (between dispatch and receive).
   final int inTransitTransfers;
+
   /// Stock adjustments waiting on approval. Drives the Moves hub badge.
   final int pendingAdjustments;
+
   /// Distinct items holding stock, and how many warehouses are live.
   final int activeItems, warehouseCount;
+
   /// Batches expiring inside 30 days, and batches unmoved for 90+ days. Both
   /// drive the Needs-attention list on Home.
   final int expiringSoon, deadStock;
+
   /// Value received / issued so far this month — the movement trend behind the
   /// stock-value figure.
   final double monthInValue, monthOutValue;
@@ -46,23 +53,23 @@ class InvKpis {
     this.monthOutValue = 0,
   });
   factory InvKpis.fromJson(Map<String, dynamic> j) => InvKpis(
-        totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
-        activeRows: (j['activeRows'] as num?)?.toInt() ?? 0,
-        lowStockCount: (j['lowStockCount'] as num?)?.toInt() ?? 0,
-        outOfStockCount: (j['outOfStockCount'] as num?)?.toInt() ?? 0,
-        todayGrns: (j['todayGrns'] as num?)?.toInt() ?? 0,
-        todayDeliveries: (j['todayDeliveries'] as num?)?.toInt() ?? 0,
-        todayGrnsValue: (j['todayGrnsValue'] as num?)?.toDouble() ?? 0,
-        todayDnsValue: (j['todayDnsValue'] as num?)?.toDouble() ?? 0,
-        inTransitTransfers: (j['inTransitTransfers'] as num?)?.toInt() ?? 0,
-        pendingAdjustments: (j['pendingAdjustments'] as num?)?.toInt() ?? 0,
-        activeItems: (j['activeItems'] as num?)?.toInt() ?? 0,
-        warehouseCount: (j['warehouseCount'] as num?)?.toInt() ?? 0,
-        expiringSoon: (j['expiringSoonCount'] as num?)?.toInt() ?? 0,
-        deadStock: (j['deadStockCount'] as num?)?.toInt() ?? 0,
-        monthInValue: (j['monthInValue'] as num?)?.toDouble() ?? 0,
-        monthOutValue: (j['monthOutValue'] as num?)?.toDouble() ?? 0,
-      );
+    totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
+    activeRows: (j['activeRows'] as num?)?.toInt() ?? 0,
+    lowStockCount: (j['lowStockCount'] as num?)?.toInt() ?? 0,
+    outOfStockCount: (j['outOfStockCount'] as num?)?.toInt() ?? 0,
+    todayGrns: (j['todayGrns'] as num?)?.toInt() ?? 0,
+    todayDeliveries: (j['todayDeliveries'] as num?)?.toInt() ?? 0,
+    todayGrnsValue: (j['todayGrnsValue'] as num?)?.toDouble() ?? 0,
+    todayDnsValue: (j['todayDnsValue'] as num?)?.toDouble() ?? 0,
+    inTransitTransfers: (j['inTransitTransfers'] as num?)?.toInt() ?? 0,
+    pendingAdjustments: (j['pendingAdjustments'] as num?)?.toInt() ?? 0,
+    activeItems: (j['activeItems'] as num?)?.toInt() ?? 0,
+    warehouseCount: (j['warehouseCount'] as num?)?.toInt() ?? 0,
+    expiringSoon: (j['expiringSoonCount'] as num?)?.toInt() ?? 0,
+    deadStock: (j['deadStockCount'] as num?)?.toInt() ?? 0,
+    monthInValue: (j['monthInValue'] as num?)?.toDouble() ?? 0,
+    monthOutValue: (j['monthOutValue'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 /// Stock value held at one warehouse. Backs the Home breakdown so the value in
@@ -78,7 +85,8 @@ class InvWarehouseValue {
     required this.totalValue,
     required this.itemCount,
   });
-  factory InvWarehouseValue.fromJson(Map<String, dynamic> j) => InvWarehouseValue(
+  factory InvWarehouseValue.fromJson(Map<String, dynamic> j) =>
+      InvWarehouseValue(
         id: (j['id'] ?? '') as String,
         name: (j['name'] ?? '') as String,
         code: (j['code'] ?? '') as String,
@@ -95,17 +103,21 @@ class InvWarehouse {
   final bool isDefault;
   final bool isActive;
   const InvWarehouse({
-    required this.id, required this.code, required this.name, required this.type,
-    required this.isDefault, required this.isActive,
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.type,
+    required this.isDefault,
+    required this.isActive,
   });
   factory InvWarehouse.fromJson(Map<String, dynamic> j) => InvWarehouse(
-        id: j['id'] as String,
-        code: j['code'] as String,
-        name: j['name'] as String,
-        type: (j['type'] as String?) ?? 'godown',
-        isDefault: j['isDefault'] as bool? ?? false,
-        isActive: j['isActive'] as bool? ?? true,
-      );
+    id: j['id'] as String,
+    code: j['code'] as String,
+    name: j['name'] as String,
+    type: (j['type'] as String?) ?? 'godown',
+    isDefault: j['isDefault'] as bool? ?? false,
+    isActive: j['isActive'] as bool? ?? true,
+  );
 }
 
 class InvOnHandRow {
@@ -113,10 +125,12 @@ class InvOnHandRow {
   final String itemName;
   final String? itemSku;
   final String? itemUnit;
+
   /// Axis-1 item_class (raw_material / packaging / finished_good /
   /// semi_finished / trading_good / consumable / spare_part). Null for
   /// service items, which never appear here. Drives the bucket-tabs UI.
   final String? itemClass;
+
   /// Axis-2 category tree. `categoryName` is the leaf the item is filed under,
   /// `categoryGroup` its parent — so a list can head sections with the group
   /// and sub-head with the leaf. Both null for uncategorised items, and equal
@@ -130,45 +144,60 @@ class InvOnHandRow {
   final double avgCost;
   final double value;
   final double? reorderLevel;
+
   /// ISO timestamp of the latest stock ledger movement that touched this
   /// (item, warehouse, batch). Used by the redesigned stock-on-hand list to
   /// show a "Last moved 22 May" hint and to flag dead stock.
   final String? lastMovementAt;
+
   /// Earliest GRN expiry date for this (item, batch). Null when the batch
   /// isn't expiry-tracked or no GRN line carries a date.
   final String? expiryDate;
+
   /// When the batch first came into stock. `lastMovementAt` carries the business
   /// date (midnight for MP receipts), so this is the only field that tells batches
   /// received on the same day apart — and the only freshness signal raw milk has
   /// until expiry dates are wired.
   final String? receivedAt;
   const InvOnHandRow({
-    required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
-    this.itemClass, this.categoryName, this.categoryGroup,
-    required this.warehouseId, required this.warehouseName, required this.batchNo,
-    required this.qty, required this.avgCost, required this.value, this.reorderLevel,
-    this.lastMovementAt, this.expiryDate, this.receivedAt,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
+    this.itemClass,
+    this.categoryName,
+    this.categoryGroup,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.batchNo,
+    required this.qty,
+    required this.avgCost,
+    required this.value,
+    this.reorderLevel,
+    this.lastMovementAt,
+    this.expiryDate,
+    this.receivedAt,
   });
   bool get isLow => reorderLevel != null && qty <= (reorderLevel ?? 0);
   factory InvOnHandRow.fromJson(Map<String, dynamic> j) => InvOnHandRow(
-        itemId: j['itemId'] as String,
-        itemName: j['itemName'] as String,
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        itemClass: j['itemClass'] as String?,
-        categoryName: j['categoryName'] as String?,
-        categoryGroup: j['categoryGroup'] as String?,
-        warehouseId: j['warehouseId'] as String,
-        warehouseName: j['warehouseName'] as String,
-        batchNo: (j['batchNo'] as String?) ?? '',
-        qty: (j['qty'] as num?)?.toDouble() ?? 0,
-        avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
-        value: (j['value'] as num?)?.toDouble() ?? 0,
-        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
-        lastMovementAt: j['lastMovementAt'] as String?,
-        expiryDate: j['expiryDate'] as String?,
-        receivedAt: j['receivedAt'] as String?,
-      );
+    itemId: j['itemId'] as String,
+    itemName: j['itemName'] as String,
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    itemClass: j['itemClass'] as String?,
+    categoryName: j['categoryName'] as String?,
+    categoryGroup: j['categoryGroup'] as String?,
+    warehouseId: j['warehouseId'] as String,
+    warehouseName: j['warehouseName'] as String,
+    batchNo: (j['batchNo'] as String?) ?? '',
+    qty: (j['qty'] as num?)?.toDouble() ?? 0,
+    avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+    reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+    lastMovementAt: j['lastMovementAt'] as String?,
+    expiryDate: j['expiryDate'] as String?,
+    receivedAt: j['receivedAt'] as String?,
+  );
 }
 
 class InvItem {
@@ -177,40 +206,50 @@ class InvItem {
   final String? sku;
   final String? unit;
   final String? barcode;
+
   /// item_class enum value (raw_material / packaging / finished_good / …)
   /// — null for service items. Drives the picker tab-strip bucketing.
   final String? itemClass;
   final bool trackBatches;
   final bool trackExpiry;
   final bool trackSerials;
+
   /// Default purchase rate from the item master. Used to apply the rate on a
   /// direct receipt so floor workers don't enter it daily. Null if unset.
   final double? defaultPurchasePrice;
+
   /// Category tree leaf, flattened by the API into two display strings.
   /// Null on uncategorised items — pickers group those last.
   final String? category;
   final String? subcategory;
   const InvItem({
-    required this.id, required this.name, this.sku, this.unit, this.barcode,
+    required this.id,
+    required this.name,
+    this.sku,
+    this.unit,
+    this.barcode,
     this.itemClass,
-    required this.trackBatches, required this.trackExpiry, required this.trackSerials,
+    required this.trackBatches,
+    required this.trackExpiry,
+    required this.trackSerials,
     this.defaultPurchasePrice,
-    this.category, this.subcategory,
+    this.category,
+    this.subcategory,
   });
   factory InvItem.fromJson(Map<String, dynamic> j) => InvItem(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        sku: j['sku'] as String?,
-        unit: j['unit'] as String?,
-        barcode: j['barcode'] as String?,
-        itemClass: j['itemClass'] as String?,
-        trackBatches: j['trackBatches'] as bool? ?? false,
-        trackExpiry: j['trackExpiry'] as bool? ?? false,
-        trackSerials: j['trackSerials'] as bool? ?? false,
-        defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
-        category: j['category'] as String?,
-        subcategory: j['subcategory'] as String?,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    sku: j['sku'] as String?,
+    unit: j['unit'] as String?,
+    barcode: j['barcode'] as String?,
+    itemClass: j['itemClass'] as String?,
+    trackBatches: j['trackBatches'] as bool? ?? false,
+    trackExpiry: j['trackExpiry'] as bool? ?? false,
+    trackSerials: j['trackSerials'] as bool? ?? false,
+    defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
+    category: j['category'] as String?,
+    subcategory: j['subcategory'] as String?,
+  );
 }
 
 class InvGrnLineInput {
@@ -219,21 +258,26 @@ class InvGrnLineInput {
   final String? expiryDate;
   final double qty;
   final double unitRate;
+
   /// For trackSerials items: serial numbers (length must equal qty). When
   /// non-empty, the API inserts each into inventory_serials on GRN post.
   final List<String>? serialNos;
   const InvGrnLineInput({
-    required this.itemId, this.batchNo, this.expiryDate,
-    required this.qty, required this.unitRate, this.serialNos,
+    required this.itemId,
+    this.batchNo,
+    this.expiryDate,
+    required this.qty,
+    required this.unitRate,
+    this.serialNos,
   });
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
-        if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
-        'qty': qty,
-        'unitRate': unitRate,
-        if (serialNos != null && serialNos!.isNotEmpty) 'serialNos': serialNos,
-      };
+    'itemId': itemId,
+    if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+    if (expiryDate != null && expiryDate!.isNotEmpty) 'expiryDate': expiryDate,
+    'qty': qty,
+    'unitRate': unitRate,
+    if (serialNos != null && serialNos!.isNotEmpty) 'serialNos': serialNos,
+  };
 }
 
 /// Single line returned by `POST /inventory/grn/extract`. `itemId` is null
@@ -247,15 +291,22 @@ class InvGrnExtractedLine {
   final String? itemUnit;
   final double qty;
   final double unitRate;
+
   /// 'sku' | 'name' | 'fuzzy' | null. Used by the UI to badge how
   /// confident the catalog match is (fuzzy gets a "verify" hint).
   final String? matchType;
   const InvGrnExtractedLine({
-    required this.itemId, required this.itemName, required this.rawName,
-    required this.itemSku, required this.itemUnit,
-    required this.qty, required this.unitRate, required this.matchType,
+    required this.itemId,
+    required this.itemName,
+    required this.rawName,
+    required this.itemSku,
+    required this.itemUnit,
+    required this.qty,
+    required this.unitRate,
+    required this.matchType,
   });
-  factory InvGrnExtractedLine.fromJson(Map<String, dynamic> j) => InvGrnExtractedLine(
+  factory InvGrnExtractedLine.fromJson(Map<String, dynamic> j) =>
+      InvGrnExtractedLine(
         itemId: j['itemId'] as String?,
         itemName: j['itemName'] as String? ?? '',
         rawName: j['rawName'] as String? ?? '',
@@ -275,10 +326,15 @@ class InvGrnExtractResult {
   final double confidence;
   final List<InvGrnExtractedLine> lines;
   const InvGrnExtractResult({
-    required this.vendorName, required this.invoiceNumber, required this.invoiceDate,
-    required this.totalAmount, required this.confidence, required this.lines,
+    required this.vendorName,
+    required this.invoiceNumber,
+    required this.invoiceDate,
+    required this.totalAmount,
+    required this.confidence,
+    required this.lines,
   });
-  factory InvGrnExtractResult.fromJson(Map<String, dynamic> j) => InvGrnExtractResult(
+  factory InvGrnExtractResult.fromJson(Map<String, dynamic> j) =>
+      InvGrnExtractResult(
         vendorName: j['vendorName'] as String?,
         invoiceNumber: j['invoiceNumber'] as String?,
         invoiceDate: j['invoiceDate'] as String?,
@@ -297,10 +353,10 @@ class InvDnLineInput {
   final double qty;
   const InvDnLineInput({required this.itemId, this.batchNo, required this.qty});
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
-        'qty': qty,
-      };
+    'itemId': itemId,
+    if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+    'qty': qty,
+  };
 }
 
 class InvGrn {
@@ -311,28 +367,36 @@ class InvGrn {
   final String receivedDate;
   final String status;
   final double totalValue;
+
   /// Number of lines on this GRN. Drives the "Lines" cell on the redesigned
   /// mobile tile. Defaults to 0 for legacy responses that don't carry it.
   final int lineCount;
+
   /// Linked purchase-order number (when the GRN was created against a PO).
   /// Null when the GRN was created stand-alone.
   final String? poNumber;
   const InvGrn({
-    required this.id, required this.grnNo, required this.warehouseName,
-    this.vendorName, required this.receivedDate, required this.status,
-    required this.totalValue, this.lineCount = 0, this.poNumber,
+    required this.id,
+    required this.grnNo,
+    required this.warehouseName,
+    this.vendorName,
+    required this.receivedDate,
+    required this.status,
+    required this.totalValue,
+    this.lineCount = 0,
+    this.poNumber,
   });
   factory InvGrn.fromJson(Map<String, dynamic> j) => InvGrn(
-        id: j['id'] as String,
-        grnNo: j['grnNo'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        vendorName: j['vendorName'] as String?,
-        receivedDate: j['receivedDate'] as String,
-        status: (j['status'] as String?) ?? 'draft',
-        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
-        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
-        poNumber: j['poNumber'] as String?,
-      );
+    id: j['id'] as String,
+    grnNo: j['grnNo'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    vendorName: j['vendorName'] as String?,
+    receivedDate: j['receivedDate'] as String,
+    status: (j['status'] as String?) ?? 'draft',
+    totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+    poNumber: j['poNumber'] as String?,
+  );
 }
 
 class InvTransfer {
@@ -345,24 +409,28 @@ class InvTransfer {
   final int lineCount;
   final String? transferDate;
   const InvTransfer({
-    required this.id, required this.transferNo,
-    required this.fromWarehouseName, required this.toWarehouseName,
-    required this.status, required this.totalValue,
-    this.lineCount = 0, this.transferDate,
+    required this.id,
+    required this.transferNo,
+    required this.fromWarehouseName,
+    required this.toWarehouseName,
+    required this.status,
+    required this.totalValue,
+    this.lineCount = 0,
+    this.transferDate,
   });
   factory InvTransfer.fromJson(Map<String, dynamic> j) => InvTransfer(
-        id: j['id'] as String,
-        transferNo: j['transferNo'] as String,
-        fromWarehouseName: (j['fromWarehouseName'] as String?) ?? '',
-        toWarehouseName: (j['toWarehouseName'] as String?) ?? '',
-        status: (j['status'] as String?) ?? 'draft',
-        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
-        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
-        // Transfer rows expose createdAt (no dedicated transferDate column).
-        // Use it as the display date so the redesigned tile has a "23 May"
-        // hint without a backend change.
-        transferDate: (j['createdAt'] ?? j['transferDate']) as String?,
-      );
+    id: j['id'] as String,
+    transferNo: j['transferNo'] as String,
+    fromWarehouseName: (j['fromWarehouseName'] as String?) ?? '',
+    toWarehouseName: (j['toWarehouseName'] as String?) ?? '',
+    status: (j['status'] as String?) ?? 'draft',
+    totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+    // Transfer rows expose createdAt (no dedicated transferDate column).
+    // Use it as the display date so the redesigned tile has a "23 May"
+    // hint without a backend change.
+    transferDate: (j['createdAt'] ?? j['transferDate']) as String?,
+  );
 }
 
 class InvAdjustment {
@@ -373,29 +441,37 @@ class InvAdjustment {
   final String adjustmentDate;
   final String status;
   final double totalValueDelta;
+
   /// How many lines the adjustment carries, and the first few item names —
   /// summarised server-side so the list can preview what was adjusted without
   /// a fetch per row. `itemNames` is capped at three by the API.
   final int lineCount;
   final List<String> itemNames;
   const InvAdjustment({
-    required this.id, required this.adjNo, required this.warehouseName,
-    required this.reason, required this.adjustmentDate, required this.status,
+    required this.id,
+    required this.adjNo,
+    required this.warehouseName,
+    required this.reason,
+    required this.adjustmentDate,
+    required this.status,
     required this.totalValueDelta,
     this.lineCount = 0,
     this.itemNames = const [],
   });
   factory InvAdjustment.fromJson(Map<String, dynamic> j) => InvAdjustment(
-        id: j['id'] as String,
-        adjNo: j['adjNo'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        reason: (j['reason'] as String?) ?? 'damage',
-        adjustmentDate: j['adjustmentDate'] as String,
-        status: (j['status'] as String?) ?? 'draft',
-        totalValueDelta: double.tryParse(j['totalValueDelta']?.toString() ?? '0') ?? 0,
-        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
-        itemNames: (j['itemNames'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      );
+    id: j['id'] as String,
+    adjNo: j['adjNo'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    reason: (j['reason'] as String?) ?? 'damage',
+    adjustmentDate: j['adjustmentDate'] as String,
+    status: (j['status'] as String?) ?? 'draft',
+    totalValueDelta:
+        double.tryParse(j['totalValueDelta']?.toString() ?? '0') ?? 0,
+    lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+    itemNames:
+        (j['itemNames'] as List?)?.map((e) => e.toString()).toList() ??
+        const [],
+  );
 }
 
 /// One line returned by `GET /inventory/adjustments/:id`. Joins item
@@ -410,8 +486,13 @@ class InvAdjustmentDetailLine {
   final double qtyDelta;
   final bool trackBatches;
   const InvAdjustmentDetailLine({
-    required this.id, required this.itemId, required this.itemName,
-    this.itemSku, this.batchNo, required this.qtyDelta, this.trackBatches = false,
+    required this.id,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.batchNo,
+    required this.qtyDelta,
+    this.trackBatches = false,
   });
   factory InvAdjustmentDetailLine.fromJson(Map<String, dynamic> j) =>
       InvAdjustmentDetailLine(
@@ -437,9 +518,15 @@ class InvAdjustmentDetail {
   final String? createdAt;
   final List<InvAdjustmentDetailLine> lines;
   const InvAdjustmentDetail({
-    required this.id, required this.adjNo, required this.warehouseName,
-    required this.reason, required this.adjustmentDate, required this.status,
-    required this.totalValueDelta, this.notes, this.createdAt,
+    required this.id,
+    required this.adjNo,
+    required this.warehouseName,
+    required this.reason,
+    required this.adjustmentDate,
+    required this.status,
+    required this.totalValueDelta,
+    this.notes,
+    this.createdAt,
     required this.lines,
   });
   factory InvAdjustmentDetail.fromJson(Map<String, dynamic> j) =>
@@ -468,27 +555,34 @@ class InvStockTake {
   final String scope;
   final String status;
   final String startedAt;
+
   /// Total lines snapshotted at session start. Drives the progress bar on
   /// the redesigned session tile (denominator). 0 when the backend hasn't
   /// finished snapshotting yet or the field isn't returned.
   final int totalLines;
+
   /// Lines with a recorded count so far. Numerator for the progress bar.
   final int countedLines;
   const InvStockTake({
-    required this.id, required this.stNo, required this.warehouseName,
-    required this.scope, required this.status, required this.startedAt,
-    this.totalLines = 0, this.countedLines = 0,
+    required this.id,
+    required this.stNo,
+    required this.warehouseName,
+    required this.scope,
+    required this.status,
+    required this.startedAt,
+    this.totalLines = 0,
+    this.countedLines = 0,
   });
   factory InvStockTake.fromJson(Map<String, dynamic> j) => InvStockTake(
-        id: j['id'] as String,
-        stNo: j['stNo'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        scope: (j['scope'] as String?) ?? 'full',
-        status: (j['status'] as String?) ?? 'in_progress',
-        startedAt: (j['startedAt'] as String?) ?? '',
-        totalLines: (j['totalLines'] as num?)?.toInt() ?? 0,
-        countedLines: (j['countedLines'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    stNo: j['stNo'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    scope: (j['scope'] as String?) ?? 'full',
+    status: (j['status'] as String?) ?? 'in_progress',
+    startedAt: (j['startedAt'] as String?) ?? '',
+    totalLines: (j['totalLines'] as num?)?.toInt() ?? 0,
+    countedLines: (j['countedLines'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// One line returned by `GET /inventory/transfers/:id`. Joins item
@@ -503,8 +597,13 @@ class InvTransferDetailLine {
   final double qty;
   final bool trackBatches;
   const InvTransferDetailLine({
-    required this.id, required this.itemId, required this.itemName,
-    this.itemSku, this.batchNo, required this.qty, this.trackBatches = false,
+    required this.id,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.batchNo,
+    required this.qty,
+    this.trackBatches = false,
   });
   factory InvTransferDetailLine.fromJson(Map<String, dynamic> j) =>
       InvTransferDetailLine(
@@ -529,12 +628,18 @@ class InvTransferDetail {
   final String? createdAt;
   final List<InvTransferDetailLine> lines;
   const InvTransferDetail({
-    required this.id, required this.transferNo,
-    required this.fromWarehouseName, required this.toWarehouseName,
-    required this.status, this.vehicleNo, this.notes, this.createdAt,
+    required this.id,
+    required this.transferNo,
+    required this.fromWarehouseName,
+    required this.toWarehouseName,
+    required this.status,
+    this.vehicleNo,
+    this.notes,
+    this.createdAt,
     required this.lines,
   });
-  factory InvTransferDetail.fromJson(Map<String, dynamic> j) => InvTransferDetail(
+  factory InvTransferDetail.fromJson(Map<String, dynamic> j) =>
+      InvTransferDetail(
         id: j['id'] as String,
         transferNo: j['transferNo'] as String,
         fromWarehouseName: (j['fromWarehouseName'] as String?) ?? '',
@@ -554,37 +659,50 @@ class InvTransferLineInput {
   final String itemId;
   final String? batchNo;
   final double qty;
-  const InvTransferLineInput({required this.itemId, this.batchNo, required this.qty});
+  const InvTransferLineInput({
+    required this.itemId,
+    this.batchNo,
+    required this.qty,
+  });
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
-        'qty': qty,
-      };
+    'itemId': itemId,
+    if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+    'qty': qty,
+  };
 }
 
 class InvAdjustmentLineInput {
   final String itemId;
   final String? batchNo;
+
   /// Signed: positive = found, negative = damage/expiry/theft/write-off.
   final double qtyDelta;
-  const InvAdjustmentLineInput({required this.itemId, this.batchNo, required this.qtyDelta});
+  const InvAdjustmentLineInput({
+    required this.itemId,
+    this.batchNo,
+    required this.qtyDelta,
+  });
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
-        'qtyDelta': qtyDelta,
-      };
+    'itemId': itemId,
+    if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+    'qtyDelta': qtyDelta,
+  };
 }
 
 class InvCountLineInput {
   final String itemId;
   final String? batchNo;
   final double countedQty;
-  const InvCountLineInput({required this.itemId, this.batchNo, required this.countedQty});
+  const InvCountLineInput({
+    required this.itemId,
+    this.batchNo,
+    required this.countedQty,
+  });
   Map<String, dynamic> toJson() => {
-        'itemId': itemId,
-        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
-        'countedQty': countedQty,
-      };
+    'itemId': itemId,
+    if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+    'countedQty': countedQty,
+  };
 }
 
 class InvStockTakeLine {
@@ -599,23 +717,31 @@ class InvStockTakeLine {
   final double unitCost;
   final double? variance;
   const InvStockTakeLine({
-    required this.id, required this.itemId, required this.itemName,
-    this.itemSku, this.itemUnit, this.batchNo,
-    required this.systemQty, this.countedQty,
-    required this.unitCost, this.variance,
+    required this.id,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
+    this.batchNo,
+    required this.systemQty,
+    this.countedQty,
+    required this.unitCost,
+    this.variance,
   });
   factory InvStockTakeLine.fromJson(Map<String, dynamic> j) => InvStockTakeLine(
-        id: j['id'] as String,
-        itemId: j['itemId'] as String,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        batchNo: j['batchNo'] as String?,
-        systemQty: double.tryParse(j['systemQty']?.toString() ?? '0') ?? 0,
-        countedQty: j['countedQty'] == null ? null : double.tryParse(j['countedQty'].toString()),
-        unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
-        variance: j['variance'] == null ? null : (j['variance'] as num).toDouble(),
-      );
+    id: j['id'] as String,
+    itemId: j['itemId'] as String,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    batchNo: j['batchNo'] as String?,
+    systemQty: double.tryParse(j['systemQty']?.toString() ?? '0') ?? 0,
+    countedQty: j['countedQty'] == null
+        ? null
+        : double.tryParse(j['countedQty'].toString()),
+    unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
+    variance: j['variance'] == null ? null : (j['variance'] as num).toDouble(),
+  );
 }
 
 class InvStockTakeDetail {
@@ -626,17 +752,25 @@ class InvStockTakeDetail {
   final String status;
   final List<InvStockTakeLine> lines;
   const InvStockTakeDetail({
-    required this.id, required this.stNo, required this.warehouseId,
-    required this.warehouseName, required this.status, required this.lines,
+    required this.id,
+    required this.stNo,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.status,
+    required this.lines,
   });
-  factory InvStockTakeDetail.fromJson(Map<String, dynamic> j) => InvStockTakeDetail(
+  factory InvStockTakeDetail.fromJson(Map<String, dynamic> j) =>
+      InvStockTakeDetail(
         id: j['id'] as String,
         stNo: j['stNo'] as String,
         warehouseId: j['warehouseId'] as String,
         warehouseName: (j['warehouseName'] as String?) ?? '',
         status: (j['status'] as String?) ?? 'in_progress',
         lines: ((j['lines'] as List?) ?? const [])
-            .map((e) => InvStockTakeLine.fromJson((e as Map).cast<String, dynamic>()))
+            .map(
+              (e) =>
+                  InvStockTakeLine.fromJson((e as Map).cast<String, dynamic>()),
+            )
             .toList(),
       );
 }
@@ -652,39 +786,50 @@ class InvReorderAlert {
   final double reorderLevel;
   final double reorderQty;
   final double shortBy;
+
   /// 'critical' | 'warning' | 'watch'. Server returns critical/warning;
   /// watch is reserved for UI-only states (items above reorder).
   final String urgency;
+
   /// Preferred supplier — derived server-side from the most recent posted
   /// GRN that brought this item into this warehouse. Null when the item
   /// has never been received here (e.g. via opening balance only).
   final String? supplierName;
+
   /// Lead time in days from the per-warehouse reorder rule. Null when no
   /// rule exists (we still surface the alert via item-level reorder_level
   /// but without a lead-time hint).
   final int? leadTimeDays;
   const InvReorderAlert({
-    required this.itemId, required this.itemName, this.itemSku, this.itemUnit,
-    required this.warehouseId, required this.warehouseName,
-    required this.onHand, required this.reorderLevel, required this.reorderQty,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.onHand,
+    required this.reorderLevel,
+    required this.reorderQty,
     required this.shortBy,
-    this.urgency = 'warning', this.supplierName, this.leadTimeDays,
+    this.urgency = 'warning',
+    this.supplierName,
+    this.leadTimeDays,
   });
   factory InvReorderAlert.fromJson(Map<String, dynamic> j) => InvReorderAlert(
-        itemId: j['itemId'] as String,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        warehouseId: j['warehouseId'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
-        reorderLevel: (j['reorderLevel'] as num?)?.toDouble() ?? 0,
-        reorderQty: (j['reorderQty'] as num?)?.toDouble() ?? 0,
-        shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
-        urgency: (j['urgency'] as String?) ?? 'warning',
-        supplierName: j['supplierName'] as String?,
-        leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
-      );
+    itemId: j['itemId'] as String,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    warehouseId: j['warehouseId'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
+    reorderLevel: (j['reorderLevel'] as num?)?.toDouble() ?? 0,
+    reorderQty: (j['reorderQty'] as num?)?.toDouble() ?? 0,
+    shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
+    urgency: (j['urgency'] as String?) ?? 'warning',
+    supplierName: j['supplierName'] as String?,
+    leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
+  );
 }
 
 /// One low / out-of-stock row from `/inventory/stock/alerts`.
@@ -747,22 +892,22 @@ class InvStockAlert {
   bool get isOut => status == 'out';
 
   factory InvStockAlert.fromJson(Map<String, dynamic> j) => InvStockAlert(
-        itemId: j['itemId'] as String,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        warehouseId: j['warehouseId'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        status: (j['status'] as String?) ?? 'low',
-        urgency: (j['urgency'] as String?) ?? 'warning',
-        onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
-        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
-        reorderQty: (j['reorderQty'] as num?)?.toDouble(),
-        leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
-        shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
-        supplierName: j['supplierName'] as String?,
-        daysSinceLastMovement: (j['daysSinceLastMovement'] as num?)?.toInt(),
-      );
+    itemId: j['itemId'] as String,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    warehouseId: j['warehouseId'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    status: (j['status'] as String?) ?? 'low',
+    urgency: (j['urgency'] as String?) ?? 'warning',
+    onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
+    reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+    reorderQty: (j['reorderQty'] as num?)?.toDouble(),
+    leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
+    shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
+    supplierName: j['supplierName'] as String?,
+    daysSinceLastMovement: (j['daysSinceLastMovement'] as num?)?.toInt(),
+  );
 }
 
 /// Headline alert counts — drives the Home hero tiles and the Alerts badge.
@@ -771,7 +916,8 @@ class InvStockAlertCounts {
   final int low;
   final int total;
   const InvStockAlertCounts({this.out = 0, this.low = 0, this.total = 0});
-  factory InvStockAlertCounts.fromJson(Map<String, dynamic> j) => InvStockAlertCounts(
+  factory InvStockAlertCounts.fromJson(Map<String, dynamic> j) =>
+      InvStockAlertCounts(
         out: (j['out'] as num?)?.toInt() ?? 0,
         low: (j['low'] as num?)?.toInt() ?? 0,
         total: (j['total'] as num?)?.toInt() ?? 0,
@@ -790,27 +936,33 @@ class InvExpiringBatch {
   final String? itemUnit;
   final String warehouseName;
   final String expiryDate;
+
   /// Negative = already expired. 0 = today. Driven off CURRENT_DATE on the server.
   final int daysToExpiry;
   const InvExpiringBatch({
-    required this.itemId, required this.warehouseId, required this.batchNo,
+    required this.itemId,
+    required this.warehouseId,
+    required this.batchNo,
     required this.qty,
-    required this.itemName, this.itemSku, this.itemUnit,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
     required this.warehouseName,
-    required this.expiryDate, required this.daysToExpiry,
+    required this.expiryDate,
+    required this.daysToExpiry,
   });
   factory InvExpiringBatch.fromJson(Map<String, dynamic> j) => InvExpiringBatch(
-        itemId: j['itemId'] as String,
-        warehouseId: j['warehouseId'] as String,
-        batchNo: (j['batchNo'] as String?) ?? '',
-        qty: (j['qty'] as num?)?.toDouble() ?? 0,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        expiryDate: (j['expiryDate'] as String?) ?? '',
-        daysToExpiry: (j['daysToExpiry'] as num?)?.toInt() ?? 0,
-      );
+    itemId: j['itemId'] as String,
+    warehouseId: j['warehouseId'] as String,
+    batchNo: (j['batchNo'] as String?) ?? '',
+    qty: (j['qty'] as num?)?.toDouble() ?? 0,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    expiryDate: (j['expiryDate'] as String?) ?? '',
+    daysToExpiry: (j['daysToExpiry'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class InvDn {
@@ -823,20 +975,25 @@ class InvDn {
   final double totalValue;
   final int lineCount;
   const InvDn({
-    required this.id, required this.dnNo, required this.warehouseName,
-    this.customerName, required this.dispatchDate, required this.status,
-    required this.totalValue, this.lineCount = 0,
+    required this.id,
+    required this.dnNo,
+    required this.warehouseName,
+    this.customerName,
+    required this.dispatchDate,
+    required this.status,
+    required this.totalValue,
+    this.lineCount = 0,
   });
   factory InvDn.fromJson(Map<String, dynamic> j) => InvDn(
-        id: j['id'] as String,
-        dnNo: j['dnNo'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        customerName: j['customerName'] as String?,
-        dispatchDate: j['dispatchDate'] as String,
-        status: (j['status'] as String?) ?? 'draft',
-        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
-        lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    dnNo: j['dnNo'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    customerName: j['customerName'] as String?,
+    dispatchDate: j['dispatchDate'] as String,
+    status: (j['status'] as String?) ?? 'draft',
+    totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    lineCount: (j['lineCount'] as num?)?.toInt() ?? 0,
+  );
 }
 
 // ── DN detail (svc.get → header + lines) ─────────────────────────────────
@@ -853,22 +1010,29 @@ class InvDnLine {
   final double unitCost;
   final double lineTotal;
   const InvDnLine({
-    required this.id, required this.itemId, required this.itemName, this.itemSku,
-    required this.trackBatches, this.batchNo, required this.qty, this.uom,
-    required this.unitCost, required this.lineTotal,
+    required this.id,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    required this.trackBatches,
+    this.batchNo,
+    required this.qty,
+    this.uom,
+    required this.unitCost,
+    required this.lineTotal,
   });
   factory InvDnLine.fromJson(Map<String, dynamic> j) => InvDnLine(
-        id: j['id'] as String,
-        itemId: j['itemId'] as String,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        trackBatches: j['trackBatches'] as bool? ?? false,
-        batchNo: j['batchNo'] as String?,
-        qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
-        uom: j['uom'] as String?,
-        unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
-        lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
-      );
+    id: j['id'] as String,
+    itemId: j['itemId'] as String,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    trackBatches: j['trackBatches'] as bool? ?? false,
+    batchNo: j['batchNo'] as String?,
+    qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
+    uom: j['uom'] as String?,
+    unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
+    lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
+  );
 }
 
 class InvDnDetail {
@@ -887,30 +1051,40 @@ class InvDnDetail {
   final double totalValue;
   final List<InvDnLine> lines;
   const InvDnDetail({
-    required this.id, required this.dnNo, required this.warehouseId,
-    required this.warehouseName, this.customerId, this.customerName,
-    required this.dispatchDate, this.vehicleNo, this.lrNo, this.eWayBillNo,
-    this.notes, required this.status, required this.totalValue, required this.lines,
+    required this.id,
+    required this.dnNo,
+    required this.warehouseId,
+    required this.warehouseName,
+    this.customerId,
+    this.customerName,
+    required this.dispatchDate,
+    this.vehicleNo,
+    this.lrNo,
+    this.eWayBillNo,
+    this.notes,
+    required this.status,
+    required this.totalValue,
+    required this.lines,
   });
   factory InvDnDetail.fromJson(Map<String, dynamic> j) => InvDnDetail(
-        id: j['id'] as String,
-        dnNo: j['dnNo'] as String,
-        warehouseId: j['warehouseId'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        customerId: j['customerId'] as String?,
-        customerName: j['customerName'] as String?,
-        dispatchDate: j['dispatchDate'] as String,
-        vehicleNo: j['vehicleNo'] as String?,
-        lrNo: j['lrNo'] as String?,
-        eWayBillNo: j['eWayBillNo'] as String?,
-        notes: j['notes'] as String?,
-        status: (j['status'] as String?) ?? 'draft',
-        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
-        lines: ((j['lines'] as List?) ?? const [])
-            .cast<Map<String, dynamic>>()
-            .map(InvDnLine.fromJson)
-            .toList(),
-      );
+    id: j['id'] as String,
+    dnNo: j['dnNo'] as String,
+    warehouseId: j['warehouseId'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    customerId: j['customerId'] as String?,
+    customerName: j['customerName'] as String?,
+    dispatchDate: j['dispatchDate'] as String,
+    vehicleNo: j['vehicleNo'] as String?,
+    lrNo: j['lrNo'] as String?,
+    eWayBillNo: j['eWayBillNo'] as String?,
+    notes: j['notes'] as String?,
+    status: (j['status'] as String?) ?? 'draft',
+    totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    lines: ((j['lines'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvDnLine.fromJson)
+        .toList(),
+  );
 }
 
 // ── Item detail (masters /items/:id) ──────────────────────────────────────
@@ -924,12 +1098,16 @@ class InvCogmComponent {
   final String label;
   final double amount;
   final String? note;
-  const InvCogmComponent({required this.label, required this.amount, this.note});
+  const InvCogmComponent({
+    required this.label,
+    required this.amount,
+    this.note,
+  });
   factory InvCogmComponent.fromJson(Map<String, dynamic> j) => InvCogmComponent(
-        label: j['label'] as String? ?? '',
-        amount: (j['amount'] as num?)?.toDouble() ?? 0,
-        note: j['note'] as String?,
-      );
+    label: j['label'] as String? ?? '',
+    amount: (j['amount'] as num?)?.toDouble() ?? 0,
+    note: j['note'] as String?,
+  );
 }
 
 class InvItemDetail {
@@ -961,62 +1139,84 @@ class InvItemDetail {
   final String? batchCodeTemplate;
   final double? reorderLevel;
   final double? reorderQty;
+
   /// Tenant-defined catalogue attributes (brand, packing type, size…).
   /// Shape varies per tenant schema, so it stays an untyped map.
   final Map<String, dynamic> attributes;
+
   /// Cost build-up behind [costPrice]. Empty when the tenant never split it.
   final List<InvCogmComponent> cogmBreakdown;
   final bool isActive;
   const InvItemDetail({
-    required this.id, required this.name, this.sku, this.unit, this.type,
-    this.itemClass, this.hsnSacCode, this.category, this.subcategory,
-    this.description, this.ean, this.packSizeValue, this.packSizeUqc,
-    this.mrp, this.defaultSellingPrice, this.defaultPurchasePrice,
-    this.costPrice, this.basicPrice, this.gstValue, this.margin, this.gstRate,
+    required this.id,
+    required this.name,
+    this.sku,
+    this.unit,
+    this.type,
+    this.itemClass,
+    this.hsnSacCode,
+    this.category,
+    this.subcategory,
+    this.description,
+    this.ean,
+    this.packSizeValue,
+    this.packSizeUqc,
+    this.mrp,
+    this.defaultSellingPrice,
+    this.defaultPurchasePrice,
+    this.costPrice,
+    this.basicPrice,
+    this.gstValue,
+    this.margin,
+    this.gstRate,
     this.trackInventory = true,
     this.trackBatches = false,
     this.trackExpiry = false,
     this.trackSerials = false,
-    this.batchCodeTemplate, this.reorderLevel, this.reorderQty,
+    this.batchCodeTemplate,
+    this.reorderLevel,
+    this.reorderQty,
     this.attributes = const {},
     this.cogmBreakdown = const [],
     required this.isActive,
   });
   factory InvItemDetail.fromJson(Map<String, dynamic> j) => InvItemDetail(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        sku: j['sku'] as String?,
-        unit: j['unit'] as String?,
-        type: j['type'] as String?,
-        itemClass: j['itemClass'] as String?,
-        hsnSacCode: j['hsnSacCode'] as String?,
-        category: j['category'] as String?,
-        subcategory: j['subcategory'] as String?,
-        description: j['description'] as String?,
-        ean: j['ean'] as String?,
-        packSizeValue: (j['packSizeValue'] as num?)?.toDouble(),
-        packSizeUqc: j['packSizeUqc'] as String?,
-        mrp: (j['mrp'] as num?)?.toDouble(),
-        defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
-        defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
-        costPrice: (j['costPrice'] as num?)?.toDouble(),
-        basicPrice: (j['basicPrice'] as num?)?.toDouble(),
-        gstValue: (j['gstValue'] as num?)?.toDouble(),
-        margin: (j['margin'] as num?)?.toDouble(),
-        gstRate: (j['gstRate'] as num?)?.toDouble(),
-        trackInventory: j['trackInventory'] as bool? ?? true,
-        trackBatches: j['trackBatches'] as bool? ?? false,
-        trackExpiry: j['trackExpiry'] as bool? ?? false,
-        trackSerials: j['trackSerials'] as bool? ?? false,
-        batchCodeTemplate: j['batchCodeTemplate'] as String?,
-        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
-        reorderQty: (j['reorderQty'] as num?)?.toDouble(),
-        attributes: (j['attributes'] as Map?)?.cast<String, dynamic>() ?? const {},
-        cogmBreakdown: ((j['cogmBreakdown'] as List?) ?? const [])
-            .map((e) => InvCogmComponent.fromJson((e as Map).cast<String, dynamic>()))
-            .toList(),
-        isActive: j['isActive'] as bool? ?? true,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    sku: j['sku'] as String?,
+    unit: j['unit'] as String?,
+    type: j['type'] as String?,
+    itemClass: j['itemClass'] as String?,
+    hsnSacCode: j['hsnSacCode'] as String?,
+    category: j['category'] as String?,
+    subcategory: j['subcategory'] as String?,
+    description: j['description'] as String?,
+    ean: j['ean'] as String?,
+    packSizeValue: (j['packSizeValue'] as num?)?.toDouble(),
+    packSizeUqc: j['packSizeUqc'] as String?,
+    mrp: (j['mrp'] as num?)?.toDouble(),
+    defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
+    defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
+    costPrice: (j['costPrice'] as num?)?.toDouble(),
+    basicPrice: (j['basicPrice'] as num?)?.toDouble(),
+    gstValue: (j['gstValue'] as num?)?.toDouble(),
+    margin: (j['margin'] as num?)?.toDouble(),
+    gstRate: (j['gstRate'] as num?)?.toDouble(),
+    trackInventory: j['trackInventory'] as bool? ?? true,
+    trackBatches: j['trackBatches'] as bool? ?? false,
+    trackExpiry: j['trackExpiry'] as bool? ?? false,
+    trackSerials: j['trackSerials'] as bool? ?? false,
+    batchCodeTemplate: j['batchCodeTemplate'] as String?,
+    reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+    reorderQty: (j['reorderQty'] as num?)?.toDouble(),
+    attributes: (j['attributes'] as Map?)?.cast<String, dynamic>() ?? const {},
+    cogmBreakdown: ((j['cogmBreakdown'] as List?) ?? const [])
+        .map(
+          (e) => InvCogmComponent.fromJson((e as Map).cast<String, dynamic>()),
+        )
+        .toList(),
+    isActive: j['isActive'] as bool? ?? true,
+  );
 }
 
 /// One price-list line covering an item (GET /masters/items/:id/price-lists),
@@ -1025,7 +1225,8 @@ class InvItemPriceLine {
   final String priceListId;
   final String priceListName;
   final String type; // 'selling' | 'buying'
-  final String applyTo; // all | customer_group | vendor_group | customer | vendor
+  final String
+  applyTo; // all | customer_group | vendor_group | customer | vendor
   final String? applyToValue;
   final String? partyName;
   final String? validFrom;
@@ -1071,30 +1272,30 @@ class InvItemPriceLine {
     this.netMarginPct,
   });
   factory InvItemPriceLine.fromJson(Map<String, dynamic> j) => InvItemPriceLine(
-        priceListId: j['priceListId'] as String,
-        priceListName: j['priceListName'] as String? ?? '',
-        type: j['type'] as String? ?? 'selling',
-        applyTo: j['applyTo'] as String? ?? 'all',
-        applyToValue: j['applyToValue'] as String?,
-        partyName: j['partyName'] as String?,
-        validFrom: j['validFrom'] as String?,
-        validTo: j['validTo'] as String?,
-        isActive: j['isActive'] as bool? ?? true,
-        isExpired: j['isExpired'] as bool? ?? false,
-        minQuantity: (j['minQuantity'] as num?)?.toDouble() ?? 0,
-        rate: (j['rate'] as num?)?.toDouble(),
-        marginPercent: (j['marginPercent'] as num?)?.toDouble(),
-        mrp: (j['mrp'] as num?)?.toDouble(),
-        discountPercent: (j['discountPercent'] as num?)?.toDouble(),
-        derivedRate: (j['derivedRate'] as num?)?.toDouble() ?? 0,
-        effectiveRate: (j['effectiveRate'] as num?)?.toDouble() ?? 0,
-        gstRatePct: (j['gstRatePct'] as num?)?.toDouble() ?? 0,
-        gstAmount: (j['gstAmount'] as num?)?.toDouble() ?? 0,
-        landingRate: (j['landingRate'] as num?)?.toDouble() ?? 0,
-        effectiveMarginPct: (j['effectiveMarginPct'] as num?)?.toDouble(),
-        netProfitPerUnit: (j['netProfitPerUnit'] as num?)?.toDouble(),
-        netMarginPct: (j['netMarginPct'] as num?)?.toDouble(),
-      );
+    priceListId: j['priceListId'] as String,
+    priceListName: j['priceListName'] as String? ?? '',
+    type: j['type'] as String? ?? 'selling',
+    applyTo: j['applyTo'] as String? ?? 'all',
+    applyToValue: j['applyToValue'] as String?,
+    partyName: j['partyName'] as String?,
+    validFrom: j['validFrom'] as String?,
+    validTo: j['validTo'] as String?,
+    isActive: j['isActive'] as bool? ?? true,
+    isExpired: j['isExpired'] as bool? ?? false,
+    minQuantity: (j['minQuantity'] as num?)?.toDouble() ?? 0,
+    rate: (j['rate'] as num?)?.toDouble(),
+    marginPercent: (j['marginPercent'] as num?)?.toDouble(),
+    mrp: (j['mrp'] as num?)?.toDouble(),
+    discountPercent: (j['discountPercent'] as num?)?.toDouble(),
+    derivedRate: (j['derivedRate'] as num?)?.toDouble() ?? 0,
+    effectiveRate: (j['effectiveRate'] as num?)?.toDouble() ?? 0,
+    gstRatePct: (j['gstRatePct'] as num?)?.toDouble() ?? 0,
+    gstAmount: (j['gstAmount'] as num?)?.toDouble() ?? 0,
+    landingRate: (j['landingRate'] as num?)?.toDouble() ?? 0,
+    effectiveMarginPct: (j['effectiveMarginPct'] as num?)?.toDouble(),
+    netProfitPerUnit: (j['netProfitPerUnit'] as num?)?.toDouble(),
+    netMarginPct: (j['netMarginPct'] as num?)?.toDouble(),
+  );
 
   /// Who this price applies to, as the user thinks of it.
   String get scopeLabel {
@@ -1118,28 +1319,50 @@ class InvItemListRow {
   final double? defaultSellingPrice;
   final double? gstRate;
   final bool isActive;
+
   /// Total on-hand qty. Null unless the list was fetched with withStock —
   /// distinct from 0.0, which means "tracked, none left".
   final double? stockQty;
+
+  /// Balance at or below which the item counts as low. Null when the item
+  /// carries no reorder level — then any positive balance reads as healthy.
+  final double? reorderLevel;
+
+  /// False for items the ledger doesn't track (services, expensed buys) —
+  /// their balance is meaningless, so they carry no availability mark.
+  final bool trackInventory;
   const InvItemListRow({
-    required this.id, required this.name, this.sku, this.unit, this.type,
-    this.itemClass, this.category, this.subcategory, this.defaultSellingPrice,
-    this.gstRate, required this.isActive, this.stockQty,
+    required this.id,
+    required this.name,
+    this.sku,
+    this.unit,
+    this.type,
+    this.itemClass,
+    this.category,
+    this.subcategory,
+    this.defaultSellingPrice,
+    this.gstRate,
+    required this.isActive,
+    this.stockQty,
+    this.reorderLevel,
+    this.trackInventory = true,
   });
   factory InvItemListRow.fromJson(Map<String, dynamic> j) => InvItemListRow(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        sku: j['sku'] as String?,
-        unit: j['unit'] as String?,
-        type: j['type'] as String?,
-        itemClass: j['itemClass'] as String?,
-        category: j['category'] as String?,
-        subcategory: j['subcategory'] as String?,
-        defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
-        gstRate: (j['gstRate'] as num?)?.toDouble(),
-        isActive: j['isActive'] as bool? ?? true,
-        stockQty: (j['stockQty'] as num?)?.toDouble(),
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    sku: j['sku'] as String?,
+    unit: j['unit'] as String?,
+    type: j['type'] as String?,
+    itemClass: j['itemClass'] as String?,
+    category: j['category'] as String?,
+    subcategory: j['subcategory'] as String?,
+    defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
+    gstRate: (j['gstRate'] as num?)?.toDouble(),
+    isActive: j['isActive'] as bool? ?? true,
+    stockQty: (j['stockQty'] as num?)?.toDouble(),
+    reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+    trackInventory: j['trackInventory'] as bool? ?? true,
+  );
 }
 
 // One row of the Home stock strips (GET /inventory/dashboard/stock-highlights)
@@ -1155,15 +1378,22 @@ class InvStockHighlight {
   final double? reorderLevel;
   final DateTime? lastMovementAt;
   const InvStockHighlight({
-    required this.itemId, required this.name, this.sku, this.unit,
-    this.itemClass, required this.qty, required this.value,
-    this.reorderLevel, this.lastMovementAt,
+    required this.itemId,
+    required this.name,
+    this.sku,
+    this.unit,
+    this.itemClass,
+    required this.qty,
+    required this.value,
+    this.reorderLevel,
+    this.lastMovementAt,
   });
 
   /// True when the balance has fallen to or below the item's reorder level.
   bool get isLow => reorderLevel != null && qty <= reorderLevel!;
 
-  factory InvStockHighlight.fromJson(Map<String, dynamic> j) => InvStockHighlight(
+  factory InvStockHighlight.fromJson(Map<String, dynamic> j) =>
+      InvStockHighlight(
         itemId: j['itemId'] as String,
         name: j['name'] as String,
         sku: j['sku'] as String?,
@@ -1220,13 +1450,13 @@ class InvCategory {
     this.subcategories = const [],
   });
   factory InvCategory.fromJson(Map<String, dynamic> j) => InvCategory(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        subcategories: ((j['subcategories'] as List?) ?? const [])
-            .cast<Map<String, dynamic>>()
-            .map(InvCategory.fromJson)
-            .toList(),
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    subcategories: ((j['subcategories'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvCategory.fromJson)
+        .toList(),
+  );
 }
 
 // One stock-on-hand row from /inventory/items/:id/stock — per warehouse +
@@ -1240,18 +1470,23 @@ class InvItemStockRow {
   final double value;
   final String? lastMovementAt;
   const InvItemStockRow({
-    required this.warehouseId, required this.warehouseName, required this.batchNo,
-    required this.qty, required this.avgCost, required this.value, this.lastMovementAt,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.batchNo,
+    required this.qty,
+    required this.avgCost,
+    required this.value,
+    this.lastMovementAt,
   });
   factory InvItemStockRow.fromJson(Map<String, dynamic> j) => InvItemStockRow(
-        warehouseId: j['warehouseId'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        batchNo: (j['batchNo'] as String?) ?? '',
-        qty: (j['qty'] as num?)?.toDouble() ?? 0,
-        avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
-        value: (j['value'] as num?)?.toDouble() ?? 0,
-        lastMovementAt: j['lastMovementAt'] as String?,
-      );
+    warehouseId: j['warehouseId'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    batchNo: (j['batchNo'] as String?) ?? '',
+    qty: (j['qty'] as num?)?.toDouble() ?? 0,
+    avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+    lastMovementAt: j['lastMovementAt'] as String?,
+  );
 }
 
 // ── GRN detail (svc.get → header + lines) ─────────────────────────────────
@@ -1271,29 +1506,38 @@ class InvGrnLine {
   final String? notes;
   final List<String> serialNos;
   const InvGrnLine({
-    required this.id, required this.itemId, required this.itemName, this.itemSku,
-    this.batchNo, this.expiryDate, required this.qty, this.uom,
-    required this.unitRate, required this.landedCostPerUnit,
-    required this.lineTotal, this.notes, required this.serialNos,
+    required this.id,
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.batchNo,
+    this.expiryDate,
+    required this.qty,
+    this.uom,
+    required this.unitRate,
+    required this.landedCostPerUnit,
+    required this.lineTotal,
+    this.notes,
+    required this.serialNos,
   });
   factory InvGrnLine.fromJson(Map<String, dynamic> j) => InvGrnLine(
-        id: j['id'] as String,
-        itemId: j['itemId'] as String,
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        batchNo: j['batchNo'] as String?,
-        expiryDate: j['expiryDate'] as String?,
-        qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
-        uom: j['uom'] as String?,
-        unitRate: double.tryParse(j['unitRate']?.toString() ?? '0') ?? 0,
-        landedCostPerUnit:
-            double.tryParse(j['landedCostPerUnit']?.toString() ?? '0') ?? 0,
-        lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
-        notes: j['notes'] as String?,
-        serialNos: ((j['serialNos'] as List?) ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-      );
+    id: j['id'] as String,
+    itemId: j['itemId'] as String,
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    batchNo: j['batchNo'] as String?,
+    expiryDate: j['expiryDate'] as String?,
+    qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
+    uom: j['uom'] as String?,
+    unitRate: double.tryParse(j['unitRate']?.toString() ?? '0') ?? 0,
+    landedCostPerUnit:
+        double.tryParse(j['landedCostPerUnit']?.toString() ?? '0') ?? 0,
+    lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
+    notes: j['notes'] as String?,
+    serialNos: ((j['serialNos'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+  );
 }
 
 class InvGrnDetail {
@@ -1309,26 +1553,34 @@ class InvGrnDetail {
   final double totalValue;
   final List<InvGrnLine> lines;
   const InvGrnDetail({
-    required this.id, required this.grnNo, required this.warehouseName,
-    this.vendorName, required this.receivedDate, this.vehicleNo, this.lrNo,
-    this.notes, required this.status, required this.totalValue, required this.lines,
+    required this.id,
+    required this.grnNo,
+    required this.warehouseName,
+    this.vendorName,
+    required this.receivedDate,
+    this.vehicleNo,
+    this.lrNo,
+    this.notes,
+    required this.status,
+    required this.totalValue,
+    required this.lines,
   });
   factory InvGrnDetail.fromJson(Map<String, dynamic> j) => InvGrnDetail(
-        id: j['id'] as String,
-        grnNo: j['grnNo'] as String,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-        vendorName: j['vendorName'] as String?,
-        receivedDate: j['receivedDate'] as String,
-        vehicleNo: j['vehicleNo'] as String?,
-        lrNo: j['lrNo'] as String?,
-        notes: j['notes'] as String?,
-        status: (j['status'] as String?) ?? 'draft',
-        totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
-        lines: ((j['lines'] as List?) ?? const [])
-            .cast<Map<String, dynamic>>()
-            .map(InvGrnLine.fromJson)
-            .toList(),
-      );
+    id: j['id'] as String,
+    grnNo: j['grnNo'] as String,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    vendorName: j['vendorName'] as String?,
+    receivedDate: j['receivedDate'] as String,
+    vehicleNo: j['vehicleNo'] as String?,
+    lrNo: j['lrNo'] as String?,
+    notes: j['notes'] as String?,
+    status: (j['status'] as String?) ?? 'draft',
+    totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    lines: ((j['lines'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvGrnLine.fromJson)
+        .toList(),
+  );
 }
 
 // ── Recent activity (dashboard feed) ──────────────────────────────────────
@@ -1338,6 +1590,7 @@ class InvGrnDetail {
 // and the dedicated full-feed screen.
 class InvActivity {
   final String id;
+
   /// Ledger movement bucket — `grn` | `dn` | `transfer_in` | `transfer_out`
   /// | `adjustment` | `stock_take`. Mapped to icon + colour by
   /// [InvActivityIcon] in `inv_primitives.dart`.
@@ -1364,29 +1617,32 @@ class InvActivity {
     this.itemUnit,
     required this.warehouseName,
   });
+
   /// Collapse direction-split movement types to the icon bucket
   /// `InvActivityIcon` knows about. transfer_in/out both map to `transfer`.
   String get iconKey {
     if (movementType.startsWith('transfer')) return 'transfer';
     return movementType;
   }
+
   /// Signed qty — positive for inflows, negative for outflows. Used to
   /// render the right-edge "+5 / -3" amount on each row.
   double get signedQty => qtyIn - qtyOut;
   factory InvActivity.fromJson(Map<String, dynamic> j) => InvActivity(
-        id: j['id'] as String,
-        movementType: (j['movementType'] as String?) ?? '',
-        sourceType: (j['sourceType'] as String?) ?? '',
-        sourceId: (j['sourceId'] as String?) ?? '',
-        qtyIn: (j['qtyIn'] as num?)?.toDouble() ?? 0,
-        qtyOut: (j['qtyOut'] as num?)?.toDouble() ?? 0,
-        movedAt: DateTime.tryParse(j['movedAt']?.toString() ?? '')?.toLocal()
-            ?? DateTime.now(),
-        itemName: (j['itemName'] as String?) ?? '',
-        itemSku: j['itemSku'] as String?,
-        itemUnit: j['itemUnit'] as String?,
-        warehouseName: (j['warehouseName'] as String?) ?? '',
-      );
+    id: j['id'] as String,
+    movementType: (j['movementType'] as String?) ?? '',
+    sourceType: (j['sourceType'] as String?) ?? '',
+    sourceId: (j['sourceId'] as String?) ?? '',
+    qtyIn: (j['qtyIn'] as num?)?.toDouble() ?? 0,
+    qtyOut: (j['qtyOut'] as num?)?.toDouble() ?? 0,
+    movedAt:
+        DateTime.tryParse(j['movedAt']?.toString() ?? '')?.toLocal() ??
+        DateTime.now(),
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    itemUnit: j['itemUnit'] as String?,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+  );
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────
@@ -1437,24 +1693,24 @@ class InvHealth {
   });
 
   factory InvHealth.fromJson(Map<String, dynamic> j) => InvHealth(
-        windowDays: _i(j['windowDays']),
-        dataSpanDays: _i(j['dataSpanDays']),
-        totalValue: _d(j['totalValue']),
-        skuInStock: _i(j['skuInStock']),
-        consumedValue: _d(j['consumedValue']),
-        turnover: j['turnover'] == null ? null : _d(j['turnover']),
-        daysOnHand: j['daysOnHand'] == null ? null : _d(j['daysOnHand']),
-        expiringValue: _d(j['expiringValue']),
-        belowReorder: _i(j['belowReorder']),
-        outOfStock: _i(j['outOfStock']),
-        deadValue: _d(j['deadValue']),
-        deadSkuCount: _i(j['deadSkuCount']),
-        deadValuePct: _d(j['deadValuePct']),
-        averageInventory: _d(j['averageInventory']),
-        excessValue: _d(j['excessValue']),
-        excessSkuCount: _i(j['excessSkuCount']),
-        excessCoverDays: _i(j['excessCoverDays']),
-      );
+    windowDays: _i(j['windowDays']),
+    dataSpanDays: _i(j['dataSpanDays']),
+    totalValue: _d(j['totalValue']),
+    skuInStock: _i(j['skuInStock']),
+    consumedValue: _d(j['consumedValue']),
+    turnover: j['turnover'] == null ? null : _d(j['turnover']),
+    daysOnHand: j['daysOnHand'] == null ? null : _d(j['daysOnHand']),
+    expiringValue: _d(j['expiringValue']),
+    belowReorder: _i(j['belowReorder']),
+    outOfStock: _i(j['outOfStock']),
+    deadValue: _d(j['deadValue']),
+    deadSkuCount: _i(j['deadSkuCount']),
+    deadValuePct: _d(j['deadValuePct']),
+    averageInventory: _d(j['averageInventory']),
+    excessValue: _d(j['excessValue']),
+    excessSkuCount: _i(j['excessSkuCount']),
+    excessCoverDays: _i(j['excessCoverDays']),
+  );
 }
 
 class InvSkuPerformance {
@@ -1492,7 +1748,8 @@ class InvSkuPerformance {
     required this.hasEnoughHistory,
   });
 
-  factory InvSkuPerformance.fromJson(Map<String, dynamic> j) => InvSkuPerformance(
+  factory InvSkuPerformance.fromJson(Map<String, dynamic> j) =>
+      InvSkuPerformance(
         itemId: '${j['itemId']}',
         itemName: '${j['itemName']}',
         itemSku: j['itemSku'] as String?,
@@ -1535,16 +1792,16 @@ class InvRiskRow {
   });
 
   factory InvRiskRow.fromJson(Map<String, dynamic> j) => InvRiskRow(
-        itemId: '${j['itemId']}',
-        itemName: '${j['itemName']}',
-        itemUnit: j['itemUnit'] as String?,
-        onHand: _d(j['onHand']),
-        reorderLevel: j['reorderLevel'] == null ? null : _d(j['reorderLevel']),
-        shortBy: _d(j['shortBy']),
-        daysOut: _i(j['daysOut']),
-        timesOutInWindow: _i(j['timesOutInWindow']),
-        level: '${j['level']}',
-      );
+    itemId: '${j['itemId']}',
+    itemName: '${j['itemName']}',
+    itemUnit: j['itemUnit'] as String?,
+    onHand: _d(j['onHand']),
+    reorderLevel: j['reorderLevel'] == null ? null : _d(j['reorderLevel']),
+    shortBy: _d(j['shortBy']),
+    daysOut: _i(j['daysOut']),
+    timesOutInWindow: _i(j['timesOutInWindow']),
+    level: '${j['level']}',
+  );
 }
 
 class InvStockRisk {
@@ -1567,12 +1824,12 @@ class InvStockRisk {
       .toList();
 
   factory InvStockRisk.fromJson(Map<String, dynamic> j) => InvStockRisk(
-        windowDays: _i(j['windowDays']),
-        outOfStock: _rows(j['outOfStock']),
-        critical: _rows(j['critical']),
-        warning: _rows(j['warning']),
-        repeatOffenders: _rows(j['repeatOffenders']),
-      );
+    windowDays: _i(j['windowDays']),
+    outOfStock: _rows(j['outOfStock']),
+    critical: _rows(j['critical']),
+    warning: _rows(j['warning']),
+    repeatOffenders: _rows(j['repeatOffenders']),
+  );
 }
 
 class InvForecastRow {
@@ -1605,19 +1862,19 @@ class InvForecastRow {
   });
 
   factory InvForecastRow.fromJson(Map<String, dynamic> j) => InvForecastRow(
-        itemId: '${j['itemId']}',
-        itemName: '${j['itemName']}',
-        itemUnit: j['itemUnit'] as String?,
-        onHand: _d(j['onHand']),
-        runRate: _d(j['runRate']),
-        daysOfCover: j['daysOfCover'] == null ? null : _d(j['daysOfCover']),
-        stockoutDate: j['stockoutDate'] as String?,
-        reorderByDate: j['reorderByDate'] as String?,
-        suggestedQty: _d(j['suggestedQty']),
-        hasEnoughHistory: j['hasEnoughHistory'] == true,
-        isLate: j['isLate'] == true,
-        isUrgent: j['isUrgent'] == true,
-      );
+    itemId: '${j['itemId']}',
+    itemName: '${j['itemName']}',
+    itemUnit: j['itemUnit'] as String?,
+    onHand: _d(j['onHand']),
+    runRate: _d(j['runRate']),
+    daysOfCover: j['daysOfCover'] == null ? null : _d(j['daysOfCover']),
+    stockoutDate: j['stockoutDate'] as String?,
+    reorderByDate: j['reorderByDate'] as String?,
+    suggestedQty: _d(j['suggestedQty']),
+    hasEnoughHistory: j['hasEnoughHistory'] == true,
+    isLate: j['isLate'] == true,
+    isUrgent: j['isUrgent'] == true,
+  );
 }
 
 class InvForecast {
@@ -1640,7 +1897,9 @@ class InvForecast {
     final ex = (j['expiry'] as Map?)?.cast<String, dynamic>() ?? {};
     return InvForecast(
       items: ((so['items'] as List?) ?? [])
-          .map((e) => InvForecastRow.fromJson((e as Map).cast<String, dynamic>()))
+          .map(
+            (e) => InvForecastRow.fromJson((e as Map).cast<String, dynamic>()),
+          )
           .toList(),
       lateCount: _i(so['lateCount']),
       urgentCount: _i(so['urgentCount']),
@@ -1664,24 +1923,28 @@ class InvTrendPoint {
   });
 
   factory InvTrendPoint.fromJson(Map<String, dynamic> j) => InvTrendPoint(
-        bucket: '${j['bucket']}',
-        closingValue: _d(j['closingValue']),
-        inValue: _d(j['inValue']),
-        outValue: _d(j['outValue']),
-      );
+    bucket: '${j['bucket']}',
+    closingValue: _d(j['closingValue']),
+    inValue: _d(j['inValue']),
+    outValue: _d(j['outValue']),
+  );
 }
 
 /// Outcome of a bulk "apply suggested levels" call.
 class InvApplyLevelsResult {
   /// Rows actually written. 0 on a dry run.
   final int applied;
+
   /// Eligible but the computed level was zero, so left alone.
   final int skippedZeroLevel;
+
   /// Of those written, how many rested on a thin-history fallback.
   final int thinHistoryApplied;
+
   /// Of those written, how many replaced an existing hand-set level.
   final int overwritten;
   final bool dryRun;
+
   /// How many rows a dry run would write (equals [applied] after a commit).
   final int pendingCount;
 
@@ -1694,7 +1957,8 @@ class InvApplyLevelsResult {
     this.pendingCount = 0,
   });
 
-  factory InvApplyLevelsResult.fromJson(Map<String, dynamic> j) => InvApplyLevelsResult(
+  factory InvApplyLevelsResult.fromJson(Map<String, dynamic> j) =>
+      InvApplyLevelsResult(
         applied: (j['applied'] as num?)?.toInt() ?? 0,
         skippedZeroLevel: (j['skippedZeroLevel'] as num?)?.toInt() ?? 0,
         thinHistoryApplied: (j['thinHistoryApplied'] as num?)?.toInt() ?? 0,
@@ -1741,7 +2005,8 @@ class InvReplenishmentRow {
     required this.hasReliableSigma,
   });
 
-  factory InvReplenishmentRow.fromJson(Map<String, dynamic> j) => InvReplenishmentRow(
+  factory InvReplenishmentRow.fromJson(Map<String, dynamic> j) =>
+      InvReplenishmentRow(
         itemId: '${j['itemId']}',
         itemName: '${j['itemName']}',
         itemUnit: j['itemUnit'] as String?,
@@ -1752,8 +2017,9 @@ class InvReplenishmentRow {
         leadTimeAssumed: j['leadTimeAssumed'] == true,
         safetyStock: _d(j['safetyStock']),
         suggestedReorderLevel: _d(j['suggestedReorderLevel']),
-        currentReorderLevel:
-            j['currentReorderLevel'] == null ? null : _d(j['currentReorderLevel']),
+        currentReorderLevel: j['currentReorderLevel'] == null
+            ? null
+            : _d(j['currentReorderLevel']),
         gap: j['gap'] == null ? null : _d(j['gap']),
         suggestedOrderQty: _d(j['suggestedOrderQty']),
         breachesSuggested: j['breachesSuggested'] == true,
@@ -1777,12 +2043,15 @@ class InvReplenishment {
   });
 
   factory InvReplenishment.fromJson(Map<String, dynamic> j) => InvReplenishment(
-        serviceLevel: _i(j['serviceLevel']),
-        defaultLeadTimeDays: _i(j['defaultLeadTimeDays']),
-        rows: ((j['rows'] as List?) ?? [])
-            .map((e) => InvReplenishmentRow.fromJson((e as Map).cast<String, dynamic>()))
-            .toList(),
-        actionableCount: _i(j['actionableCount']),
-        unconfiguredCount: _i(j['unconfiguredCount']),
-      );
+    serviceLevel: _i(j['serviceLevel']),
+    defaultLeadTimeDays: _i(j['defaultLeadTimeDays']),
+    rows: ((j['rows'] as List?) ?? [])
+        .map(
+          (e) =>
+              InvReplenishmentRow.fromJson((e as Map).cast<String, dynamic>()),
+        )
+        .toList(),
+    actionableCount: _i(j['actionableCount']),
+    unconfiguredCount: _i(j['unconfiguredCount']),
+  );
 }

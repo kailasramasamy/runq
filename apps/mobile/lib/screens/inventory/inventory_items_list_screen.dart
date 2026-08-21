@@ -52,8 +52,9 @@ const Map<String, String> _legacyGroupAliases = {
   'trading': 'trading_good',
 };
 
-_FilterKind _kindOf(String key) =>
-    _classFilters.firstWhere((f) => f.key == key, orElse: () => _classFilters.first).kind;
+_FilterKind _kindOf(String key) => _classFilters
+    .firstWhere((f) => f.key == key, orElse: () => _classFilters.first)
+    .kind;
 
 /// Count shown on a pill. Groups sum their member classes; 'All' sums
 /// everything including the unclassified leftovers.
@@ -218,7 +219,10 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         backgroundColor: InvColors.brand(context),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded, size: 20),
-        label: Text('New item', style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+        label: Text(
+          'New item',
+          style: RunqText.bodyStrong.copyWith(color: Colors.white),
+        ),
       ),
       body: Column(
         children: [
@@ -230,8 +234,13 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
               hint: 'Search by name or SKU…',
             ),
           ),
-          _ClassStrip(selected: _classGroup, counts: _classCounts, onChanged: _onClass),
-          if (!_loading && _error == null) _CountLine(loaded: _rows.length, total: _total),
+          _ClassStrip(
+            selected: _classGroup,
+            counts: _classCounts,
+            onChanged: _onClass,
+          ),
+          if (!_loading && _error == null)
+            _CountLine(loaded: _rows.length, total: _total),
           Expanded(child: _body(t)),
         ],
       ),
@@ -312,15 +321,21 @@ const _uncategorised = 'Uncategorised';
 List<Object> _sectionedEntries(List<InvItemListRow> rows) {
   final byCategory = <String, Map<String, List<InvItemListRow>>>{};
   for (final r in rows) {
-    final cat = (r.category?.trim().isNotEmpty == true) ? r.category!.trim() : _uncategorised;
+    final cat = (r.category?.trim().isNotEmpty == true)
+        ? r.category!.trim()
+        : _uncategorised;
     final sub = r.subcategory?.trim() ?? '';
     byCategory.putIfAbsent(cat, () => {}).putIfAbsent(sub, () => []).add(r);
   }
   return [
     for (final entry in byCategory.entries) ...[
-      _SectionLabel(entry.key, entry.value.values.fold(0, (n, list) => n + list.length)),
+      _SectionLabel(
+        entry.key,
+        entry.value.values.fold(0, (n, list) => n + list.length),
+      ),
       for (final sub in entry.value.entries) ...[
-        if (sub.key.isNotEmpty) _SectionLabel(sub.key, sub.value.length, nested: true),
+        if (sub.key.isNotEmpty)
+          _SectionLabel(sub.key, sub.value.length, nested: true),
         ...sub.value,
       ],
     ],
@@ -328,7 +343,11 @@ List<Object> _sectionedEntries(List<InvItemListRow> rows) {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label, required this.count, this.nested = false});
+  const _SectionHeader({
+    required this.label,
+    required this.count,
+    this.nested = false,
+  });
   final String label;
   final int count;
   final bool nested;
@@ -345,7 +364,10 @@ class _SectionHeader extends StatelessWidget {
           Expanded(
             child: nested
                 ? Text(label, style: RunqText.caption.copyWith(color: t.muted2))
-                : Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
+                : Text(
+                    label.toUpperCase(),
+                    style: RunqText.label.copyWith(color: t.muted),
+                  ),
           ),
           Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
         ],
@@ -355,7 +377,11 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ClassStrip extends StatelessWidget {
-  const _ClassStrip({required this.selected, required this.counts, required this.onChanged});
+  const _ClassStrip({
+    required this.selected,
+    required this.counts,
+    required this.onChanged,
+  });
   final String selected;
   final Map<String, int> counts;
   final ValueChanged<String> onChanged;
@@ -418,93 +444,173 @@ class _ItemTile extends StatelessWidget {
     final t = RT(context);
     final meta = [
       if (row.sku?.isNotEmpty == true) row.sku!,
-      if (classLabel(row.itemClass, row.type) != null) classLabel(row.itemClass, row.type)!,
+      if (classLabel(row.itemClass, row.type) != null)
+        classLabel(row.itemClass, row.type)!,
       if (row.category?.isNotEmpty == true) row.category!,
     ].join(' · ');
+    final mark = _availabilityColour(row);
     return InvCard(
       onTap: () => context.push('/inventory/items/${row.id}'),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Availability as a colour rail, the same signal the alert rows
+          // carry: red out of stock, orange at or below the reorder level,
+          // green otherwise. Untracked items keep the rail's width as blank
+          // space so every card's text starts on the same line.
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(8)),
-            child: Icon(Icons.inventory_2_outlined, size: 17, color: t.muted),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // UOM trails the name in muted type — it qualifies the
-                    // product ("Milk, sold in 500ml") and belongs with it,
-                    // not stacked under the balance where it read as a
-                    // second number.
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: row.name,
-                          style: RunqText.bodyStrong.copyWith(color: t.ink),
-                          children: [
-                            if (row.unit?.isNotEmpty == true)
-                              TextSpan(
-                                text: '  ${row.unit}',
-                                style: RunqText.caption.copyWith(color: t.muted2),
-                              ),
-                          ],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (!row.isActive) ...[const SizedBox(width: 6), _InactivePill()],
-                  ],
-                ),
-                if (meta.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    meta,
-                    style: RunqText.caption.copyWith(color: t.muted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
+            width: 3,
+            height: 34,
+            margin: const EdgeInsets.only(right: 10, top: 1),
+            decoration: BoxDecoration(
+              color: mark ?? Colors.transparent,
+              borderRadius: BorderRadius.circular(99),
             ),
           ),
-          const SizedBox(width: 10),
-          // Balance on hand is the headline figure — on an inventory screen
-          // "how much is left" outranks "what we sell it for", so price drops
-          // to the muted second line.
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (row.stockQty != null)
-                Text(
-                  _fmtQty(row.stockQty!),
-                  style: RunqText.bodyStrong.copyWith(color: row.stockQty! <= 0 ? t.muted2 : t.ink),
-                ),
-              if (row.defaultSellingPrice != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  compactINR(row.defaultSellingPrice!),
-                  style: RunqText.caption.copyWith(color: t.muted2),
-                ),
-              ],
-            ],
-          ),
+          Expanded(child: _content(t, meta)),
         ],
       ),
     );
   }
 
+  /// Colour for the availability rail, or null when the list was fetched
+  /// without stock and there is no balance to speak of.
+  ///
+  /// Untracked items — services and anything the ledger doesn't carry — read
+  /// green: they have no balance to run out of.
+  static Color? _availabilityColour(InvItemListRow row) {
+    if (_isUntracked(row)) return InvColors.success;
+    final qty = row.stockQty;
+    if (qty == null) return null;
+    if (qty <= 0) return InvColors.error;
+    final level = row.reorderLevel;
+    final low = level != null && level > 0 && qty <= level;
+    return low ? InvColors.orangeAlert : InvColors.success;
+  }
+
+  static bool _isUntracked(InvItemListRow row) =>
+      row.type == 'service' || !row.trackInventory;
+
+  Widget _content(RunqTokens t, String meta) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: t.bgWarmer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.inventory_2_outlined, size: 17, color: t.muted),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // UOM trails the name in muted type — it qualifies the
+                  // product ("Milk, sold in 500ml") and belongs with it,
+                  // not stacked under the balance where it read as a
+                  // second number.
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        text: row.name,
+                        style: RunqText.bodyStrong.copyWith(color: t.ink),
+                        children: [
+                          if (row.unit?.isNotEmpty == true)
+                            TextSpan(
+                              text: '  ${row.unit}',
+                              style: RunqText.caption.copyWith(color: t.muted2),
+                            ),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Says why the rail is green on a row carrying no
+                  // quantity — an untracked item never runs out.
+                  if (_isUntracked(row)) ...[
+                    const SizedBox(width: 6),
+                    const _AlwaysAvailablePill(),
+                  ],
+                  if (!row.isActive) ...[
+                    const SizedBox(width: 6),
+                    _InactivePill(),
+                  ],
+                ],
+              ),
+              if (meta.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  meta,
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        // Balance on hand is the headline figure — on an inventory screen
+        // "how much is left" outranks "what we sell it for", so price drops
+        // to the muted second line.
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (row.stockQty != null)
+              Text(
+                _fmtQty(row.stockQty!),
+                style: RunqText.bodyStrong.copyWith(
+                  color: row.stockQty! <= 0 ? t.muted2 : t.ink,
+                ),
+              ),
+            if (row.defaultSellingPrice != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                compactINR(row.defaultSellingPrice!),
+                style: RunqText.caption.copyWith(color: t.muted2),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   static String _fmtQty(double q) =>
       q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
+}
+
+/// Green counterpart to [_InactivePill] for items the ledger doesn't track.
+class _AlwaysAvailablePill extends StatelessWidget {
+  const _AlwaysAvailablePill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: InvColors.successBg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Always available',
+        style: RunqText.micro.copyWith(
+          color: InvColors.success,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
 }
 
 class _InactivePill extends StatelessWidget {
@@ -514,8 +620,14 @@ class _InactivePill extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(4)),
-      child: Text('Inactive', style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.2)),
+      decoration: BoxDecoration(
+        color: t.bgWarmer,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Inactive',
+        style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.2),
+      ),
     );
   }
 }
