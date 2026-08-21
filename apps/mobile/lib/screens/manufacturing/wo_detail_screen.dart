@@ -150,8 +150,8 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
   /// Cancelling reverses any stock already drawn, so it stays available right
   /// up to close — a run abandoned mid-shift is the common case, not a draft
   /// nobody started.
-  Widget _cancelButton(WorkOrder wo) => OutlinedButton(
-        onPressed: _busy ? null : () => _cancel(wo),
+  Widget _cancelButton(WorkOrder wo, {VoidCallback? onPressed}) => OutlinedButton(
+        onPressed: _busy ? null : (onPressed ?? () => _cancel(wo)),
         style: OutlinedButton.styleFrom(
           foregroundColor: MfgColors.error,
           side: BorderSide(color: MfgColors.error),
@@ -162,10 +162,18 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
       );
 
   /// Reverse a closed run and reopen the entry form prefilled from it.
-  Future<void> _correct(WorkOrder wo) async {
+  Future<void> _correct(WorkOrder wo) => _runReversal(correctClosedRun, wo);
+
+  /// Reverse a closed run and stop there.
+  Future<void> _cancelClosed(WorkOrder wo) => _runReversal(cancelClosedRun, wo);
+
+  Future<void> _runReversal(
+    Future<void> Function(BuildContext, WidgetRef, WorkOrder) action,
+    WorkOrder wo,
+  ) async {
     setState(() => _busy = true);
     try {
-      await correctClosedRun(context, ref, wo);
+      await action(context, ref, wo);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -285,16 +293,18 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
                           ),
                         ),
                       ] else if (wo.isClosed) ...[
+                        // Cancel and Correct run the same reversal — a closed
+                        // run can't be cancelled in place. Correct leads
+                        // because a wrong number is the common case; a run that
+                        // never happened at all is the rare one.
+                        _cancelButton(wo, onPressed: () => _cancelClosed(wo)),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: MfgPrimaryButton(
+                            label: 'Correct entry',
+                            loading: _busy,
                             onPressed: _busy ? null : () => _correct(wo),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: MfgColors.error,
-                              side: BorderSide(color: MfgColors.error),
-                              minimumSize: const Size(96, 48),
-                            ),
-                            icon: const Icon(Icons.undo_rounded, size: 18),
-                            label: const Text('Correct entry', maxLines: 1),
+                            icon: Icons.undo_rounded,
                           ),
                         ),
                       ],

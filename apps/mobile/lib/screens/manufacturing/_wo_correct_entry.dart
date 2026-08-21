@@ -24,12 +24,22 @@ import 'widgets/mfg_colors.dart';
 
 /// Reverses [wo] and reopens Record Production prefilled from it. Returns
 /// silently when the operator backs out of the confirmation.
-Future<void> correctClosedRun(
+Future<void> correctClosedRun(BuildContext context, WidgetRef ref, WorkOrder wo) =>
+    _reverse(context, ref, wo, reopen: true);
+
+/// Reverses [wo] and stops there — the run shouldn't have happened at all,
+/// rather than having happened with the wrong numbers. Same unwind either way:
+/// a closed run can't be cancelled in place, so cancelling *is* reversing.
+Future<void> cancelClosedRun(BuildContext context, WidgetRef ref, WorkOrder wo) =>
+    _reverse(context, ref, wo, reopen: false);
+
+Future<void> _reverse(
   BuildContext context,
   WidgetRef ref,
-  WorkOrder wo,
-) async {
-  final reason = await _askReason(context, wo);
+  WorkOrder wo, {
+  required bool reopen,
+}) async {
+  final reason = await _askReason(context, wo, reopen: reopen);
   // Null means dismissed — only an explicit tap on the confirm action reverses
   // anything. An empty string is a confirmed reversal with no reason given.
   if (reason == null || !context.mounted) return;
@@ -54,9 +64,13 @@ Future<void> correctClosedRun(
   if (!context.mounted) return;
   showRunqSnack(
     context,
-    '${wo.woNumber} reversed — re-enter the corrected run',
+    reopen
+        ? '${wo.woNumber} reversed — re-enter the corrected run'
+        : '${wo.woNumber} cancelled — stock movements reversed',
     kind: SnackKind.success,
   );
+  // Cancelling leaves you on the detail page, which now reads Cancelled.
+  if (!reopen) return;
   // Replaces the detail page: the reversed run is not somewhere to go back to.
   context.pushReplacement(
     '/manufacturing/production/new',
@@ -71,12 +85,16 @@ Future<void> correctClosedRun(
   );
 }
 
-Future<String?> _askReason(BuildContext context, WorkOrder wo) {
+Future<String?> _askReason(
+  BuildContext context,
+  WorkOrder wo, {
+  required bool reopen,
+}) {
   final ctrl = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Correct this run?'),
+      title: Text(reopen ? 'Correct this run?' : 'Cancel this run?'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,15 +102,16 @@ Future<String?> _askReason(BuildContext context, WorkOrder wo) {
           Text(
             '${wo.woNumber} will be reversed: the inputs go back into stock and '
             '${_qty(wo.outputQty)} ${wo.outputUom} of ${wo.outputItemName} comes '
-            'off it. You can then re-enter the run with the right figures.',
+            'off it.'
+            '${reopen ? ' You can then re-enter the run with the right figures.' : ''}',
           ),
           const SizedBox(height: 12),
           TextField(
             controller: ctrl,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Reason (optional)',
-              hintText: 'Wrong quantity entered',
+              hintText: reopen ? 'Wrong quantity entered' : 'Run never happened',
             ),
           ),
         ],
@@ -101,7 +120,7 @@ Future<String?> _askReason(BuildContext context, WorkOrder wo) {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Back')),
         TextButton(
           onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-          child: Text('Reverse & re-enter',
+          child: Text(reopen ? 'Reverse & re-enter' : 'Cancel run',
               style: TextStyle(color: MfgColors.error)),
         ),
       ],
