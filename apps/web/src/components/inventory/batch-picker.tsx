@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Input } from '@/components/ui';
 import { useOpenBatches, type OpenBatchRow } from '@/hooks/queries/use-open-batches';
 
@@ -5,8 +6,10 @@ import { useOpenBatches, type OpenBatchRow } from '@/hooks/queries/use-open-batc
  * Direct-Receipt batch field. Shows open batches as one-tap chips so plant
  * staff can pool a fresh receipt into an existing batch (e.g. evening + next
  * morning milk both into A1-POOL-20260531) without retyping the code, plus
- * a "Use suggested" chip rendered from the item's batch_code_template for
- * starting a brand-new batch.
+ * a suggested code for starting a brand-new batch — the item's
+ * batch_code_template when it has one, else the house `<SKU>-<YYDDD>`
+ * convention. That suggestion seeds the empty field so a fresh batch needs
+ * no typing.
  *
  * Free text remains available — chips fill the input, they don't lock it.
  */
@@ -25,6 +28,18 @@ export function BatchPicker({ itemId, warehouseId, value, onChange, required, it
   const open = data?.open ?? [];
   const suggested = data?.suggested ?? null;
   const showSuggested = !!suggested && suggested !== value;
+
+  // Seed the empty field with the suggestion rather than making the operator
+  // invent a code. Only while untouched — anything typed, or carried in from
+  // an edit, wins. Open batches are never seeded: pooling into existing stock
+  // is a deliberate choice, not a default.
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!required || !suggested || !ready) return;
+    if (seededFor.current === itemId) return;
+    seededFor.current = itemId;
+    if (!value.trim()) onChange(suggested);
+  }, [required, suggested, ready, itemId, value, onChange]);
 
   return (
     <div className="space-y-1.5">

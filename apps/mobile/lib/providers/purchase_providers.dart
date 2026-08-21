@@ -52,3 +52,17 @@ final purchaseOrderLinkedDocsProvider = FutureProvider.autoDispose.family<
     String>((ref, id) async {
   return purchaseRepo.linkedDocuments(id);
 });
+
+/// Last direct-receipt write, broadcast so the list refreshes no matter which
+/// entry point created the row — the global FAB pushes the entry screen
+/// without awaiting a result, so a pop-value handshake alone left the list
+/// stale. Carries the received date too: the list is filtered to a single day
+/// and a backdated receipt would otherwise land outside the current filter and
+/// read as "nothing happened".
+class DirectReceiptWrite {
+  final int seq;
+  final String receivedAt;
+  const DirectReceiptWrite(this.seq, this.receivedAt);
+}
+
+final directReceiptWriteProvider = StateProvider<DirectReceiptWrite?>((_) => null);

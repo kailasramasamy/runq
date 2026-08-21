@@ -5,6 +5,7 @@ import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
 import '../../api/purchase_models.dart';
 import '../../api/purchase_repo.dart';
+import '../../providers/purchase_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_card.dart';
@@ -40,6 +41,16 @@ class _DirectReceiptScreenState extends ConsumerState<DirectReceiptScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // Any direct-receipt write refreshes the list, whichever screen made it.
+    // Snap the day filter to the receipt's own date so a backdated row isn't
+    // posted into a day the list isn't showing.
+    ref.listen(directReceiptWriteProvider, (_, write) {
+      if (write == null) return;
+      setState(() {
+        _filterDate = write.receivedAt;
+        _refresh();
+      });
+    });
     return Scaffold(
       backgroundColor: t.bgWarm,
       body: SafeArea(
@@ -160,10 +171,7 @@ class _DirectReceiptScreenState extends ConsumerState<DirectReceiptScreen> {
     }
   }
 
-  Future<void> _openEntry() async {
-    final created = await context.push<bool>('/purchase/direct/new');
-    if (created == true) setState(_refresh);
-  }
+  void _openEntry() => context.push('/purchase/direct/new');
 
   Future<void> _edit(DirectReceiptRow row) async {
     // Resolve the full item first so the edit form knows the tracking flags
@@ -189,8 +197,7 @@ class _DirectReceiptScreenState extends ConsumerState<DirectReceiptScreen> {
       lrNo: row.lrNo,
       notes: _noteWithoutSource(row.notes, row.sourceLabel),
     );
-    final saved = await context.push<bool>('/purchase/direct/edit', extra: args);
-    if (saved == true) setState(_refresh);
+    await context.push('/purchase/direct/edit', extra: args);
   }
 
   /// The server stores notes as "sourceLabel — notes"; peel the source prefix

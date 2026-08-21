@@ -91,6 +91,35 @@ export function renderBatchTemplate(
     .replace(/\{DD\}/g, dd);
 }
 
+/**
+ * House batch code for stock arriving without one: `<PRODUCT>-<YYDDD>`, the
+ * item's own SKU followed by a Julian lot stamp (two-digit year + day-of-year,
+ * so 21 Aug 2026 is `26233`). Mirrors the mobile stock-adjustment convention
+ * (invSuggestBatchNo) so a code reads the same wherever stock enters.
+ *
+ * Julian rather than a plain date because that is what food and FMCG lot codes
+ * use — fixed width, no DD/MM-vs-MM/DD ambiguity, and it survives being
+ * stamped on a carton. Used only when the item carries no batchCodeTemplate.
+ */
+export function houseBatchCode(sku: string | null, name: string, on: Date): string {
+  const slug = (raw: string) =>
+    raw.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  let code = slug(sku ?? '');
+  if (!code) {
+    const fromName = slug(name);
+    if (fromName.length <= 24) code = fromName;
+    else {
+      const cut = fromName.slice(0, 24);
+      const lastBreak = cut.lastIndexOf('-');
+      code = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
+    }
+  }
+  const start = Date.UTC(on.getUTCFullYear(), 0, 1);
+  const dayOfYear = Math.floor((Date.UTC(on.getUTCFullYear(), on.getUTCMonth(), on.getUTCDate()) - start) / 86400000) + 1;
+  const stamp = `${String(on.getUTCFullYear() % 100).padStart(2, '0')}${String(dayOfYear).padStart(3, '0')}`;
+  return code ? `${code}-${stamp}` : `BATCH-${stamp}`;
+}
+
 export class DirectReceiptService {
   constructor(
     private readonly db: Db,
@@ -443,6 +472,7 @@ export class DirectReceiptService {
       .select({
         id: itemsTable.id,
         sku: itemsTable.sku,
+        name: itemsTable.name,
         batchCodeTemplate: itemsTable.batchCodeTemplate,
       })
       .from(itemsTable)
@@ -497,9 +527,13 @@ export class DirectReceiptService {
       }
     }
 
+    // Every batch-tracked item gets a code to start from: the item's own
+    // template when it has one, otherwise the house convention. Leaving it
+    // null made the operator invent a code at the keypad.
+    const now = new Date();
     const suggested = item.batchCodeTemplate
-      ? renderBatchTemplate(item.batchCodeTemplate, item.sku ?? null, new Date())
-      : null;
+      ? renderBatchTemplate(item.batchCodeTemplate, item.sku ?? null, now)
+      : houseBatchCode(item.sku ?? null, item.name, now);
 
     return {
       open: rows.map((r) => ({

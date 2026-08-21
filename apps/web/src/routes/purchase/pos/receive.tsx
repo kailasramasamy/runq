@@ -15,7 +15,6 @@ import {
   type ScanPreviewResult,
 } from '@/hooks/queries/use-po-receive';
 import { PoScanReceivePanel } from '@/components/forms/po-scan-receive-panel';
-import { formatINR } from '@/lib/utils';
 
 interface Props { poId: string }
 
@@ -26,8 +25,8 @@ interface ReceiveRowUI {
   hsnSacCode: string | null;
   inventoryItemId: string | null;
   qtyOpen: number;
-  unitRate: number;
   qty: string;
+  rate: string;
   batchNo: string;
   expiryDate: string;
   serialNos: string;
@@ -41,8 +40,8 @@ function rowFromTemplate(t: ReceiveTemplateLine): ReceiveRowUI {
     hsnSacCode: t.hsnSacCode,
     inventoryItemId: t.inventoryItemId,
     qtyOpen: t.qtyOpen,
-    unitRate: t.unitRate,
     qty: String(t.qtyOpen),
+    rate: t.unitRate > 0 ? String(t.unitRate) : '',
     batchNo: '', expiryDate: '', serialNos: '',
   };
 }
@@ -58,10 +57,9 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
   ];
 
   const tpl = templateRes?.data;
-  // A PO no longer carries pricing, so "post at PO rate" would value the GRN
-  // at zero. Only legacy priced POs may take the manual lane; everything else
-  // must attach the vendor invoice so the bill supplies the rate.
-  const priced = !!tpl?.lines.some((l) => l.unitRate > 0);
+  // A PO carries no pricing, so the rate is captured here instead. Attaching
+  // the vendor invoice is the fast lane (qty + rate + tax are read off the
+  // bill); without it the receiver types the rate per line.
   const [warehouseId, setWarehouseId] = useState('');
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10));
   const [vehicleNo, setVehicleNo] = useState('');
@@ -115,20 +113,23 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!priced) {
-      toast('Attach the vendor invoice — this PO has no rate', 'error');
+    if (!warehouseId) { toast('Pick a warehouse', 'error'); return; }
+    const receiving = rows.filter((r) => parseFloat(r.qty) > 0 && r.catalogItemId);
+    // A line with no rate posts a zero-value GRN: stock valued at zero for
+    // tracked items, and a GL entry with nothing to debit either way.
+    const unpriced = receiving.find((r) => !(parseFloat(r.rate) > 0));
+    if (unpriced) {
+      toast(`Enter a rate for ${unpriced.description} — receiving at ₹0 posts no value`, 'error');
       return;
     }
-    if (!warehouseId) { toast('Pick a warehouse', 'error'); return; }
-    const lines = rows
-      .filter((r) => parseFloat(r.qty) > 0 && r.catalogItemId)
+    const lines = receiving
       .map((r) => {
         const serials = r.serialNos.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
         return {
           poLineId: r.poLineId,
           catalogItemId: r.catalogItemId,
           qty: parseFloat(r.qty),
-          unitCost: r.unitRate,
+          unitCost: parseFloat(r.rate) || 0,
           batchNo: r.batchNo || null,
           expiryDate: r.expiryDate || null,
           serialNos: serials.length > 0 ? serials : null,
@@ -144,7 +145,7 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
       {
         onSuccess: (res) => {
           const r = (res as { data?: { grnNo?: string } })?.data;
-          toast(`GRN ${r?.grnNo ?? ''} posted at PO rate`, 'success');
+          toast(`GRN ${r?.grnNo ?? ''} posted`, 'success');
           navigate({ to: '/purchase/pos/$poId', params: { poId } });
         },
         onError: (err) => toast((err as Error).message || 'Failed to receive', 'error'),
@@ -167,7 +168,6 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
       <InvoiceAttachCard
         poId={poId}
-        required={!priced}
         preview={scanPreview}
         attachedName={attachedName}
         onAttached={(file, p) => {
@@ -227,6 +227,7 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
                     <Th>Item (from PO)</Th>
                     <Th align="right">Open</Th>
                     <Th align="right">Qty</Th>
+                    <Th align="right">Rate</Th>
                     <Th>Batch</Th>
                     <Th>Expiry</Th>
                     <Th>Serials</Th>
@@ -241,8 +242,7 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
                         <TableCell>
                           <div className="text-[12.5px]">{row.description}</div>
                           <div className="text-[11px]" style={{ color: 'var(--text-3)' }}>
-                            {row.hsnSacCode ? `HSN ${row.hsnSacCode} · ` : ''}
-                            {priced ? `Rate ${formatINR(row.unitRate)}` : 'Rate from invoice'}
+                            {row.hsnSacCode ? `HSN ${row.hsnSacCode}` : 'No HSN'}
                             {!tracked && ' · not stock-tracked'}
                           </div>
                         </TableCell>
@@ -250,6 +250,11 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
                         <TableCell align="right">
                           <Input type="number" min="0" step="0.001" value={row.qty}
                             onChange={(e) => updateRow(idx, 'qty', e.target.value)} className="text-right" />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Input type="number" min="0" step="0.01" value={row.rate}
+                            onChange={(e) => updateRow(idx, 'rate', e.target.value)}
+                            placeholder="0.00" className="text-right" />
                         </TableCell>
                         <TableCell>
                           <Input value={row.batchNo} disabled={!tracked}
@@ -292,8 +297,8 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
               onClick={() => navigate({ to: '/purchase/pos/$poId', params: { poId } })}>
               Cancel
             </Button>
-            <Button type="submit" loading={mutation.isPending} disabled={!priced}>
-              {priced ? 'Post receipt at PO rate' : 'Attach invoice to receive'}
+            <Button type="submit" loading={mutation.isPending}>
+              Post receipt
             </Button>
           </div>
         </form>
@@ -311,16 +316,13 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
 
 interface InvoiceAttachProps {
   poId: string;
-  /// True when the PO has no rate to fall back on — the invoice is then the
-  /// only source of cost, so the manual lane below is disabled.
-  required: boolean;
   preview: ScanPreviewResult | null;
   attachedName: string | null;
   onAttached: (file: File, preview: ScanPreviewResult) => void;
   onRemove: () => void;
 }
 
-function InvoiceAttachCard({ poId, required, preview, attachedName, onAttached, onRemove }: InvoiceAttachProps) {
+function InvoiceAttachCard({ poId, preview, attachedName, onAttached, onRemove }: InvoiceAttachProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewM = useScanPreview();
@@ -388,12 +390,11 @@ function InvoiceAttachCard({ poId, required, preview, attachedName, onAttached, 
               </div>
               <div>
                 <div className="text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>
-                  {required ? 'Attach the vendor invoice to receive' : 'Step 1 · Attach the vendor invoice'}
+                  Optional · Attach the vendor invoice
                 </div>
                 <p className="text-[12px]" style={{ color: 'var(--text-2)' }}>
-                  {required
-                    ? "This PO carries no rate, so the bill is the only source of cost. Qty + rate + tax come from the vendor's invoice and a single GRN + Bill posts together."
-                    : "Without it, we'll receive at the PO rate. With it, qty + rate + tax come from the vendor's bill and a single GRN + Bill posts together."}
+                  With it, qty + rate + tax come from the vendor&apos;s bill and a single GRN + Bill
+                  posts together. Without it, enter the rate per line below and only the GRN posts.
                 </p>
               </div>
             </div>

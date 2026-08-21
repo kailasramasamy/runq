@@ -140,7 +140,13 @@ export function NewDirectReceiptPage() {
                 label="Item" required
                 options={itemOptions}
                 value={inventoryItemId}
-                onChange={setInventoryItemId}
+                onChange={(v) => {
+                  setInventoryItemId(v);
+                  // Batch + expiry belong to the item that was picked, so drop
+                  // them on a swap and let the new item seed its own code.
+                  setBatchNo('');
+                  setExpiryDate('');
+                }}
                 placeholder={noInputItems ? 'No input items — create one first' : 'Search item…'}
                 disabled={noInputItems}
               />

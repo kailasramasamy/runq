@@ -229,9 +229,22 @@ class _BatchFieldState extends State<_BatchField> {
         _open = res.open;
         _suggested = res.suggested;
       });
+      _seedFromSuggestion();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Prefill the empty field with the server's code so a fresh batch needs no
+  /// typing. Only when the field is untouched — a code the operator typed, or
+  /// one carried in from an edit, always wins. An open batch is not seeded:
+  /// pooling into existing stock is a deliberate choice, not a default.
+  void _seedFromSuggestion() {
+    final code = _suggested;
+    if (!widget.required || code == null) return;
+    if (widget.controller.text.trim().isNotEmpty) return;
+    widget.controller.text = code;
+    if (mounted) setState(() {});
   }
 
   void _pick(String code) {

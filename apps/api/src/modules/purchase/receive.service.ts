@@ -271,6 +271,12 @@ export class ReceiveService {
         return { unitCost, lineTotal };
       });
       const totalValue = inventoryValue + expenseValue;
+      // Every Dr line is value-gated, so a zero-value receipt would leave a
+      // lone Cr GRNI line and the GL would reject the JE with a cryptic
+      // "at least 2 lines". Fail here with the reason the receiver can act on.
+      if (totalValue <= 0) {
+        throw new ConflictError('Receipt value is zero — enter a rate on at least one line');
+      }
 
       const [grn] = await tx
         .insert(inventoryGrns)

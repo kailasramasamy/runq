@@ -74,29 +74,18 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
     var t = 0.0;
     for (final r in _rows.values) {
       final qty = double.tryParse(r.qty.text) ?? 0;
-      t += qty * r.unitRate;
+      t += qty * (double.tryParse(r.rate.text) ?? 0);
     }
     return t;
   }
 
-  /// A PO no longer carries pricing, so "post at PO rate" would value the
-  /// GRN at zero. Only the legacy priced POs may take the manual lane; the
-  /// rest must attach the vendor invoice so the bill supplies the rate.
-  bool _isPriced(ReceiveTemplate tpl) => tpl.lines.any((l) => l.unitRate > 0);
-
-  bool _canSubmit(ReceiveTemplate tpl) {
-    if (!_isPriced(tpl)) return false;
+  bool _canSubmit() {
     if (_warehouseId == null) return false;
     return _rows.values.any((r) => (double.tryParse(r.qty.text) ?? 0) > 0);
   }
 
-  Future<void> _submit(ReceiveTemplate tpl) async {
+  Future<void> _submit() async {
     if (_busy) return;
-    if (!_isPriced(tpl)) {
-      showRunqSnack(context, 'Attach the vendor invoice — this PO has no rate',
-          kind: SnackKind.error);
-      return;
-    }
     if (_warehouseId == null) {
       showRunqSnack(context, 'Pick a warehouse', kind: SnackKind.error);
       return;
@@ -105,6 +94,15 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
     for (final r in _rows.values) {
       final qty = double.tryParse(r.qty.text) ?? 0;
       if (qty <= 0 || r.catalogItemId == null) continue;
+      final rate = double.tryParse(r.rate.text) ?? 0;
+      // A line with no rate posts a zero-value GRN: stock valued at zero for
+      // tracked items, and a GL entry with nothing to debit either way.
+      if (rate <= 0) {
+        showRunqSnack(context,
+            'Enter a rate for ${r.description} — receiving at ₹0 posts no value',
+            kind: SnackKind.error);
+        return;
+      }
       final serials = r.serials.text
           .split(RegExp(r'\r?\n'))
           .map((s) => s.trim())
@@ -114,7 +112,7 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
         'poLineId': r.poLineId,
         'catalogItemId': r.catalogItemId,
         'qty': qty,
-        'unitCost': r.unitRate,
+        'unitCost': rate,
         if (r.batch.text.trim().isNotEmpty) 'batchNo': r.batch.text.trim(),
         if (r.expiry.text.trim().isNotEmpty) 'expiryDate': r.expiry.text.trim(),
         if (serials.isNotEmpty) 'serialNos': serials,
@@ -185,7 +183,6 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     children: [
                       _InvoiceAttachCard(
-                        required: !_isPriced(tpl),
                         onAttach: () => context.push('/purchase/pos/${widget.poId}/scan-receive'),
                       ),
                       const SizedBox(height: 12),
@@ -218,11 +215,11 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
                   ),
                 ),
                 PoStickyBar(
-                  total: _isPriced(tpl) ? _totalValue : null,
+                  total: _totalValue,
                   busy: _busy,
-                  enabled: _canSubmit(tpl) && !_busy,
+                  enabled: _canSubmit() && !_busy,
                   onCancel: _busy ? null : () => context.pop(),
-                  onSave: () => _submit(tpl),
+                  onSave: _submit,
                   saveLabel: 'Post receipt',
                 ),
               ],
@@ -448,27 +445,37 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
               Expanded(
                 child: _StatBox(label: 'Ordered', value: _qtyText(ordered)),
               ),
-              if (l.unitRate > 0) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatBox(
-                    label: 'Rate',
-                    value: indianINR(l.unitRate, decimals: 2),
-                  ),
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 10),
-          PoLabelledField(
-            label: 'Receive qty',
-            controller: r.qty,
-            isNumber: true,
-            hint: '0',
-            onChanged: () {
-              widget.onChange();
-              setState(() {});
-            },
+          Row(
+            children: [
+              Expanded(
+                child: PoLabelledField(
+                  label: 'Receive qty',
+                  controller: r.qty,
+                  isNumber: true,
+                  hint: '0',
+                  onChanged: () {
+                    widget.onChange();
+                    setState(() {});
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PoLabelledField(
+                  label: 'Rate',
+                  controller: r.rate,
+                  isNumber: true,
+                  hint: '0.00',
+                  onChanged: () {
+                    widget.onChange();
+                    setState(() {});
+                  },
+                ),
+              ),
+            ],
           ),
           if (over) ...[
             const SizedBox(height: 6),
@@ -700,15 +707,12 @@ class _ExpiryChip extends StatelessWidget {
 
 // ── Invoice attach card ───────────────────────────────────────────────────
 
-/// Step-1 invoice attach card. Visible at the top of every PO receive so
+/// Optional invoice attach card. Visible at the top of every PO receive so
 /// the natural reading order goes invoice → receipt info → lines. Without
-/// it the warehouse staff defaults to posting at the PO rate.
+/// it the receiver types the rate on each line and only the GRN posts.
 class _InvoiceAttachCard extends StatelessWidget {
-  /// True when the PO has no rate to fall back on — the invoice is then the
-  /// only source of cost, so the manual lane below is disabled.
-  final bool required;
   final VoidCallback onAttach;
-  const _InvoiceAttachCard({required this.required, required this.onAttach});
+  const _InvoiceAttachCard({required this.onAttach});
 
   @override
   Widget build(BuildContext context) {
@@ -733,16 +737,12 @@ class _InvoiceAttachCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  required
-                      ? 'Attach vendor invoice to receive'
-                      : 'Step 1 · Attach vendor invoice',
+                  'Optional · Attach vendor invoice',
                   style: RunqText.bodyStrong.copyWith(color: t.ink),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  required
-                      ? "This PO carries no rate, so the bill is the only source of cost. Qty + rate + tax come from the vendor's invoice."
-                      : "Without it we'll post at the PO rate. With it, qty + rate + tax come from the vendor's bill.",
+                  "With it, qty + rate + tax come from the vendor's bill. Without it, enter the rate per line and only the GRN posts.",
                   style: RunqText.caption.copyWith(color: t.muted),
                 ),
                 const SizedBox(height: 10),
@@ -767,26 +767,30 @@ class _InvoiceAttachCard extends StatelessWidget {
 
 class _RowState {
   final String poLineId;
-  final double unitRate;
+  final String description;
   final String? catalogItemId;
   final bool stockTracked;
   final TextEditingController qty;
+  final TextEditingController rate;
   final TextEditingController batch;
   final TextEditingController expiry;
   final TextEditingController serials;
 
   _RowState.fromTemplate(ReceiveTemplateLine l)
       : poLineId = l.poLineId,
-        unitRate = l.unitRate.toDouble(),
+        description = l.description,
         catalogItemId = l.catalogItemId,
         stockTracked = l.inventoryItemId != null,
         qty = TextEditingController(text: _qtyText(l.qtyOpen)),
+        rate = TextEditingController(
+            text: l.unitRate > 0 ? l.unitRate.toStringAsFixed(2) : ''),
         batch = TextEditingController(),
         expiry = TextEditingController(),
         serials = TextEditingController();
 
   void dispose() {
     qty.dispose();
+    rate.dispose();
     batch.dispose();
     expiry.dispose();
     serials.dispose();

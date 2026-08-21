@@ -18,6 +18,7 @@ import '../../api/inventory_repo.dart';
 import '../../api/purchase_models.dart';
 import '../../api/purchase_repo.dart';
 import '../../providers/inventory_providers.dart';
+import '../../providers/purchase_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
@@ -160,7 +161,9 @@ class _DirectReceiptCreateScreenState extends ConsumerState<DirectReceiptCreateS
     if (picked == null) return;
     setState(() {
       _item = picked;
-      if (!picked.trackBatches) _batch.clear();
+      // Batch + expiry belong to the item that was picked, so drop them on a
+      // swap and let the new item seed its own code.
+      _batch.clear();
       if (!picked.trackExpiry) _expiry.clear();
     });
   }
@@ -225,6 +228,11 @@ class _DirectReceiptCreateScreenState extends ConsumerState<DirectReceiptCreateS
               notes: _blankToNull(_notes),
             );
       if (!mounted) return;
+      // Broadcast before popping: the global FAB pushes this screen without
+      // awaiting a result, so the pop value alone never reaches the list.
+      final prev = ref.read(directReceiptWriteProvider);
+      ref.read(directReceiptWriteProvider.notifier).state =
+          DirectReceiptWrite((prev?.seq ?? 0) + 1, _receivedAt.text.trim());
       final verb = _isEdit ? 'updated' : 'posted';
       showRunqSnack(context, 'Receipt $verb · GRN ${res.grnNo}', kind: SnackKind.success);
       context.pop(true);
