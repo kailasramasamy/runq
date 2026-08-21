@@ -84,12 +84,14 @@ import 'screens/inventory/inventory_dispatch_invoice_screen.dart';
 import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/inventory/inventory_items_list_screen.dart';
 import 'screens/inventory/inventory_item_new_screen.dart';
+import 'screens/inventory/item_pricing_edit_screen.dart';
 import 'screens/inventory/inventory_transfer_screen.dart';
 import 'screens/inventory/inventory_adjustment_screen.dart';
 import 'screens/inventory/inventory_stock_take_screen.dart';
 import 'screens/inventory/inventory_expiry_screen.dart';
 import 'screens/inventory/inventory_analytics_screen.dart';
 import 'screens/inventory/inventory_reorder_screen.dart';
+import 'screens/inventory/inventory_stock_alerts_screen.dart';
 import 'screens/inventory/inventory_activity_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
 import 'screens/hr/hr_employee_detail_screen.dart';
@@ -358,9 +360,10 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // to every transaction type via tile navigation. Kept inside
             // the shell so the bot nav stays visible while pivoting.
             GoRoute(path: '/inventory/moves', pageBuilder: _fadePage((_) => const InventoryMovesScreen())),
-            // Alerts tab — reuses the existing reorder screen for now;
-            // expanding to include expiry + dead-stock in a later pass.
-            GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryReorderScreen())),
+            // Alerts tab — low stock + out of stock in one list. The older
+            // reorder-only screen is still reachable at /inventory/reorder
+            // for the rule-driven view.
+            GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryStockAlertsScreen())),
             // Analytics — turnover, where value sits, risk and what runs
             // out next. Web parity: /inventory/analytics.
             GoRoute(path: '/inventory/analytics', pageBuilder: _fadePage((_) => const InventoryAnalyticsScreen())),
@@ -486,6 +489,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(const InventoryItemNewScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/items/:id/pricing',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            ItemPricingEditScreen(itemId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
         ),
         GoRoute(
           path: '/inventory/items/:id',

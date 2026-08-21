@@ -7,6 +7,7 @@ class InvKpis {
   final double totalValue;
   final int activeRows;
   final int lowStockCount;
+  final int outOfStockCount;
   final int todayGrns;
   final int todayDeliveries;
   /// Total value of receipts posted today — drives the "Today In" mini-card
@@ -30,6 +31,7 @@ class InvKpis {
     required this.totalValue,
     required this.activeRows,
     required this.lowStockCount,
+    this.outOfStockCount = 0,
     required this.todayGrns,
     required this.todayDeliveries,
     this.todayGrnsValue = 0,
@@ -47,6 +49,7 @@ class InvKpis {
         totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
         activeRows: (j['activeRows'] as num?)?.toInt() ?? 0,
         lowStockCount: (j['lowStockCount'] as num?)?.toInt() ?? 0,
+        outOfStockCount: (j['outOfStockCount'] as num?)?.toInt() ?? 0,
         todayGrns: (j['todayGrns'] as num?)?.toInt() ?? 0,
         todayDeliveries: (j['todayDeliveries'] as num?)?.toInt() ?? 0,
         todayGrnsValue: (j['todayGrnsValue'] as num?)?.toDouble() ?? 0,
@@ -677,6 +680,97 @@ class InvReorderAlert {
       );
 }
 
+/// One low / out-of-stock row from `/inventory/stock/alerts`.
+///
+/// Supersedes [InvReorderAlert]: an item with no reorder level configured
+/// still appears here once it hits zero, which the reorder-only list could
+/// never show. `reorderLevel` is therefore nullable.
+class InvStockAlert {
+  final String itemId;
+  final String itemName;
+  final String? itemSku;
+  final String? itemUnit;
+  final String warehouseId;
+  final String warehouseName;
+
+  /// 'low' | 'out'.
+  final String status;
+
+  /// 'out' | 'critical' | 'warning'. `critical` means at or below half the
+  /// reorder level; `out` mirrors [status] so one field can drive colour.
+  final String urgency;
+
+  final double onHand;
+
+  /// Effective reorder level (per-warehouse rule, else item master).
+  /// Null when nobody has configured one — the row is an out-of-stock.
+  final double? reorderLevel;
+  final double? reorderQty;
+  final int? leadTimeDays;
+
+  /// How far below the reorder level. 0 when no level is configured.
+  final double shortBy;
+
+  /// Preferred supplier — the vendor on the most recent posted GRN that
+  /// brought this item into this warehouse.
+  final String? supplierName;
+
+  /// Days since the last ledger movement for this item+warehouse. Null
+  /// when it has never moved here.
+  final int? daysSinceLastMovement;
+
+  const InvStockAlert({
+    required this.itemId,
+    required this.itemName,
+    this.itemSku,
+    this.itemUnit,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.status,
+    required this.urgency,
+    required this.onHand,
+    this.reorderLevel,
+    this.reorderQty,
+    this.leadTimeDays,
+    this.shortBy = 0,
+    this.supplierName,
+    this.daysSinceLastMovement,
+  });
+
+  bool get isOut => status == 'out';
+
+  factory InvStockAlert.fromJson(Map<String, dynamic> j) => InvStockAlert(
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+        itemSku: j['itemSku'] as String?,
+        itemUnit: j['itemUnit'] as String?,
+        warehouseId: j['warehouseId'] as String,
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        status: (j['status'] as String?) ?? 'low',
+        urgency: (j['urgency'] as String?) ?? 'warning',
+        onHand: (j['onHand'] as num?)?.toDouble() ?? 0,
+        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+        reorderQty: (j['reorderQty'] as num?)?.toDouble(),
+        leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
+        shortBy: (j['shortBy'] as num?)?.toDouble() ?? 0,
+        supplierName: j['supplierName'] as String?,
+        daysSinceLastMovement: (j['daysSinceLastMovement'] as num?)?.toInt(),
+      );
+}
+
+/// Headline alert counts — drives the Home hero tiles and the Alerts badge.
+class InvStockAlertCounts {
+  final int out;
+  final int low;
+  final int total;
+  const InvStockAlertCounts({this.out = 0, this.low = 0, this.total = 0});
+  factory InvStockAlertCounts.fromJson(Map<String, dynamic> j) => InvStockAlertCounts(
+        out: (j['out'] as num?)?.toInt() ?? 0,
+        low: (j['low'] as num?)?.toInt() ?? 0,
+        total: (j['total'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// One on-hand batch with an expiry date inside the requested window.
 /// Mirrors the `/inventory/stock/expiring` shape — see web `ExpiryRow`.
 class InvExpiringBatch {
@@ -817,26 +911,68 @@ class InvDnDetail {
 // Richer view of an item than InvItem — adds pricing, HSN, GST, category,
 // description and EAN so the mobile item-detail screen can render a full
 // product card.
+/// One line of an item's cost build-up (`items.cogm_breakdown`) — e.g.
+/// "Milk solids ₹28.40", "Packaging ₹3.10". Sums to the cost price.
+class InvCogmComponent {
+  final String label;
+  final double amount;
+  final String? note;
+  const InvCogmComponent({required this.label, required this.amount, this.note});
+  factory InvCogmComponent.fromJson(Map<String, dynamic> j) => InvCogmComponent(
+        label: j['label'] as String? ?? '',
+        amount: (j['amount'] as num?)?.toDouble() ?? 0,
+        note: j['note'] as String?,
+      );
+}
+
 class InvItemDetail {
   final String id;
   final String name;
   final String? sku;
   final String? unit;
   final String? type; // 'product' | 'service'
+  final String? itemClass;
   final String? hsnSacCode;
   final String? category;
   final String? subcategory;
   final String? description;
   final String? ean;
+  final double? packSizeValue;
+  final String? packSizeUqc;
   final double? mrp;
   final double? defaultSellingPrice;
   final double? defaultPurchasePrice;
+  final double? costPrice;
+  final double? basicPrice;
+  final double? gstValue;
+  final double? margin;
   final double? gstRate;
+  final bool trackInventory;
+  final bool trackBatches;
+  final bool trackExpiry;
+  final bool trackSerials;
+  final String? batchCodeTemplate;
+  final double? reorderLevel;
+  final double? reorderQty;
+  /// Tenant-defined catalogue attributes (brand, packing type, size…).
+  /// Shape varies per tenant schema, so it stays an untyped map.
+  final Map<String, dynamic> attributes;
+  /// Cost build-up behind [costPrice]. Empty when the tenant never split it.
+  final List<InvCogmComponent> cogmBreakdown;
   final bool isActive;
   const InvItemDetail({
     required this.id, required this.name, this.sku, this.unit, this.type,
-    this.hsnSacCode, this.category, this.subcategory, this.description, this.ean,
-    this.mrp, this.defaultSellingPrice, this.defaultPurchasePrice, this.gstRate,
+    this.itemClass, this.hsnSacCode, this.category, this.subcategory,
+    this.description, this.ean, this.packSizeValue, this.packSizeUqc,
+    this.mrp, this.defaultSellingPrice, this.defaultPurchasePrice,
+    this.costPrice, this.basicPrice, this.gstValue, this.margin, this.gstRate,
+    this.trackInventory = true,
+    this.trackBatches = false,
+    this.trackExpiry = false,
+    this.trackSerials = false,
+    this.batchCodeTemplate, this.reorderLevel, this.reorderQty,
+    this.attributes = const {},
+    this.cogmBreakdown = const [],
     required this.isActive,
   });
   factory InvItemDetail.fromJson(Map<String, dynamic> j) => InvItemDetail(
@@ -845,17 +981,120 @@ class InvItemDetail {
         sku: j['sku'] as String?,
         unit: j['unit'] as String?,
         type: j['type'] as String?,
+        itemClass: j['itemClass'] as String?,
         hsnSacCode: j['hsnSacCode'] as String?,
         category: j['category'] as String?,
         subcategory: j['subcategory'] as String?,
         description: j['description'] as String?,
         ean: j['ean'] as String?,
+        packSizeValue: (j['packSizeValue'] as num?)?.toDouble(),
+        packSizeUqc: j['packSizeUqc'] as String?,
         mrp: (j['mrp'] as num?)?.toDouble(),
         defaultSellingPrice: (j['defaultSellingPrice'] as num?)?.toDouble(),
         defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
+        costPrice: (j['costPrice'] as num?)?.toDouble(),
+        basicPrice: (j['basicPrice'] as num?)?.toDouble(),
+        gstValue: (j['gstValue'] as num?)?.toDouble(),
+        margin: (j['margin'] as num?)?.toDouble(),
         gstRate: (j['gstRate'] as num?)?.toDouble(),
+        trackInventory: j['trackInventory'] as bool? ?? true,
+        trackBatches: j['trackBatches'] as bool? ?? false,
+        trackExpiry: j['trackExpiry'] as bool? ?? false,
+        trackSerials: j['trackSerials'] as bool? ?? false,
+        batchCodeTemplate: j['batchCodeTemplate'] as String?,
+        reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
+        reorderQty: (j['reorderQty'] as num?)?.toDouble(),
+        attributes: (j['attributes'] as Map?)?.cast<String, dynamic>() ?? const {},
+        cogmBreakdown: ((j['cogmBreakdown'] as List?) ?? const [])
+            .map((e) => InvCogmComponent.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
         isActive: j['isActive'] as bool? ?? true,
       );
+}
+
+/// One price-list line covering an item (GET /masters/items/:id/price-lists),
+/// flattened with the list it belongs to and the party it applies to.
+class InvItemPriceLine {
+  final String priceListId;
+  final String priceListName;
+  final String type; // 'selling' | 'buying'
+  final String applyTo; // all | customer_group | vendor_group | customer | vendor
+  final String? applyToValue;
+  final String? partyName;
+  final String? validFrom;
+  final String? validTo;
+  final bool isActive;
+  final bool isExpired;
+  final double minQuantity;
+  final double? rate;
+  final double? marginPercent;
+  final double? mrp;
+  final double? discountPercent;
+  final double derivedRate;
+  final double effectiveRate;
+  final double gstRatePct;
+  final double gstAmount;
+  final double landingRate;
+  final double? effectiveMarginPct;
+  final double? netProfitPerUnit;
+  final double? netMarginPct;
+  const InvItemPriceLine({
+    required this.priceListId,
+    required this.priceListName,
+    required this.type,
+    required this.applyTo,
+    this.applyToValue,
+    this.partyName,
+    this.validFrom,
+    this.validTo,
+    required this.isActive,
+    required this.isExpired,
+    required this.minQuantity,
+    this.rate,
+    this.marginPercent,
+    this.mrp,
+    this.discountPercent,
+    required this.derivedRate,
+    required this.effectiveRate,
+    this.gstRatePct = 0,
+    this.gstAmount = 0,
+    this.landingRate = 0,
+    this.effectiveMarginPct,
+    this.netProfitPerUnit,
+    this.netMarginPct,
+  });
+  factory InvItemPriceLine.fromJson(Map<String, dynamic> j) => InvItemPriceLine(
+        priceListId: j['priceListId'] as String,
+        priceListName: j['priceListName'] as String? ?? '',
+        type: j['type'] as String? ?? 'selling',
+        applyTo: j['applyTo'] as String? ?? 'all',
+        applyToValue: j['applyToValue'] as String?,
+        partyName: j['partyName'] as String?,
+        validFrom: j['validFrom'] as String?,
+        validTo: j['validTo'] as String?,
+        isActive: j['isActive'] as bool? ?? true,
+        isExpired: j['isExpired'] as bool? ?? false,
+        minQuantity: (j['minQuantity'] as num?)?.toDouble() ?? 0,
+        rate: (j['rate'] as num?)?.toDouble(),
+        marginPercent: (j['marginPercent'] as num?)?.toDouble(),
+        mrp: (j['mrp'] as num?)?.toDouble(),
+        discountPercent: (j['discountPercent'] as num?)?.toDouble(),
+        derivedRate: (j['derivedRate'] as num?)?.toDouble() ?? 0,
+        effectiveRate: (j['effectiveRate'] as num?)?.toDouble() ?? 0,
+        gstRatePct: (j['gstRatePct'] as num?)?.toDouble() ?? 0,
+        gstAmount: (j['gstAmount'] as num?)?.toDouble() ?? 0,
+        landingRate: (j['landingRate'] as num?)?.toDouble() ?? 0,
+        effectiveMarginPct: (j['effectiveMarginPct'] as num?)?.toDouble(),
+        netProfitPerUnit: (j['netProfitPerUnit'] as num?)?.toDouble(),
+        netMarginPct: (j['netMarginPct'] as num?)?.toDouble(),
+      );
+
+  /// Who this price applies to, as the user thinks of it.
+  String get scopeLabel {
+    if (partyName != null && partyName!.isNotEmpty) return partyName!;
+    if ((applyToValue ?? '').isNotEmpty) return applyToValue!;
+    return type == 'buying' ? 'All vendors' : 'All customers';
+  }
 }
 
 // One row of the item-master list (GET /masters/items). Lighter than
@@ -1422,6 +1661,39 @@ class InvTrendPoint {
         closingValue: _d(j['closingValue']),
         inValue: _d(j['inValue']),
         outValue: _d(j['outValue']),
+      );
+}
+
+/// Outcome of a bulk "apply suggested levels" call.
+class InvApplyLevelsResult {
+  /// Rows actually written. 0 on a dry run.
+  final int applied;
+  /// Eligible but the computed level was zero, so left alone.
+  final int skippedZeroLevel;
+  /// Of those written, how many rested on a thin-history fallback.
+  final int thinHistoryApplied;
+  /// Of those written, how many replaced an existing hand-set level.
+  final int overwritten;
+  final bool dryRun;
+  /// How many rows a dry run would write (equals [applied] after a commit).
+  final int pendingCount;
+
+  const InvApplyLevelsResult({
+    this.applied = 0,
+    this.skippedZeroLevel = 0,
+    this.thinHistoryApplied = 0,
+    this.overwritten = 0,
+    this.dryRun = false,
+    this.pendingCount = 0,
+  });
+
+  factory InvApplyLevelsResult.fromJson(Map<String, dynamic> j) => InvApplyLevelsResult(
+        applied: (j['applied'] as num?)?.toInt() ?? 0,
+        skippedZeroLevel: (j['skippedZeroLevel'] as num?)?.toInt() ?? 0,
+        thinHistoryApplied: (j['thinHistoryApplied'] as num?)?.toInt() ?? 0,
+        overwritten: (j['overwritten'] as num?)?.toInt() ?? 0,
+        dryRun: j['dryRun'] as bool? ?? false,
+        pendingCount: (j['items'] as List<dynamic>?)?.length ?? 0,
       );
 }
 

@@ -220,6 +220,20 @@ class InventoryRepo {
     return InvItemDetail.fromJson(_data(res));
   }
 
+  /// Update an item's master record. [body] carries only the fields being
+  /// changed — the API's update schema is a partial. Returns the saved item
+  /// so callers can render the server's derived values, not their own.
+  Future<InvItemDetail> updateItem(String id, Map<String, dynamic> body) async {
+    final res = await apiClient.put('/masters/items/$id', body);
+    return InvItemDetail.fromJson(_data(res));
+  }
+
+  /// Price-list lines covering this item, most-specific scope first.
+  Future<List<InvItemPriceLine>> itemPriceLists(String id) async {
+    final res = await apiClient.get('/masters/items/$id/price-lists');
+    return _dataList(res).map(InvItemPriceLine.fromJson).toList();
+  }
+
   Future<InvGrn> postGrn(String id) async {
     final res = await apiClient.post('/inventory/grn/$id/post', const {});
     return InvGrn.fromJson(_data(res));
@@ -436,6 +450,32 @@ class InventoryRepo {
     return _dataList(res).map(InvReorderAlert.fromJson).toList();
   }
 
+  // ── Stock alerts (low + out of stock) ──────────────────────────────────
+
+  /// [status] is 'all' | 'low' | 'out'. Omitting it returns every non-ok row.
+  Future<List<InvStockAlert>> stockAlerts({
+    String? status,
+    String? warehouseId,
+    String? search,
+  }) async {
+    final q = <String, String>{
+      if (status != null && status != 'all') 'status': status,
+      if (warehouseId != null) 'warehouseId': warehouseId,
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+    };
+    final qs = q.isEmpty ? '' : '?${Uri(queryParameters: q).query}';
+    final res = await apiClient.get('/inventory/stock/alerts$qs');
+    return _dataList(res).map(InvStockAlert.fromJson).toList();
+  }
+
+  Future<InvStockAlertCounts> stockAlertCounts({String? warehouseId}) async {
+    final qs = warehouseId == null
+        ? ''
+        : '?${Uri(queryParameters: {'warehouseId': warehouseId}).query}';
+    final res = await apiClient.get('/inventory/stock/alerts/counts$qs');
+    return InvStockAlertCounts.fromJson(_data(res));
+  }
+
   /// Batches with an expiry inside the window — drives the Mfg home
   /// "Perishables on-hand" tile. `includeExpired` surfaces rows where the
   /// stock is already past its date so they don't silently roll into a WO.
@@ -522,6 +562,26 @@ class InventoryRepo {
       if (warehouseId != null) 'warehouseId': warehouseId,
     })}');
     return InvReplenishment.fromJson(_data(res));
+  }
+
+  /// Bulk-write the computed reorder points onto the item master.
+  /// [mode] is 'unconfigured' (non-destructive) or 'all'. A [dryRun] returns
+  /// the same counts without writing, for a confirm step.
+  Future<InvApplyLevelsResult> applyReplenishment({
+    int window = 90,
+    int serviceLevel = 95,
+    String? warehouseId,
+    String mode = 'unconfigured',
+    bool dryRun = false,
+  }) async {
+    final res = await apiClient.post('/inventory/analytics/replenishment/apply', {
+      'window': window,
+      'serviceLevel': serviceLevel,
+      if (warehouseId != null) 'warehouseId': warehouseId,
+      'mode': mode,
+      'dryRun': dryRun,
+    });
+    return InvApplyLevelsResult.fromJson(_data(res));
   }
 
   String _qs(Map<String, String> qp) =>

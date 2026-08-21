@@ -281,6 +281,7 @@ import { StockTakeListPage } from './inventory/stock-take/index';
 import { NewStockTakePage } from './inventory/stock-take/new';
 import { StockTakeDetailPage } from './inventory/stock-take/detail';
 import { ReorderReportPage } from './inventory/reports/reorder';
+import { StockAlertsPage } from './inventory/alerts';
 import { ExpiryReportPage } from './inventory/reports/expiry';
 import { StockSummaryReportPage } from './inventory/reports/summary';
 import { ValuationReportPage } from './inventory/reports/valuation';
@@ -2246,6 +2247,11 @@ const invReorderRoute = createRoute({
   path: '/reports/reorder',
   component: ReorderReportPage,
 });
+const invStockAlertsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/alerts',
+  component: StockAlertsPage,
+});
 const invExpiryRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/reports/expiry',
@@ -3049,6 +3055,7 @@ export const routeTree = rootRoute.addChildren([
       invStockTakeNewRoute,
       invStockTakeDetailRoute,
       invReorderRoute,
+      invStockAlertsRoute,
       invExpiryRoute,
       invSummaryRoute,
       invValuationRoute,

@@ -148,6 +148,13 @@ class InvUrgencyPill extends StatelessWidget {
     late final Color fg;
     late final String label;
     switch (urgency) {
+      case 'out':
+        // Out of stock is a harder state than "critical" (which still has
+        // some cover left), so it gets the solid fill rather than a tint.
+        bg = InvColors.error;
+        fg = Colors.white;
+        label = 'Out of stock';
+        break;
       case 'critical':
         bg = InvColors.errorBg;
         fg = InvColors.error;

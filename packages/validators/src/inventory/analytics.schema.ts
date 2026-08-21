@@ -77,6 +77,33 @@ export const inventoryReplenishmentFilterSchema = z.object({
   defaultLeadTimeDays: z.coerce.number().int().min(1).max(180).default(7),
 });
 
+/**
+ * Bulk-apply the computed reorder points to items.reorder_level.
+ *
+ * Extends the read filter because the levels are ALWAYS recomputed
+ * server-side from these same inputs — the client never sends numbers to
+ * write, so a stale page can't persist stale thresholds.
+ */
+export const applyReplenishmentSchema = inventoryReplenishmentFilterSchema.extend({
+  /**
+   * 'unconfigured' (default) only fills items with no reorder level — the
+   * non-destructive bulk fill. 'all' also overwrites hand-set levels.
+   * 'selected' restricts to `itemIds`.
+   */
+  mode: z.enum(['unconfigured', 'all', 'selected']).default('unconfigured'),
+  itemIds: z.array(z.string().uuid()).max(2000).optional(),
+  /**
+   * Items with too few weekly observations to trust the variability term
+   * fall back to a plain half-lead-time buffer. Included by default: a
+   * defensible buffer beats no threshold at all, which is the status quo.
+   */
+  includeThinHistory: z.coerce.boolean().default(true),
+  /** Compute and report what would change without writing anything. */
+  dryRun: z.coerce.boolean().default(false),
+});
+
+export type ApplyReplenishmentInput = z.infer<typeof applyReplenishmentSchema>;
+
 // ─── Shared vocabulary ────────────────────────────────────────────────────
 
 /** Pareto class on trailing consumption VALUE — A is the vital few. */

@@ -148,6 +148,7 @@ export interface InventoryKpis {
   activeItems: number;
   warehouseCount: number;
   lowStockCount: number;
+  outOfStockCount: number;
   expiringSoonCount: number;
   deadStockCount: number;
   todayGrns: number;
@@ -894,6 +895,64 @@ export function useReorderAlerts() {
   });
 }
 
+// ─── Stock alerts (low + out of stock) ─────────────────────────────────
+
+export type StockAlertStatus = 'low' | 'out';
+
+/**
+ * Supersedes ReorderAlert: an item with no reorder level configured still
+ * appears here once it hits zero, so `reorderLevel` is nullable.
+ */
+export interface StockAlert {
+  itemId: string;
+  warehouseId: string;
+  itemName: string;
+  itemSku: string | null;
+  itemUnit: string | null;
+  warehouseName: string;
+  status: StockAlertStatus;
+  urgency: 'out' | 'critical' | 'warning';
+  onHand: number;
+  reorderLevel: number | null;
+  reorderQty: number | null;
+  leadTimeDays: number | null;
+  shortBy: number;
+  supplierName: string | null;
+  daysSinceLastMovement: number | null;
+}
+
+export interface StockAlertCounts {
+  out: number;
+  low: number;
+  total: number;
+}
+
+export interface StockAlertParams {
+  status?: 'all' | StockAlertStatus;
+  warehouseId?: string;
+  search?: string;
+}
+
+export function useStockAlerts(params: StockAlertParams = {}) {
+  const qs = new URLSearchParams();
+  if (params.status && params.status !== 'all') qs.set('status', params.status);
+  if (params.warehouseId) qs.set('warehouseId', params.warehouseId);
+  if (params.search?.trim()) qs.set('search', params.search.trim());
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return useQuery({
+    queryKey: ['inv', 'stock-alerts', params] as const,
+    queryFn: () => api.get<{ data: StockAlert[] }>(`/inventory/stock/alerts${suffix}`).then(get),
+  });
+}
+
+export function useStockAlertCounts() {
+  return useQuery({
+    queryKey: ['inv', 'stock-alert-counts'] as const,
+    queryFn: () =>
+      api.get<{ data: StockAlertCounts }>('/inventory/stock/alerts/counts').then(get),
+  });
+}
+
 export interface ExpiryRow {
   itemId: string;
   warehouseId: string;
@@ -1287,6 +1346,52 @@ export function useReplenishment(
     queryKey: ['inv', 'analytics', 'replenishment', filter] as const,
     queryFn: () =>
       api.get<{ data: Replenishment }>(`/inventory/analytics/replenishment${qs(filter)}`).then(get),
+  });
+}
+
+export interface ApplyReplenishmentResult {
+  applied: number;
+  skippedZeroLevel: number;
+  thinHistoryApplied: number;
+  overwritten: number;
+  dryRun: boolean;
+  items: Array<{
+    itemId: string;
+    itemName: string;
+    previousLevel: number | null;
+    newLevel: number;
+    newOrderQty: number | null;
+  }>;
+}
+
+export interface ApplyReplenishmentVars {
+  window?: number;
+  warehouseId?: string;
+  serviceLevel?: number;
+  mode?: 'unconfigured' | 'all' | 'selected';
+  itemIds?: string[];
+  dryRun?: boolean;
+}
+
+/**
+ * Writes the computed reorder points onto the item master. Levels are
+ * recomputed server-side from the same filter, so nothing stale on this
+ * page can be persisted.
+ */
+export function useApplyReplenishment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: ApplyReplenishmentVars) =>
+      api.post<{ data: ApplyReplenishmentResult }>(
+        '/inventory/analytics/replenishment/apply', vars).then(get),
+    onSuccess: (res) => {
+      // A dry run changed nothing — refetching would just churn the page.
+      if (res.dryRun) return;
+      // Thresholds feed the alert lists, the dashboard KPIs and the
+      // analytics tables alike — one sweep beats naming each key.
+      qc.invalidateQueries({ queryKey: ['inv'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
   });
 }
 

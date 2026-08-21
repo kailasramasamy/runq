@@ -12,6 +12,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { isAIEnabled } from '../../utils/ai/claude.service';
 import { ItemService } from './item.service';
+import { ItemPriceListService } from './item-price-list.service';
 import { ItemImportService } from './item-import.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -102,6 +103,18 @@ export const itemRoutes: FastifyPluginAsync = async (app) => {
       const service = new ItemService(request.server.db, request.tenantId);
       const item = await service.getById(id);
       return { data: item };
+    },
+  );
+
+  // Every price-list line covering this item, with the party each applies
+  // to. Read-only — editing happens on the price list itself.
+  app.get(
+    '/:id/price-lists',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new ItemPriceListService(request.server.db, request.tenantId);
+      return { data: await service.listForItem(id) };
     },
   );
 

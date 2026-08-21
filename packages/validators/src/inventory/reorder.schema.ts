@@ -16,3 +16,15 @@ export const expiryFilterSchema = z.object({
 
 export type UpsertReorderRuleInput = z.infer<typeof upsertReorderRuleSchema>;
 export type ExpiryFilter = z.infer<typeof expiryFilterSchema>;
+
+/**
+ * Stock alert list filter. `status` defaults to every non-ok row so the
+ * unfiltered call returns the combined low + out-of-stock list.
+ */
+export const stockAlertFilterSchema = z.object({
+  status: z.enum(['all', 'low', 'out']).optional(),
+  warehouseId: z.string().uuid().optional(),
+  search: z.string().trim().min(1).max(120).optional(),
+});
+
+export type StockAlertFilter = z.infer<typeof stockAlertFilterSchema>;

@@ -80,6 +80,10 @@ export interface Item {
   /** Template for auto-suggesting a fresh batch code at receipt time.
    *  Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. NULL = no template. */
   batchCodeTemplate: string | null;
+  /** Reorder point and suggested top-up quantity. A per-warehouse rule in
+   *  inventory.reorder_rules overrides these when one exists. */
+  reorderLevel: number | null;
+  reorderQty: number | null;
   isActive: boolean;
   /** Total on-hand quantity across warehouses and batches. Only populated
    *  when the list endpoint is called with `withStock=true`; undefined
@@ -87,4 +91,54 @@ export interface Item {
   stockQty?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * One price-list line that covers a given item, flattened with the list it
+ * belongs to and whoever it applies to. Backs the item detail view's
+ * "Price Lists" section — read-only; edits happen on the price list itself.
+ */
+export interface ItemPriceListLine {
+  priceListId: string;
+  priceListName: string;
+  type: 'selling' | 'buying';
+  /** Who the list covers: everyone, a group, or one named party. */
+  applyTo: 'all' | 'customer_group' | 'vendor_group' | 'customer' | 'vendor';
+  /** Group name for *_group lists; null otherwise. */
+  applyToValue: string | null;
+  /** Resolved counterparty name for customer / vendor lists; null otherwise. */
+  partyName: string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  isActive: boolean;
+  /** True when today falls outside validFrom..validTo. */
+  isExpired: boolean;
+  /** Quantity tier this line applies from. 0 is the base tier. */
+  minQuantity: number;
+  /** Raw line overrides — any combination may be set. */
+  rate: number | null;
+  marginPercent: number | null;
+  mrp: number | null;
+  discountPercent: number | null;
+  /** Derived unit rate before discount, using the same math as the resolver. */
+  derivedRate: number;
+  /** Derived unit rate after discountPercent. What the invoice would use.
+   *  This is the taxable basic rate — GST sits on top of it. */
+  effectiveRate: number;
+  /** The item's GST rate, carried so the line can show its own tax breakup. */
+  gstRatePct: number;
+  /** GST charged on [effectiveRate]. */
+  gstAmount: number;
+  /** [effectiveRate] + [gstAmount] — the all-in price the party pays. */
+  landingRate: number;
+  /** Seller margin actually in force: the line's override, else the item's.
+   *  Null when neither is set (a fixed-rate line need not have one). */
+  effectiveMarginPct: number | null;
+  /** What this price leaves us per unit: taxable rate less the item's cost
+   *  price (GST is collected for the govt, so it never counts as income).
+   *  Null when the item has no cost price, or on buying lists where we are
+   *  the payer — a zero there would read as break-even rather than unknown. */
+  netProfitPerUnit: number | null;
+  /** [netProfitPerUnit] as a share of the taxable rate. */
+  netMarginPct: number | null;
 }

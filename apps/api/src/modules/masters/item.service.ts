@@ -310,6 +310,8 @@ export class ItemService {
       margin: input.margin?.toString() ?? null,
       basicPrice: input.basicPrice?.toString() ?? null,
       gstValue: input.gstValue?.toString() ?? null,
+      reorderLevel: input.reorderLevel?.toString() ?? null,
+      reorderQty: input.reorderQty?.toString() ?? null,
       ...resolvePackSizeForCreate(input),
       itemClass: classFields.itemClass,
       // Tracking precedence: explicit input → class default → DB default.
@@ -491,6 +493,8 @@ export class ItemService {
       'basicPrice',
       'gstValue',
       'packSizeValue',
+      'reorderLevel',
+      'reorderQty',
     ] as const;
     for (const key of decimalKeys) {
       if (input[key] !== undefined) {
@@ -775,6 +779,8 @@ export class ItemService {
       trackExpiry: row.trackExpiry,
       trackSerials: row.trackSerials,
       batchCodeTemplate: row.batchCodeTemplate,
+      reorderLevel: row.reorderLevel ? toNumber(row.reorderLevel) : null,
+      reorderQty: row.reorderQty ? toNumber(row.reorderQty) : null,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

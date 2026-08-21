@@ -14,12 +14,12 @@ import {
   zeroOutPreviewSchema,
   startStockTakeSchema, upsertCountLinesSchema, updateCountLineSchema,
   recountStockTakeSchema, stockTakeFilterSchema,
-  upsertReorderRuleSchema, expiryFilterSchema,
+  upsertReorderRuleSchema, expiryFilterSchema, stockAlertFilterSchema,
   stockSummaryFilterSchema, valuationFilterSchema, ageingFilterSchema,
   movementSummaryFilterSchema, deadStockFilterSchema, serialLookupFilterSchema,
   inventoryAnalyticsFilterSchema, inventoryPerformanceFilterSchema,
   inventoryTrendFilterSchema, inventoryForecastFilterSchema,
-  inventoryReplenishmentFilterSchema,
+  inventoryReplenishmentFilterSchema, applyReplenishmentSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
@@ -36,6 +36,7 @@ import { AdjustmentService } from './adjustment.service';
 import { StockResetService } from './stock-reset.service';
 import { StockTakeService } from './stock-take.service';
 import { ReorderService } from './reorder.service';
+import { StockAlertService } from './stock-alert.service';
 import { GrnExtractService } from './grn-extract.service';
 import { ReportsService } from './reports.service';
 import { InventoryAnalyticsService } from './analytics.service';
@@ -466,6 +467,19 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const svc = new ReorderService(req.server.db, req.tenantId);
     return { data: await svc.alerts() };
   });
+  // Stock alerts — low + out-of-stock in one list. Unlike reorder-alerts
+  // above, an item with no reorder level configured still surfaces here
+  // once it hits zero.
+  app.get('/stock/alerts', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = stockAlertFilterSchema.parse(req.query);
+    const svc = new StockAlertService(req.server.db, req.tenantId);
+    return { data: await svc.list(filter) };
+  });
+  app.get('/stock/alerts/counts', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { warehouseId } = stockAlertFilterSchema.parse(req.query);
+    const svc = new StockAlertService(req.server.db, req.tenantId);
+    return { data: await svc.counts(warehouseId) };
+  });
   app.get('/stock/expiring', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const filter = expiryFilterSchema.parse(req.query);
     const svc = new ReorderService(req.server.db, req.tenantId);
@@ -579,6 +593,15 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const filter = inventoryReplenishmentFilterSchema.parse(req.query);
     const svc = new ReplenishmentService(req.server.db, req.tenantId);
     return { data: await svc.suggestions(filter) };
+  });
+
+  // Bulk-write the computed reorder points onto the item master. This is
+  // the only practical way to populate thresholds across a large catalogue
+  // — typing them one at a time is why they stay unset.
+  app.post('/analytics/replenishment/apply', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req) => {
+    const input = applyReplenishmentSchema.parse(req.body);
+    const svc = new ReplenishmentService(req.server.db, req.tenantId);
+    return { data: await svc.applySuggestions(input) };
   });
 
   // Drill-down behind a forecast row: the raw monthly demand its run-rate

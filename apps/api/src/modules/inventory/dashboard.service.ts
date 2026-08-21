@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import { ITEM_CLASS_GROUP_MEMBERS, type ItemClassGroup } from '@runq/validators';
+import { alertBaseCte } from './stock-alert.sql';
 
 export class InventoryDashboardService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -18,16 +19,17 @@ export class InventoryDashboardService {
         SELECT COUNT(*)::int AS cnt FROM warehouses
         WHERE tenant_id = ${this.tenantId} AND is_active = TRUE AND deleted_at IS NULL
       ),
+      -- Low + out-of-stock share ONE definition with the alerts list (see
+      -- stock-alert.sql). Counting them differently here is what made the
+      -- hero tile disagree with the screen it links to: this used to ignore
+      -- per-warehouse reorder rules and count per item rather than per
+      -- item+warehouse.
+      ${alertBaseCte(this.tenantId)},
       low_stock AS (
-        SELECT COUNT(*)::int AS cnt FROM (
-          SELECT soh.item_id
-          FROM stock_on_hand soh
-          INNER JOIN items i ON i.id = soh.item_id
-          WHERE soh.tenant_id = ${this.tenantId}
-            AND i.reorder_level IS NOT NULL
-          GROUP BY soh.item_id, i.reorder_level
-          HAVING SUM(soh.qty) <= i.reorder_level
-        ) x
+        SELECT COUNT(*)::int AS cnt FROM alert_base WHERE status = 'low'
+      ),
+      out_of_stock AS (
+        SELECT COUNT(*)::int AS cnt FROM alert_base WHERE status = 'out'
       ),
       expiring_soon AS (
         SELECT COUNT(*)::int AS cnt FROM (
@@ -109,6 +111,7 @@ export class InventoryDashboardService {
         COALESCE((SELECT active_items FROM on_hand), 0)::int AS active_items,
         (SELECT cnt FROM warehouses_active) AS warehouse_count,
         (SELECT cnt FROM low_stock) AS low_stock,
+        (SELECT cnt FROM out_of_stock) AS out_of_stock,
         (SELECT cnt FROM expiring_soon) AS expiring_soon,
         (SELECT cnt FROM dead_stock) AS dead_stock,
         (SELECT cnt FROM today_grns) AS today_grns,
@@ -123,7 +126,8 @@ export class InventoryDashboardService {
     const row = (result as unknown as {
       rows: Array<{
         total_value: string; active_rows: number; active_items: number;
-        warehouse_count: number; low_stock: number; expiring_soon: number;
+        warehouse_count: number; low_stock: number; out_of_stock: number;
+        expiring_soon: number;
         dead_stock: number; today_grns: number; today_dns: number;
         month_in_value: string; month_out_value: string; in_transit_transfers: number;
         today_grns_value: string; today_dns_value: string; pending_adj: number;
@@ -135,6 +139,7 @@ export class InventoryDashboardService {
       activeItems: row.active_items ?? 0,
       warehouseCount: row.warehouse_count ?? 0,
       lowStockCount: row.low_stock ?? 0,
+      outOfStockCount: row.out_of_stock ?? 0,
       expiringSoonCount: row.expiring_soon ?? 0,
       deadStockCount: row.dead_stock ?? 0,
       todayGrns: row.today_grns ?? 0,

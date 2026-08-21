@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import {
   Boxes, PackagePlus, PackageMinus, AlertTriangle, Warehouse, CalendarClock,
-  PackageX, ArrowDownToLine, ArrowUpFromLine, History, AlarmClock, BarChart3,
+  PackageX, AlertOctagon, ArrowDownToLine, ArrowUpFromLine, History, AlarmClock, BarChart3,
   Truck, MoveRight, PackageCheck, TrendingUp,
 } from 'lucide-react';
 import { StockHighlightsCard } from '@/components/inventory/stock-highlights-card';
@@ -69,13 +69,21 @@ export function InventoryDashboardPage() {
       </div>
 
       {/* ── Attention band ──────────────────────────────────────── */}
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <AttentionTile
+          icon={AlertOctagon}
+          count={k?.outOfStockCount ?? 0}
+          label="Out of stock"
+          tone="danger"
+          to="/inventory/alerts"
+          loading={isLoading}
+        />
         <AttentionTile
           icon={AlertTriangle}
           count={k?.lowStockCount ?? 0}
           label="Below reorder"
           tone="warning"
-          to="/inventory/reports/reorder"
+          to="/inventory/alerts"
           loading={isLoading}
         />
         <AttentionTile

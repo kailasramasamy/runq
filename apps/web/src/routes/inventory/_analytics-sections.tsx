@@ -174,7 +174,7 @@ export function RiskSection({ risk, index }: { risk: StockRisk; index: number })
           title="Stock at risk"
           description="Out of stock first, then everything at or below its reorder level."
           action={
-            <Link to="/inventory/reports/reorder"
+            <Link to="/inventory/alerts"
               className="text-[11.5px] font-medium" style={{ color: 'var(--accent-text)' }}>
               Reorder rules →
             </Link>

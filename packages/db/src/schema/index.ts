@@ -111,6 +111,7 @@ export * from './inventory/transfers';
 export * from './inventory/adjustments';
 export * from './inventory/stock-takes';
 export * from './inventory/reorder-rules';
+export * from './inventory/stock-alert-state';
 export * from './inventory/serials';
 export * from './milk-procurement/enums';
 export * from './milk-procurement/nodes';

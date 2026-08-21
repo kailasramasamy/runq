@@ -9,6 +9,7 @@ import { startHrReminderScheduler, stopHrReminderScheduler } from './scheduler/h
 import { startAnalyticsScheduler, stopAnalyticsScheduler } from './modules/analytics/scheduler';
 import { startCycleRollScheduler, stopCycleRollScheduler } from './scheduler/cycle-roll-scheduler';
 import { startMpTransitScheduler, stopMpTransitScheduler } from './scheduler/mp-transit-scheduler';
+import { startStockAlertScheduler, stopStockAlertScheduler } from './scheduler/stock-alert-scheduler';
 
 async function main() {
   const env = loadEnv();
@@ -24,6 +25,7 @@ async function main() {
     stopAnalyticsScheduler();
     stopCycleRollScheduler();
     stopMpTransitScheduler();
+    stopStockAlertScheduler();
   });
 
   try {
@@ -37,6 +39,7 @@ async function main() {
     startAnalyticsScheduler(app.db, app.redis, app.log);
     startCycleRollScheduler(app.db, app.redis, app.log);
     startMpTransitScheduler(app.db, app.redis, app.log);
+    startStockAlertScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

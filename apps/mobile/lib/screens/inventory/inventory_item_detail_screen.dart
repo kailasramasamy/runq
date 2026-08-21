@@ -1,10 +1,11 @@
-// Inventory Item Detail — per-item view: identity card, totals strip,
-// reorder bar, and a per-warehouse stock allocation list. Reached by
-// tapping a row on the Stock screen or by barcode deep-link from GRN/DN.
+// Inventory Item Detail — the mobile read-only mirror of the web item
+// master (/inventory/items/:id/edit): identity, stock position, pricing,
+// tracking behaviour, catalogue attributes, and the per-warehouse split.
+// Reached by tapping a row on the Items or Stock screen, or by barcode
+// deep-link from GRN/DN.
 //
-// The handoff also calls for a "Recent Movements" card; that's deferred
-// to batch 2 because it needs a per-item ledger provider wired through —
-// the rest of the redesign stands on its own without it.
+// Sections render only when the item carries the data, so a service SKU
+// or a bare trading good doesn't scroll past a wall of empty rows.
 
 library;
 
@@ -16,8 +17,12 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'inventory_items_list_screen.dart' show classLabel;
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/item_detail_cards.dart';
+import 'widgets/item_price_lists_card.dart';
+import 'widgets/reorder_level_sheet.dart';
 
 class InventoryItemDetailScreen extends ConsumerWidget {
   const InventoryItemDetailScreen({super.key, required this.itemId});
@@ -28,11 +33,12 @@ class InventoryItemDetailScreen extends ConsumerWidget {
     final t = RT(context);
     final itemAsync = ref.watch(invItemDetailProvider(itemId));
     final stockAsync = ref.watch(invItemStockProvider(itemId));
+    final priceListsAsync = ref.watch(invItemPriceListsProvider(itemId));
 
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: InvPlainAppBar(
-        title: 'Item Stock',
+        title: 'Item Details',
         onBack: () => context.pop(),
       ),
       body: RefreshIndicator(
@@ -40,6 +46,7 @@ class InventoryItemDetailScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(invItemDetailProvider(itemId));
           ref.invalidate(invItemStockProvider(itemId));
+          ref.invalidate(invItemPriceListsProvider(itemId));
           await Future<void>.delayed(const Duration(milliseconds: 200));
         },
         child: itemAsync.when(
@@ -54,7 +61,24 @@ class InventoryItemDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
-          data: (item) => _Body(item: item, stockAsync: stockAsync),
+          data: (item) => _Body(
+            item: item,
+            stockAsync: stockAsync,
+            priceLines: priceListsAsync.valueOrNull ?? const [],
+            onEditPricing: () async {
+              await context.push('/inventory/items/$itemId/pricing');
+              ref.invalidate(invItemDetailProvider(itemId));
+            },
+            onEditThreshold: () => showReorderLevelSheet(
+              context,
+              itemId: itemId,
+              itemName: item.name,
+              unit: item.unit,
+              currentLevel: item.reorderLevel,
+              currentQty: stockAsync.valueOrNull
+                  ?.fold<double>(0, (a, r) => a + r.qty),
+            ),
+          ),
         ),
       ),
     );
@@ -62,13 +86,22 @@ class InventoryItemDetailScreen extends ConsumerWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.item, required this.stockAsync});
+  const _Body({
+    required this.item,
+    required this.stockAsync,
+    required this.priceLines,
+    required this.onEditPricing,
+    required this.onEditThreshold,
+  });
   final InvItemDetail item;
   final AsyncValue<List<InvItemStockRow>> stockAsync;
+  final List<InvItemPriceLine> priceLines;
+  final VoidCallback onEditPricing;
+  final VoidCallback onEditThreshold;
 
   @override
   Widget build(BuildContext context) {
-    // Aggregate per-warehouse stock so the totals strip + reorder bar
+    // Aggregate per-warehouse stock so the totals strip + stock-level bar
     // can reuse the numbers (and avoid a second round of math in each
     // card). When stock hasn't loaded yet we render the cards with
     // empty totals to keep the layout from jumping.
@@ -94,63 +127,89 @@ class _Body extends StatelessWidget {
     }
     final allocations = byWarehouse.values.toList()
       ..sort((a, b) => b.qty.compareTo(a.qty));
+    // Services and non-tracked SKUs have no stock position at all — skip
+    // the whole inventory block rather than showing three zeroed KPIs.
+    final showsStock = item.trackInventory && item.type != 'service';
 
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.only(top: 12, bottom: 120),
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _IdentityCard(item: item, totalQty: totalQty),
-        ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _TotalsStrip(
-            qty: totalQty,
-            value: totalValue,
-            avgCost: avgCost,
-            unit: item.unit,
+        _Pad(child: ItemIdentityCard(
+          item: item,
+          classLabel: classLabel(item.itemClass, item.type),
+        )),
+        if (showsStock) ...[
+          const InvSectionHeader(title: 'Stock Position'),
+          _Pad(
+            child: _TotalsStrip(
+              qty: totalQty,
+              value: totalValue,
+              avgCost: avgCost,
+              unit: item.unit,
+            ),
           ),
-        ),
-        if (totalQty > 0) ...[
           const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _ReorderCard(qty: totalQty, unit: item.unit),
+          _Pad(
+            child: ItemStockLevelCard(
+              qty: totalQty,
+              unit: item.unit,
+              reorderLevel: item.reorderLevel,
+              reorderQty: item.reorderQty,
+              onEditThreshold: onEditThreshold,
+            ),
           ),
+          InvSectionHeader(title: 'By Warehouse (${allocations.length})'),
+          if (allocations.isEmpty)
+            _Pad(
+              child: InvCard(
+                child: Text(
+                  'No stock recorded yet',
+                  style: RunqText.caption.copyWith(color: RT(context).muted),
+                ),
+              ),
+            )
+          else
+            _Pad(
+              child: Column(
+                children: [
+                  for (final w in allocations) ...[
+                    _WarehouseRow(alloc: w, totalQty: totalQty, unit: item.unit),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ),
+            ),
         ],
-        InvSectionHeader(title: 'By Warehouse (${allocations.length})'),
-        if (allocations.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+        InvSectionHeader(
+          title: 'Pricing',
+          action: 'Edit',
+          onAction: onEditPricing,
+        ),
+        if (ItemPricingCard.hasData(item))
+          _Pad(child: ItemPricingCard(item: item))
+        else
+          _Pad(
             child: InvCard(
               child: Text(
-                'No stock recorded yet',
+                'No pricing set — tap Edit to add cost and selling rates',
                 style: RunqText.caption.copyWith(color: RT(context).muted),
               ),
             ),
-          )
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                for (final w in allocations) ...[
-                  _WarehouseRow(
-                    alloc: w,
-                    totalQty: totalQty,
-                    unit: item.unit,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ],
-            ),
           ),
+        if (priceLines.isNotEmpty) ...[
+          InvSectionHeader(title: 'Price Lists (${_listCount(priceLines)})'),
+          _Pad(child: ItemPriceListsCard(lines: priceLines, unit: item.unit)),
+        ],
+        const InvSectionHeader(title: 'Tracking & Classification'),
+        _Pad(child: ItemTrackingCard(item: item)),
+        if (ItemAttributesCard.hasData(item.attributes)) ...[
+          const InvSectionHeader(title: 'Attributes'),
+          _Pad(child: ItemAttributesCard(attributes: item.attributes)),
+        ],
         if ((item.description ?? '').trim().isNotEmpty) ...[
           const InvSectionHeader(title: 'Description'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+          _Pad(
             child: InvCard(
               child: Text(
                 item.description!.trim(),
@@ -162,6 +221,21 @@ class _Body extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Distinct price lists, not tier rows — a 3-tier volume deal is one list.
+int _listCount(List<InvItemPriceLine> lines) =>
+    lines.map((l) => l.priceListId).toSet().length;
+
+/// The page's single horizontal gutter — every card sits on it.
+class _Pad extends StatelessWidget {
+  const _Pad({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: child,
+      );
 }
 
 class _WarehouseAlloc {
@@ -177,95 +251,6 @@ class _WarehouseAlloc {
   });
   _WarehouseAlloc add(double q, double v) =>
       _WarehouseAlloc(id: id, name: name, qty: qty + q, value: value + v);
-}
-
-// ── Identity card (amber avatar + name + badges) ─────────────────────────
-
-class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.item, required this.totalQty});
-  final InvItemDetail item;
-  final double totalQty;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return InvCard(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: InvColors.amberSubtle,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.inventory_2_outlined,
-              size: 22,
-              color: InvColors.brand(context),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: RunqText.h3.copyWith(color: t.ink)),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    if ((item.sku ?? '').isNotEmpty)
-                      _Badge(
-                        label: item.sku!,
-                        bg: t.bgWarmer,
-                        fg: t.muted,
-                      ),
-                    if ((item.hsnSacCode ?? '').isNotEmpty)
-                      _Badge(
-                        label: 'HSN ${item.hsnSacCode}',
-                        bg: InvColors.amberSubtle,
-                        fg: InvColors.amberDeep,
-                      ),
-                    if ((item.unit ?? '').isNotEmpty)
-                      _Badge(
-                        label: item.unit!,
-                        bg: t.bgWarmer,
-                        fg: t.muted,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.bg, required this.fg});
-  final String label;
-  final Color bg;
-  final Color fg;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: RunqText.micro.copyWith(color: fg, letterSpacing: 0.2),
-      ),
-    );
-  }
 }
 
 // ── Totals strip (On Hand / Value / Avg Cost) ────────────────────────────
@@ -293,7 +278,7 @@ class _TotalsStrip extends StatelessWidget {
           Expanded(
             child: InvKpiCard(
               label: 'On Hand',
-              value: _fmtQty(qty),
+              value: fmtQty(qty),
               sub: unit ?? 'units',
             ),
           ),
@@ -317,56 +302,6 @@ class _TotalsStrip extends StatelessWidget {
       ),
     );
   }
-
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
-}
-
-// ── Reorder card ─────────────────────────────────────────────────────────
-
-class _ReorderCard extends StatelessWidget {
-  const _ReorderCard({required this.qty, required this.unit});
-  final double qty;
-  final String? unit;
-  // The masters/items record drives reorder_level, but the mobile
-  // InvItemDetail doesn't expose it yet — kept as 0 here so the bar
-  // renders a neutral "above reorder" state. Once the masters response
-  // includes reorderLevel this becomes a real comparison.
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return InvCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Stock Level',
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                ),
-              ),
-              Text(
-                '${_fmtQty(qty)} ${unit ?? ''}'.trim(),
-                style: RunqText.h4.copyWith(color: InvColors.success),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InvStockBar(qty: qty, reorderLevel: null, isLow: false, height: 6),
-          const SizedBox(height: 6),
-          Text(
-            'Reorder threshold not configured for this item',
-            style: RunqText.caption.copyWith(color: t.muted2),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
 }
 
 // ── Per-warehouse allocation row ─────────────────────────────────────────
@@ -411,7 +346,7 @@ class _WarehouseRow extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${_fmtQty(alloc.qty)} ${unit ?? ''}'.trim(),
+                      '${fmtQty(alloc.qty)} ${unit ?? ''}'.trim(),
                       style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
                     ),
                   ],
@@ -455,7 +390,4 @@ class _WarehouseRow extends StatelessWidget {
       ),
     );
   }
-
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
 }

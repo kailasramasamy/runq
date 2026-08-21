@@ -500,6 +500,12 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   // on a populated list instead of an empty one.
   String _classGroup = classGroupFinished;
   bool _classGroupTouched = false;
+  /// Item ids whose batch rows are expanded. The list shows ONE row per item
+  /// with its total on hand; a batch-tracked SKU can hold dozens of
+  /// consignments and listing them all buried the three products this
+  /// warehouse actually stocks. Adjustments still post against a batch, so
+  /// the batches stay one tap away rather than being hidden.
+  final Set<String> _expandedItems = {};
   // Keyed by `${itemId}|${batchNo ?? ''}` so two batches of the same item
   // are independent drafts.
   final Map<String, _AdjDraft> _drafts = {};
@@ -709,31 +715,42 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
           // reason stay per-line in the sheet that opens on tap, so nothing
           // up here is a mode you can forget you left switched on.
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
             color: t.bgWarm,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                WarehousePicker(
-                  value: warehouseId,
-                  onChanged: _onWarehouseChanged,
-                  allowAll: false,
-                  dense: true,
+                // Warehouse and search carry their own horizontal padding so
+                // the class strip between them can sit flush and bleed to the
+                // screen edge when its pills overflow.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: WarehousePicker(
+                    value: warehouseId,
+                    onChanged: _onWarehouseChanged,
+                    allowAll: false,
+                    dense: true,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                InvSearchBar(
-                  controller: _searchCtl,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  hint: 'Item, SKU or batch…',
+                // Type pills above the search box — narrow to a bucket
+                // first, then search inside it.
+                if (warehouseId != null)
+                  onHand!.maybeWhen(
+                    data: (rows) => _classStrip(rows),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: InvSearchBar(
+                    controller: _searchCtl,
+                    onChanged: (v) => setState(() => _query = v.trim()),
+                    hint: 'Item, SKU or batch…',
+                  ),
                 ),
               ],
             ),
           ),
-          if (warehouseId != null)
-            onHand!.maybeWhen(
-              data: (rows) => _classStrip(rows),
-              orElse: () => const SizedBox.shrink(),
-            ),
           Divider(height: 1, color: t.hairlineSoft),
           Expanded(
             child: warehouseId == null
@@ -753,22 +770,29 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   /// so no setState-during-build is needed to downgrade an empty default.
   String _effectiveClassGroup(List<InvOnHandRow> rows) {
     if (_classGroupTouched) return _classGroup;
-    return resolveDefaultClassGroup(
-      _classGroup,
-      bucketCountsFor(rows.map((r) => r.itemClass)),
-    );
+    return resolveDefaultClassGroup(_classGroup, _bucketCounts(rows));
   }
+
+  /// Pill counts are per DISTINCT ITEM. A raw-milk SKU with 16 consignments
+  /// is one product on hand, not sixteen.
+  Map<String, int> _bucketCounts(List<InvOnHandRow> rows) =>
+      bucketCountsForItems(
+        rows.map((r) => (itemId: r.itemId, itemClass: r.itemClass)),
+      );
 
   /// Class strip sits outside the padded block so the pills can bleed to the
   /// screen edge when they overflow, same as the on-hand screen.
   Widget _classStrip(List<InvOnHandRow> rows) {
-    final counts = bucketCountsFor(rows.map((r) => r.itemClass));
-    if (counts.length < 2) return const SizedBox(height: 4);
+    final counts = _bucketCounts(rows);
+    // Always rendered, every bucket shown. It used to hide itself whenever
+    // one bucket held everything — which is exactly the warehouse where a
+    // user wonders why they can't see the other types at all.
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InvClassTabs(
         selected: _effectiveClassGroup(rows),
         counts: counts,
+        showEmpty: true,
         onChanged: (g) => setState(() {
           _classGroup = g;
           _classGroupTouched = true;
@@ -847,16 +871,44 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
           if (b.isEmpty) return 1;
           return a.toLowerCase().compareTo(b.toLowerCase());
         });
-      final total = tree[g]!.values.fold<int>(0, (s, l) => s + l.length);
+      // Section count is products, not batch rows — same unit as the pills.
+      final total = tree[g]!.values
+          .expand((l) => l)
+          .map((r) => r.itemId)
+          .toSet()
+          .length;
       out.add(_ListEntry.group(g, total));
       for (final s in subs) {
         if (s.isNotEmpty) out.add(_ListEntry.sub(s));
-        for (final r in tree[g]![s]!) {
-          out.add(_ListEntry.row(r));
+        for (final batches in _byItem(tree[g]![s]!)) {
+          // A single-batch product has nothing to drill into, so it stays a
+          // plain row that opens the qty sheet directly.
+          if (batches.length == 1) {
+            out.add(_ListEntry.row(batches.first));
+            continue;
+          }
+          out.add(_ListEntry.item(batches));
+          if (_expandedItems.contains(batches.first.itemId)) {
+            out.addAll(batches.map((b) => _ListEntry.row(b, indented: true)));
+          }
         }
       }
     }
     return out;
+  }
+
+  /// Group on-hand rows by item, keeping the incoming (name-sorted) order.
+  /// Each inner list is one product's batches, biggest batch first so the
+  /// pool a user most likely means to adjust is at the top.
+  List<List<InvOnHandRow>> _byItem(List<InvOnHandRow> rows) {
+    final byItem = <String, List<InvOnHandRow>>{};
+    for (final r in rows) {
+      byItem.putIfAbsent(r.itemId, () => <InvOnHandRow>[]).add(r);
+    }
+    for (final list in byItem.values) {
+      list.sort((a, b) => b.qty.compareTo(a.qty));
+    }
+    return byItem.values.toList();
   }
 
   /// Drafts for stock this warehouse doesn't hold — added through "Add product
@@ -922,7 +974,12 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
         // Incoming rows count toward "shown" — they are on screen, even though
         // they are absent from the on-hand total they'd otherwise be measured against.
         if (idx == 0) {
-          return _listHeader(context, rows.length, visible.length + incoming.length);
+          // Counted in products so the header agrees with the pills and the
+          // section headings. Batch rows would say "29" for three SKUs.
+          final totalItems = rows.map((r) => r.itemId).toSet().length;
+          final shownItems =
+              visible.map((r) => r.itemId).toSet().length + incoming.length;
+          return _listHeader(context, totalItems, shownItems);
         }
         if (idx == entries.length + 1) return _addOtherFooter(context);
         return _entryTile(ctx, entries[idx - 1]);
@@ -946,22 +1003,52 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
             ),
           ),
         );
+      case _EntryKind.item:
+        final first = e.row!;
+        final expanded = _expandedItems.contains(first.itemId);
+        final totalQty = e.batches.fold<double>(0, (a, b) => a + b.qty);
+        final drafted = e.batches
+            .where((b) => _drafts.containsKey(
+                _draftKey(b.itemId, b.batchNo.isEmpty ? null : b.batchNo)))
+            .length;
+        return Column(
+          children: [
+            _ItemGroupTile(
+              row: first,
+              totalQty: totalQty,
+              batchCount: e.batches.length,
+              draftedCount: drafted,
+              expanded: expanded,
+              onTap: () => setState(() {
+                if (expanded) {
+                  _expandedItems.remove(first.itemId);
+                } else {
+                  _expandedItems.add(first.itemId);
+                }
+              }),
+            ),
+            Divider(height: 1, color: t.hairlineSoft, indent: 16, endIndent: 16),
+          ],
+        );
       case _EntryKind.row:
         final r = e.row!;
         final batchNo = r.batchNo.isEmpty ? null : r.batchNo;
         final draft = _drafts[_draftKey(r.itemId, batchNo)];
         return Column(
           children: [
-            _OnHandTile(
-              row: r,
-              draft: draft,
-              onTap: () => _openLineSheet(
-                itemId: r.itemId,
-                itemName: r.itemName,
-                itemSku: r.itemSku,
-                itemUnit: r.itemUnit,
-                batchNo: batchNo,
-                availSnapshot: r.qty,
+            Padding(
+              padding: EdgeInsets.only(left: e.indented ? 16 : 0),
+              child: _OnHandTile(
+                row: r,
+                draft: draft,
+                onTap: () => _openLineSheet(
+                  itemId: r.itemId,
+                  itemName: r.itemName,
+                  itemSku: r.itemSku,
+                  itemUnit: r.itemUnit,
+                  batchNo: batchNo,
+                  availSnapshot: r.qty,
+                ),
               ),
             ),
             Divider(height: 1, color: t.hairlineSoft, indent: 16, endIndent: 16),
@@ -1041,21 +1128,36 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
 
 // ── Section entries ───────────────────────────────────────────────────────
 
-enum _EntryKind { group, sub, row }
+enum _EntryKind { group, sub, item, row }
 
 /// One rendered line in the sectioned list: a category heading, a
 /// sub-category sub-heading, or an item row.
 class _ListEntry {
-  const _ListEntry._(this.kind, {this.label, this.count = 0, this.row});
+  const _ListEntry._(this.kind,
+      {this.label,
+      this.count = 0,
+      this.row,
+      this.batches = const [],
+      this.indented = false});
   factory _ListEntry.group(String label, int count) =>
       _ListEntry._(_EntryKind.group, label: label, count: count);
   factory _ListEntry.sub(String label) => _ListEntry._(_EntryKind.sub, label: label);
-  factory _ListEntry.row(InvOnHandRow row) => _ListEntry._(_EntryKind.row, row: row);
+  factory _ListEntry.row(InvOnHandRow row, {bool indented = false}) =>
+      _ListEntry._(_EntryKind.row, row: row, indented: indented);
+
+  /// One product, carrying every on-hand batch row behind it. [row] holds the
+  /// first batch so the tile can read name / sku / unit off it.
+  factory _ListEntry.item(List<InvOnHandRow> batches) =>
+      _ListEntry._(_EntryKind.item, row: batches.first, batches: batches);
 
   final _EntryKind kind;
   final String? label;
   final int count;
   final InvOnHandRow? row;
+  final List<InvOnHandRow> batches;
+  /// Batch row shown under an expanded product — inset so the hierarchy
+  /// reads without needing a second divider style.
+  final bool indented;
 }
 
 /// Top-level category band. Tinted so the eye can find section boundaries
@@ -1092,6 +1194,94 @@ class _CategoryHeader extends StatelessWidget {
 }
 
 // ── On-hand list tile — name + sku/batch/avail, draft delta or chevron ─
+
+/// One product, collapsed. Shows the total across every batch plus how many
+/// batches sit behind it; tapping expands them. Batch rows render with the
+/// existing [_OnHandTile], indented under this one.
+class _ItemGroupTile extends StatelessWidget {
+  const _ItemGroupTile({
+    required this.row,
+    required this.totalQty,
+    required this.batchCount,
+    required this.draftedCount,
+    required this.expanded,
+    required this.onTap,
+  });
+  final InvOnHandRow row;
+  final double totalQty;
+  final int batchCount;
+  final int draftedCount;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = InvColors.brand(context);
+    final subParts = <String>[
+      if ((row.itemUnit ?? '').isNotEmpty) row.itemUnit!,
+      if ((row.itemSku ?? '').isNotEmpty) row.itemSku!,
+      '$batchCount batches',
+    ];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(row.itemName,
+                        style: RunqText.body.copyWith(color: t.ink),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(subParts.join(' · '),
+                              style: RunqText.caption.copyWith(color: t.muted2),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                        if (draftedCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Text('$draftedCount adjusted',
+                              style: RunqText.caption.copyWith(
+                                  color: brand, fontWeight: FontWeight.w700)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: t.bgWarmer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(_fmtQty(totalQty),
+                    style: RunqText.tabular(
+                        size: 14, w: FontWeight.w700, color: t.ink)),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20,
+                color: t.muted2,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _OnHandTile extends StatelessWidget {
   const _OnHandTile({
@@ -1292,6 +1482,8 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
   final _focus = FocusNode();
   late bool _isOutbound;
   late String _reason;
+  /// Inline message under the batch field, set when a save is blocked on it.
+  String? _batchError;
 
   @override
   void initState() {
@@ -1324,12 +1516,20 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
   }
 
   void _save() {
+    // Drop the keyboard before any validation message. Toasts land at the
+    // bottom of the screen, which is exactly where the numeric keypad sits —
+    // the warning was being raised behind it, so a save looked like it had
+    // silently done nothing.
+    FocusScope.of(context).unfocus();
+
     final q = double.tryParse(_ctrl.text) ?? -1;
     if (q <= 0) {
+      setState(() => _batchError = null);
       RunqSnack.warning(context, 'Enter a positive qty');
       return;
     }
     if (_isOutbound && q > widget.availSnapshot) {
+      setState(() => _batchError = null);
       RunqSnack.warning(
           context, 'Only ${_fmtQty(widget.availSnapshot)} on hand');
       return;
@@ -1339,10 +1539,14 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
     // movement with no batch, and that error would land on the whole document
     // long after the user left this sheet.
     if (widget.needsBatchNo && batch.isEmpty) {
+      // Marked on the field as well as toasted: the toast says what went
+      // wrong, the field says where.
+      setState(() => _batchError = 'Required — this item is batch-tracked.');
       RunqSnack.warning(context, 'Enter a batch number',
           description: 'This item is batch-tracked.');
       return;
     }
+    if (_batchError != null) setState(() => _batchError = null);
     Navigator.of(context).pop(_AdjLineSheetResult.saved(
       qty: q,
       isOutbound: _isOutbound,
@@ -1362,13 +1566,20 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
     ].join(' · ');
     final unitSuffix = (widget.itemUnit ?? '').isEmpty ? '' : ' ${widget.itemUnit}';
     final reasons = _isOutbound ? _outboundReasonOrder : _inboundReasonOrder;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(bottom: insets.bottom),
-      child: Column(
+    // Cap the height so the sheet stops short of the status bar. With the
+    // keyboard up and a batch field in play the content grew tall enough to
+    // fill the screen, and the title ended up sitting under the clock.
+    final media = MediaQuery.of(context);
+    final maxSheetHeight = media.size.height - media.padding.top - 12;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxSheetHeight),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.only(bottom: insets.bottom),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _SheetHeader(
@@ -1448,14 +1659,31 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
                         controller: _batchCtrl,
                         textCapitalization: TextCapitalization.characters,
                         style: RunqText.body.copyWith(color: t.ink),
-                        decoration: _dec(context, hint: 'e.g. RM-20260811'),
+                        decoration: _dec(context, hint: 'e.g. RM-20260811')
+                            .copyWith(
+                          enabledBorder: _batchError == null
+                              ? null
+                              : OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                      color: InvColors.error),
+                                ),
+                        ),
+                        onChanged: (_) {
+                          if (_batchError != null) {
+                            setState(() => _batchError = null);
+                          }
+                        },
                         onSubmitted: (_) => _save(),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'This item is batch-tracked, and none of its stock is here '
-                        'yet — name the batch this quantity belongs to.',
-                        style: RunqText.caption.copyWith(color: t.muted),
+                        _batchError ??
+                            'This item is batch-tracked, and none of its stock is here '
+                                'yet — name the batch this quantity belongs to.',
+                        style: RunqText.caption.copyWith(
+                          color: _batchError == null ? t.muted : InvColors.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -1510,6 +1738,7 @@ class _AdjLineSheetState extends State<_AdjLineSheet> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -1676,6 +1905,15 @@ class _AdjItemPickerSheetState extends State<_AdjItemPickerSheet> {
   List<InvItem> _results = const [];
   bool _loading = false;
   String _lastQuery = '';
+  /// The catalogue page the picker pulls. The old 25 silently cut the list
+  /// off mid-alphabet — items sort finished-goods-first, so a tenant's raw
+  /// materials fell off the end and simply could not be picked. The class
+  /// counts are computed from this same set, so the limit also has to be
+  /// high enough that the numbers on the pills aren't a lie.
+  static const _fetchLimit = 200;
+  /// True when the catalogue is bigger than one page, so the pill counts
+  /// describe only what's loaded and the user has to be told.
+  bool _truncated = false;
   // Adjustments span any class (damage, found, revaluation can apply to
   // raw materials, finished goods, spares alike) — default to All.
   static const _preferredGroup = classGroupAll;
@@ -1698,9 +1936,10 @@ class _AdjItemPickerSheetState extends State<_AdjItemPickerSheet> {
     _lastQuery = q;
     setState(() => _loading = true);
     try {
-      final hits = await inventoryRepo.searchItems(q);
+      final hits = await inventoryRepo.searchItems(q, limit: _fetchLimit);
       if (!mounted || q != _lastQuery) return;
       setState(() {
+        _truncated = hits.length >= _fetchLimit;
         _results = hits.where((r) => !widget.excludeIds.contains(r.id)).toList();
       });
     } finally {
@@ -1740,6 +1979,44 @@ class _AdjItemPickerSheetState extends State<_AdjItemPickerSheet> {
                   : '${_selected.length} selected',
               onClose: () => Navigator.of(context).pop(),
             ),
+            // Type pills sit ABOVE the search box: picking the bucket first
+            // is how you narrow a mixed catalogue, and burying them under
+            // the field made the list look like it had no raw materials.
+            if (_results.isNotEmpty) ...[
+              Builder(builder: (_) {
+                final counts = bucketCountsFor(_results.map((r) => r.itemClass));
+                if (!_userPickedGroup) {
+                  final resolved = resolveDefaultClassGroup(_preferredGroup, counts);
+                  if (_classGroup != resolved) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) setState(() => _classGroup = resolved);
+                    });
+                  }
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InvClassTabs(
+                    selected: _classGroup ?? classGroupAll,
+                    counts: counts,
+                    onChanged: (g) => setState(() {
+                      _classGroup = g;
+                      _userPickedGroup = true;
+                    }),
+                  ),
+                );
+              }),
+              // Counts describe what's loaded, so say so when the catalogue
+              // is bigger than one page rather than showing a number that
+              // quietly under-reports.
+              if (_truncated)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Showing the first $_fetchLimit items — search to narrow.',
+                    style: RunqText.micro.copyWith(color: RT(context).muted2),
+                  ),
+                ),
+            ],
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
@@ -1770,30 +2047,6 @@ class _AdjItemPickerSheetState extends State<_AdjItemPickerSheet> {
               ),
             ),
             const SizedBox(height: 8),
-            if (_results.isNotEmpty) ...[
-              Builder(builder: (_) {
-                final counts = bucketCountsFor(_results.map((r) => r.itemClass));
-                if (!_userPickedGroup) {
-                  final resolved = resolveDefaultClassGroup(_preferredGroup, counts);
-                  if (_classGroup != resolved) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) setState(() => _classGroup = resolved);
-                    });
-                  }
-                }
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: InvClassTabs(
-                    selected: _classGroup ?? classGroupAll,
-                    counts: counts,
-                    onChanged: (g) => setState(() {
-                      _classGroup = g;
-                      _userPickedGroup = true;
-                    }),
-                  ),
-                );
-              }),
-            ],
             Expanded(
               child: _loading && _results.isEmpty
                   ? const Center(child: CircularProgressIndicator())

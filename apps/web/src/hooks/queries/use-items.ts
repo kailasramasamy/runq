@@ -77,6 +77,9 @@ export interface Item {
   trackSerials?: boolean;
   /** Per-item batch code template (Direct Receipt picker pre-fill). */
   batchCodeTemplate?: string | null;
+  /** Low-stock threshold; null = no threshold (still alerts at zero). */
+  reorderLevel?: number | null;
+  reorderQty?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

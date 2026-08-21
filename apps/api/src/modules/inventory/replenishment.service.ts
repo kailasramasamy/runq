@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
-import type { InventoryReplenishmentFilter, ServiceLevel } from '@runq/validators';
+import type {
+  InventoryReplenishmentFilter, ServiceLevel, ApplyReplenishmentInput,
+} from '@runq/validators';
 import { SERVICE_LEVEL_Z } from '@runq/validators';
 import {
   consumptionCte, demandStatsCte, onHandCte, type QueryResult, num,
@@ -187,4 +189,87 @@ export class ReplenishmentService {
   private round(v: number): number {
     return Math.round(v * 1000) / 1000;
   }
+
+  /**
+   * Write the computed reorder points onto items.reorder_level.
+   *
+   * The levels are recomputed here from the same inputs rather than accepted
+   * from the caller, so a stale analytics page cannot persist stale numbers.
+   *
+   * Default mode is 'unconfigured': it only fills items nobody has set a
+   * level for. Overwriting hand-typed thresholds in bulk is destructive and
+   * has to be asked for explicitly.
+   */
+  async applySuggestions(input: ApplyReplenishmentInput): Promise<ApplyResult> {
+    const { rows } = await this.suggestions(input);
+    const selected = new Set(input.itemIds ?? []);
+
+    const eligible = rows.filter((r) => {
+      if (!input.includeThinHistory && !r.hasReliableSigma) return false;
+      if (input.mode === 'selected') return selected.has(r.itemId);
+      if (input.mode === 'unconfigured') return r.currentReorderLevel === null;
+      return true;
+    });
+
+    // A suggested point of zero is not a threshold — it would fire only at
+    // empty, which the out-of-stock alert already covers.
+    const writable = eligible.filter((r) => r.suggestedReorderLevel > 0);
+
+    const result: ApplyResult = {
+      applied: 0,
+      skippedZeroLevel: eligible.length - writable.length,
+      thinHistoryApplied: writable.filter((r) => !r.hasReliableSigma).length,
+      overwritten: writable.filter((r) => r.currentReorderLevel !== null).length,
+      dryRun: input.dryRun,
+      items: writable.map((r) => ({
+        itemId: r.itemId,
+        itemName: r.itemName,
+        previousLevel: r.currentReorderLevel,
+        newLevel: r.suggestedReorderLevel,
+        newOrderQty: r.suggestedOrderQty > 0 ? r.suggestedOrderQty : null,
+      })),
+    };
+    if (input.dryRun || writable.length === 0) return result;
+
+    // One statement, so a partial failure can't leave half the catalogue
+    // on new thresholds and half on old.
+    const values = sql.join(
+      writable.map((r) => sql`(
+        ${r.itemId}::uuid,
+        ${r.suggestedReorderLevel}::numeric,
+        ${r.suggestedOrderQty > 0 ? r.suggestedOrderQty : null}::numeric
+      )`),
+      sql`, `,
+    );
+    await this.db.execute(sql`
+      UPDATE items i
+      SET reorder_level = v.level,
+          reorder_qty = COALESCE(v.qty, i.reorder_qty),
+          updated_at = NOW()
+      FROM (VALUES ${values}) AS v(item_id, level, qty)
+      WHERE i.id = v.item_id
+        AND i.tenant_id = ${this.tenantId}
+    `);
+    result.applied = writable.length;
+    return result;
+  }
+}
+
+export interface ApplyResult {
+  /** Rows actually written (0 on a dry run). */
+  applied: number;
+  /** Eligible but suggested level computed to zero, so left alone. */
+  skippedZeroLevel: number;
+  /** Of those written, how many rested on a thin-history fallback. */
+  thinHistoryApplied: number;
+  /** Of those written, how many replaced an existing hand-set level. */
+  overwritten: number;
+  dryRun: boolean;
+  items: Array<{
+    itemId: string;
+    itemName: string;
+    previousLevel: number | null;
+    newLevel: number;
+    newOrderQty: number | null;
+  }>;
 }

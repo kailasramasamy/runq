@@ -2,8 +2,11 @@
 //
 // Renders the 4 operational buckets — Finished / Inputs / Trading / Other —
 // that mirror the `item_class_group` enum on the API side. Buckets with a
-// count of zero are hidden so a pure-trading shop doesn't waste tab space
-// on empty Finished / Inputs / Other pills.
+// count of zero are hidden by default so a pure-trading shop doesn't waste
+// tab space on empty Finished / Inputs / Other pills. Screens that filter a
+// warehouse-scoped list can opt into `showEmpty` instead: there a zero is
+// information ("no finished goods on hand here"), and a strip that changes
+// shape as stock moves is harder to use than one that doesn't.
 //
 // A leading "All" pill is always shown so the user has an escape hatch
 // back to the unfiltered view; "All" doesn't get a count badge because
@@ -55,6 +58,21 @@ String resolveDefaultClassGroup(String preferred, Map<String, int> counts) {
   return classGroupAll;
 }
 
+/// Per-bucket counts of DISTINCT items, from rows that may repeat an item
+/// once per batch. A batch-tracked SKU with 16 consignments is one item on
+/// hand, not sixteen — counting rows made the pills read "29" for a
+/// warehouse holding three products.
+Map<String, int> bucketCountsForItems(
+  Iterable<({String itemId, String? itemClass})> rows,
+) {
+  final seen = <String, Set<String>>{};
+  for (final r in rows) {
+    final g = classGroupForItemClass(r.itemClass);
+    seen.putIfAbsent(g, () => <String>{}).add(r.itemId);
+  }
+  return seen.map((k, v) => MapEntry(k, v.length));
+}
+
 /// Compute per-bucket counts from any iterable of item-class strings.
 /// Reusable across screens that map their domain rows to item_class values
 /// before bucketing (on-hand rows, GRN lines, transfer lines, items).
@@ -93,6 +111,7 @@ class InvClassTabs extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     required this.counts,
+    this.showEmpty = false,
   });
 
   /// Currently selected bucket. One of the classGroup* constants.
@@ -104,6 +123,11 @@ class InvClassTabs extends StatelessWidget {
   /// tenants who don't use every class.
   final Map<String, int> counts;
 
+  /// Render every bucket, zero-count ones included. For a list scoped to one
+  /// warehouse a zero is a fact worth showing ("nothing finished here"), and
+  /// a strip that keeps the same pills as stock moves is easier to aim at.
+  final bool showEmpty;
+
   static const List<({String key, String label})> _buckets = [
     (key: classGroupFinished, label: 'Finished'),
     (key: classGroupInputs,   label: 'Inputs'),
@@ -114,9 +138,11 @@ class InvClassTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    // Hide-empty: only render buckets with at least one row. "All" is
-    // always shown so the user can escape back to the full list.
-    final visible = _buckets.where((b) => (counts[b.key] ?? 0) > 0).toList();
+    // Hide-empty by default: only render buckets with at least one row.
+    // "All" is always shown so the user can escape back to the full list.
+    final visible = showEmpty
+        ? _buckets
+        : _buckets.where((b) => (counts[b.key] ?? 0) > 0).toList();
     final totalCount = counts.values.fold<int>(0, (a, b) => a + b);
 
     return SizedBox(

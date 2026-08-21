@@ -5,6 +5,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
 } from '@/components/ui';
 import type { SkuPerformance, Replenishment } from '@/hooks/queries/use-inventory';
+import { ApplyLevelsButton } from './_apply-levels';
 
 /**
  * Planning sections: the ABC×XYZ policy matrix and the computed reorder
@@ -142,14 +143,26 @@ function Row({
  * the gap between the two is the point of the table.
  */
 export function ReplenishmentSection({
-  data, index,
-}: { data: Replenishment; index: number }) {
+  data, index, filter,
+}: {
+  data: Replenishment;
+  index: number;
+  /** Echoed to the apply call so the server recomputes on the same basis. */
+  filter: { window?: number; warehouseId?: string; serviceLevel?: number };
+}) {
   const rows = data.rows.slice(0, 12);
   return (
     <SectionCard
       index={index}
       title="Suggested reorder levels"
       description={`Reorder point = (average daily demand × lead time) + safety stock, at a ${data.serviceLevel}% service level (z = ${data.z}).`}
+      action={
+        <ApplyLevelsButton
+          filter={filter}
+          unconfiguredCount={data.unconfiguredCount}
+          totalRows={data.rows.length}
+        />
+      }
     >
       {rows.length === 0 ? (
         <AllClear message="No item has enough demand history to compute a reorder point yet." />
@@ -161,7 +174,8 @@ export function ReplenishmentSection({
               <strong>{data.unconfiguredCount}</strong> item
               {data.unconfiguredCount === 1 ? ' has' : 's have'} no reorder level set at all —
               low-stock alerts stay silent for {data.unconfiguredCount === 1 ? 'it' : 'them'} no
-              matter how thin stock gets.
+              matter how thin stock gets. Use <strong>Apply suggested levels</strong> to set
+              {data.unconfiguredCount === 1 ? ' it' : ' them all'} at once.
             </div>
           )}
           <Table>

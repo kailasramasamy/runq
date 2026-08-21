@@ -111,6 +111,13 @@ export const createItemSchema = z.object({
   /** Per-item batch code template used by Direct Receipt to pre-fill a
    *  fresh batch code. Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. */
   batchCodeTemplate: z.string().max(80).nullish(),
+  /** Low-stock threshold. On-hand at or below this raises a `low` stock
+   *  alert. Null means no threshold — the item can still raise an
+   *  out-of-stock alert at zero. A per-warehouse rule
+   *  (inventory_reorder_rules) overrides this when one exists. */
+  reorderLevel: z.number().min(0).nullish(),
+  /** Suggested quantity to order when the level is breached. */
+  reorderQty: z.number().min(0).nullish(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

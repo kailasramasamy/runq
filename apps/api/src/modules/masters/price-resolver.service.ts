@@ -59,6 +59,68 @@ export interface ResolveParams {
  * `effectiveRate`. The resolved `mrp` is the price-list override if set,
  * otherwise the item master's mrp.
  */
+
+/** The price-list line fields that participate in rate derivation. */
+export interface PriceLineInputs {
+  rate: string | number | null;
+  marginPercent: string | number | null;
+  mrp: string | number | null;
+  discountPercent: string | number | null;
+}
+
+/** The item-master fallbacks the line derives against. */
+export interface PriceItemInputs {
+  defaultSellingPrice: string | number | null;
+  mrp: string | number | null;
+  margin: string | number | null;
+  gstRate: string | number | null;
+}
+
+const num = (v: string | number | null): number | null => (v == null ? null : Number(v));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Derive the unit rate a single price-list line resolves to.
+ *
+ * Shared by the resolver (which picks one winning line) and by the
+ * per-item price-list listing (which shows every line), so the price a
+ * user reads on an item can never disagree with the price an invoice
+ * actually uses.
+ */
+export function derivePriceLineRate(
+  line: PriceLineInputs,
+  item: PriceItemInputs,
+): { rate: number; effectiveRate: number; discountPercent: number | null; mrp: number | null } {
+  let rate: number;
+  const lineRate = num(line.rate);
+  if (lineRate != null) {
+    // Explicit absolute override — escape hatch for non-standard pricing.
+    rate = lineRate;
+  } else {
+    // Items-master flow: derive basic price from effective MRP, margin, GST.
+    const effectiveMrp = num(line.mrp) ?? num(item.mrp);
+    const effectiveMargin = num(line.marginPercent) ?? num(item.margin);
+    const effectiveGst = num(item.gstRate) ?? 0;
+
+    if (effectiveMrp != null && effectiveMargin != null) {
+      const landingPrice = effectiveMrp * (1 - effectiveMargin / 100);
+      rate = landingPrice / (1 + effectiveGst / 100);
+    } else {
+      // Missing inputs for the MRP-anchored math — fall back to item default.
+      rate = num(item.defaultSellingPrice) ?? 0;
+    }
+  }
+
+  const discount = num(line.discountPercent);
+  const effectiveRate = discount != null ? rate * (1 - discount / 100) : rate;
+  return {
+    rate: round2(rate),
+    effectiveRate: round2(effectiveRate),
+    discountPercent: discount,
+    mrp: num(line.mrp) ?? num(item.mrp),
+  };
+}
+
 export class PriceResolverService {
   constructor(
     private readonly db: Db,
@@ -200,40 +262,15 @@ export class PriceResolverService {
     const best = rows[0];
     if (!best) return null;
 
-    let rate: number;
-    if (best.rate != null) {
-      // Explicit absolute override — escape hatch for non-standard pricing.
-      rate = Number(best.rate);
-    } else {
-      // Items-master flow: derive basic price from effective MRP, margin, GST.
-      const effectiveMrp =
-        best.mrp != null ? Number(best.mrp) : (best.itemMrp != null ? Number(best.itemMrp) : null);
-      const effectiveMargin =
-        best.marginPercent != null
-          ? Number(best.marginPercent)
-          : (best.itemMargin != null ? Number(best.itemMargin) : null);
-      const effectiveGst = best.itemGstRate != null ? Number(best.itemGstRate) : 0;
-
-      if (effectiveMrp != null && effectiveMargin != null) {
-        const landingPrice = effectiveMrp * (1 - effectiveMargin / 100);
-        rate = landingPrice / (1 + effectiveGst / 100);
-      } else {
-        // Missing inputs for the MRP-anchored math — fall back to item default.
-        rate = best.itemDefaultSellingPrice != null ? Number(best.itemDefaultSellingPrice) : 0;
-      }
-    }
-
-    const discount = best.discountPercent != null ? Number(best.discountPercent) : null;
-    const effectiveRate = discount != null ? rate * (1 - discount / 100) : rate;
-    const mrp = best.mrp != null
-      ? Number(best.mrp)
-      : (best.itemMrp != null ? Number(best.itemMrp) : null);
+    const derived = derivePriceLineRate(best, {
+      defaultSellingPrice: best.itemDefaultSellingPrice,
+      mrp: best.itemMrp,
+      margin: best.itemMargin,
+      gstRate: best.itemGstRate,
+    });
 
     return {
-      rate: Math.round(rate * 100) / 100,
-      effectiveRate: Math.round(effectiveRate * 100) / 100,
-      discountPercent: discount,
-      mrp,
+      ...derived,
       priceListId: best.priceListId,
       // For group-level price lists, show the group name ("bigbasket")
       // rather than the price list's internal name ("BB Daily") — the

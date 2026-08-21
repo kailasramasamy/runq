@@ -15,6 +15,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { stockLedger, stockOnHand, items } from '@runq/db';
 import { AppError, NotFoundError } from '../../utils/errors';
+import { syncAlertState } from './stock-alert-state';
 
 // Drizzle's tx parameter has a different concrete type to the top-level Db
 // client (PgTransaction vs NodePgDatabase). Both expose the same query
@@ -195,6 +196,22 @@ export class StockLedgerService {
         value: String(newValue),
         lastMovementAt: input.movedAt,
       });
+    }
+
+    // 6. Re-evaluate low / out-of-stock status for this item+warehouse.
+    // Best-effort: alerting must never roll back a posted movement, and
+    // anything missed here is repaired by the daily alert sweep.
+    //
+    // Runs in a nested transaction (Drizzle pg emits a SAVEPOINT) so a
+    // failure rolls back only the alert write. Catching without one would
+    // leave the outer transaction aborted and fail the GRN two statements
+    // later with a misleading error.
+    try {
+      await tx.transaction(async (sp: Tx) => {
+        await syncAlertState(sp, this.tenantId, input.itemId, input.warehouseId);
+      });
+    } catch (err) {
+      console.error('[stock-alert] syncAlertState failed', err);
     }
 
     return {

@@ -105,14 +105,18 @@ void _show(
   _current?.remove();
   _current = null;
 
+  // Snapshot everything that depends on the caller's context BEFORE the
+  // entry is created. The builder runs lazily — by then the caller may
+  // have popped (a common pattern is "toast, then pop"), and looking up an
+  // ancestor from a deactivated element throws.
+  final bottomInset = _bottomInsetFor(context);
+  final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _SnackHost(
-      bottomInset: _bottomInsetFor(context),
-      // Read here, not in the host's initState: an overlay entry builds
-      // outside the caller's subtree and initState may not read inherited
-      // widgets.
-      reduceMotion: MediaQuery.maybeOf(context)?.disableAnimations ?? false,
+      bottomInset: bottomInset,
+      reduceMotion: reduceMotion,
       duration:
           duration ?? _durationFor(kind, message, description, hasAction),
       persistent: persistent && duration == null,

@@ -141,7 +141,13 @@ export function InventoryAnalyticsPage() {
         )}
         {performance.length > 0 && <AbcXyzMatrix rows={performance} index={11} />}
         {risk && <RiskSection risk={risk} index={12} />}
-        {replenishment && <ReplenishmentSection data={replenishment} index={14} />}
+        {replenishment && (
+          <ReplenishmentSection
+            data={replenishment}
+            index={14}
+            filter={{ ...scope, serviceLevel }}
+          />
+        )}
         {forecast && <ForecastSections forecast={forecast} index={15} />}
       </div>
 

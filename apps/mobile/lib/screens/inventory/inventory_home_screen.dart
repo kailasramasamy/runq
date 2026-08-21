@@ -353,6 +353,20 @@ class _HeroCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _HeroMiniKpi(
+                      // Out of stock leads: it is already costing sales,
+                      // where "low" is still only a warning. Labelled
+                      // "Stockouts" because "Out of Stock" ellipsises at
+                      // four tiles across on a small phone.
+                      label: 'Stockouts',
+                      value: k.outOfStockCount.toString(),
+                      sub: 'items',
+                      alert: k.outOfStockCount > 0,
+                      onTap: () => context.push('/inventory/alerts'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HeroMiniKpi(
                       label: 'Low Stock',
                       value: k.lowStockCount.toString(),
                       sub: 'items',
@@ -815,6 +829,14 @@ class _NeedsAttention extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final rows = <Widget>[
+      if (k.outOfStockCount > 0)
+        _AttentionRow(
+          icon: Icons.remove_shopping_cart_outlined,
+          color: InvColors.error,
+          label: 'Out of stock',
+          count: k.outOfStockCount,
+          route: '/inventory/alerts',
+        ),
       if (k.lowStockCount > 0)
         _AttentionRow(
           icon: Icons.warning_amber_rounded,

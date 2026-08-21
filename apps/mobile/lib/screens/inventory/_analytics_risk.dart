@@ -231,12 +231,12 @@ class _ForecastCard extends StatelessWidget {
 /// What the reorder level SHOULD be. The operational alert list only reads
 /// a hand-typed level, so a SKU nobody configured never raises an alert no
 /// matter how thin it gets — this is the card that says so.
-class _ReplenishmentCard extends StatelessWidget {
+class _ReplenishmentCard extends ConsumerWidget {
   final InvReplenishment data;
   const _ReplenishmentCard({required this.data});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final rows = data.rows.take(6).toList();
     if (rows.isEmpty) {
@@ -265,11 +265,31 @@ class _ReplenishmentCard extends StatelessWidget {
                 color: InvColors.amber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                '${data.unconfiguredCount} item${data.unconfiguredCount == 1 ? '' : 's'} '
-                'have no reorder level set — alerts stay silent for them.',
-                style: RunqText.micro.copyWith(
-                    color: InvColors.amberDeep, fontWeight: FontWeight.w600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${data.unconfiguredCount} item${data.unconfiguredCount == 1 ? '' : 's'} '
+                    'have no reorder level set — alerts stay silent for them.',
+                    style: RunqText.micro.copyWith(
+                        color: InvColors.amberDeep, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  // The cure sits next to the warning — typing levels one
+                  // SKU at a time is why they stay unset.
+                  InkWell(
+                    onTap: () => _applyLevels(context, ref),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Text('Apply suggested levels',
+                          style: RunqText.micro.copyWith(
+                            color: InvColors.amberDarkest,
+                            fontWeight: FontWeight.w700,
+                            decoration: TextDecoration.underline,
+                          )),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -357,5 +377,73 @@ class _RowDivider extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 11),
       child: Container(height: 1, color: t.hairlineSoft),
     );
+  }
+}
+
+// ── Apply suggested levels ───────────────────────────────────────────────
+
+/// Dry-run → confirm → apply. Mobile only ever fills items with NO level
+/// set; overwriting hand-typed thresholds in bulk stays a web action, where
+/// the full before/after list is visible before committing.
+Future<void> _applyLevels(BuildContext context, WidgetRef ref) async {
+  final window = ref.read(invAnalyticsWindowProvider);
+  InvApplyLevelsResult preview;
+  try {
+    preview = await inventoryRepo.applyReplenishment(window: window, dryRun: true);
+  } catch (e) {
+    if (context.mounted) {
+      showRunqSnack(context, 'Could not calculate levels: $e', kind: SnackKind.error);
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  if (preview.pendingCount == 0) {
+    showRunqSnack(context, 'Every item already has a threshold', kind: SnackKind.info);
+    return;
+  }
+
+  final thin = preview.thinHistoryApplied > 0
+      ? ' ${preview.thinHistoryApplied} rest on thin demand history and are worth reviewing later.'
+      : '';
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Apply suggested levels?',
+          style: RunqText.h4.copyWith(color: RT(ctx).ink)),
+      content: Text(
+        'Sets a reorder level on ${preview.pendingCount} item'
+        '${preview.pendingCount == 1 ? '' : 's'} that have none.$thin',
+        style: RunqText.body.copyWith(color: RT(ctx).muted),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text('Cancel', style: RunqText.body.copyWith(color: RT(ctx).muted)),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: FilledButton.styleFrom(backgroundColor: InvColors.brand(ctx)),
+          child: Text('Apply', style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+
+  try {
+    final res = await inventoryRepo.applyReplenishment(window: window);
+    ref.invalidate(invReplenishmentProvider);
+    ref.invalidate(invStockAlertsProvider);
+    ref.invalidate(invStockAlertCountsProvider);
+    ref.invalidate(invKpisProvider);
+    if (!context.mounted) return;
+    showRunqSnack(
+      context,
+      'Reorder level set on ${res.applied} item${res.applied == 1 ? '' : 's'}',
+      kind: SnackKind.success,
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    showRunqSnack(context, 'Could not apply levels: $e', kind: SnackKind.error);
   }
 }

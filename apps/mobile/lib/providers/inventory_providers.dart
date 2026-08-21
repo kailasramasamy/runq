@@ -119,6 +119,34 @@ final invReorderAlertsProvider = FutureProvider.autoDispose<List<InvReorderAlert
   return inventoryRepo.reorderAlerts();
 });
 
+/// Active filter on the Stock Alerts screen: 'all' | 'out' | 'low'.
+final invAlertStatusProvider = StateProvider.autoDispose<String>((ref) => 'all');
+
+/// Warehouse filter on the Stock Alerts screen. Null = every warehouse.
+final invAlertWarehouseProvider = StateProvider.autoDispose<String?>((ref) => null);
+
+/// Free-text filter on the Stock Alerts screen.
+final invAlertSearchProvider = StateProvider.autoDispose<String>((ref) => '');
+
+/// The alert list for the current filters. Watching the filter providers
+/// means changing a chip refetches without the screen wiring it by hand.
+final invStockAlertsProvider =
+    FutureProvider.autoDispose<List<InvStockAlert>>((ref) async {
+  return inventoryRepo.stockAlerts(
+    status: ref.watch(invAlertStatusProvider),
+    warehouseId: ref.watch(invAlertWarehouseProvider),
+    search: ref.watch(invAlertSearchProvider),
+  );
+});
+
+/// Counts for the summary strip and the Alerts tab badge. Deliberately
+/// independent of the list filters so the strip always shows the full
+/// picture even while the list is narrowed to one warehouse.
+final invStockAlertCountsProvider =
+    FutureProvider.autoDispose<InvStockAlertCounts>((ref) async {
+  return inventoryRepo.stockAlertCounts();
+});
+
 // Item detail screen — masters record + stock-by-warehouse. Two providers
 // kept separate so the warehouse breakdown can refresh on its own when a
 // movement is posted, without re-pulling the masters record.
@@ -130,6 +158,13 @@ final invItemDetailProvider = FutureProvider.autoDispose
 final invItemStockProvider = FutureProvider.autoDispose
     .family<List<InvItemStockRow>, String>((ref, id) async {
   return inventoryRepo.itemStock(id);
+});
+
+/// Negotiated prices covering this item. Separate from the masters record
+/// so editing item pricing doesn't force a re-fetch of the price lists.
+final invItemPriceListsProvider = FutureProvider.autoDispose
+    .family<List<InvItemPriceLine>, String>((ref, id) async {
+  return inventoryRepo.itemPriceLists(id);
 });
 
 /// Invalidate every view derived from stock levels.

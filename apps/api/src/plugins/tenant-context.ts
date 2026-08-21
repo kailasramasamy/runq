@@ -25,7 +25,7 @@ declare module 'fastify' {
 
 const TENANT_HEADER = 'x-tenant-id';
 
-interface Membership {
+export interface Membership {
   tenantId: string;
   role: UserRole;
   userModules: string[] | null;
@@ -40,7 +40,7 @@ interface Membership {
  *   - explicit grant → enabled ∩ grant, bounded by what the role may access
  *     (so a granted module never 403s its own data)
  */
-function computeEffectiveModules(m: Membership): ModuleCode[] {
+export function computeEffectiveModules(m: Membership): ModuleCode[] {
   const enabled = sanitizeModuleCodes(m.enabledModules ?? []);
   if (m.role === 'owner' || m.role === 'client_owner') return enabled;
   if (m.userModules == null) return defaultModulesForRole(m.role, enabled);

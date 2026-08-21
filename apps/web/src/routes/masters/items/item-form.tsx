@@ -142,6 +142,15 @@ export function ItemForm({
   const [trackSerials, setTrackSerials] = useState(initialTracking.trackSerials);
   // Per-item batch code template — used by Direct Receipt to pre-fill a
   // fresh batch code. Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}.
+  // Stock alert thresholds. Kept as strings so the inputs can be cleared
+  // to "no threshold" rather than coercing an empty box to 0 — 0 means
+  // "alert when it hits zero", which is a different instruction.
+  const [reorderLevel, setReorderLevel] = useState<string>(
+    source?.reorderLevel != null ? String(source.reorderLevel) : '',
+  );
+  const [reorderQty, setReorderQty] = useState<string>(
+    source?.reorderQty != null ? String(source.reorderQty) : '',
+  );
   const [batchCodeTemplate, setBatchCodeTemplate] = useState<string>(
     source?.batchCodeTemplate ?? '',
   );
@@ -259,6 +268,8 @@ export function ItemForm({
             batchCodeTemplate: trackBatches && batchCodeTemplate.trim()
               ? batchCodeTemplate.trim()
               : null,
+            reorderLevel: reorderLevel.trim() === '' ? null : Number(reorderLevel),
+            reorderQty: reorderQty.trim() === '' ? null : Number(reorderQty),
           }
         : {}),
       // Carry the source's COGM breakdown into the new item when duplicating,
@@ -495,6 +506,30 @@ export function ItemForm({
                 onChange={(e) => setBatchCodeTemplate(e.target.value)}
                 placeholder="e.g. {SKU}-POOL-{YYYYMMDD}"
                 helper="Tokens: {SKU}, {YYYY}, {MM}, {DD}, {YYYYMMDD}. Pre-fills the batch field on Direct Receipt."
+              />
+            </div>
+          )}
+          {trackInventory && (
+            <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+              <Input
+                label="Low stock at"
+                type="number"
+                min={0}
+                step="any"
+                value={reorderLevel}
+                onChange={(e) => setReorderLevel(e.target.value)}
+                placeholder="No threshold"
+                helper="On-hand at or below this raises a low-stock alert. Leave blank for none — the item still alerts when it hits zero."
+              />
+              <Input
+                label="Reorder quantity"
+                type="number"
+                min={0}
+                step="any"
+                value={reorderQty}
+                onChange={(e) => setReorderQty(e.target.value)}
+                placeholder="Optional"
+                helper="Suggested quantity to order when the threshold is breached."
               />
             </div>
           )}
