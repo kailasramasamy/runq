@@ -323,11 +323,18 @@ class MfgSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final String placeholder;
   final ValueChanged<String>? onChanged;
+
+  /// Raises the keyboard with the field. On a picker sheet the search box is
+  /// the only reason the sheet opened, so waiting for a second tap is a tap
+  /// wasted. Off by default — a search bar sitting on a full screen shouldn't
+  /// steal focus and cover the list.
+  final bool autofocus;
   const MfgSearchBar({
     super.key,
     required this.controller,
     this.placeholder = 'Search…',
     this.onChanged,
+    this.autofocus = false,
   });
 
   @override
@@ -336,6 +343,7 @@ class MfgSearchBar extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
+      autofocus: autofocus,
       textCapitalization: TextCapitalization.none,
       style: RunqText.body.copyWith(color: t.ink),
       decoration: InputDecoration(

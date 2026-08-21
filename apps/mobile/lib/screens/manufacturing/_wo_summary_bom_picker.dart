@@ -171,6 +171,7 @@ class _BomPickerSheetState extends State<_BomPickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: MfgSearchBar(
                 controller: _ctrl,
+                autofocus: true,
                 placeholder: 'Search BOM code or name…',
                 onChanged: _runSearch,
               ),
