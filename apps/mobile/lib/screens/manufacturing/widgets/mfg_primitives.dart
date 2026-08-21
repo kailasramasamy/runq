@@ -87,7 +87,11 @@ _StatusStyle _woStatusStyle(BuildContext context, String status) {
     case 'closed':
       return _StatusStyle(MfgColors.roseSubtle, MfgColors.roseDeep, 'Closed');
     case 'cancelled':
-      return _StatusStyle(MfgColors.errorBg, MfgColors.error, 'Cancelled');
+      // Neutral, not red: on a list of rose "Closed" pills an error-red
+      // "Cancelled" was the same badge at a glance. A voided run should
+      // recede, and the row itself carries the signal (see MfgDocListTile).
+      final tc = RT(context);
+      return _StatusStyle(tc.hairline, tc.muted, 'Cancelled');
     case 'draft':
     default:
       // Theme tokens, not fixed greys: 8% black on grey-500 disappears entirely
@@ -467,6 +471,10 @@ class MfgDocListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final brand = MfgColors.brand(context);
+    // A cancelled run is struck through and faded rather than recoloured: on a
+    // list where every other row is a rose badge, a different shade of red is
+    // not a difference you notice.
+    final cancelled = status == 'cancelled';
     return Material(
       color: flat ? Colors.transparent : t.surface,
       borderRadius: BorderRadius.circular(flat ? 0 : 12),
@@ -485,9 +493,9 @@ class MfgDocListTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (leadingShift != null && leadingShift!.isNotEmpty)
-                MfgShiftBlock(shift: leadingShift!)
+                Opacity(opacity: cancelled ? 0.45 : 1, child: MfgShiftBlock(shift: leadingShift!))
               else if (leadingDate != null)
-                MfgDateBlock(isoDate: leadingDate!)
+                Opacity(opacity: cancelled ? 0.45 : 1, child: MfgDateBlock(isoDate: leadingDate!))
               else
                 Container(
                   width: 36, height: 36,
@@ -513,7 +521,11 @@ class MfgDocListTile extends StatelessWidget {
                                 child: Text(
                                   headline ?? title,
                                   style: RunqText.bodyStrong.copyWith(
-                                      color: t.ink,
+                                      color: cancelled ? t.muted2 : t.ink,
+                                      decoration: cancelled
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: t.muted2,
                                       fontWeight: headline != null
                                           ? FontWeight.w700
                                           : null),
@@ -644,9 +656,15 @@ class MfgDocListTile extends StatelessWidget {
                     Text(
                       rightValue!,
                       style: rightUnit == null
-                          ? RunqText.bodyStrong.copyWith(color: t.ink)
+                          ? RunqText.bodyStrong
+                              .copyWith(color: cancelled ? t.muted2 : t.ink)
                           : RunqText.h2.copyWith(
-                              color: t.ink, fontWeight: FontWeight.w800, height: 1),
+                              color: cancelled ? t.muted2 : t.ink,
+                              decoration:
+                                  cancelled ? TextDecoration.lineThrough : null,
+                              decorationColor: t.muted2,
+                              fontWeight: FontWeight.w800,
+                              height: 1),
                     ),
                   ],
                 ),
