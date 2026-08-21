@@ -505,14 +505,31 @@ class MfgDocListTile extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            headline ?? title,
-                            style: RunqText.bodyStrong.copyWith(
-                                color: t.ink,
-                                fontWeight:
-                                    headline != null ? FontWeight.w700 : null),
-                            maxLines: headline != null ? 2 : 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  headline ?? title,
+                                  style: RunqText.bodyStrong.copyWith(
+                                      color: t.ink,
+                                      fontWeight: headline != null
+                                          ? FontWeight.w700
+                                          : null),
+                                  maxLines: headline != null ? 2 : 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Unit belongs with the thing being measured, not
+                              // stacked under the numeral on the far right.
+                              if (rightUnit != null) ...[
+                                const SizedBox(width: 6),
+                                Text(rightUnit!,
+                                    style: RunqText.caption
+                                        .copyWith(color: t.muted)),
+                              ],
+                            ],
                           ),
                         ),
                         if (rightValue == null && status != null) ...[
@@ -536,12 +553,12 @@ class MfgDocListTile extends StatelessWidget {
                     // headline is carrying the row's identity.
                     if (reference != null) ...[
                       const SizedBox(height: 4),
+                      // Pill trails the document number rather than leading the
+                      // line: the number is what identifies the row, the status
+                      // qualifies it. Flexible (not Expanded) keeps the pill
+                      // hugging the number instead of floating to the edge.
                       Row(children: [
-                        if (rightValue != null && status != null) ...[
-                          MfgStatusPill(status: status!),
-                          const SizedBox(width: 6),
-                        ],
-                        Expanded(
+                        Flexible(
                           child: Text(
                             reference!,
                             style: RunqText.caption.copyWith(color: t.muted2),
@@ -549,6 +566,10 @@ class MfgDocListTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (rightValue != null && status != null) ...[
+                          const SizedBox(width: 6),
+                          MfgStatusPill(status: status!),
+                        ],
                       ]),
                       if (metaLine != null) ...[
                         const SizedBox(height: 3),
@@ -627,11 +648,6 @@ class MfgDocListTile extends StatelessWidget {
                           : RunqText.h2.copyWith(
                               color: t.ink, fontWeight: FontWeight.w800, height: 1),
                     ),
-                    if (rightUnit != null) ...[
-                      const SizedBox(height: 2),
-                      Text(rightUnit!,
-                          style: RunqText.micro.copyWith(color: t.muted)),
-                    ],
                   ],
                 ),
               ],

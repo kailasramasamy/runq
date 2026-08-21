@@ -17,6 +17,7 @@ import { NotFoundError, ConflictError } from '../../utils/errors';
 import { WorkOrderService } from './wo.service';
 import { StockLedgerService } from '../inventory/stock-ledger.service';
 import { ManufacturingGlPoster } from './gl-poster';
+import { restoreConsumedInputs } from './wo-reversal.service';
 import {
   assignOutputCosts,
   computePreview,
@@ -256,20 +257,7 @@ export class WoLifecycleService {
         .from(woConsumption)
         .where(and(eq(woConsumption.woId, id), eq(woConsumption.tenantId, this.tenantId)))) as CRow[];
 
-      for (const row of consumptionRows) {
-        await this.ledger.recordMovement(tx, {
-          itemId: row.inputItemId,
-          warehouseId: row.warehouseId,
-          batchNo: row.batchNo ?? null,
-          movementType: 'reversal',
-          sourceType: 'work_order_reversal',
-          sourceId: row.id,
-          qtyDelta: Number(row.qty),
-          unitCost: Number(row.unitCost),
-          movedAt: new Date(),
-          postedBy: userId ?? null,
-        });
-      }
+      await restoreConsumedInputs(this.ledger, tx, consumptionRows, userId);
 
       // Delete output rows (no ledger entries pre-close)
       await tx.delete(woOutput)

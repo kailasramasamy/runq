@@ -99,13 +99,13 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               // non-perishable tenants don't see noise. Driven by the same
               // /inventory/stock/expiring endpoint as the web Mfg tile.
               const _PerishablesSection(),
+              MfgSectionHeader(label: 'Quick actions'),
+              const _QuickActionsGrid(),
+              const SizedBox(height: 16),
               // What a run can actually consume. Previously this was only
               // answerable by leaving for the Inventory module, which is the
               // wrong place to be standing when writing a BOM.
               const _RawMaterialsSection(),
-              MfgSectionHeader(label: 'Quick actions'),
-              const _QuickActionsGrid(),
-              const SizedBox(height: 16),
               // "See all" lives on the header, matching Perishables and Raw
               // materials above. The card used to carry it as a footer, which
               // put the escape hatch ten rows down the page.
@@ -175,7 +175,7 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               ),
               // "This week" is a look-back, not something to act on — it sits
               // after the operational sections (what's expiring, what's on
-              // hand, what to do, today's runs) rather than above them.
+              // do, what's on hand, today's runs) rather than above them.
               const SizedBox(height: 16),
               dashAsync.whenOrNull(
                     data: (d) => _ThisWeekCard(dashboard: d),

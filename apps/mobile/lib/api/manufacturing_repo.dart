@@ -165,6 +165,15 @@ class ManufacturingRepo {
     return WorkOrder.fromJson((res['data'] as Map).cast<String, dynamic>());
   }
 
+  /// Undo a closed run. Restores the inputs, takes the produced batch back off
+  /// the shelf and leaves the WO cancelled — the corrected figures go in as a
+  /// fresh entry.
+  Future<WorkOrder> reverseWo(String id, {String? reason}) async {
+    final body = reason == null ? const <String, dynamic>{} : {'reason': reason};
+    final res = await apiClient.post('/manufacturing/wos/$id/reverse', body);
+    return WorkOrder.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
   // ── Phase 2: Consumption ─────────────────────────────────────────────────
 
   Future<List<WoConsumptionRow>> listConsumption(String woId) async {

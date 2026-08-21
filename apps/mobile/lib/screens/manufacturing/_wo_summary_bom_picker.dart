@@ -30,9 +30,25 @@ class _BomPickerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return ListTile(
-      title: Text(
-        bom.outputItemName.isNotEmpty ? bom.outputItemName : bom.name,
-        style: RunqText.bodyStrong.copyWith(color: t.ink),
+      title: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Flexible(
+            child: Text(
+              bom.outputItemName.isNotEmpty ? bom.outputItemName : bom.name,
+              style: RunqText.bodyStrong.copyWith(color: t.ink),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          // Unit sits with the product, matching the WO rows on the home list.
+          if (bom.outputUom.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            Text(bom.outputUom,
+                style: RunqText.caption.copyWith(color: t.muted)),
+          ],
+        ],
       ),
       subtitle: Text(
         bom.bomCode,

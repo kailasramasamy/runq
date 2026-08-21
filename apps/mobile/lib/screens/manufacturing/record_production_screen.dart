@@ -34,8 +34,32 @@ import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
+/// Seeds the form when a correction reopens it: the operator got one number
+/// wrong, so everything else should already be filled in the way they entered
+/// it the first time. Batch number and expiry are left blank — the reversed
+/// batch is gone, and the repost gets a fresh one.
+class RecordProductionPrefill {
+  const RecordProductionPrefill({
+    required this.bomId,
+    required this.bomCode,
+    required this.bomName,
+    this.producedQty,
+    this.warehouseId,
+    this.shift,
+  });
+
+  final String bomId;
+  final String bomCode;
+  final String bomName;
+  final double? producedQty;
+  final String? warehouseId;
+  final String? shift;
+}
+
 class RecordProductionScreen extends ConsumerStatefulWidget {
-  const RecordProductionScreen({super.key});
+  const RecordProductionScreen({super.key, this.prefill});
+
+  final RecordProductionPrefill? prefill;
 
   @override
   ConsumerState<RecordProductionScreen> createState() => _RecordProductionScreenState();
@@ -69,8 +93,25 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   @override
   void initState() {
     super.initState();
+    final pre = widget.prefill;
+    if (pre != null) {
+      _bomId = pre.bomId;
+      _bomCode = pre.bomCode;
+      _bomName = pre.bomName;
+      _shift = pre.shift;
+      _warehouseId = pre.warehouseId;
+      if (pre.producedQty != null) {
+        _producedQtyCtl.text = _trimQty(pre.producedQty!);
+      }
+      _schedulePreview();
+    }
     _applyDefaultWarehouse();
   }
+
+  /// 120.0 → "120", 120.5 → "120.5" — a prefilled qty should read the way the
+  /// operator typed it, not the way the API serialised it.
+  static String _trimQty(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
   /// Most plants run everything out of one warehouse, so making the technician
   /// pick it each time is a tap that can only be got wrong. Falls back to the
@@ -260,6 +301,9 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     final woNumber = (data?['woNumber'] as String?) ?? '';
     ref.invalidate(workOrderListProvider);
     ref.invalidate(mfgDashboardProvider);
+    // A run consumes inputs and posts an output batch, so every stock view
+    // behind us (raw materials on hand, perishables) is stale.
+    invalidateStockViews(ref);
     final posted = woNumber.isEmpty ? 'Production posted' : 'Posted as $woNumber';
     showRunqSnack(
       context,
@@ -311,7 +355,12 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
                     batchNoCtl: _batchNoCtl,
                     shift: _shift,
                     shiftPresets: _shiftPresets,
-                    onShiftTap: (v) => setState(() => _shift = _shift == v ? null : v),
+                    // Tapping a shift chip means the qty keypad is done with;
+                    // leaving it up hides the rest of the form.
+                    onShiftTap: (v) {
+                      FocusScope.of(context).unfocus();
+                      setState(() => _shift = _shift == v ? null : v);
+                    },
                     notesCtl: _notesCtl,
                   ),
                   const SizedBox(height: 12),

@@ -17,6 +17,7 @@ import { WoConsumptionService } from './consumption.service';
 import { WoOutputService } from './output.service';
 import { BatchSuggestService } from './batch-suggest.service';
 import { WoLifecycleService } from './wo-lifecycle.service';
+import { WoReversalService } from './wo-reversal.service';
 import { computePreview } from './costing.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer', 'technician'] as const;
@@ -96,6 +97,21 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
       const input = cancelWorkOrderSchema.parse(request.body ?? {});
       const lifecycle = new WoLifecycleService(request.server.db, request.tenantId);
       const data = await lifecycle.cancelWithReversal(id, input.reason ?? null, request.user?.userId);
+      return { data };
+    },
+  );
+
+  // Undo a closed run. Same roles as running one: whoever recorded the
+  // production is who notices the wrong number, and making them chase an
+  // owner leaves bad stock on the shelf in the meantime.
+  app.post(
+    '/:id/reverse',
+    { preHandler: [rbacHook([...RUN_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = cancelWorkOrderSchema.parse(request.body ?? {});
+      const reversal = new WoReversalService(request.server.db, request.tenantId);
+      const data = await reversal.reverseClosed(id, input.reason ?? null, request.user?.userId);
       return { data };
     },
   );

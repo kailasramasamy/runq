@@ -117,7 +117,9 @@ class _WoRunSimpleScreenState extends ConsumerState<WoRunSimpleScreen> {
     ref.invalidate(woOutputProvider(widget.woId));
     ref.invalidate(workOrderListProvider);
     ref.invalidate(mfgDashboardProvider);
-    ref.invalidate(invOnHandProvider);
+    // On-hand isn't the only stale view after a run — perishables and the
+    // stock highlights move with it.
+    invalidateStockViews(ref);
   }
 
   /// Oldest-first batch allocation for every BOM line. Returns null and explains

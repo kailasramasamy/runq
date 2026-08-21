@@ -898,8 +898,14 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
         GoRoute(
           path: '/manufacturing/production/new',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) =>
-              _slidePage(const RecordProductionScreen(), key: state.pageKey),
+          // `extra` carries a prefill when a closed run is being corrected:
+          // reverse the old entry, reopen the form with the same BOM and qty.
+          pageBuilder: (ctx, state) => _slidePage(
+            RecordProductionScreen(
+              prefill: state.extra as RecordProductionPrefill?,
+            ),
+            key: state.pageKey,
+          ),
         ),
         // Teardown of unsold FG back into raw material.
         GoRoute(
