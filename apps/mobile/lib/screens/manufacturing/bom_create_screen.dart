@@ -70,7 +70,12 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
   }
 
   Future<void> _addLine() async {
-    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'all');
+    final picked = await showMfgItemPicker(context,
+        title: 'Pick input item',
+        itemClassGroup: 'bom_inputs',
+        // Seed the search from the output — a mustard-oil BOM almost always
+        // consumes mustard something. 'Show all' in the sheet drops the seed.
+        suggestFrom: _outputItemName);
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(
@@ -378,7 +383,12 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
           l.inputUom.isNotEmpty);
 
   Future<void> _addLine() async {
-    final picked = await showMfgItemPicker(context, title: 'Pick input item', itemClassGroup: 'all');
+    final picked = await showMfgItemPicker(context,
+        title: 'Pick input item',
+        itemClassGroup: 'bom_inputs',
+        // Seed the search from the output — a mustard-oil BOM almost always
+        // consumes mustard something. 'Show all' in the sheet drops the seed.
+        suggestFrom: _outputItemName);
     if (picked != null && mounted) {
       setState(() {
         _lines.add(_BomLineInput(

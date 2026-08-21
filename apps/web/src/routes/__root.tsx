@@ -2302,11 +2302,13 @@ const invItemsRoute = createRoute({
   // Declares what ItemsPage already reads off the URL, so the dashboard's
   // "See all" links can hand it a class bucket type-safely.
   validateSearch: (s: Record<string, unknown>): {
-    q?: string; page?: number; classGroup?: string;
+    q?: string; page?: number; classGroup?: string; itemClass?: string;
   } => ({
     q: typeof s.q === 'string' ? s.q : undefined,
     page: s.page === undefined ? undefined : Number(s.page) || undefined,
     classGroup: typeof s.classGroup === 'string' ? s.classGroup : undefined,
+    // Second-level pill inside a bucket (Inputs → raw material / packaging).
+    itemClass: typeof s.itemClass === 'string' ? s.itemClass : undefined,
   }),
   component: ItemsPage,
 });

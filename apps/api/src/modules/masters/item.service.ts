@@ -177,6 +177,7 @@ export class ItemService {
       filters.type ? eq(items.type, filters.type) : undefined,
       filters.itemClass ? eq(items.itemClass, filters.itemClass) : undefined,
       groupClasses && groupClasses.length > 0 ? inArray(items.itemClass, groupClasses) : undefined,
+      filters.unclassified ? isNull(items.itemClass) : undefined,
       filters.categoryId ? eq(items.categoryId, filters.categoryId) : undefined,
       legacyCategoryFilterId ? eq(items.categoryId, legacyCategoryFilterId) : undefined,
     );
@@ -356,7 +357,14 @@ export class ItemService {
    * tab strip drives the visible catalogue list, which also filters by
    * is_active.
    */
-  async classGroupCounts(): Promise<Record<'finished' | 'inputs' | 'trading' | 'other', number>> {
+  async classGroupCounts(): Promise<
+    Record<'finished' | 'inputs' | 'trading' | 'other' | 'unclassified', number> & {
+      /** Per-item_class tallies, for strips that show a single class as its
+       *  own pill (Unlabelled, Raw material, Packaging) and need a number
+       *  the bucket totals can't supply. */
+      byClass: Partial<Record<ItemClass, number>>;
+    }
+  > {
     const rows = await this.db
       .select({
         itemClass: items.itemClass,
@@ -365,8 +373,14 @@ export class ItemService {
       .from(items)
       .where(and(eq(items.tenantId, this.tenantId), eq(items.isActive, true)))
       .groupBy(items.itemClass);
-    const out = { finished: 0, inputs: 0, trading: 0, other: 0 };
+    const byClass: Partial<Record<ItemClass, number>> = {};
+    const out = { finished: 0, inputs: 0, trading: 0, other: 0, unclassified: 0, byClass };
     for (const r of rows) {
+      if (r.itemClass) {
+        byClass[r.itemClass] = r.count;
+      } else {
+        out.unclassified += r.count;
+      }
       switch (r.itemClass) {
         case 'finished_good':
         case 'semi_finished':

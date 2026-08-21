@@ -12,6 +12,8 @@
 
 library;
 
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 
 import '../../../theme/runq_theme.dart';
@@ -46,9 +48,7 @@ String indianINR(num v, {int decimals = 0}) {
   }
   final scaled = (abs * scale).round();
   final wholeInt = scaled ~/ scale;
-  final fracStr = decimals > 0
-      ? '.${(scaled % scale).toString().padLeft(decimals, '0')}'
-      : '';
+  final fracStr = decimals > 0 ? '.${(scaled % scale).toString().padLeft(decimals, '0')}' : '';
   final whole = wholeInt.toString();
   if (whole.length <= 3) return '${neg ? '-' : ''}₹$whole$fracStr';
   final last3 = whole.substring(whole.length - 3);
@@ -72,8 +72,18 @@ String prettyShortDate(String iso) {
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final now = DateTime.now();
   final base = '${dt.day} ${months[dt.month - 1]}';
@@ -113,10 +123,7 @@ _StatusStyle _styleFor(String status) {
 
 String _humanize(String s) => s.isEmpty
     ? s
-    : s
-        .split('_')
-        .map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}')
-        .join(' ');
+    : s.split('_').map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}').join(' ');
 
 /// Compact status badge — used on GRN, DN, transfer, adjustment, stock take.
 class InvStatusPill extends StatelessWidget {
@@ -129,10 +136,7 @@ class InvStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(color: s.bg, borderRadius: BorderRadius.circular(99)),
-      child: Text(
-        s.label,
-        style: RunqText.micro.copyWith(color: s.fg, letterSpacing: 0.3),
-      ),
+      child: Text(s.label, style: RunqText.micro.copyWith(color: s.fg, letterSpacing: 0.3)),
     );
   }
 }
@@ -203,9 +207,7 @@ class InvCard extends StatelessWidget {
         color: t.surface,
         border: Border.all(color: t.hairlineSoft),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0F000000), blurRadius: 4, offset: Offset(0, 1)),
-        ],
+        boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 4, offset: Offset(0, 1))],
       ),
       child: child,
     );
@@ -241,10 +243,7 @@ class InvSectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              title.toUpperCase(),
-              style: RunqText.label.copyWith(color: t.muted),
-            ),
+            child: Text(title.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
           ),
           if (action != null && onAction != null)
             GestureDetector(
@@ -316,11 +315,9 @@ class InvGradientHeader extends StatelessWidget {
                 children: [
                   if (leading != null) ...[leading!, const SizedBox(width: 8)],
                   Expanded(
-                    child: titleWidget ??
-                        Text(
-                          title,
-                          style: RunqText.h3.copyWith(color: Colors.white, height: 1.2),
-                        ),
+                    child:
+                        titleWidget ??
+                        Text(title, style: RunqText.h3.copyWith(color: Colors.white, height: 1.2)),
                   ),
                   if (trailing != null) trailing!,
                 ],
@@ -345,12 +342,7 @@ class InvGradientHeader extends StatelessWidget {
 /// transparent fill and no underline so the bar reads as part of the
 /// scaffold bgWarm. Optional back arrow + trailing action.
 class InvPlainAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const InvPlainAppBar({
-    super.key,
-    required this.title,
-    this.onBack,
-    this.trailing,
-  });
+  const InvPlainAppBar({super.key, required this.title, this.onBack, this.trailing});
   final String title;
   final VoidCallback? onBack;
   final Widget? trailing;
@@ -423,10 +415,8 @@ class InvKpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final border = borderTint
-        ?? (accent
-            ? InvColors.brand(context).withValues(alpha: 0.33)
-            : t.hairline);
+    final border =
+        borderTint ?? (accent ? InvColors.brand(context).withValues(alpha: 0.33) : t.hairline);
     final valueColor = accent ? InvColors.brand(context) : t.ink;
     final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -510,10 +500,7 @@ class InvHeroKpi extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   'vs last week',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.55),
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.55)),
                 ),
               ],
             ),
@@ -568,10 +555,7 @@ class InvMiniStat extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  value,
-                  style: RunqText.h4.copyWith(color: t.ink, height: 1.15),
-                ),
+                Text(value, style: RunqText.h4.copyWith(color: t.ink, height: 1.15)),
                 Text(label, style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
@@ -612,10 +596,7 @@ class InvActionTile extends StatelessWidget {
     // Amber wash deepening toward the bottom-right, blended onto the surface
     // (not overlaid at alpha) so the fill stays opaque and text keeps contrast.
     final washStrength = Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.09;
-    final wash = Color.alphaBlend(
-      InvColors.amber.withValues(alpha: washStrength),
-      t.surface,
-    );
+    final wash = Color.alphaBlend(InvColors.amber.withValues(alpha: washStrength), t.surface);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
@@ -668,9 +649,7 @@ class InvActionTile extends StatelessWidget {
                           // muddy against the washed card.
                           color: t.surface,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: InvColors.amber.withValues(alpha: 0.18),
-                          ),
+                          border: Border.all(color: InvColors.amber.withValues(alpha: 0.18)),
                         ),
                         child: Icon(icon, size: 20, color: InvColors.brand(context)),
                       ),
@@ -706,8 +685,7 @@ class InvActionTile extends StatelessWidget {
                           ),
                           child: Text(
                             badge!,
-                            style: RunqText.micro.copyWith(
-                                color: Colors.white, letterSpacing: 0.2),
+                            style: RunqText.micro.copyWith(color: Colors.white, letterSpacing: 0.2),
                           ),
                         ),
                       ],
@@ -751,19 +729,13 @@ class InvStockBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (_, c) => Container(
         height: height,
-        decoration: BoxDecoration(
-          color: t.hairlineSoft,
-          borderRadius: BorderRadius.circular(99),
-        ),
+        decoration: BoxDecoration(color: t.hairlineSoft, borderRadius: BorderRadius.circular(99)),
         clipBehavior: Clip.antiAlias,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Container(
             width: c.maxWidth * pct,
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: BorderRadius.circular(99),
-            ),
+            decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(99)),
           ),
         ),
       ),
@@ -783,12 +755,17 @@ class InvFilterPill extends StatelessWidget {
     required this.onTap,
     this.activeColor,
     this.icon,
+    this.count,
   });
   final String label;
   final bool active;
   final VoidCallback onTap;
   final Color? activeColor;
   final IconData? icon;
+
+  /// Optional tally rendered after the label. Null hides the badge — a
+  /// pill whose count hasn't loaded must not read as a pill with none.
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
@@ -804,9 +781,7 @@ class InvFilterPill extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: icon == null ? 12 : 10, vertical: 6),
           decoration: BoxDecoration(
             color: active ? ac : t.surface,
-            border: Border.all(
-              color: active ? Colors.transparent : t.hairline,
-            ),
+            border: Border.all(color: active ? Colors.transparent : t.hairline),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
@@ -824,6 +799,18 @@ class InvFilterPill extends StatelessWidget {
                   fontSize: 12,
                 ),
               ),
+              if (count != null) ...[
+                const SizedBox(width: 5),
+                Text(
+                  '$count',
+                  style: RunqText.caption.copyWith(
+                    color: active ? Colors.white.withValues(alpha: 0.85) : t.muted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1081,11 +1068,14 @@ class InvDocListTile extends StatelessWidget {
   final String? subtitle;
   final Widget statusPill;
   final List<InvDocMeta> meta;
+
   /// Small uppercase caption shown above the right-anchored value
   /// (e.g. `12 LINES`). Kept short — single-line ellipsis.
   final String valueLabel;
+
   /// Right-anchored amount (compactINR result, or any short string).
   final String valueText;
+
   /// Tint colour for the leading icon container. Defaults to the inventory
   /// brand amber so the entire module reads as one family.
   final Color? leadingColor;
@@ -1291,10 +1281,7 @@ class InvEmptyState extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
-                color: t.bgWarmer,
-                borderRadius: BorderRadius.circular(16),
-              ),
+              decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(16)),
               child: Icon(icon, size: 26, color: t.muted2),
             ),
             const SizedBox(height: 12),

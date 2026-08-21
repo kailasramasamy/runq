@@ -7,6 +7,26 @@ import { useItems } from '@/hooks/queries/use-items';
 import type { BomWithLines } from '@runq/types';
 import type { CreateBomInput } from '@runq/validators';
 
+/** Pack sizes, units and filler — see mfgSuggestKeyword in the mobile picker,
+ *  which uses the same list to seed its input search. */
+const GENERIC_WORDS = new Set([
+  'ml', 'ltr', 'litre', 'liter', 'kg', 'kgs', 'gm', 'gms', 'gram', 'grams',
+  'pcs', 'pack', 'packet', 'pouch', 'bottle', 'box', 'jar', 'tin', 'can',
+  'the', 'and', 'with', 'plain', 'pure', 'premium', 'refined', 'fresh',
+  'new', 'std', 'standard', 'grade',
+]);
+
+/** Distinctive word of an item name — the longest one that isn't filler.
+ *  In FMCG naming the ingredient outruns the form ("mustard" > "oil"). */
+function suggestKeyword(itemName: string | undefined): string | null {
+  const words = (itemName ?? '')
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((w) => w.length >= 3 && !GENERIC_WORDS.has(w));
+  if (words.length === 0) return null;
+  return words.sort((a, b) => b.length - a.length)[0];
+}
+
 interface BomLineField {
   inputItemId: string;
   qtyPerOutput: string;
@@ -84,12 +104,11 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
 
   // Output items: the finished_good / semi_finished bucket.
   //
-  // Inputs are deliberately unfiltered. A recipe's components are usually raw
-  // material and packaging, but a semi-finished item is a legitimate input too —
-  // it is exactly what a second-stage recipe consumes, including the unlabelled
-  // pool behind a made-on-demand SKU. Restricting this to the 'inputs' group
-  // made those recipes impossible to key in. The combobox is searchable, so the
-  // longer list costs nothing.
+  // Input items: the 'bom_inputs' bucket — raw material, packaging, consumables
+  // and semi-finished. Semi-finished stays in because a second-stage recipe
+  // consumes exactly that (including the unlabelled pool behind a made-on-demand
+  // SKU), which the narrower 'inputs' group hid. Finished and trading goods are
+  // sold as-is and only clutter the list.
   const { data: outputItemsData } = useItems({
     limit: 500,
     type: 'product',
@@ -98,7 +117,7 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
   const { data: inputItemsData } = useItems({
     limit: 500,
     type: 'product',
-    itemClassGroup: 'all',
+    itemClassGroup: 'bom_inputs',
   });
   const outputItemOptions = (outputItemsData?.data ?? []).map((i) => ({
     value: i.id,
@@ -117,9 +136,22 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
     const picked = pickedInputItem(value);
     if (picked?.unit && !lines[idx]?.inputUom) updateLine(idx, 'inputUom', picked.unit);
   }
+  // Float items sharing the output's distinctive word to the top — a
+  // mustard-oil recipe consumes mustard something. Ranked, never filtered:
+  // the bottle, cap and label share no word with the oil but are just as
+  // much a part of the recipe, so nothing is ever hidden from the list.
+  const inputKeyword = suggestKeyword(pickedOutputItem?.name);
+  const matchesKeyword = (i: { name: string; sku?: string | null }) =>
+    inputKeyword !== null &&
+    (i.name.toLowerCase().includes(inputKeyword) ||
+      (i.sku ?? '').toLowerCase().includes(inputKeyword));
+  const rankedInputItems = [...(inputItemsData?.data ?? [])].sort(
+    (a, b) => Number(matchesKeyword(b)) - Number(matchesKeyword(a)),
+  );
+  const suggestionActive = rankedInputItems.some(matchesKeyword);
   const inputItemOptions = [
     { value: '', label: 'Select item…' },
-    ...(inputItemsData?.data ?? []).map((i) => ({
+    ...rankedInputItems.map((i) => ({
       value: i.id,
       label: `${i.name}${i.sku ? ` (${i.sku})` : ''}`,
     })),
@@ -329,6 +361,12 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
           }
         />
         <CardContent className="p-0">
+          {suggestionActive && (
+            <p className="px-4 py-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
+              Items matching “{inputKeyword}” are listed first — packaging and
+              other inputs are still in the list below them.
+            </p>
+          )}
           {errors.lines && (
             <p className="px-4 py-2 text-[11px] text-red-500">{errors.lines}</p>
           )}

@@ -128,7 +128,11 @@ export const itemFilterSchema = z.object({
   itemClass: itemClassSchema.optional(),
   /** Operational bucket — server expands to the matching item_class set.
    *  Mirrors stockOnHandFilterSchema.itemClassGroup. */
-  itemClassGroup: z.enum(['finished', 'inputs', 'trading', 'other', 'all']).optional(),
+  itemClassGroup: z.enum(['finished', 'inputs', 'trading', 'other', 'bom_inputs', 'all']).optional(),
+  /** Items with no item_class at all — services, and products created before
+   *  classification shipped. They belong to no bucket, so the class strips
+   *  need this to offer them an "Other" pill that isn't a lie. */
+  unclassified: queryBool.optional(),
   categoryId: z.string().uuid().optional(),
   category: z.string().optional(),
   subcategory: z.string().optional(),

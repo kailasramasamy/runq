@@ -14,7 +14,7 @@ interface ItemFilters {
   status?: 'active' | 'inactive';
   search?: string;
   /** Operational bucket — server expands to the matching item_class set. */
-  itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'all';
+  itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'bom_inputs' | 'all';
   /** Row order within each class group. Omitted = alphabetical. */
   sort?: 'name' | 'recent' | 'category';
   page?: number;
@@ -114,9 +114,13 @@ export function useItemClassCounts() {
   return useQuery({
     queryKey: ['items', 'class-counts'] as const,
     queryFn: () =>
-      api.get<ApiSuccess<Record<'finished' | 'inputs' | 'trading' | 'other', number>>>(
-        '/masters/items/class-counts',
-      ),
+      api.get<
+        ApiSuccess<
+          Record<'finished' | 'inputs' | 'trading' | 'other', number> & {
+            byClass: Partial<Record<ItemClass, number>>;
+          }
+        >
+      >('/masters/items/class-counts'),
     staleTime: 60_000,
   });
 }

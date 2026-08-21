@@ -18,27 +18,59 @@ import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 
-// Class filters shown as a pill strip. 'all' clears the filter; the rest are
-// either a server item_class_group bucket or, where `isClass` is set, a single
-// item_class.
+// Class filters shown as a pill strip, each with its live count.
 //
-// "Unlabelled" is the semi-finished bucket on its own — bulk stock that has
-// been made but not yet branded, which is what a made-on-demand SKU is drawn
-// from. It lives inside the 'finished' group, where it is buried among the
-// packed goods, so it earns a pill of its own: it is the number the plant
-// actually counts.
-const _classFilters = <({String key, String label, bool isClass})>[
-  (key: 'all', label: 'All', isClass: false),
-  (key: 'finished', label: 'Finished', isClass: false),
-  (key: 'semi_finished', label: 'Unlabelled', isClass: true),
-  (key: 'inputs', label: 'Inputs', isClass: false),
-  (key: 'trading', label: 'Trading', isClass: false),
-  (key: 'other', label: 'Other', isClass: false),
+// One pill per item_class rather than the 4 operational buckets: the buckets
+// hid exactly the distinctions the floor works in — raw material vs packaging
+// vs consumable are stored, counted and reordered by different people, and
+// 'Inputs' collapsed the first two into one number nobody could act on. The
+// only group left is Finished, which stays a group so packed goods lead the
+// strip; semi-finished gets its own pill right after the classes it is made
+// from.
+//
+// 'other' is the leftover pill: items carrying no item_class at all (services,
+// and products created before classification shipped).
+const _classFilters = <({String key, String label, _FilterKind kind})>[
+  (key: 'all', label: 'All', kind: _FilterKind.all),
+  (key: 'finished', label: 'Finished', kind: _FilterKind.group),
+  (key: 'trading_good', label: 'Trading', kind: _FilterKind.itemClass),
+  (key: 'raw_material', label: 'Raw material', kind: _FilterKind.itemClass),
+  (key: 'packaging', label: 'Packaging', kind: _FilterKind.itemClass),
+  (key: 'consumable', label: 'Consumable', kind: _FilterKind.itemClass),
+  (key: 'semi_finished', label: 'Semi-packaged', kind: _FilterKind.itemClass),
+  (key: 'spare_part', label: 'Spare part', kind: _FilterKind.itemClass),
+  (key: 'other', label: 'Other', kind: _FilterKind.unclassified),
 ];
 
-/// Whether a pill key selects a single item_class rather than a group.
-bool _isClassKey(String key) =>
-    _classFilters.any((f) => f.key == key && f.isClass);
+enum _FilterKind { all, group, itemClass, unclassified }
+
+/// Bucket keys that other screens still deep-link with (`?classGroup=`), mapped
+/// to the pill that now carries that stock. 'inputs' lands on Raw material —
+/// the Home "raw material available" strip is what sends it.
+const Map<String, String> _legacyGroupAliases = {
+  'inputs': 'raw_material',
+  'trading': 'trading_good',
+};
+
+_FilterKind _kindOf(String key) =>
+    _classFilters.firstWhere((f) => f.key == key, orElse: () => _classFilters.first).kind;
+
+/// Count shown on a pill. Groups sum their member classes; 'All' sums
+/// everything including the unclassified leftovers.
+int _countFor(String key, Map<String, int> byClass) {
+  switch (_kindOf(key)) {
+    case _FilterKind.all:
+      return byClass.values.fold(0, (a, b) => a + b);
+    case _FilterKind.group:
+      // 'finished' is the only group left, and it means packed goods —
+      // semi-finished has its own pill, so it must not be counted twice.
+      return byClass['finished_good'] ?? 0;
+    case _FilterKind.itemClass:
+      return byClass[key] ?? 0;
+    case _FilterKind.unclassified:
+      return byClass['unclassified'] ?? 0;
+  }
+}
 
 class InventoryItemsListScreen extends ConsumerStatefulWidget {
   const InventoryItemsListScreen({super.key, this.initialClassGroup});
@@ -67,12 +99,17 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   bool _loadingMore = false;
   String? _error;
 
+  /// item_class → active-item count, plus an 'unclassified' key. Drives the
+  /// pill badges; refreshed alongside a reset load so a reclassify shows up.
+  Map<String, int> _classCounts = const {};
+
   @override
   void initState() {
     super.initState();
     final requested = widget.initialClassGroup;
-    if (requested != null && _classFilters.any((f) => f.key == requested)) {
-      _classGroup = requested;
+    if (requested != null) {
+      final key = _legacyGroupAliases[requested] ?? requested;
+      if (_classFilters.any((f) => f.key == key)) _classGroup = key;
     }
     _scroll.addListener(_onScroll);
     _load(reset: true);
@@ -95,6 +132,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   }
 
   Future<void> _load({required bool reset}) async {
+    if (reset) _loadCounts();
     setState(() {
       if (reset) {
         _loading = true;
@@ -105,12 +143,13 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     });
     try {
       final next = reset ? 1 : _page + 1;
-      final selectsOneClass = _isClassKey(_classGroup);
+      final kind = _kindOf(_classGroup);
       final res = await inventoryRepo.items(
         page: next,
         search: _search,
-        itemClassGroup: selectsOneClass ? null : _classGroup,
-        itemClass: selectsOneClass ? _classGroup : null,
+        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
+        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
+        unclassified: kind == _FilterKind.unclassified,
         // Balance is the headline number on the tile, so the list needs it.
         withStock: true,
         // Ordered category → subcategory → name so the list can section by
@@ -144,6 +183,17 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
       _search = v;
       _load(reset: true);
     });
+  }
+
+  /// Counts are a separate aggregate — fetched once per reset load and left
+  /// alone on paging, where nothing about the catalogue has changed.
+  Future<void> _loadCounts() async {
+    try {
+      final counts = await inventoryRepo.itemClassCounts();
+      if (mounted) setState(() => _classCounts = counts);
+    } on Exception {
+      // A missing badge is not worth an error state — the list still works.
+    }
   }
 
   void _onClass(String g) {
@@ -180,7 +230,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
               hint: 'Search by name or SKU…',
             ),
           ),
-          _ClassStrip(selected: _classGroup, onChanged: _onClass),
+          _ClassStrip(selected: _classGroup, counts: _classCounts, onChanged: _onClass),
           if (!_loading && _error == null) _CountLine(loaded: _rows.length, total: _total),
           Expanded(child: _body(t)),
         ],
@@ -196,9 +246,11 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Failed to load items: $_error',
-              style: RunqText.caption.copyWith(color: t.muted),
-              textAlign: TextAlign.center),
+          child: Text(
+            'Failed to load items: $_error',
+            style: RunqText.caption.copyWith(color: t.muted),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
@@ -266,10 +318,7 @@ List<Object> _sectionedEntries(List<InvItemListRow> rows) {
   }
   return [
     for (final entry in byCategory.entries) ...[
-      _SectionLabel(
-        entry.key,
-        entry.value.values.fold(0, (n, list) => n + list.length),
-      ),
+      _SectionLabel(entry.key, entry.value.values.fold(0, (n, list) => n + list.length)),
       for (final sub in entry.value.entries) ...[
         if (sub.key.isNotEmpty) _SectionLabel(sub.key, sub.value.length, nested: true),
         ...sub.value,
@@ -296,8 +345,7 @@ class _SectionHeader extends StatelessWidget {
           Expanded(
             child: nested
                 ? Text(label, style: RunqText.caption.copyWith(color: t.muted2))
-                : Text(label.toUpperCase(),
-                    style: RunqText.label.copyWith(color: t.muted)),
+                : Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
           ),
           Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
         ],
@@ -307,8 +355,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ClassStrip extends StatelessWidget {
-  const _ClassStrip({required this.selected, required this.onChanged});
+  const _ClassStrip({required this.selected, required this.counts, required this.onChanged});
   final String selected;
+  final Map<String, int> counts;
   final ValueChanged<String> onChanged;
 
   @override
@@ -324,6 +373,9 @@ class _ClassStrip extends StatelessWidget {
           final f = _classFilters[i];
           return InvFilterPill(
             label: f.label,
+            // Counts arrive a beat after the first frame; until then the
+            // pills render bare rather than claiming everything is empty.
+            count: counts.isEmpty ? null : _countFor(f.key, counts),
             active: selected == f.key,
             onTap: () => onChanged(f.key),
           );
@@ -343,7 +395,9 @@ class _CountLine extends StatelessWidget {
     final t = RT(context);
     final label = total == 0
         ? ''
-        : (loaded < total ? 'Showing $loaded of $total items' : '$total item${total == 1 ? '' : 's'}');
+        : (loaded < total
+              ? 'Showing $loaded of $total items'
+              : '$total item${total == 1 ? '' : 's'}');
     if (label.isEmpty) return const SizedBox(height: 4);
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 2, 16, 6),
@@ -375,10 +429,7 @@ class _ItemTile extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
-              color: t.bgWarmer,
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(8)),
             child: Icon(Icons.inventory_2_outlined, size: 17, color: t.muted),
           ),
           const SizedBox(width: 10),
@@ -410,17 +461,17 @@ class _ItemTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (!row.isActive) ...[
-                      const SizedBox(width: 6),
-                      _InactivePill(),
-                    ],
+                    if (!row.isActive) ...[const SizedBox(width: 6), _InactivePill()],
                   ],
                 ),
                 if (meta.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(meta,
-                      style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    meta,
+                    style: RunqText.caption.copyWith(color: t.muted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ],
             ),
@@ -434,14 +485,16 @@ class _ItemTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (row.stockQty != null)
-                Text(_fmtQty(row.stockQty!),
-                    style: RunqText.bodyStrong.copyWith(
-                      color: row.stockQty! <= 0 ? t.muted2 : t.ink,
-                    )),
+                Text(
+                  _fmtQty(row.stockQty!),
+                  style: RunqText.bodyStrong.copyWith(color: row.stockQty! <= 0 ? t.muted2 : t.ink),
+                ),
               if (row.defaultSellingPrice != null) ...[
                 const SizedBox(height: 2),
-                Text(compactINR(row.defaultSellingPrice!),
-                    style: RunqText.caption.copyWith(color: t.muted2)),
+                Text(
+                  compactINR(row.defaultSellingPrice!),
+                  style: RunqText.caption.copyWith(color: t.muted2),
+                ),
               ],
             ],
           ),
@@ -461,12 +514,8 @@ class _InactivePill extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: t.bgWarmer,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text('Inactive',
-          style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.2)),
+      decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(4)),
+      child: Text('Inactive', style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.2)),
     );
   }
 }

@@ -186,11 +186,16 @@ class InvItem {
   /// Default purchase rate from the item master. Used to apply the rate on a
   /// direct receipt so floor workers don't enter it daily. Null if unset.
   final double? defaultPurchasePrice;
+  /// Category tree leaf, flattened by the API into two display strings.
+  /// Null on uncategorised items — pickers group those last.
+  final String? category;
+  final String? subcategory;
   const InvItem({
     required this.id, required this.name, this.sku, this.unit, this.barcode,
     this.itemClass,
     required this.trackBatches, required this.trackExpiry, required this.trackSerials,
     this.defaultPurchasePrice,
+    this.category, this.subcategory,
   });
   factory InvItem.fromJson(Map<String, dynamic> j) => InvItem(
         id: j['id'] as String,
@@ -203,6 +208,8 @@ class InvItem {
         trackExpiry: j['trackExpiry'] as bool? ?? false,
         trackSerials: j['trackSerials'] as bool? ?? false,
         defaultPurchasePrice: (j['defaultPurchasePrice'] as num?)?.toDouble(),
+        category: j['category'] as String?,
+        subcategory: j['subcategory'] as String?,
       );
 }
 

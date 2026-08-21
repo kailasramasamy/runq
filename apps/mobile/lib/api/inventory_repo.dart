@@ -37,10 +37,7 @@ class InventoryRepo {
 
   /// Most-recently-moved stock in one class bucket. Drives the Home
   /// "Finished goods" / "Raw materials available" strips.
-  Future<List<InvStockHighlight>> stockHighlights({
-    required String group,
-    int limit = 5,
-  }) async {
+  Future<List<InvStockHighlight>> stockHighlights({required String group, int limit = 5}) async {
     final res = await apiClient.get(
       '/inventory/dashboard/stock-highlights${_qs({'group': group, 'limit': '$limit'})}',
     );
@@ -94,10 +91,7 @@ class InventoryRepo {
     // from itemDetail, so peel out onHand.
     final body = _data(res);
     final onHand = (body['onHand'] as List?) ?? const [];
-    return onHand
-        .cast<Map<String, dynamic>>()
-        .map(InvItemStockRow.fromJson)
-        .toList();
+    return onHand.cast<Map<String, dynamic>>().map(InvItemStockRow.fromJson).toList();
   }
 
   Future<InvItem?> findByBarcode(String code) async {
@@ -160,13 +154,11 @@ class InventoryRepo {
 
   /// Catalog search for the "Map item" picker. Hits the masters list
   /// endpoint with its existing per-word `search` param.
-  Future<List<InvItem>> searchItems(String query,
-      {int limit = 25, String? itemClassGroup}) async {
+  Future<List<InvItem>> searchItems(String query, {int limit = 25, String? itemClassGroup}) async {
     final qp = <String, String>{
       'limit': '$limit',
       if (query.trim().isNotEmpty) 'search': query.trim(),
-      if (itemClassGroup != null && itemClassGroup != 'all')
-        'itemClassGroup': itemClassGroup,
+      if (itemClassGroup != null && itemClassGroup != 'all') 'itemClassGroup': itemClassGroup,
     };
     final res = await apiClient.get('/masters/items${_qs(qp)}');
     return _dataList(res).map(InvItem.fromJson).toList();
@@ -186,14 +178,20 @@ class InventoryRepo {
     int limit = 25,
     String? search,
     String? itemClassGroup,
+
     /// A single item_class, for filters finer than a group — 'semi_finished'
     /// on its own, say, which the 'finished' group would bury among the
     /// packed goods.
     String? itemClass,
+
+    /// Items carrying no item_class at all — the "Other" pill. Mutually
+    /// exclusive with the two filters above.
+    bool unclassified = false,
     bool withStock = false,
     String? sort,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (unclassified) qp['unclassified'] = 'true';
     if (withStock) qp['withStock'] = 'true';
     if (sort != null) qp['sort'] = sort;
     if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
@@ -203,6 +201,19 @@ class InventoryRepo {
     if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
     final res = await apiClient.get('/masters/items${_qs(qp)}');
     return InvItemPage.fromResponse(res);
+  }
+
+  /// Per-class item tallies for the items-screen filter strip. One cheap
+  /// aggregate, so the pills can carry counts without paging the catalogue.
+  /// Keys are item_class values plus 'unclassified'.
+  Future<Map<String, int>> itemClassCounts() async {
+    final res = await apiClient.get('/masters/items/class-counts');
+    final data = _data(res);
+    final byClass = (data['byClass'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return {
+      for (final e in byClass.entries) e.key: (e.value as num).toInt(),
+      'unclassified': (data['unclassified'] as num?)?.toInt() ?? 0,
+    };
   }
 
   /// Active category tree (roots + nested subcategories) for the item form's
@@ -240,10 +251,7 @@ class InventoryRepo {
   }
 
   Future<InvGrn> cancelGrn(String id, String reason) async {
-    final res = await apiClient.post(
-      '/inventory/grn/$id/cancel',
-      {'reason': reason},
-    );
+    final res = await apiClient.post('/inventory/grn/$id/cancel', {'reason': reason});
     return InvGrn.fromJson(_data(res));
   }
 
@@ -309,10 +317,7 @@ class InventoryRepo {
   }
 
   Future<InvDn> cancelDn(String id, String reason) async {
-    final res = await apiClient.post(
-      '/inventory/delivery-notes/$id/cancel',
-      {'reason': reason},
-    );
+    final res = await apiClient.post('/inventory/delivery-notes/$id/cancel', {'reason': reason});
     return InvDn.fromJson(_data(res));
   }
 
@@ -395,10 +400,7 @@ class InventoryRepo {
   /// Abandon a draft that can't be posted. The document stays on the list as
   /// cancelled rather than vanishing, so the audit trail keeps the attempt.
   Future<InvAdjustment> cancelAdjustment(String id, String reason) async {
-    final res = await apiClient.post(
-      '/inventory/adjustments/$id/cancel',
-      {'reason': reason},
-    );
+    final res = await apiClient.post('/inventory/adjustments/$id/cancel', {'reason': reason});
     return InvAdjustment.fromJson(_data(res));
   }
 
@@ -429,10 +431,7 @@ class InventoryRepo {
     return InvStockTake.fromJson(_data(res));
   }
 
-  Future<void> upsertCountLines(
-    String id,
-    List<InvCountLineInput> lines,
-  ) async {
+  Future<void> upsertCountLines(String id, List<InvCountLineInput> lines) async {
     await apiClient.post('/inventory/stock-takes/$id/lines', {
       'lines': lines.map((l) => l.toJson()).toList(),
     });
@@ -494,10 +493,9 @@ class InventoryRepo {
   // ── Analytics ──────────────────────────────────────────────────────────
 
   Future<InvHealth> analyticsHealth({int window = 90, String? warehouseId}) async {
-    final res = await apiClient.get('/inventory/analytics/health${_qs({
-      'window': '$window',
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/health${_qs({'window': '$window', if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     return InvHealth.fromJson(_data(res));
   }
 
@@ -506,19 +504,16 @@ class InventoryRepo {
     String? warehouseId,
     int limit = 100,
   }) async {
-    final res = await apiClient.get('/inventory/analytics/performance${_qs({
-      'window': '$window',
-      'limit': '$limit',
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/performance${_qs({'window': '$window', 'limit': '$limit', if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     return _dataList(res).map(InvSkuPerformance.fromJson).toList();
   }
 
   Future<InvStockRisk> analyticsRisk({int window = 90, String? warehouseId}) async {
-    final res = await apiClient.get('/inventory/analytics/stock-risk${_qs({
-      'window': '$window',
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/stock-risk${_qs({'window': '$window', if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     return InvStockRisk.fromJson(_data(res));
   }
 
@@ -527,11 +522,9 @@ class InventoryRepo {
     String? warehouseId,
     int horizonDays = 60,
   }) async {
-    final res = await apiClient.get('/inventory/analytics/forecast${_qs({
-      'window': '$window',
-      'horizonDays': '$horizonDays',
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/forecast${_qs({'window': '$window', 'horizonDays': '$horizonDays', if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     return InvForecast.fromJson(_data(res));
   }
 
@@ -540,11 +533,9 @@ class InventoryRepo {
     String bucket = 'week',
     String? warehouseId,
   }) async {
-    final res = await apiClient.get('/inventory/analytics/trend${_qs({
-      'months': '$months',
-      'bucket': bucket,
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/trend${_qs({'months': '$months', 'bucket': bucket, if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     final d = _data(res);
     return ((d['points'] as List?) ?? [])
         .map((e) => InvTrendPoint.fromJson((e as Map).cast<String, dynamic>()))
@@ -556,11 +547,9 @@ class InventoryRepo {
     int serviceLevel = 95,
     String? warehouseId,
   }) async {
-    final res = await apiClient.get('/inventory/analytics/replenishment${_qs({
-      'window': '$window',
-      'serviceLevel': '$serviceLevel',
-      if (warehouseId != null) 'warehouseId': warehouseId,
-    })}');
+    final res = await apiClient.get(
+      '/inventory/analytics/replenishment${_qs({'window': '$window', 'serviceLevel': '$serviceLevel', if (warehouseId != null) 'warehouseId': warehouseId})}',
+    );
     return InvReplenishment.fromJson(_data(res));
   }
 
@@ -584,17 +573,20 @@ class InventoryRepo {
     return InvApplyLevelsResult.fromJson(_data(res));
   }
 
-  String _qs(Map<String, String> qp) =>
-      qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
+  String _qs(Map<String, String> qp) => qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 
   String _mimeFromPath(String path) {
     final ext = path.split('.').last.toLowerCase();
     switch (ext) {
-      case 'pdf': return 'application/pdf';
-      case 'png': return 'image/png';
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
       case 'jpg':
-      case 'jpeg': return 'image/jpeg';
-      default: return 'application/octet-stream';
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return 'application/octet-stream';
     }
   }
 }

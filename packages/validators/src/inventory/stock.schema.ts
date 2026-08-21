@@ -10,8 +10,13 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'
  * stock — Finished (made/sold), Inputs (received from suppliers), Trading
  * (bought-to-resell), and Other (consumables / spares). 'all' is the
  * no-filter pass-through used when the user explicitly wants everything.
+ * 'bom_inputs' is a BOM-authoring bucket: everything that can legitimately
+ * be consumed by a BOM line — 'inputs' plus consumables and semi-finished
+ * sub-assemblies, minus anything sold as-is (finished / trading goods).
  */
-export const itemClassGroupValues = ['finished', 'inputs', 'trading', 'other', 'all'] as const;
+export const itemClassGroupValues = [
+  'finished', 'inputs', 'trading', 'other', 'bom_inputs', 'all',
+] as const;
 export const itemClassGroupSchema = z.enum(itemClassGroupValues);
 export type ItemClassGroup = z.infer<typeof itemClassGroupSchema>;
 
@@ -21,6 +26,7 @@ export const ITEM_CLASS_GROUP_MEMBERS: Record<ItemClassGroup, readonly ItemClass
   inputs:   ['raw_material', 'packaging'],
   trading:  ['trading_good'],
   other:    ['consumable', 'spare_part'],
+  bom_inputs: ['raw_material', 'packaging', 'consumable', 'semi_finished'],
   all:      itemClassValues,
 };
 

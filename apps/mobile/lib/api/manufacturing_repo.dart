@@ -464,10 +464,12 @@ class ManufacturingRepo {
   /// items list; `itemClass` and `itemClassGroup` are optional pre-filters.
   ///
   /// `itemClassGroup='finished'` → finished_good + semi_finished (BOM output picker).
-  /// `itemClassGroup='inputs'`   → raw_material + packaging + consumable.
-  /// `itemClassGroup='all'`      → no class filter (BOM input picker), because a
-  /// recipe can legitimately consume a semi-finished item — the unlabelled pool
-  /// behind a made-on-demand SKU is exactly that, and the narrower group hid it.
+  /// `itemClassGroup='inputs'`   → raw_material + packaging.
+  /// `itemClassGroup='bom_inputs'` → raw_material + packaging + consumable +
+  ///     semi_finished (BOM input picker). Semi-finished stays in because a
+  ///     recipe can legitimately consume a sub-assembly; finished and trading
+  ///     goods are sold as-is and never belong on an input line.
+  /// `itemClassGroup='all'`      → no class filter (ad-hoc searches).
   Future<List<MfgItemRow>> searchItems(
     String query, {
     String? itemClass,

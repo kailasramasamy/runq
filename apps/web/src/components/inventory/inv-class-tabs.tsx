@@ -61,21 +61,50 @@ const BUCKETS: { key: Exclude<ItemClassGroup, 'all'>; label: string }[] = [
   { key: 'other',    label: 'Other' },
 ];
 
+/** Second-level pills, shown under a bucket that mixes jobs. Inputs is the
+ *  one that bites: raw material and packaging are stored, counted and
+ *  reordered by different people, so a mixed list forces a search. Only
+ *  rendered when the screen opts in by passing `itemClass`/`onItemClassChange`. */
+const SUBCLASSES: Partial<Record<ItemClassGroup, { key: string; label: string }[]>> = {
+  inputs: [
+    { key: 'raw_material', label: 'Raw material' },
+    { key: 'packaging', label: 'Packaging' },
+  ],
+  finished: [
+    { key: 'finished_good', label: 'Packed' },
+    { key: 'semi_finished', label: 'Unlabelled' },
+  ],
+  other: [
+    { key: 'consumable', label: 'Consumable' },
+    { key: 'spare_part', label: 'Spare part' },
+  ],
+};
+
 interface Props {
   selected: ItemClassGroup;
   /** Per-bucket counts. Omit when the screen is server-paginated and counts
    *  aren't free to compute — all 4 buckets render and counts are hidden. */
   counts?: Partial<Record<Exclude<ItemClassGroup, 'all'>, number>>;
   onChange: (group: ItemClassGroup) => void;
+  /** Active second-level item_class within the selected bucket, null = whole
+   *  bucket. Omit both this and `onItemClassChange` to hide the sub-row. */
+  itemClass?: string | null;
+  onItemClassChange?: (itemClass: string | null) => void;
+  /** Per-item_class tallies for the second-level pills. Omit to hide those
+   *  counts — the bucket totals can't be split any finer. */
+  classCounts?: Partial<Record<string, number>>;
 }
 
-export function InvClassTabs({ selected, counts, onChange }: Props) {
+export function InvClassTabs({
+  selected, counts, onChange, itemClass, onItemClassChange, classCounts,
+}: Props) {
   // When counts are supplied: hide empty buckets so a pure-trading shop
   // doesn't see dead Finished/Inputs/Other pills. When omitted (server-
   // paginated screens), render all 4 and skip the count badge.
   const hasCounts = counts != null;
   const visible = hasCounts ? BUCKETS.filter((b) => (counts[b.key] ?? 0) > 0) : BUCKETS;
   const total = hasCounts ? visible.reduce((sum, b) => sum + (counts[b.key] ?? 0), 0) : 0;
+  const subclasses = onItemClassChange ? (SUBCLASSES[selected] ?? []) : [];
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -91,6 +120,28 @@ export function InvClassTabs({ selected, counts, onChange }: Props) {
           onClick={() => onChange(b.key)}
         />
       ))}
+      {subclasses.length > 0 && (
+        <div className="flex w-full flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>Type</span>
+          <Pill
+            label="All"
+            count={selected === 'all' ? 0 : (counts?.[selected] ?? 0)}
+            showCount={hasCounts}
+            active={!itemClass}
+            onClick={() => onItemClassChange!(null)}
+          />
+          {subclasses.map((c) => (
+            <Pill
+              key={c.key}
+              label={c.label}
+              count={classCounts?.[c.key] ?? 0}
+              showCount={classCounts != null}
+              active={itemClass === c.key}
+              onClick={() => onItemClassChange!(c.key)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

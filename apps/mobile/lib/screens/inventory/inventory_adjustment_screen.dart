@@ -1,8 +1,9 @@
 // Adjustments — list + stock-take-style create screen. Tap "+" opens a
 // full screen: pick warehouse + reason at top, the warehouse's on-hand
 // rows render below, tap any row to enter a delta in a bottom sheet.
-// POST lives in the AppBar (amber pill). "Add other product" footer
-// handles inbound found-stock items not currently on hand.
+// POST lives in the AppBar (amber pill). "Add product not on hand" footer
+// pushes inventory_adjustment_item_picker_screen.dart for found-stock items
+// the warehouse doesn't currently hold.
 
 library;
 
@@ -15,22 +16,14 @@ import '../../api/inventory_repo.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'inventory_adjustment_item_picker_screen.dart';
+import 'inventory_adjustment_common.dart';
+import 'inventory_adjustment_line_screen.dart';
 import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
 import '../../widgets/runq_snack.dart';
-
-const Map<String, String> _reasonLabels = {
-  'damage': 'Damage', 'expiry': 'Expiry', 'theft': 'Theft', 'found': 'Found',
-  'revaluation': 'Revaluation', 'correction': 'Correction',
-  'opening_balance': 'Opening Balance', 'free_issue': 'Free Issue',
-};
-
-// 'free_issue' — stock handed over without an invoice (extra cases to the
-// logistics team to cover their breakages). Outbound like damage, but the
-// goods are intact, so the backend books it to distribution cost not write-off.
-const Set<String> _outboundReasons = {'damage', 'expiry', 'theft', 'free_issue'};
 
 class InventoryAdjustmentScreen extends ConsumerWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -56,9 +49,11 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
           error: (e, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Failed to load: $e',
-                  style: RunqText.caption.copyWith(color: t.muted),
-                  textAlign: TextAlign.center),
+              child: Text(
+                'Failed to load: $e',
+                style: RunqText.caption.copyWith(color: t.muted),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           data: (list) {
@@ -86,10 +81,7 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
                 final i = idx - 1;
                 return Padding(
                   padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-                  child: _AdjTile(
-                    adj: list[i],
-                    onTap: () => _openDetail(context, ref, list[i]),
-                  ),
+                  child: _AdjTile(adj: list[i], onTap: () => _openDetail(context, ref, list[i])),
                 );
               },
             );
@@ -99,11 +91,7 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openDetail(
-    BuildContext context,
-    WidgetRef ref,
-    InvAdjustment adj,
-  ) async {
+  Future<void> _openDetail(BuildContext context, WidgetRef ref, InvAdjustment adj) async {
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -119,9 +107,9 @@ class InventoryAdjustmentScreen extends ConsumerWidget {
   }
 
   void _openSheet(BuildContext context, WidgetRef ref) async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const _NewAdjustmentScreen()),
-    );
+    final created = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const _NewAdjustmentScreen()));
     if (created == true) {
       ref.invalidate(invAdjustmentListProvider(null));
       invalidateStockViews(ref);
@@ -143,7 +131,8 @@ class _AddBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: const SizedBox(
-            width: 32, height: 32,
+            width: 32,
+            height: 32,
             child: Icon(Icons.add, color: Colors.white, size: 18),
           ),
         ),
@@ -166,25 +155,25 @@ class _SummaryStrip extends StatelessWidget {
     final t = RT(context);
     final count = list.length;
     final net = list.fold<double>(0, (s, a) => s + a.totalValueDelta);
-    final outbound = list.where((a) => _outboundReasons.contains(a.reason)).length;
+    final outbound = list.where((a) => invOutboundReasons.contains(a.reason)).length;
     final inbound = count - outbound;
 
     final netText = net == 0 ? '—' : '${net > 0 ? '+' : '−'}${compactINR(net.abs())}';
     final netTint = net < 0
         ? InvColors.error.withValues(alpha: 0.08)
         : net > 0
-            ? InvColors.success.withValues(alpha: 0.08)
-            : null;
+        ? InvColors.success.withValues(alpha: 0.08)
+        : null;
     final netBorder = net < 0
         ? InvColors.error.withValues(alpha: 0.30)
         : net > 0
-            ? InvColors.success.withValues(alpha: 0.30)
-            : null;
+        ? InvColors.success.withValues(alpha: 0.30)
+        : null;
     final netValueColor = net < 0
         ? InvColors.error
         : net > 0
-            ? InvColors.success
-            : t.muted;
+        ? InvColors.success
+        : t.muted;
 
     return Row(
       children: [
@@ -244,13 +233,11 @@ class _ValueKpiCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label.toUpperCase(),
-              style: RunqText.label.copyWith(color: t.muted)),
+          Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
           const SizedBox(height: 4),
           Text(
             value,
-            style: RunqText.numberLg
-                .copyWith(color: valueColor, fontSize: 20, height: 1.15),
+            style: RunqText.numberLg.copyWith(color: valueColor, fontSize: 20, height: 1.15),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -273,20 +260,18 @@ class _AdjTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final delta = adj.totalValueDelta;
-    final isOutbound = _outboundReasons.contains(adj.reason);
+    final isOutbound = invOutboundReasons.contains(adj.reason);
     final reasonColor = isOutbound ? InvColors.error : InvColors.success;
     final reasonBg = isOutbound
         ? InvColors.error.withValues(alpha: 0.10)
         : InvColors.success.withValues(alpha: 0.10);
-    final reasonLabel = _reasonLabels[adj.reason] ?? _humanize(adj.reason);
-    final deltaText = delta == 0
-        ? '—'
-        : '${delta > 0 ? '+' : '-'}${compactINR(delta.abs())}';
+    final reasonLabel = invReasonLabels[adj.reason] ?? _humanize(adj.reason);
+    final deltaText = delta == 0 ? '—' : '${delta > 0 ? '+' : '-'}${compactINR(delta.abs())}';
     final deltaColor = delta < 0
         ? InvColors.error
         : delta > 0
-            ? InvColors.success
-            : t.muted;
+        ? InvColors.success
+        : t.muted;
 
     return InvCard(
       onTap: onTap,
@@ -307,7 +292,8 @@ class _AdjTile extends StatelessWidget {
                       child: Text(
                         adj.adjNo,
                         style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -318,14 +304,16 @@ class _AdjTile extends StatelessWidget {
                 Text(
                   adj.warehouseName,
                   style: RunqText.caption.copyWith(color: t.muted),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (_itemsPreview != null) ...[
                   const SizedBox(height: 6),
                   Text(
                     _itemsPreview!,
                     style: RunqText.caption.copyWith(color: t.ink2),
-                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -389,8 +377,18 @@ class _DateBlock extends StatelessWidget {
   final String iso;
 
   static const _months = [
-    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
   ];
 
   @override
@@ -500,6 +498,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   // on a populated list instead of an empty one.
   String _classGroup = classGroupFinished;
   bool _classGroupTouched = false;
+
   /// Item ids whose batch rows are expanded. The list shows ONE row per item
   /// with its total on hand; a batch-tracked SKU can hold dozens of
   /// consignments and listing them all buried the three products this
@@ -533,7 +532,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     setState(() => warehouseId = pick.id);
   }
 
-  Future<void> _openLineSheet({
+  Future<void> _openLineScreen({
     required String itemId,
     required String itemName,
     String? itemSku,
@@ -547,23 +546,19 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     final needsBatchNo = tracksBatches && (batchNo ?? '').isEmpty;
     final key = _draftKey(itemId, batchNo);
     final existing = _drafts[key];
-    final result = await showModalBottomSheet<_AdjLineSheetResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AdjLineSheet(
-        itemName: itemName,
-        itemSku: itemSku,
-        itemUnit: itemUnit,
-        batchNo: batchNo,
-        needsBatchNo: needsBatchNo,
-        availSnapshot: availSnapshot,
-        // Default direction: Remove if there's on-hand to take from,
-        // otherwise Add (matches the most common intent on each row).
-        initialIsOutbound: existing?.isOutbound ?? (availSnapshot > 0),
-        initialReason: existing?.reason,
-        initialQty: existing?.unsignedQty,
-      ),
+    final result = await pushAdjLineScreen(
+      context,
+      itemName: itemName,
+      itemSku: itemSku,
+      itemUnit: itemUnit,
+      batchNo: batchNo,
+      needsBatchNo: needsBatchNo,
+      availSnapshot: availSnapshot,
+      // Default direction: Remove if there's on-hand to take from,
+      // otherwise Add (matches the most common intent on each row).
+      initialIsOutbound: existing?.isOutbound ?? (availSnapshot > 0),
+      initialReason: existing?.reason,
+      initialQty: existing?.unsignedQty,
     );
     if (result == null || !mounted) return;
     // A batch typed in the sheet becomes part of the draft's identity, so two
@@ -575,8 +570,11 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
         _drafts.remove(key);
       } else {
         _drafts[resolvedKey] = _AdjDraft(
-          itemId: itemId, itemName: itemName, itemSku: itemSku,
-          itemUnit: itemUnit, batchNo: resolvedBatch,
+          itemId: itemId,
+          itemName: itemName,
+          itemSku: itemSku,
+          itemUnit: itemUnit,
+          batchNo: resolvedBatch,
           availSnapshot: availSnapshot,
           unsignedQty: result.qty!,
           isOutbound: result.isOutbound!,
@@ -591,21 +589,20 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   // Picker returns one or more items; we open the qty sheet for each
   // sequentially so the user lands directly in the qty input.
   Future<void> _openExtraPicker() async {
-    final picked = await showModalBottomSheet<List<InvItem>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AdjItemPickerSheet(
-        excludeIds: _drafts.values.map((d) => d.itemId).toSet(),
-      ),
+    final picked = await pushAdjItemPicker(
+      context,
+      excludeIds: _drafts.values.map((d) => d.itemId).toSet(),
     );
     if (picked == null || picked.isEmpty || !mounted) return;
     for (final item in picked) {
       if (!mounted) break;
-      await _openLineSheet(
-        itemId: item.id, itemName: item.name,
-        itemSku: item.sku, itemUnit: item.unit,
-        batchNo: null, tracksBatches: item.trackBatches,
+      await _openLineScreen(
+        itemId: item.id,
+        itemName: item.name,
+        itemSku: item.sku,
+        itemUnit: item.unit,
+        batchNo: null,
+        tracksBatches: item.trackBatches,
         availSnapshot: 0,
       );
     }
@@ -674,14 +671,12 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       if (!mounted) return;
       Navigator.of(context).pop(true);
       RunqSnack.success(
-          context,
-          adjNos.length == 1
-              ? '${adjNos.first} posted'
-              : '${adjNos.length} adjustments posted');
+        context,
+        adjNos.length == 1 ? '${adjNos.first} posted' : '${adjNos.length} adjustments posted',
+      );
     } catch (e) {
       if (!mounted) return;
-      RunqSnack.error(context, "Couldn't post the adjustment",
-          description: snackErrorText(e));
+      RunqSnack.error(context, "Couldn't post the adjustment", description: snackErrorText(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -692,8 +687,9 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     final t = RT(context);
     final onHand = warehouseId == null
         ? null
-        : ref.watch(invOnHandProvider(
-            (warehouseId: warehouseId, lowOnly: false, itemClassGroup: null)));
+        : ref.watch(
+            invOnHandProvider((warehouseId: warehouseId, lowOnly: false, itemClassGroup: null)),
+          );
     final draftCount = _drafts.length;
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -776,9 +772,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
   /// Pill counts are per DISTINCT ITEM. A raw-milk SKU with 16 consignments
   /// is one product on hand, not sixteen.
   Map<String, int> _bucketCounts(List<InvOnHandRow> rows) =>
-      bucketCountsForItems(
-        rows.map((r) => (itemId: r.itemId, itemClass: r.itemClass)),
-      );
+      bucketCountsForItems(rows.map((r) => (itemId: r.itemId, itemClass: r.itemClass)));
 
   /// Class strip sits outside the padded block so the pills can bleed to the
   /// screen edge when they overflow, same as the on-hand screen.
@@ -806,9 +800,11 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(text,
-            textAlign: TextAlign.center,
-            style: RunqText.caption.copyWith(color: t.muted)),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: RunqText.caption.copyWith(color: t.muted),
+        ),
       ),
     );
   }
@@ -823,8 +819,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
       final batch = r.batchNo.isEmpty ? null : r.batchNo;
       final drafted = _drafts.containsKey(_draftKey(r.itemId, batch));
       if (_adjustedOnly) return drafted;
-      if (group != classGroupAll &&
-          classGroupForItemClass(r.itemClass) != group) {
+      if (group != classGroupAll && classGroupForItemClass(r.itemClass) != group) {
         return drafted;
       }
       if (q.isEmpty) return true;
@@ -845,13 +840,12 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
     for (final r in visible) {
       final leaf = (r.categoryName ?? '').trim();
       final parent = (r.categoryGroup ?? '').trim();
-      final group = parent.isNotEmpty
-          ? parent
-          : (leaf.isNotEmpty ? leaf : uncategorised);
+      final group = parent.isNotEmpty ? parent : (leaf.isNotEmpty ? leaf : uncategorised);
       // A leaf equal to its parent (or absent) means the item sits directly on
       // the top-level category — no sub-heading worth drawing.
       final sub = (leaf.isEmpty || leaf == group) ? '' : leaf;
-      tree.putIfAbsent(group, () => <String, List<InvOnHandRow>>{})
+      tree
+          .putIfAbsent(group, () => <String, List<InvOnHandRow>>{})
           .putIfAbsent(sub, () => <InvOnHandRow>[])
           .add(r);
     }
@@ -872,11 +866,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
           return a.toLowerCase().compareTo(b.toLowerCase());
         });
       // Section count is products, not batch rows — same unit as the pills.
-      final total = tree[g]!.values
-          .expand((l) => l)
-          .map((r) => r.itemId)
-          .toSet()
-          .length;
+      final total = tree[g]!.values.expand((l) => l).map((r) => r.itemId).toSet().length;
       out.add(_ListEntry.group(g, total));
       for (final s in subs) {
         if (s.isNotEmpty) out.add(_ListEntry.sub(s));
@@ -933,17 +923,17 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
 
   /// A draft rendered as a zero-qty on-hand row, so one tile draws both cases.
   InvOnHandRow _rowForDraft(_AdjDraft d) => InvOnHandRow(
-        itemId: d.itemId,
-        itemName: d.itemName,
-        itemSku: d.itemSku,
-        itemUnit: d.itemUnit,
-        warehouseId: warehouseId ?? '',
-        warehouseName: '',
-        batchNo: d.batchNo ?? '',
-        qty: 0,
-        avgCost: 0,
-        value: 0,
-      );
+    itemId: d.itemId,
+    itemName: d.itemName,
+    itemSku: d.itemSku,
+    itemUnit: d.itemUnit,
+    warehouseId: warehouseId ?? '',
+    warehouseName: '',
+    batchNo: d.batchNo ?? '',
+    qty: 0,
+    avgCost: 0,
+    value: 0,
+  );
 
   Widget _buildList(BuildContext context, List<InvOnHandRow> rows) {
     final visible = _visibleRows(rows);
@@ -977,8 +967,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
           // Counted in products so the header agrees with the pills and the
           // section headings. Batch rows would say "29" for three SKUs.
           final totalItems = rows.map((r) => r.itemId).toSet().length;
-          final shownItems =
-              visible.map((r) => r.itemId).toSet().length + incoming.length;
+          final shownItems = visible.map((r) => r.itemId).toSet().length + incoming.length;
           return _listHeader(context, totalItems, shownItems);
         }
         if (idx == entries.length + 1) return _addOtherFooter(context);
@@ -997,10 +986,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
           child: Text(
             e.label!,
-            style: RunqText.caption.copyWith(
-              color: t.muted,
-              fontWeight: FontWeight.w600,
-            ),
+            style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600),
           ),
         );
       case _EntryKind.item:
@@ -1008,8 +994,9 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
         final expanded = _expandedItems.contains(first.itemId);
         final totalQty = e.batches.fold<double>(0, (a, b) => a + b.qty);
         final drafted = e.batches
-            .where((b) => _drafts.containsKey(
-                _draftKey(b.itemId, b.batchNo.isEmpty ? null : b.batchNo)))
+            .where(
+              (b) => _drafts.containsKey(_draftKey(b.itemId, b.batchNo.isEmpty ? null : b.batchNo)),
+            )
             .length;
         return Column(
           children: [
@@ -1041,7 +1028,7 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
               child: _OnHandTile(
                 row: r,
                 draft: draft,
-                onTap: () => _openLineSheet(
+                onTap: () => _openLineScreen(
                   itemId: r.itemId,
                   itemName: r.itemName,
                   itemSku: r.itemSku,
@@ -1069,8 +1056,8 @@ class _NewAdjustmentScreenState extends ConsumerState<_NewAdjustmentScreen> {
             child: Text(
               draftCount == 0
                   ? (filtering
-                      ? '$shown of $total items'
-                      : '$total item${total == 1 ? '' : 's'} on hand')
+                        ? '$shown of $total items'
+                        : '$total item${total == 1 ? '' : 's'} on hand')
                   : '$draftCount adjusted · $shown shown',
               style: RunqText.label.copyWith(color: t.muted, letterSpacing: 0.5),
             ),
@@ -1133,12 +1120,14 @@ enum _EntryKind { group, sub, item, row }
 /// One rendered line in the sectioned list: a category heading, a
 /// sub-category sub-heading, or an item row.
 class _ListEntry {
-  const _ListEntry._(this.kind,
-      {this.label,
-      this.count = 0,
-      this.row,
-      this.batches = const [],
-      this.indented = false});
+  const _ListEntry._(
+    this.kind, {
+    this.label,
+    this.count = 0,
+    this.row,
+    this.batches = const [],
+    this.indented = false,
+  });
   factory _ListEntry.group(String label, int count) =>
       _ListEntry._(_EntryKind.group, label: label, count: count);
   factory _ListEntry.sub(String label) => _ListEntry._(_EntryKind.sub, label: label);
@@ -1155,6 +1144,7 @@ class _ListEntry {
   final int count;
   final InvOnHandRow? row;
   final List<InvOnHandRow> batches;
+
   /// Batch row shown under an expanded product — inset so the hierarchy
   /// reads without needing a second divider style.
   final bool indented;
@@ -1236,22 +1226,32 @@ class _ItemGroupTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(row.itemName,
-                        style: RunqText.body.copyWith(color: t.ink),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(
+                      row.itemName,
+                      style: RunqText.body.copyWith(color: t.ink),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
                         Flexible(
-                          child: Text(subParts.join(' · '),
-                              style: RunqText.caption.copyWith(color: t.muted2),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            subParts.join(' · '),
+                            style: RunqText.caption.copyWith(color: t.muted2),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         if (draftedCount > 0) ...[
                           const SizedBox(width: 6),
-                          Text('$draftedCount adjusted',
-                              style: RunqText.caption.copyWith(
-                                  color: brand, fontWeight: FontWeight.w700)),
+                          Text(
+                            '$draftedCount adjusted',
+                            style: RunqText.caption.copyWith(
+                              color: brand,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -1265,9 +1265,10 @@ class _ItemGroupTile extends StatelessWidget {
                   color: t.bgWarmer,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text(_fmtQty(totalQty),
-                    style: RunqText.tabular(
-                        size: 14, w: FontWeight.w700, color: t.ink)),
+                child: Text(
+                  invFmtQty(totalQty),
+                  style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink),
+                ),
               ),
               const SizedBox(width: 4),
               Icon(
@@ -1284,11 +1285,7 @@ class _ItemGroupTile extends StatelessWidget {
 }
 
 class _OnHandTile extends StatelessWidget {
-  const _OnHandTile({
-    required this.row,
-    required this.draft,
-    required this.onTap,
-  });
+  const _OnHandTile({required this.row, required this.draft, required this.onTap});
   final InvOnHandRow row;
   final _AdjDraft? draft;
   final VoidCallback onTap;
@@ -1323,14 +1320,16 @@ class _OnHandTile extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: hasDraft ? FontWeight.w700 : FontWeight.w500,
                     ),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   if (subParts.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       subParts.join(' · '),
                       style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],
@@ -1346,8 +1345,8 @@ class _OnHandTile extends StatelessWidget {
                 // alone left the user doing the arithmetic.
                 _QtyPill(
                   text: hasDraft
-                      ? '${_fmtQty(row.qty)} → ${_fmtQty(row.qty + signedDelta)}'
-                      : _fmtQty(row.qty),
+                      ? '${invFmtQty(row.qty)} → ${invFmtQty(row.qty + signedDelta)}'
+                      : invFmtQty(row.qty),
                   emphasis: hasDraft,
                 ),
                 if (hasDraft) ...[
@@ -1360,8 +1359,8 @@ class _OnHandTile extends StatelessWidget {
                     ),
                     child: Text(
                       signedDelta > 0
-                          ? '+${_fmtQty(signedDelta)}'
-                          : '-${_fmtQty(signedDelta.abs())}',
+                          ? '+${invFmtQty(signedDelta)}'
+                          : '-${invFmtQty(signedDelta.abs())}',
                       style: RunqText.caption.copyWith(
                         color: deltaColor,
                         fontWeight: FontWeight.w700,
@@ -1387,6 +1386,7 @@ class _OnHandTile extends StatelessWidget {
 class _QtyPill extends StatelessWidget {
   const _QtyPill({required this.text, this.emphasis = false});
   final String text;
+
   /// Tints the pill for a row carrying an unposted change, so a scan of the
   /// list separates "this is the stock" from "this is what it will become".
   final bool emphasis;
@@ -1399,428 +1399,13 @@ class _QtyPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: emphasis ? brand.withValues(alpha: 0.10) : t.bgWarmer,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: emphasis ? brand.withValues(alpha: 0.35) : t.hairlineSoft,
-        ),
+        border: Border.all(color: emphasis ? brand.withValues(alpha: 0.35) : t.hairlineSoft),
       ),
       child: Text(
         text,
         style: RunqText.caption.copyWith(
           color: emphasis ? brand : t.ink,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Adjustment line sheet — qty input + on-hand hint + save/clear ────────
-
-class _AdjLineSheetResult {
-  const _AdjLineSheetResult.saved({
-    required this.qty,
-    required this.isOutbound,
-    required this.reason,
-    this.batchNo,
-  }) : cleared = false;
-  const _AdjLineSheetResult.cleared()
-      : qty = null,
-        isOutbound = null,
-        reason = null,
-        batchNo = null,
-        cleared = true;
-  final double? qty;
-  final bool? isOutbound;
-  final String? reason;
-  /// Typed by the user for a batch-tracked item that has no on-hand row to
-  /// inherit one from. Null whenever the batch came in with the line.
-  final String? batchNo;
-  final bool cleared;
-}
-
-// Reasons split by direction. "correction" / "revaluation" appear on both
-// sides because either intent is valid (system over-counted or under-counted).
-const List<String> _outboundReasonOrder = [
-  'damage', 'free_issue', 'expiry', 'theft', 'correction', 'revaluation',
-];
-const List<String> _inboundReasonOrder = [
-  'found', 'opening_balance', 'correction', 'revaluation',
-];
-
-String _defaultReason(bool isOutbound) => isOutbound ? 'damage' : 'found';
-
-class _AdjLineSheet extends StatefulWidget {
-  const _AdjLineSheet({
-    required this.itemName,
-    this.itemSku,
-    this.itemUnit,
-    this.batchNo,
-    this.needsBatchNo = false,
-    required this.availSnapshot,
-    required this.initialIsOutbound,
-    this.initialReason,
-    this.initialQty,
-  });
-  final String itemName;
-  final String? itemSku;
-  final String? itemUnit;
-  final String? batchNo;
-  /// The item tracks batches but arrived without one — the sheet has to ask,
-  /// because the stock ledger refuses a batch-tracked movement without it.
-  final bool needsBatchNo;
-  final double availSnapshot;
-  final bool initialIsOutbound;
-  final String? initialReason;
-  final double? initialQty;
-  @override
-  State<_AdjLineSheet> createState() => _AdjLineSheetState();
-}
-
-class _AdjLineSheetState extends State<_AdjLineSheet> {
-  final _ctrl = TextEditingController();
-  final _batchCtrl = TextEditingController();
-  final _focus = FocusNode();
-  late bool _isOutbound;
-  late String _reason;
-  /// Inline message under the batch field, set when a save is blocked on it.
-  String? _batchError;
-
-  @override
-  void initState() {
-    super.initState();
-    _isOutbound = widget.initialIsOutbound;
-    _reason = widget.initialReason ?? _defaultReason(_isOutbound);
-    if (widget.initialQty != null) _ctrl.text = _fmtQty(widget.initialQty!);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focus.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    _batchCtrl.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  void _setDirection(bool outbound) {
-    if (_isOutbound == outbound) return;
-    setState(() {
-      _isOutbound = outbound;
-      // Reset reason to a sensible default for the new direction unless
-      // the current pick is valid on both sides.
-      final list = outbound ? _outboundReasonOrder : _inboundReasonOrder;
-      if (!list.contains(_reason)) _reason = _defaultReason(outbound);
-    });
-  }
-
-  void _save() {
-    // Drop the keyboard before any validation message. Toasts land at the
-    // bottom of the screen, which is exactly where the numeric keypad sits —
-    // the warning was being raised behind it, so a save looked like it had
-    // silently done nothing.
-    FocusScope.of(context).unfocus();
-
-    final q = double.tryParse(_ctrl.text) ?? -1;
-    if (q <= 0) {
-      setState(() => _batchError = null);
-      RunqSnack.warning(context, 'Enter a positive qty');
-      return;
-    }
-    if (_isOutbound && q > widget.availSnapshot) {
-      setState(() => _batchError = null);
-      RunqSnack.warning(
-          context, 'Only ${_fmtQty(widget.availSnapshot)} on hand');
-      return;
-    }
-    final batch = _batchCtrl.text.trim();
-    // Caught here rather than at save: the stock ledger rejects a batch-tracked
-    // movement with no batch, and that error would land on the whole document
-    // long after the user left this sheet.
-    if (widget.needsBatchNo && batch.isEmpty) {
-      // Marked on the field as well as toasted: the toast says what went
-      // wrong, the field says where.
-      setState(() => _batchError = 'Required — this item is batch-tracked.');
-      RunqSnack.warning(context, 'Enter a batch number',
-          description: 'This item is batch-tracked.');
-      return;
-    }
-    if (_batchError != null) setState(() => _batchError = null);
-    Navigator.of(context).pop(_AdjLineSheetResult.saved(
-      qty: q,
-      isOutbound: _isOutbound,
-      reason: _reason,
-      batchNo: batch.isEmpty ? null : batch,
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final insets = MediaQuery.of(context).viewInsets;
-    final sub = [
-      if ((widget.itemSku ?? '').isNotEmpty) widget.itemSku!,
-      if ((widget.itemUnit ?? '').isNotEmpty) widget.itemUnit!,
-      if ((widget.batchNo ?? '').isNotEmpty) 'Batch ${widget.batchNo!}',
-    ].join(' · ');
-    final unitSuffix = (widget.itemUnit ?? '').isEmpty ? '' : ' ${widget.itemUnit}';
-    final reasons = _isOutbound ? _outboundReasonOrder : _inboundReasonOrder;
-    // Cap the height so the sheet stops short of the status bar. With the
-    // keyboard up and a batch field in play the content grew tall enough to
-    // fill the screen, and the title ended up sitting under the clock.
-    final media = MediaQuery.of(context);
-    final maxSheetHeight = media.size.height - media.padding.top - 12;
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxSheetHeight),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: EdgeInsets.only(bottom: insets.bottom),
-        child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _SheetHeader(
-            title: 'Adjust stock',
-            onClose: () => Navigator.of(context).pop(),
-          ),
-          // Flexible + scrollable so the sheet shrinks to whatever the
-          // DraggableScrollableSheet allows instead of overflowing. Its height
-          // varies with the keyboard, the reason list, and whether this item
-          // needs a batch — sizing to natural height only ever fitted by luck.
-          Flexible(
-            child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Item header
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.inventory_2_outlined, size: 18, color: t.muted),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(widget.itemName,
-                                  style: RunqText.bodyStrong
-                                      .copyWith(color: t.ink, fontSize: 15),
-                                  maxLines: 2, overflow: TextOverflow.ellipsis),
-                              if (sub.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(sub, style: RunqText.caption.copyWith(color: t.muted)),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Direction toggle — explicit Add vs Remove choice, big
-                    // enough that the user can't miss what sign is being applied.
-                    _DirectionToggle(
-                      isOutbound: _isOutbound,
-                      onChanged: _setDirection,
-                    ),
-                    const SizedBox(height: 16),
-                    _Lbl(_isOutbound ? 'Qty to Remove' : 'Qty to Add'),
-                    TextField(
-                      controller: _ctrl,
-                      focusNode: _focus,
-                      style: RunqText.body.copyWith(color: t.ink, fontSize: 16),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: _dec(context, hint: '0'),
-                      onSubmitted: (_) => _save(),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.inventory_outlined, size: 13, color: t.muted),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'On hand: ${_fmtQty(widget.availSnapshot)}$unitSuffix',
-                            style: RunqText.caption.copyWith(color: t.muted),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (widget.needsBatchNo) ...[
-                      const SizedBox(height: 16),
-                      _Lbl('Batch number'),
-                      TextField(
-                        controller: _batchCtrl,
-                        textCapitalization: TextCapitalization.characters,
-                        style: RunqText.body.copyWith(color: t.ink),
-                        decoration: _dec(context, hint: 'e.g. RM-20260811')
-                            .copyWith(
-                          enabledBorder: _batchError == null
-                              ? null
-                              : OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                      color: InvColors.error),
-                                ),
-                        ),
-                        onChanged: (_) {
-                          if (_batchError != null) {
-                            setState(() => _batchError = null);
-                          }
-                        },
-                        onSubmitted: (_) => _save(),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _batchError ??
-                            'This item is batch-tracked, and none of its stock is here '
-                                'yet — name the batch this quantity belongs to.',
-                        style: RunqText.caption.copyWith(
-                          color: _batchError == null ? t.muted : InvColors.error,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    _Lbl('Reason'),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final r in reasons)
-                          InvFilterPill(
-                            label: _reasonLabels[r] ?? r,
-                            active: _reason == r,
-                            onTap: () => setState(() => _reason = r),
-                            activeColor: _isOutbound ? InvColors.error : InvColors.success,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        if (widget.initialQty != null) ...[
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(context).pop(
-                                  const _AdjLineSheetResult.cleared()),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: InvColors.error,
-                                side: BorderSide(
-                                    color: InvColors.error.withValues(alpha: 0.4)),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              child: const Text('Clear'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                        ],
-                        Expanded(
-                          flex: 2,
-                          child: InvPrimaryButton(
-                            label: 'Save',
-                            icon: Icons.check_circle_outline,
-                            onTap: _save,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-        ),
-      ),
-    );
-  }
-}
-
-// Two-segment pill — Add (green) vs Remove (red). Active segment fills
-// with its colour, inactive segment is a muted outline so the user sees
-// both options at a glance and the chosen sign is unambiguous.
-class _DirectionToggle extends StatelessWidget {
-  const _DirectionToggle({required this.isOutbound, required this.onChanged});
-  final bool isOutbound;
-  final ValueChanged<bool> onChanged;
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DirSegment(
-            label: 'Add',
-            icon: Icons.add,
-            color: InvColors.success,
-            active: !isOutbound,
-            onTap: () => onChanged(false),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _DirSegment(
-            label: 'Remove',
-            icon: Icons.remove,
-            color: InvColors.error,
-            active: isOutbound,
-            onTap: () => onChanged(true),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DirSegment extends StatelessWidget {
-  const _DirSegment({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.active,
-    required this.onTap,
-  });
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool active;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Material(
-      color: active ? color : t.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            border: Border.all(color: active ? color : t.hairline),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: active ? Colors.white : color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: RunqText.bodyStrong.copyWith(
-                  color: active ? Colors.white : t.ink,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -1852,7 +1437,8 @@ class _PostBtn extends StatelessWidget {
               children: [
                 if (busy) ...[
                   const SizedBox(
-                    width: 12, height: 12,
+                    width: 12,
+                    height: 12,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
@@ -1869,295 +1455,6 @@ class _PostBtn extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// Trim trailing zeros: 5.000 → 5, 5.5 → 5.5, 5.123 → 5.12.
-String _fmtQty(num q) {
-  if (q == q.truncateToDouble()) return q.toInt().toString();
-  return q
-      .toStringAsFixed(2)
-      .replaceFirst(RegExp(r'0+$'), '')
-      .replaceFirst(RegExp(r'\.$'), '');
-}
-
-// ── Multi-select item picker sheet — primary entry point ────────────────
-
-// Searchable list with a checkbox on every row. Items already in the
-// draft are hidden via [excludeIds] so the user can't double-add. The
-// footer shows a sticky "Add N products" button that pops with every
-// ticked item in one shot — picking ten items takes one open/close.
-class _AdjItemPickerSheet extends StatefulWidget {
-  const _AdjItemPickerSheet({this.excludeIds = const {}});
-  final Set<String> excludeIds;
-  @override
-  State<_AdjItemPickerSheet> createState() => _AdjItemPickerSheetState();
-}
-
-class _AdjItemPickerSheetState extends State<_AdjItemPickerSheet> {
-  final _ctrl = TextEditingController();
-  // Selection lives in two maps so we keep full item data (needed when
-  // popping) even if a tick scrolls off the current result page.
-  final Map<String, InvItem> _selected = {};
-  List<InvItem> _results = const [];
-  bool _loading = false;
-  String _lastQuery = '';
-  /// The catalogue page the picker pulls. The old 25 silently cut the list
-  /// off mid-alphabet — items sort finished-goods-first, so a tenant's raw
-  /// materials fell off the end and simply could not be picked. The class
-  /// counts are computed from this same set, so the limit also has to be
-  /// high enough that the numbers on the pills aren't a lie.
-  static const _fetchLimit = 200;
-  /// True when the catalogue is bigger than one page, so the pill counts
-  /// describe only what's loaded and the user has to be told.
-  bool _truncated = false;
-  // Adjustments span any class (damage, found, revaluation can apply to
-  // raw materials, finished goods, spares alike) — default to All.
-  static const _preferredGroup = classGroupAll;
-  String? _classGroup;
-  bool _userPickedGroup = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _runSearch('');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _runSearch(String q) async {
-    _lastQuery = q;
-    setState(() => _loading = true);
-    try {
-      final hits = await inventoryRepo.searchItems(q, limit: _fetchLimit);
-      if (!mounted || q != _lastQuery) return;
-      setState(() {
-        _truncated = hits.length >= _fetchLimit;
-        _results = hits.where((r) => !widget.excludeIds.contains(r.id)).toList();
-      });
-    } finally {
-      if (mounted && q == _lastQuery) setState(() => _loading = false);
-    }
-  }
-
-  void _toggle(InvItem r) {
-    setState(() {
-      if (_selected.containsKey(r.id)) {
-        _selected.remove(r.id);
-      } else {
-        _selected[r.id] = r;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final brand = InvColors.brand(context);
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (_, scrollCtrl) => Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            _SheetHeader(
-              title: _selected.isEmpty
-                  ? 'Pick products'
-                  : '${_selected.length} selected',
-              onClose: () => Navigator.of(context).pop(),
-            ),
-            // Type pills sit ABOVE the search box: picking the bucket first
-            // is how you narrow a mixed catalogue, and burying them under
-            // the field made the list look like it had no raw materials.
-            if (_results.isNotEmpty) ...[
-              Builder(builder: (_) {
-                final counts = bucketCountsFor(_results.map((r) => r.itemClass));
-                if (!_userPickedGroup) {
-                  final resolved = resolveDefaultClassGroup(_preferredGroup, counts);
-                  if (_classGroup != resolved) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) setState(() => _classGroup = resolved);
-                    });
-                  }
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: InvClassTabs(
-                    selected: _classGroup ?? classGroupAll,
-                    counts: counts,
-                    onChanged: (g) => setState(() {
-                      _classGroup = g;
-                      _userPickedGroup = true;
-                    }),
-                  ),
-                );
-              }),
-              // Counts describe what's loaded, so say so when the catalogue
-              // is bigger than one page rather than showing a number that
-              // quietly under-reports.
-              if (_truncated)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    'Showing the first $_fetchLimit items — search to narrow.',
-                    style: RunqText.micro.copyWith(color: RT(context).muted2),
-                  ),
-                ),
-            ],
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _ctrl,
-                autofocus: true,
-                onChanged: _runSearch,
-                style: RunqText.body.copyWith(color: t.ink, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'Search by name or SKU',
-                  hintStyle: RunqText.body.copyWith(color: t.muted2, fontSize: 14),
-                  prefixIcon: Icon(Icons.search, color: t.muted),
-                  filled: true,
-                  fillColor: t.bgWarmer,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: t.hairline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: t.hairline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: brand, width: 1.2),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loading && _results.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : Builder(builder: (_) {
-                      final active = _classGroup ?? classGroupAll;
-                      final shown = active == classGroupAll
-                          ? _results
-                          : _results
-                              .where((r) => classGroupForItemClass(r.itemClass) == active)
-                              .toList();
-                      if (shown.isEmpty) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              _results.isEmpty
-                                  ? (widget.excludeIds.isEmpty
-                                      ? 'No items match. Tweak the search or add this item in Masters.'
-                                      : 'No more items to add — everything matching is already in the draft.')
-                                  : 'No items in this group. Try another tab.',
-                              textAlign: TextAlign.center,
-                              style: RunqText.caption.copyWith(color: t.muted),
-                            ),
-                          ),
-                        );
-                      }
-                      return ListView.separated(
-                        controller: scrollCtrl,
-                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.only(bottom: 8),
-                        itemCount: shown.length,
-                        separatorBuilder: (_, __) => Divider(
-                            height: 1, color: t.hairlineSoft, thickness: 0.5),
-                        itemBuilder: (_, i) {
-                          final r = shown[i];
-                            final selected = _selected.containsKey(r.id);
-                            return InkWell(
-                              onTap: () => _toggle(r),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(r.name,
-                                              style: RunqText.bodyStrong
-                                                  .copyWith(color: t.ink, fontSize: 14)),
-                                          if ((r.sku ?? '').isNotEmpty ||
-                                              (r.unit ?? '').isNotEmpty) ...[
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              [
-                                                if ((r.sku ?? '').isNotEmpty) r.sku!,
-                                                if ((r.unit ?? '').isNotEmpty) r.unit!,
-                                              ].join(' · '),
-                                              style: RunqText.caption
-                                                  .copyWith(color: t.muted),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Custom square check — bigger tap target
-                                    // than the default Checkbox without the
-                                    // Material padding gymnastics.
-                                    Container(
-                                      width: 22, height: 22,
-                                      decoration: BoxDecoration(
-                                        color: selected ? brand : Colors.transparent,
-                                        border: Border.all(
-                                          color: selected ? brand : t.hairline,
-                                          width: 1.5,
-                                        ),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: selected
-                                          ? const Icon(Icons.check,
-                                              size: 14, color: Colors.white)
-                                          : null,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                      );
-                    }),
-            ),
-            // Footer action bar — sticky, only enabled when something's
-            // ticked. Pops the entire selection so the parent can dedupe
-            // and append in one setState.
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: InvPrimaryButton(
-                  label: _selected.isEmpty
-                      ? 'Pick at least one product'
-                      : 'Add ${_selected.length} product${_selected.length == 1 ? '' : 's'}',
-                  icon: Icons.add,
-                  onTap: _selected.isEmpty
-                      ? null
-                      : () => Navigator.of(context).pop(_selected.values.toList()),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -2189,10 +1486,16 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
     try {
       final d = await inventoryRepo.adjustmentGet(widget.adj.id);
       if (!mounted) return;
-      setState(() { _detail = d; _loading = false; });
+      setState(() {
+        _detail = d;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _err = e; _loading = false; });
+      setState(() {
+        _err = e;
+        _loading = false;
+      });
     }
   }
 
@@ -2211,23 +1514,22 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
         ),
         child: Column(
           children: [
-            _SheetHeader(
-              title: widget.adj.adjNo,
-              onClose: () => Navigator.of(context).pop(),
-            ),
+            _SheetHeader(title: widget.adj.adjNo, onClose: () => Navigator.of(context).pop()),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _err != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text('Failed to load: $_err',
-                                textAlign: TextAlign.center,
-                                style: RunqText.caption.copyWith(color: t.muted)),
-                          ),
-                        )
-                      : _buildBody(scrollCtrl),
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'Failed to load: $_err',
+                          textAlign: TextAlign.center,
+                          style: RunqText.caption.copyWith(color: t.muted),
+                        ),
+                      ),
+                    )
+                  : _buildBody(scrollCtrl),
             ),
           ],
         ),
@@ -2238,20 +1540,20 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
   Widget _buildBody(ScrollController scrollCtrl) {
     final t = RT(context);
     final d = _detail!;
-    final isOutbound = _outboundReasons.contains(d.reason);
+    final isOutbound = invOutboundReasons.contains(d.reason);
     final reasonColor = isOutbound ? InvColors.error : InvColors.success;
     final reasonBg = isOutbound
         ? InvColors.error.withValues(alpha: 0.10)
         : InvColors.success.withValues(alpha: 0.10);
-    final reasonLabel = _reasonLabels[d.reason] ?? d.reason;
+    final reasonLabel = invReasonLabels[d.reason] ?? d.reason;
     final deltaText = d.totalValueDelta == 0
         ? '—'
         : '${d.totalValueDelta > 0 ? '+' : '-'}${compactINR(d.totalValueDelta.abs())}';
     final deltaColor = d.totalValueDelta < 0
         ? InvColors.error
         : d.totalValueDelta > 0
-            ? InvColors.success
-            : t.muted;
+        ? InvColors.success
+        : t.muted;
     return ListView(
       controller: scrollCtrl,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -2259,10 +1561,7 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: t.bgWarmer,
-            borderRadius: BorderRadius.circular(10),
-          ),
+          decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(10)),
           child: Column(
             children: [
               Row(
@@ -2270,9 +1569,12 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
                   Icon(Icons.store_outlined, size: 14, color: t.muted),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(d.warehouseName,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      d.warehouseName,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   InvStatusPill(status: d.status),
                 ],
@@ -2293,11 +1595,12 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
                   ),
                   const SizedBox(width: 8),
                   if (d.adjustmentDate.isNotEmpty)
-                    Text(d.adjustmentDate,
-                        style: RunqText.caption.copyWith(color: t.muted)),
+                    Text(d.adjustmentDate, style: RunqText.caption.copyWith(color: t.muted)),
                   const Spacer(),
-                  Text(deltaText,
-                      style: RunqText.bodyStrong.copyWith(color: deltaColor, fontSize: 14)),
+                  Text(
+                    deltaText,
+                    style: RunqText.bodyStrong.copyWith(color: deltaColor, fontSize: 14),
+                  ),
                 ],
               ),
             ],
@@ -2312,8 +1615,7 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
           children: [
             Text('Items', style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)),
             const SizedBox(width: 6),
-            Text('(${d.lines.length})',
-                style: RunqText.caption.copyWith(color: t.muted)),
+            Text('(${d.lines.length})', style: RunqText.caption.copyWith(color: t.muted)),
           ],
         ),
         const SizedBox(height: 8),
@@ -2321,8 +1623,7 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: Text('No line items',
-                  style: RunqText.caption.copyWith(color: t.muted)),
+              child: Text('No line items', style: RunqText.caption.copyWith(color: t.muted)),
             ),
           )
         else
@@ -2330,10 +1631,7 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
             if (i > 0) const SizedBox(height: 8),
             _DetailLineCard(line: d.lines[i]),
           ],
-        if (_isUnfinished(d.status)) ...[
-          const SizedBox(height: 20),
-          _draftActions(d),
-        ],
+        if (_isUnfinished(d.status)) ...[const SizedBox(height: 20), _draftActions(d)],
       ],
     );
   }
@@ -2374,17 +1672,14 @@ class _AdjDetailSheetState extends State<_AdjDetailSheet> {
     );
   }
 
-  Future<void> _post(InvAdjustmentDetail d) => _act(
-        d,
-        () => inventoryRepo.postAdjustment(d.id),
-        '${d.adjNo} posted — stock updated',
-      );
+  Future<void> _post(InvAdjustmentDetail d) =>
+      _act(d, () => inventoryRepo.postAdjustment(d.id), '${d.adjNo} posted — stock updated');
 
   Future<void> _cancel(InvAdjustmentDetail d) => _act(
-        d,
-        () => inventoryRepo.cancelAdjustment(d.id, 'Discarded from mobile'),
-        '${d.adjNo} discarded',
-      );
+    d,
+    () => inventoryRepo.cancelAdjustment(d.id, 'Discarded from mobile'),
+    '${d.adjNo} discarded',
+  );
 
   /// Runs an action, closes the sheet on success, and keeps it open on failure
   /// so the reason stays next to the document it belongs to. The messenger is
@@ -2419,9 +1714,7 @@ class _DetailLineCard extends StatelessWidget {
     final t = RT(context);
     final isNegative = line.qtyDelta < 0;
     final mag = line.qtyDelta.abs();
-    final qtyStr = mag == mag.truncateToDouble()
-        ? mag.toInt().toString()
-        : mag.toStringAsFixed(2);
+    final qtyStr = mag == mag.truncateToDouble() ? mag.toInt().toString() : mag.toStringAsFixed(2);
     final qtyColor = isNegative ? InvColors.error : InvColors.success;
     final qtyPrefix = isNegative ? '−' : '+';
     return Container(
@@ -2440,9 +1733,12 @@ class _DetailLineCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(line.itemName,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(
+                  line.itemName,
+                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 if ((line.itemSku ?? '').isNotEmpty || (line.batchNo ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -2457,8 +1753,10 @@ class _DetailLineCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text('$qtyPrefix$qtyStr',
-              style: RunqText.bodyStrong.copyWith(color: qtyColor, fontSize: 14)),
+          Text(
+            '$qtyPrefix$qtyStr',
+            style: RunqText.bodyStrong.copyWith(color: qtyColor, fontSize: 14),
+          ),
         ],
       ),
     );
@@ -2480,12 +1778,14 @@ class _MetaRow extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: t.muted),
           const SizedBox(width: 8),
-          Text('$label: ',
-              style: RunqText.caption.copyWith(color: t.muted)),
+          Text('$label: ', style: RunqText.caption.copyWith(color: t.muted)),
           Expanded(
-            child: Text(value,
-                style: RunqText.caption.copyWith(color: t.ink),
-                maxLines: 3, overflow: TextOverflow.ellipsis),
+            child: Text(
+              value,
+              style: RunqText.caption.copyWith(color: t.ink),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -2507,65 +1807,35 @@ class _SheetHeader extends StatelessWidget {
       children: [
         const SizedBox(height: 10),
         Container(
-          width: 36, height: 4,
+          width: 36,
+          height: 4,
           decoration: BoxDecoration(color: t.hairline, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 12, 8),
-          child: Row(children: [
-            Expanded(child: Text(title, style: RunqText.h3.copyWith(color: t.ink))),
-            Material(
-              color: t.bgWarmer,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onClose,
-                child: SizedBox(
-                  width: 28, height: 28,
-                  child: Icon(Icons.close, size: 14, color: t.muted),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(title, style: RunqText.h3.copyWith(color: t.ink)),
+              ),
+              Material(
+                color: t.bgWarmer,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onClose,
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Icon(Icons.close, size: 14, color: t.muted),
+                  ),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ],
     );
   }
-}
-
-class _Lbl extends StatelessWidget {
-  const _Lbl(this.label);
-  final String label;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 5),
-    child: Text(label.toUpperCase(),
-        style: RunqText.label.copyWith(color: RT(context).muted, letterSpacing: 0.5)),
-  );
-}
-
-InputDecoration _dec(BuildContext context, {String? hint, Widget? suffix}) {
-  final t = RT(context);
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: RunqText.body.copyWith(color: t.muted2, fontSize: 14),
-    filled: true,
-    fillColor: t.surface,
-    isDense: true,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    suffixIcon: suffix,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.hairline),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.hairline),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: InvColors.brand(context), width: 1.2),
-    ),
-  );
 }

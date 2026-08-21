@@ -14,6 +14,8 @@ import 'widgets/mfg_primitives.dart';
 ///
 /// Reads the `inputs` item-class group (raw_material + packaging), which is
 /// exactly the set consumption pulls from, so nothing here is un-consumable.
+/// The two classes are then split by a chip strip — a planner chasing bottles
+/// should not have to scroll past every drum of oil to find them.
 class MfgRawMaterialsScreen extends ConsumerStatefulWidget {
   const MfgRawMaterialsScreen({super.key});
 
@@ -24,6 +26,9 @@ class MfgRawMaterialsScreen extends ConsumerStatefulWidget {
 class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
   final _searchCtrl = TextEditingController();
   String _search = '';
+  /// null = the whole 'inputs' group. Filtered client-side: the group is
+  /// already fetched whole, so a class chip costs no extra round trip.
+  String? _itemClass;
 
   @override
   void dispose() {
@@ -57,6 +62,29 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
                 onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
               ),
             ),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  for (final c in const [
+                    (itemClass: null, label: 'All'),
+                    (itemClass: 'raw_material', label: 'Raw material'),
+                    (itemClass: 'packaging', label: 'Packaging'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: MfgFilterChip(
+                        label: c.label,
+                        selected: _itemClass == c.itemClass,
+                        onTap: () => setState(() => _itemClass = c.itemClass),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: async.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -74,7 +102,10 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     );
   }
 
-  Widget _list(RunqTokens t, List<InvOnHandRow> all) {
+  Widget _list(RunqTokens t, List<InvOnHandRow> everything) {
+    final all = _itemClass == null
+        ? everything
+        : everything.where((r) => r.itemClass == _itemClass).toList();
     final rows = _search.isEmpty
         ? all
         : all

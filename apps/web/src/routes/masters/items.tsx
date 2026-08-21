@@ -14,7 +14,7 @@ import {
 import { formatINR, formatINRShort } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import {
-  InvClassTabs, resolveDefaultClassGroup, type ItemClassGroup,
+  InvClassTabs, resolveDefaultClassGroup, classGroupForItemClass, type ItemClassGroup,
 } from '@/components/inventory/inv-class-tabs';
 import { groupItemsByClass, groupItemsByCategory, ItemSectionRow } from '@/components/inventory/item-sections';
 import type { Item } from '@/hooks/queries/use-items';
@@ -87,7 +87,9 @@ export function ItemsPage() {
   // Search + page are URL-backed so navigating to edit and back preserves
   // the filtered list. The previous local-state implementation reset on
   // every route change.
-  const params = useSearch({ strict: false }) as { q?: string; page?: number; classGroup?: string };
+  const params = useSearch({ strict: false }) as {
+    q?: string; page?: number; classGroup?: string; itemClass?: string;
+  };
   const search = params.q ?? '';
   const page = params.page ?? 1;
   // Server-side per-bucket counts — feeds the tab badges and lets the
@@ -104,6 +106,13 @@ export function ItemsPage() {
       ? params.classGroup
       : null;
   const classGroup: ItemClassGroup = urlGroup ?? resolveDefaultClassGroup(moduleDefaultClassGroup, counts);
+  // Second-level class within the bucket (Inputs → raw material / packaging).
+  // Ignored when it doesn't belong to the selected bucket, so switching
+  // buckets can't leave a contradictory pair filtering the list to nothing.
+  const itemClass =
+    params.itemClass && classGroupForItemClass(params.itemClass) === classGroup
+      ? params.itemClass
+      : null;
 
   // Wrap navigate in a loose-typed shim. The router's overloads are
   // string-literal-driven, so a dynamic prefix breaks the inference for
@@ -112,7 +121,10 @@ export function ItemsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigate as unknown as (opts: any) => void;
 
-  function updateSearch(patch: { q?: string; page?: number; classGroup?: string }, resetPage = true) {
+  function updateSearch(
+    patch: { q?: string; page?: number; classGroup?: string; itemClass?: string },
+    resetPage = true,
+  ) {
     nav({
       to: itemsBase,
       search: (prev: typeof params) => {
@@ -134,6 +146,7 @@ export function ItemsPage() {
     limit: LIMIT,
     ...(search ? { search } : {}),
     ...(classGroup !== 'all' ? { itemClassGroup: classGroup } : {}),
+    ...(itemClass ? { itemClass: itemClass as ItemClass } : {}),
     // Inventory reads the catalogue as a category tree, so rows come back
     // ordered category → subcategory → name and the table sections on the
     // same keys. Finance and purchase stay class-ranked and alphabetical.
@@ -153,7 +166,7 @@ export function ItemsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [page, classGroup, search]);
+  }, [page, classGroup, itemClass, search]);
 
   // Close export dropdown on outside click
   useEffect(() => {
@@ -320,8 +333,11 @@ export function ItemsPage() {
       <div className="mb-3">
         <InvClassTabs
           selected={classGroup}
+          itemClass={itemClass}
+          onItemClassChange={(c) => updateSearch({ itemClass: c ?? undefined })}
+          classCounts={counts?.byClass}
           counts={counts}
-          onChange={(g) => updateSearch({ classGroup: g })}
+          onChange={(g) => updateSearch({ classGroup: g, itemClass: undefined })}
         />
       </div>
 

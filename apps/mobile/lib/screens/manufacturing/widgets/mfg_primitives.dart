@@ -890,3 +890,47 @@ class MfgQuickActionTile extends StatelessWidget {
     );
   }
 }
+
+/// Tappable filter chip — the selectable counterpart to [MfgMetaChip], which
+/// is a read-only status pill. Used by the item picker's class row and the
+/// raw-materials list.
+class MfgFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const MfgFilterChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = MfgColors.brand(context);
+    return Material(
+      color: selected ? MfgColors.roseSubtle : t.bgWarmer,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: selected ? brand : t.hairline),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: RunqText.caption.copyWith(
+              color: selected ? brand : t.muted,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
