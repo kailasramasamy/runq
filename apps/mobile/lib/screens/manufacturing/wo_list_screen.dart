@@ -111,10 +111,11 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                       description: 'Create your first WO to schedule a run.',
                     );
                   }
-                  // One card, hairline-separated rows, each led by its own bold
-                  // date block. This replaced per-day headers over floating
-                  // cards: the date now travels with the row it describes, so
-                  // scrolling never loses which day you are looking at.
+                  // A card per day under its own header. Inside a day the
+                  // date block would repeat down every row, so the leading
+                  // block carries the shift instead — which is what actually
+                  // separates one run from the next within a date.
+                  final days = _groupByDay(res.data);
                   return RefreshIndicator(
                     onRefresh: () async =>
                         ref.invalidate(workOrderListProvider(params)),
@@ -122,13 +123,28 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
                       children: [
-                        MfgDividedCard(
-                          children: [
-                            for (final wo in res.data) _WoTile(wo: wo),
-                          ],
-                        ),
+                        for (final day in days.entries) ...[
+                          MfgSectionHeader(
+                            label: _dayLabel(day.key),
+                            trailing: Text(
+                              day.value.length == 1
+                                  ? '1 run'
+                                  : '${day.value.length} runs',
+                              style: RunqText.caption.copyWith(color: t.muted2),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: MfgDividedCard(
+                              children: [
+                                for (final wo in day.value) _WoTile(wo: wo),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ],
                     ),
                   );
@@ -142,6 +158,30 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
   }
 }
 
+/// Rows keyed by their scheduled day, in the order the API returned them —
+/// grouping must not re-sort a list the server already ordered.
+Map<String, List<WorkOrderListRow>> _groupByDay(List<WorkOrderListRow> rows) {
+  final out = <String, List<WorkOrderListRow>>{};
+  for (final wo in rows) {
+    out.putIfAbsent(wo.scheduledFor, () => []).add(wo);
+  }
+  return out;
+}
+
+/// "Today" / "Yesterday" beat a date the reader has to decode against today.
+String _dayLabel(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return iso;
+  final now = DateTime.now();
+  final days = DateTime(dt.year, dt.month, dt.day)
+      .difference(DateTime(now.year, now.month, now.day))
+      .inDays;
+  if (days == 0) return 'Today';
+  if (days == -1) return 'Yesterday';
+  if (days == 1) return 'Tomorrow';
+  return mfgPrettyDate(iso);
+}
+
 class _WoTile extends StatelessWidget {
   final WorkOrderListRow wo;
   const _WoTile({required this.wo});
@@ -152,6 +192,7 @@ class _WoTile extends StatelessWidget {
       flat: true,
       icon: Icons.precision_manufacturing_outlined,
       leadingDate: wo.scheduledFor,
+      leadingShift: wo.shift,
       title: wo.woNumber,
       subtitle: '${wo.bomCode} v${wo.bomVersion}',
       status: wo.status,
@@ -159,10 +200,7 @@ class _WoTile extends StatelessWidget {
       rightValue: _qty(wo.plannedQty),
       rightUnit: wo.outputUom,
       reference: wo.woNumber,
-      metaLine: [
-        if (wo.shift != null && wo.shift!.isNotEmpty) wo.shift!,
-        wo.warehouseName,
-      ].join(' · '),
+      metaLine: wo.warehouseName,
       onTap: () => context.push('/manufacturing/wos/${wo.id}'),
     );
   }
