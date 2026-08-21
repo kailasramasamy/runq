@@ -179,15 +179,40 @@ class _Body extends StatelessWidget {
     ];
   }
 
+  /// One card per section with hairline-separated rows, rather than a
+  /// floating card per item: at a glance the section is one block to scan
+  /// down, not fifteen boxes to step over.
+  ///
+  /// Stays a lazy SliverList — an alert list can run to hundreds of rows on a
+  /// tenant that never set thresholds — with the card drawn by DecoratedSliver
+  /// around it.
   Widget _list(List<InvStockAlert> rows) => SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverList.separated(
-          itemCount: rows.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (ctx, i) => InvStockAlertTile(
-            alert: rows[i],
-            onTap: () => ctx.push('/inventory/items/${rows[i].itemId}'),
-          ),
+        sliver: Builder(
+          builder: (ctx) {
+            final t = RT(ctx);
+            return DecoratedSliver(
+              decoration: BoxDecoration(
+                color: t.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: t.hairlineSoft),
+              ),
+              sliver: SliverList.separated(
+                itemCount: rows.length,
+                separatorBuilder: (ctx2, _) => Divider(
+                  height: 1,
+                  thickness: 1,
+                  indent: 14,
+                  endIndent: 14,
+                  color: RT(ctx2).hairlineSoft,
+                ),
+                itemBuilder: (ctx2, i) => InvStockAlertTile(
+                  alert: rows[i],
+                  onTap: () => ctx2.push('/inventory/items/${rows[i].itemId}'),
+                ),
+              ),
+            );
+          },
         ),
       );
 }
