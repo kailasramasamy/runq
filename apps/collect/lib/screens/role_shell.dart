@@ -4,9 +4,11 @@ import '../providers/notification_providers.dart';
 import '../theme/dhenu_tokens.dart';
 import '../widgets/app_bottom_nav.dart';
 
-/// A persona home shell: an IndexedStack of tab pages under the 5-item
-/// [AppBottomNav] (spec §4.3). Each role supplies its own tabs + nav items.
-/// Keeping tabs in an IndexedStack preserves each tab's scroll/state on switch.
+/// A persona home shell: an IndexedStack of tab pages under [AppBottomNav]
+/// (spec §4.3). Each role supplies its own tabs + nav items — four apiece; the
+/// operator shells reach Profile from the Home avatar instead, keeping the nav
+/// for the daily loop. Keeping tabs in an IndexedStack preserves each tab's
+/// scroll/state on switch.
 class RoleShell extends ConsumerStatefulWidget {
   const RoleShell({
     super.key,

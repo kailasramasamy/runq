@@ -979,5 +979,142 @@
   "farmerSaleDelete": "ಅಳಿಸಿ",
   "farmerSaleDeleteConfirm": "ಈ ಮಾರಾಟವನ್ನು ಅಳಿಸಬೇಕೆ? ಇದು ಇನ್ನು ಕಡಿತವಾಗುವುದಿಲ್ಲ.",
   "farmerSaleDeleted": "ಮಾರಾಟ ಅಳಿಸಲಾಗಿದೆ",
-  "farmerPaymentsStillOwed": "ಈ ಪಾವತಿಯ ನಂತರವೂ {amount} ಬಾಕಿ"
+  "farmerPaymentsStillOwed": "ಈ ಪಾವತಿಯ ನಂತರವೂ {amount} ಬಾಕಿ",
+  "runningCycleTitle": "ಈ ಚಕ್ರ",
+  "@runningCycleTitle": {
+    "description": "Running cycle card heading"
+  },
+  "runningCycleNetPayable": "ಈಗ ಪಾವತಿಸಬೇಕಾದ ನಿವ್ವಳ",
+  "@runningCycleNetPayable": {
+    "description": "Running cycle card"
+  },
+  "runningCycleGross": "ಹಾಲಿನ ಮೌಲ್ಯ",
+  "@runningCycleGross": {
+    "description": "Running cycle card"
+  },
+  "runningCycleNoCadence": "ಚಕ್ರದ ಅವಧಿ ಹೊಂದಿಸಿಲ್ಲ",
+  "@runningCycleNoCadence": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoCadenceHint": "ಚಾಲ್ತಿ ಬಾಕಿ ನೋಡಲು ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಸಂಗ್ರಹ ಚಕ್ರವನ್ನು ಹೊಂದಿಸಿ",
+  "@runningCycleNoCadenceHint": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoPours": "ಈ ಚಕ್ರದಲ್ಲಿ ಇನ್ನೂ ಸಂಗ್ರಹವಿಲ್ಲ",
+  "@runningCycleNoPours": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleLoadError": "ಈ ಚಕ್ರವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ",
+  "@runningCycleLoadError": {
+    "description": "Running cycle card error"
+  },
+  "runningCycleFrozen": "ಲಾಕ್ ಆಗಿದೆ — ಅಂತಿಮ",
+  "@runningCycleFrozen": {
+    "description": "Chip shown when the cycle is locked/paid so the figure can no longer move"
+  },
+  "runningCycleLive": "ಚಾಲ್ತಿ ಮೊತ್ತ",
+  "@runningCycleLive": {
+    "description": "Chip shown while the cycle is still collecting"
+  },
+  "runningCycleFullyRecovered": "ಬಾಕಿಗೆ ಪೂರ್ಣ ವಸೂಲಿ",
+  "@runningCycleFullyRecovered": {
+    "description": "Shown when deductions absorb the whole milk value"
+  },
+  "runningCycleVmccCount": "{count} ಕೇಂದ್ರಗಳು",
+  "@runningCycleVmccCount": {
+    "description": "Running cycle card, CC mode",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "runningCycleFarmerCount": "{count} ರೈತರು",
+  "@runningCycleFarmerCount": {
+    "description": "Running cycle card",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ccCycleBalanceTitle": "ಚಕ್ರದ ಬಾಕಿ",
+  "@ccCycleBalanceTitle": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceLink": "ಚಕ್ರದ ಬಾಕಿ",
+  "@ccCycleBalanceLink": {
+    "description": "CC home quick link"
+  },
+  "ccCycleBalanceEmpty": "ಈ ಚಕ್ರದಲ್ಲಿ ಯಾವ ಕೇಂದ್ರವೂ ಇನ್ನೂ ಸಂಗ್ರಹಿಸಿಲ್ಲ",
+  "@ccCycleBalanceEmpty": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceMilk": "ಹಾಲು {amount}",
+  "@ccCycleBalanceMilk": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccCycleBalanceComp": "ಸಂಭಾವನೆ {amount}",
+  "@ccCycleBalanceComp": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleDeducted": "ಬಾಕಿ ಕಳೆದು {amount}",
+  "@runningCycleDeducted": {
+    "description": "Running cycle card deduction line",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleComp": "ಜೊತೆಗೆ ಸಂಭಾವನೆ {amount}",
+  "@runningCycleComp": {
+    "description": "Running cycle card — operator comp folded into a CC bill",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccPaymentsCentresTitle": "ಕೇಂದ್ರಗಳು",
+  "@ccPaymentsCentresTitle": {
+    "description": "CC Payments tab — the per-VMCC view of the same cycles"
+  },
+  "paymentsCentreCount": "{count} ಕೇಂದ್ರಗಳು",
+  "@paymentsCentreCount": {
+    "description": "Cycle card — payees are centres, not farmers (bulk-settled CC)",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "paymentsPendingCentresSub": "{centres} ಕೇಂದ್ರಗಳು · {open} ತೆರೆದಿದೆ",
+  "@paymentsPendingCentresSub": {
+    "description": "Pending-to-pay subtitle for a bulk-settled CC",
+    "placeholders": {
+      "centres": {},
+      "open": {}
+    }
+  },
+  "cycleCentreBreakup": "ಕೇಂದ್ರವಾರು",
+  "@cycleCentreBreakup": {
+    "description": "Cycle detail — per-VMCC breakdown heading"
+  },
+  "cycleNoBills": "ಈ ಚಕ್ರದಲ್ಲಿ ಕೇಂದ್ರ ಬಿಲ್‌ಗಳಿಲ್ಲ",
+  "@cycleNoBills": {
+    "description": "Cycle detail — empty breakdown"
+  },
+  "cycleBillDue": "ಬಾಕಿ",
+  "@cycleBillDue": {
+    "description": "Cycle detail — an unpaid centre bill"
+  }
 }

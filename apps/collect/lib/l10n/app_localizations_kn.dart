@@ -3357,4 +3357,97 @@ class AppLocalizationsKn extends AppLocalizations {
   String farmerPaymentsStillOwed(String amount) {
     return 'ಈ ಪಾವತಿಯ ನಂತರವೂ $amount ಬಾಕಿ';
   }
+
+  @override
+  String get runningCycleTitle => 'ಈ ಚಕ್ರ';
+
+  @override
+  String get runningCycleNetPayable => 'ಈಗ ಪಾವತಿಸಬೇಕಾದ ನಿವ್ವಳ';
+
+  @override
+  String get runningCycleGross => 'ಹಾಲಿನ ಮೌಲ್ಯ';
+
+  @override
+  String get runningCycleNoCadence => 'ಚಕ್ರದ ಅವಧಿ ಹೊಂದಿಸಿಲ್ಲ';
+
+  @override
+  String get runningCycleNoCadenceHint =>
+      'ಚಾಲ್ತಿ ಬಾಕಿ ನೋಡಲು ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಸಂಗ್ರಹ ಚಕ್ರವನ್ನು ಹೊಂದಿಸಿ';
+
+  @override
+  String get runningCycleNoPours => 'ಈ ಚಕ್ರದಲ್ಲಿ ಇನ್ನೂ ಸಂಗ್ರಹವಿಲ್ಲ';
+
+  @override
+  String get runningCycleLoadError => 'ಈ ಚಕ್ರವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get runningCycleFrozen => 'ಲಾಕ್ ಆಗಿದೆ — ಅಂತಿಮ';
+
+  @override
+  String get runningCycleLive => 'ಚಾಲ್ತಿ ಮೊತ್ತ';
+
+  @override
+  String get runningCycleFullyRecovered => 'ಬಾಕಿಗೆ ಪೂರ್ಣ ವಸೂಲಿ';
+
+  @override
+  String runningCycleVmccCount(int count) {
+    return '$count ಕೇಂದ್ರಗಳು';
+  }
+
+  @override
+  String runningCycleFarmerCount(int count) {
+    return '$count ರೈತರು';
+  }
+
+  @override
+  String get ccCycleBalanceTitle => 'ಚಕ್ರದ ಬಾಕಿ';
+
+  @override
+  String get ccCycleBalanceLink => 'ಚಕ್ರದ ಬಾಕಿ';
+
+  @override
+  String get ccCycleBalanceEmpty =>
+      'ಈ ಚಕ್ರದಲ್ಲಿ ಯಾವ ಕೇಂದ್ರವೂ ಇನ್ನೂ ಸಂಗ್ರಹಿಸಿಲ್ಲ';
+
+  @override
+  String ccCycleBalanceMilk(String amount) {
+    return 'ಹಾಲು $amount';
+  }
+
+  @override
+  String ccCycleBalanceComp(String amount) {
+    return 'ಸಂಭಾವನೆ $amount';
+  }
+
+  @override
+  String runningCycleDeducted(String amount) {
+    return 'ಬಾಕಿ ಕಳೆದು $amount';
+  }
+
+  @override
+  String runningCycleComp(String amount) {
+    return 'ಜೊತೆಗೆ ಸಂಭಾವನೆ $amount';
+  }
+
+  @override
+  String get ccPaymentsCentresTitle => 'ಕೇಂದ್ರಗಳು';
+
+  @override
+  String paymentsCentreCount(Object count) {
+    return '$count ಕೇಂದ್ರಗಳು';
+  }
+
+  @override
+  String paymentsPendingCentresSub(Object centres, Object open) {
+    return '$centres ಕೇಂದ್ರಗಳು · $open ತೆರೆದಿದೆ';
+  }
+
+  @override
+  String get cycleCentreBreakup => 'ಕೇಂದ್ರವಾರು';
+
+  @override
+  String get cycleNoBills => 'ಈ ಚಕ್ರದಲ್ಲಿ ಕೇಂದ್ರ ಬಿಲ್‌ಗಳಿಲ್ಲ';
+
+  @override
+  String get cycleBillDue => 'ಬಾಕಿ';
 }

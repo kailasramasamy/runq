@@ -3382,4 +3382,99 @@ class AppLocalizationsTa extends AppLocalizations {
   String farmerPaymentsStillOwed(String amount) {
     return 'இந்தப் பணத்திற்குப் பிறகும் $amount பாக்கி';
   }
+
+  @override
+  String get runningCycleTitle => 'இந்தச் சுழற்சி';
+
+  @override
+  String get runningCycleNetPayable => 'இப்போது செலுத்த வேண்டிய நிகரம்';
+
+  @override
+  String get runningCycleGross => 'பாலின் மதிப்பு';
+
+  @override
+  String get runningCycleNoCadence => 'சுழற்சி காலம் அமைக்கப்படவில்லை';
+
+  @override
+  String get runningCycleNoCadenceHint =>
+      'நடப்பு நிலுவையைப் பார்க்க அமைப்புகளில் சேகரிப்புச் சுழற்சியை அமைக்கவும்';
+
+  @override
+  String get runningCycleNoPours =>
+      'இந்தச் சுழற்சியில் இன்னும் சேகரிப்பு இல்லை';
+
+  @override
+  String get runningCycleLoadError => 'இந்தச் சுழற்சியை ஏற்ற முடியவில்லை';
+
+  @override
+  String get runningCycleFrozen => 'பூட்டப்பட்டது — இறுதி';
+
+  @override
+  String get runningCycleLive => 'நடப்புத் தொகை';
+
+  @override
+  String get runningCycleFullyRecovered =>
+      'நிலுவைக்கு முழுமையாக ஈடுசெய்யப்பட்டது';
+
+  @override
+  String runningCycleVmccCount(int count) {
+    return '$count மையங்கள்';
+  }
+
+  @override
+  String runningCycleFarmerCount(int count) {
+    return '$count விவசாயிகள்';
+  }
+
+  @override
+  String get ccCycleBalanceTitle => 'சுழற்சி நிலுவை';
+
+  @override
+  String get ccCycleBalanceLink => 'சுழற்சி நிலுவை';
+
+  @override
+  String get ccCycleBalanceEmpty =>
+      'இந்தச் சுழற்சியில் எந்த மையமும் இன்னும் சேகரிக்கவில்லை';
+
+  @override
+  String ccCycleBalanceMilk(String amount) {
+    return 'பால் $amount';
+  }
+
+  @override
+  String ccCycleBalanceComp(String amount) {
+    return 'ஊதியம் $amount';
+  }
+
+  @override
+  String runningCycleDeducted(String amount) {
+    return 'நிலுவை கழித்து $amount';
+  }
+
+  @override
+  String runningCycleComp(String amount) {
+    return 'மேலும் ஊதியம் $amount';
+  }
+
+  @override
+  String get ccPaymentsCentresTitle => 'மையங்கள்';
+
+  @override
+  String paymentsCentreCount(Object count) {
+    return '$count மையங்கள்';
+  }
+
+  @override
+  String paymentsPendingCentresSub(Object centres, Object open) {
+    return '$centres மையங்கள் · $open திறந்துள்ளது';
+  }
+
+  @override
+  String get cycleCentreBreakup => 'மையவாரியாக';
+
+  @override
+  String get cycleNoBills => 'இந்தச் சுழற்சியில் மைய பில்கள் இல்லை';
+
+  @override
+  String get cycleBillDue => 'நிலுவை';
 }

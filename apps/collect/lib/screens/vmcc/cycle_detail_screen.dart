@@ -10,12 +10,14 @@ import '../../providers/mp_payout_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../utils/friendly_error.dart';
 import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/primary_action.dart';
 import '../../widgets/source_row.dart';
+import '../shared/cycle_payments.dart';
 import 'payout_line_sheet.dart';
 
 enum _PaidFilter { all, unpaid, paid }
@@ -168,8 +170,11 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         const SizedBox(height: DhenuSpacing.md),
         _progressCard(t, c, l),
         const SizedBox(height: DhenuSpacing.xl),
+        // A cycle settles one way or the other: farmer payout lines, or bulk
+        // bills per VMCC. Reading only the lines left a wholesale CC's cycle
+        // looking empty when it held lakhs.
         if (c.lines.isEmpty)
-          DhenuEmptyState(icon: DhenuIcons.users, title: l.cycleNoLines)
+          _billBreakup(t, l)
         else ...[
           _controls(t, c, l),
           const SizedBox(height: DhenuSpacing.md),
@@ -179,14 +184,33 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
     );
   }
 
-  /// Net payable + a paid/pending disbursement progress bar driven by the
-  /// per-farmer flags (optimistic overrides included).
+  /// The cycle's VMCC bills — for a wholesale CC this is the whole account of
+  /// where the money went, so it replaces the farmer list rather than adding to it.
+  Widget _billBreakup(DhenuTokens t, AppLocalizations l) {
+    final async = ref.watch(cycleVmccBillsProvider(widget.cycleId));
+    return async.when(
+      loading: () => const DhenuLoadingList(rows: 3),
+      error: (e, _) => DhenuEmptyState(
+          icon: DhenuIcons.cloudOff,
+          title: l.cycleCouldNotLoad,
+          subtitle: friendlyError(context, e)),
+      data: (bills) => bills.isEmpty
+          ? DhenuEmptyState(icon: DhenuIcons.users, title: l.cycleNoLines)
+          : VmccBillBreakup(bills: bills),
+    );
+  }
+
+  /// Net payable + a paid/pending disbursement progress bar. Driven by the
+  /// per-farmer flags (optimistic overrides included) when the cycle pays
+  /// farmers, and by the VMCC bills when it settles centres wholesale.
   Widget _progressCard(DhenuTokens t, MpPayoutCycle c, AppLocalizations l) {
+    if (c.lines.isEmpty) return _billProgressCard(t, c, l);
     final net = c.lines.fold<double>(0, (a, ln) => a + ln.netAmount);
     final paidSum = c.lines.where(_isPaid).fold<double>(0, (a, ln) => a + ln.netAmount);
     final pending = (net - paidSum).clamp(0, double.infinity).toDouble();
     final paidCount = c.lines.where(_isPaid).length;
     return DhenuCard(
+      elevated: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(l.cycleNetPayable, style: DhenuText.caption.copyWith(
             color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
@@ -201,6 +225,48 @@ class _CycleDetailScreenState extends ConsumerState<CycleDetailScreen> {
         Row(children: [
           _legendDot(t.gradeA),
           Text(l.cyclePaidLegend(rupees(paidSum), paidCount, c.lines.length),
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          const Spacer(),
+          if (pending > 0) ...[
+            _legendDot(t.gradeB),
+            Text(l.paymentsAmountPending(rupees(pending)),
+                style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          ],
+        ]),
+      ]),
+    );
+  }
+
+  /// The same card, summed from the cycle's centre bills.
+  Widget _billProgressCard(DhenuTokens t, MpPayoutCycle c, AppLocalizations l) {
+    final bills = ref.watch(cycleVmccBillsProvider(widget.cycleId)).valueOrNull
+        ?? const <MpVmccBill>[];
+    final live = bills.where((b) => !b.isReversed);
+    final net = live.fold<double>(0, (a, b) => a + b.totalAmount);
+    final paidSum =
+        live.where((b) => b.isPaid).fold<double>(0, (a, b) => a + b.totalAmount);
+    final pending = (net - paidSum).clamp(0, double.infinity).toDouble();
+    return DhenuCard(
+      elevated: true,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(l.cycleNetPayable, style: DhenuText.caption.copyWith(
+            color: t.inkSoft, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+        const SizedBox(height: DhenuSpacing.xs),
+        // Falls back to the server's roll-up until the bills land, so the
+        // headline never flashes ₹0 on a cycle that has money in it.
+        Text(rupees(net > 0 ? net : c.billTotal),
+            style: DhenuText.number(size: 32, color: t.ink)),
+        const SizedBox(height: DhenuSpacing.lg),
+        BreakdownBar(height: 10, segments: [
+          BreakdownSegment(paidSum, t.gradeA),
+          BreakdownSegment(pending, t.gradeB),
+        ]),
+        const SizedBox(height: DhenuSpacing.sm),
+        Row(children: [
+          _legendDot(t.gradeA),
+          Text(
+              l.cyclePaidLegend(rupees(paidSum),
+                  live.where((b) => b.isPaid).length, live.length),
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
           const Spacer(),
           if (pending > 0) ...[

@@ -10,7 +10,6 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
-import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
@@ -141,41 +140,28 @@ class _BillCardState extends State<_BillCard> {
   Widget build(BuildContext context) {
     final t = DT(context);
     final l = AppLocalizations.of(context);
-    return DhenuCard(
-      padding: EdgeInsets.zero,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _identity(t, l),
-        Divider(height: 1, color: t.hairline),
-        _money(t, l),
-        Divider(height: 1, color: t.hairline),
-        _action(t, l),
-      ]),
-    );
-  }
-
-  /// Which cycle this is, and where it stands. The period leads because that is
-  /// how an operator asks the question — "what did I get for the second half of
-  /// July" — not by bill number.
-  Widget _identity(DhenuTokens t, AppLocalizations l) {
     final (label, color) = b.isReversed
         ? (l.paymentsBillReversed, t.inkSoft)
         : b.isPaid
             ? (l.paymentsBillStatusPaid, t.gradeA)
             : (l.paymentsBillStatusDue, t.gradeB);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          DhenuSpacing.lg, DhenuSpacing.lg, DhenuSpacing.lg, DhenuSpacing.md),
+    return DhenuCard(
+      elevated: true,
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // The period leads because that is how an operator asks the question —
+        // "what did I get for the second half of July" — not by bill number.
         Row(children: [
           Expanded(
-            child: Text('${prettyDate(b.periodStart)} – ${prettyDate(b.periodEnd)}',
+            child: Text('${shortDate(b.periodStart)} – ${prettyDate(b.periodEnd)}',
                 style: DhenuText.title.copyWith(color: t.ink),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: DhenuSpacing.sm),
           Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
+                horizontal: DhenuSpacing.md, vertical: 2),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(DhenuRadii.pill),
@@ -183,57 +169,36 @@ class _BillCardState extends State<_BillCard> {
             child: Text(label, style: DhenuText.label.copyWith(color: color)),
           ),
         ]),
-        const SizedBox(height: DhenuSpacing.xs),
         Text('${b.billNo}  ·  ${litres(b.qtyLitres, unit: true)}',
             style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        const SizedBox(height: DhenuSpacing.sm),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Text(rupees(b.totalAmount),
+              style: DhenuText.number(
+                  size: 20, color: b.isReversed ? t.inkSoft : t.ink)),
+          const SizedBox(width: DhenuSpacing.sm),
+          Text(l.paymentsBillTotal,
+              style: DhenuText.caption.copyWith(color: t.inkSoft)),
+          const Spacer(),
+          _statementButton(t, l),
+        ]),
+        // Milk vs operator pay, and when it landed — one caption line each.
+        // They were a progress bar, a dotted legend and a third icon row, which
+        // cost three-quarters of the card to say what fits in two lines.
+        Text(_makeupLine(l),
+            style: DhenuText.caption.copyWith(color: t.inkSoft)),
+        if (b.isPaid && b.paymentDate != null)
+          Text(_paidLine(l), style: DhenuText.caption.copyWith(color: t.gradeA)),
       ]),
     );
   }
 
-  /// The amount, then what it is made of. Milk and operator pay are settled
-  /// together but earned differently, so an operator chasing a short payment
-  /// can see which half moved — the bar carries that split at a glance, the
-  /// legend puts figures on it.
-  Widget _money(DhenuTokens t, AppLocalizations l) {
-    final split = b.operatorComp > 0;
-    return Padding(
-      padding: const EdgeInsets.all(DhenuSpacing.lg),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic, children: [
-          Text(rupees(b.totalAmount),
-              style: DhenuText.number(size: 22, color: b.isReversed ? t.inkSoft : t.ink)),
-          const SizedBox(width: DhenuSpacing.sm),
-          Text(l.paymentsBillTotal, style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        ]),
-        if (split) ...[
-          const SizedBox(height: DhenuSpacing.md),
-          BreakdownBar(height: 8, segments: [
-            BreakdownSegment(b.milkCost, t.brand),
-            BreakdownSegment(b.operatorComp, t.am),
-          ]),
-          const SizedBox(height: DhenuSpacing.sm),
-          // Wrapped, not a Row: a five-figure milk cost beside a translated
-          // "Operator" label runs past a phone's width on one line.
-          Wrap(
-            spacing: DhenuSpacing.lg,
-            runSpacing: DhenuSpacing.xs,
-            children: [
-              _legend(t, t.brand, l.paymentsBillMilk, b.milkCost),
-              _legend(t, t.am, l.paymentsBillOperator, b.operatorComp),
-            ],
-          ),
-        ],
-        if (b.isPaid && b.paymentDate != null) ...[
-          const SizedBox(height: DhenuSpacing.md),
-          Row(children: [
-            Icon(DhenuIcons.checkCircle, size: 13, color: t.gradeA),
-            const SizedBox(width: DhenuSpacing.xs),
-            Text(_paidLine(l), style: DhenuText.caption.copyWith(color: t.inkSoft)),
-          ]),
-        ],
-      ]),
-    );
+  /// "Milk ₹17,965 · Operator ₹500" — the operator half is dropped when the
+  /// centre earns none, leaving the milk cost to stand alone.
+  String _makeupLine(AppLocalizations l) {
+    final milk = '${l.paymentsBillMilk} ${rupees(b.milkCost)}';
+    if (b.operatorComp <= 0) return milk;
+    return '$milk  ·  ${l.paymentsBillOperator} ${rupees(b.operatorComp)}';
   }
 
   /// When it landed, and how — the two things asked of a payment after the
@@ -244,37 +209,18 @@ class _BillCardState extends State<_BillCard> {
     return mode == null ? when : '$when  ·  ${paymentModeL10n(l, mode)}';
   }
 
-  Widget _legend(DhenuTokens t, Color c, String label, double amount) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 8, height: 8,
-              decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
-          const SizedBox(width: DhenuSpacing.xs),
-          Text('$label ${rupees(amount)}',
-              style: DhenuText.caption.copyWith(color: t.inkSoft)),
-        ],
-      );
-
-  Widget _action(DhenuTokens t, AppLocalizations l) => Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: _busy ? null : _statement,
-          borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(DhenuRadii.card)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: DhenuSpacing.md),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              if (_busy)
-                SizedBox(
-                    width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: t.brand))
-              else
-                Icon(DhenuIcons.download, size: 16, color: t.brand),
-              const SizedBox(width: DhenuSpacing.sm),
-              Text(l.paymentsBillStatement,
-                  style: DhenuText.label.copyWith(color: t.brand)),
-            ]),
-          ),
-        ),
+  /// The statement, as an icon on the amount row rather than a full-width bar
+  /// under every card. Same document the CC and web hand out.
+  Widget _statementButton(DhenuTokens t, AppLocalizations l) => IconButton(
+        onPressed: _busy ? null : _statement,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        tooltip: l.paymentsBillStatement,
+        icon: _busy
+            ? SizedBox(
+                width: 14, height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: t.brand))
+            : Icon(DhenuIcons.download, size: 18, color: t.brand),
       );
 }

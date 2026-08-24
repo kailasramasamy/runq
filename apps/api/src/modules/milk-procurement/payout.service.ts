@@ -11,6 +11,7 @@ import type {
 } from '@runq/validators';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../utils/errors';
 import { nextDocNo } from './numbering';
+import { computeDuePeriod } from './cycle-window';
 import { MpGlPoster } from './gl-poster';
 import { MpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
 import {
@@ -784,39 +785,6 @@ export class PayoutService {
     if (!cycle) throw new NotFoundError('Payout cycle not found');
     return cycle;
   }
-}
-
-/**
- * Calendar-aligned cycle windows within one month: 15-day → [1-15],[16-end];
- * 10-day → [1-10],[11-20],[21-end]. The final window absorbs the remainder so
- * cycles never cross months. `month` is 1-based. Returned ascending.
- */
-function monthCycles(year: number, month: number, n: number): { start: string; end: string }[] {
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const threshold = Math.min(30, daysInMonth); // merge a 31st-day stub
-  const starts: number[] = [];
-  for (let s = 1; s <= threshold; s += n) starts.push(s);
-  const iso = (d: number) =>
-    `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  return starts.map((s, i) => ({ start: iso(s), end: iso(i < starts.length - 1 ? starts[i + 1]! - 1 : daysInMonth) }));
-}
-
-/**
- * The most recently *closed* calendar-aligned cycle (end strictly before
- * `today`), or null if none has closed yet. Scans the current + previous month.
- */
-export function computeDuePeriod(cycleDays: number, today: string): { start: string; end: string } | null {
-  if (cycleDays < 1) return null;
-  const [ty, tm] = today.split('-').map(Number);
-  if (!ty || !tm) return null;
-  let y = ty, m = tm;
-  const candidates: { start: string; end: string }[] = [];
-  for (let back = 0; back < 2; back++) {
-    candidates.push(...monthCycles(y, m, cycleDays));
-    m -= 1; if (m === 0) { m = 12; y -= 1; }
-  }
-  const closed = candidates.filter((c) => c.end < today).sort((a, b) => (a.end < b.end ? 1 : -1));
-  return closed[0] ?? null;
 }
 
 function round2(n: number): number {

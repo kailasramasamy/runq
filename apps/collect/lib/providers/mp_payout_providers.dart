@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
+import '../api/mp_running_models.dart';
 import '../api/mp_repo.dart';
 import 'farmer_providers.dart' show cycleConfigProvider, buildCyclePeriods, MpCyclePeriod;
 
@@ -66,4 +67,28 @@ final operatorPayoutComputeProvider =
 final nodeVmccBillsProvider =
     FutureProvider.family<List<MpVmccBill>, String>((ref, nodeId) async {
   return mpRepo.vmccBills(nodeId: nodeId);
+});
+
+/// One cycle's bills, per VMCC. For a CC that buys wholesale this IS the cycle:
+/// there are no farmer payout lines to break down, so without these the detail
+/// screen has nothing to show.
+final cycleVmccBillsProvider =
+    FutureProvider.family<List<MpVmccBill>, String>((ref, cycleId) async {
+  return mpRepo.vmccBills(cycleId: cycleId, limit: 100);
+});
+
+/// The open cycle's running balance for a whole centre — a VMCC's farmers, or a
+/// CC's VMCCs. This is the number an operator needs *before* a bill exists, so
+/// it is computed live rather than read off payout lines.
+final runningBalanceProvider =
+    FutureProvider.family<MpRunningBalance, String>((ref, nodeId) async {
+  return mpRepo.runningBalance(nodeId: nodeId);
+});
+
+/// One farmer's slice of the same window. Keyed on both ids because a farmer's
+/// running total is only meaningful against the centre they poured at.
+final farmerRunningBalanceProvider =
+    FutureProvider.family<MpRunningBalance, ({String nodeId, String farmerId})>(
+        (ref, p) async {
+  return mpRepo.runningBalance(nodeId: p.nodeId, farmerId: p.farmerId);
 });

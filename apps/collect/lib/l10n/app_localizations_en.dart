@@ -3371,4 +3371,96 @@ class AppLocalizationsEn extends AppLocalizations {
   String farmerPaymentsStillOwed(String amount) {
     return '$amount still owed after this payment';
   }
+
+  @override
+  String get runningCycleTitle => 'This cycle';
+
+  @override
+  String get runningCycleNetPayable => 'Net payable now';
+
+  @override
+  String get runningCycleGross => 'Milk value';
+
+  @override
+  String get runningCycleNoCadence => 'No cycle cadence set';
+
+  @override
+  String get runningCycleNoCadenceHint =>
+      'Set a collection cycle in Settings to see a running balance';
+
+  @override
+  String get runningCycleNoPours => 'No collection yet this cycle';
+
+  @override
+  String get runningCycleLoadError => 'Could not load this cycle';
+
+  @override
+  String get runningCycleFrozen => 'Locked — final';
+
+  @override
+  String get runningCycleLive => 'Running total';
+
+  @override
+  String get runningCycleFullyRecovered => 'Fully recovered against dues';
+
+  @override
+  String runningCycleVmccCount(int count) {
+    return '$count centres';
+  }
+
+  @override
+  String runningCycleFarmerCount(int count) {
+    return '$count farmers';
+  }
+
+  @override
+  String get ccCycleBalanceTitle => 'Cycle balance';
+
+  @override
+  String get ccCycleBalanceLink => 'Cycle balance';
+
+  @override
+  String get ccCycleBalanceEmpty => 'No centre has collected yet this cycle';
+
+  @override
+  String ccCycleBalanceMilk(String amount) {
+    return 'Milk $amount';
+  }
+
+  @override
+  String ccCycleBalanceComp(String amount) {
+    return 'Comp $amount';
+  }
+
+  @override
+  String runningCycleDeducted(String amount) {
+    return 'less dues $amount';
+  }
+
+  @override
+  String runningCycleComp(String amount) {
+    return 'plus comp $amount';
+  }
+
+  @override
+  String get ccPaymentsCentresTitle => 'Centres';
+
+  @override
+  String paymentsCentreCount(Object count) {
+    return '$count centres';
+  }
+
+  @override
+  String paymentsPendingCentresSub(Object centres, Object open) {
+    return '$centres centres · $open open';
+  }
+
+  @override
+  String get cycleCentreBreakup => 'By centre';
+
+  @override
+  String get cycleNoBills => 'No centre bills in this cycle';
+
+  @override
+  String get cycleBillDue => 'Due';
 }

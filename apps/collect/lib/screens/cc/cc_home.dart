@@ -10,6 +10,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/profile_avatar_button.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
@@ -123,7 +124,11 @@ class CcHome extends ConsumerWidget {
           // CC has nothing to sync and the chip was permanently inert.
           DhenuSectionHeader(node.name,
               leadingTrailing: const CentreSwitcherButton(),
-              trailing: const NotificationBell()),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                const NotificationBell(),
+                const SizedBox(width: DhenuSpacing.sm),
+                ProfileAvatarButton(subtitle: node.name),
+              ])),
           const SizedBox(height: DhenuSpacing.lg),
           PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),

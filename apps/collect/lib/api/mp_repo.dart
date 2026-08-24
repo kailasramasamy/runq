@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'api_client.dart';
 import 'mp_models.dart';
+import 'mp_running_models.dart';
 
 /// Typed wrappers over `/milk-procurement/*`. The API envelopes are:
 ///   list   → { data: [...], meta }
@@ -110,9 +111,20 @@ class MpRepo {
   /// One VMCC's own settlement bills, newest first. Role scoping already limits
   /// an operator to their own centre; [nodeId] is what makes it right for an
   /// owner operating a centre through the switcher, who is tenant-wide.
-  Future<List<MpVmccBill>> vmccBills({required String nodeId, int limit = 24}) async {
+  /// Settlement bills, filtered by centre ([nodeId]) or by cycle ([cycleId]).
+  /// By cycle it is the per-VMCC breakdown of a bulk-settled CC's payout — the
+  /// only record of that cycle's money, since it has no farmer lines.
+  Future<List<MpVmccBill>> vmccBills({
+    String? nodeId,
+    String? cycleId,
+    int limit = 24,
+  }) async {
     final res = await _api.get(
-      '$_base/billing/bills${_qs({'vmccNodeId': nodeId, 'limit': '$limit'})}',
+      '$_base/billing/bills${_qs({
+        'vmccNodeId': nodeId,
+        'cycleId': cycleId,
+        'limit': '$limit',
+      })}',
     );
     return _list(res).map(MpVmccBill.fromJson).toList();
   }
@@ -414,6 +426,23 @@ class MpRepo {
       '$_base/reports/supplied-daily${_qs({'nodeId': nodeId, 'from': from, 'to': to})}',
     );
     return _list(res).map(MpSuppliedLine.fromJson).toList();
+  }
+
+  // ── running cycle balance ───────────────────────────────────────────────────
+  /// What the open (still-collecting) window would pay if it were billed today.
+  /// Pass [nodeId] alone for the whole centre (a CC also returns its VMCCs);
+  /// add [farmerId] to narrow it to one farmer's card.
+  ///
+  /// Advances and goods sold to the farmer are already netted off server-side,
+  /// by the same rule the real bill uses — nothing here re-derives them.
+  Future<MpRunningBalance> runningBalance({
+    required String nodeId,
+    String? farmerId,
+  }) async {
+    final res = await _api.get(
+      '$_base/payouts/running${_qs({'nodeId': nodeId, 'farmerId': farmerId})}',
+    );
+    return MpRunningBalance.fromJson(_one(res) ?? const {});
   }
 
   // ── farmer ledger ───────────────────────────────────────────────────────────

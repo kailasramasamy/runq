@@ -2417,5 +2417,142 @@
         "type": "String"
       }
     }
+  },
+  "runningCycleTitle": "This cycle",
+  "@runningCycleTitle": {
+    "description": "Running cycle card heading"
+  },
+  "runningCycleNetPayable": "Net payable now",
+  "@runningCycleNetPayable": {
+    "description": "Running cycle card"
+  },
+  "runningCycleGross": "Milk value",
+  "@runningCycleGross": {
+    "description": "Running cycle card"
+  },
+  "runningCycleNoCadence": "No cycle cadence set",
+  "@runningCycleNoCadence": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoCadenceHint": "Set a collection cycle in Settings to see a running balance",
+  "@runningCycleNoCadenceHint": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoPours": "No collection yet this cycle",
+  "@runningCycleNoPours": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleLoadError": "Could not load this cycle",
+  "@runningCycleLoadError": {
+    "description": "Running cycle card error"
+  },
+  "runningCycleFrozen": "Locked — final",
+  "@runningCycleFrozen": {
+    "description": "Chip shown when the cycle is locked/paid so the figure can no longer move"
+  },
+  "runningCycleLive": "Running total",
+  "@runningCycleLive": {
+    "description": "Chip shown while the cycle is still collecting"
+  },
+  "runningCycleFullyRecovered": "Fully recovered against dues",
+  "@runningCycleFullyRecovered": {
+    "description": "Shown when deductions absorb the whole milk value"
+  },
+  "runningCycleVmccCount": "{count} centres",
+  "@runningCycleVmccCount": {
+    "description": "Running cycle card, CC mode",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "runningCycleFarmerCount": "{count} farmers",
+  "@runningCycleFarmerCount": {
+    "description": "Running cycle card",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ccCycleBalanceTitle": "Cycle balance",
+  "@ccCycleBalanceTitle": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceLink": "Cycle balance",
+  "@ccCycleBalanceLink": {
+    "description": "CC home quick link"
+  },
+  "ccCycleBalanceEmpty": "No centre has collected yet this cycle",
+  "@ccCycleBalanceEmpty": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceMilk": "Milk {amount}",
+  "@ccCycleBalanceMilk": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccCycleBalanceComp": "Comp {amount}",
+  "@ccCycleBalanceComp": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleDeducted": "less dues {amount}",
+  "@runningCycleDeducted": {
+    "description": "Running cycle card deduction line",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleComp": "plus comp {amount}",
+  "@runningCycleComp": {
+    "description": "Running cycle card — operator comp folded into a CC bill",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccPaymentsCentresTitle": "Centres",
+  "@ccPaymentsCentresTitle": {
+    "description": "CC Payments tab — the per-VMCC view of the same cycles"
+  },
+  "paymentsCentreCount": "{count} centres",
+  "@paymentsCentreCount": {
+    "description": "Cycle card — payees are centres, not farmers (bulk-settled CC)",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "paymentsPendingCentresSub": "{centres} centres · {open} open",
+  "@paymentsPendingCentresSub": {
+    "description": "Pending-to-pay subtitle for a bulk-settled CC",
+    "placeholders": {
+      "centres": {},
+      "open": {}
+    }
+  },
+  "cycleCentreBreakup": "By centre",
+  "@cycleCentreBreakup": {
+    "description": "Cycle detail — per-VMCC breakdown heading"
+  },
+  "cycleNoBills": "No centre bills in this cycle",
+  "@cycleNoBills": {
+    "description": "Cycle detail — empty breakdown"
+  },
+  "cycleBillDue": "Due",
+  "@cycleBillDue": {
+    "description": "Cycle detail — an unpaid centre bill"
   }
 }

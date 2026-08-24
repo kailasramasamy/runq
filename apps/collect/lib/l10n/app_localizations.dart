@@ -5811,6 +5811,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{amount} still owed after this payment'**
   String farmerPaymentsStillOwed(String amount);
+
+  /// Running cycle card heading
+  ///
+  /// In en, this message translates to:
+  /// **'This cycle'**
+  String get runningCycleTitle;
+
+  /// Running cycle card
+  ///
+  /// In en, this message translates to:
+  /// **'Net payable now'**
+  String get runningCycleNetPayable;
+
+  /// Running cycle card
+  ///
+  /// In en, this message translates to:
+  /// **'Milk value'**
+  String get runningCycleGross;
+
+  /// Running cycle card empty state
+  ///
+  /// In en, this message translates to:
+  /// **'No cycle cadence set'**
+  String get runningCycleNoCadence;
+
+  /// Running cycle card empty state
+  ///
+  /// In en, this message translates to:
+  /// **'Set a collection cycle in Settings to see a running balance'**
+  String get runningCycleNoCadenceHint;
+
+  /// Running cycle card empty state
+  ///
+  /// In en, this message translates to:
+  /// **'No collection yet this cycle'**
+  String get runningCycleNoPours;
+
+  /// Running cycle card error
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this cycle'**
+  String get runningCycleLoadError;
+
+  /// Chip shown when the cycle is locked/paid so the figure can no longer move
+  ///
+  /// In en, this message translates to:
+  /// **'Locked — final'**
+  String get runningCycleFrozen;
+
+  /// Chip shown while the cycle is still collecting
+  ///
+  /// In en, this message translates to:
+  /// **'Running total'**
+  String get runningCycleLive;
+
+  /// Shown when deductions absorb the whole milk value
+  ///
+  /// In en, this message translates to:
+  /// **'Fully recovered against dues'**
+  String get runningCycleFullyRecovered;
+
+  /// Running cycle card, CC mode
+  ///
+  /// In en, this message translates to:
+  /// **'{count} centres'**
+  String runningCycleVmccCount(int count);
+
+  /// Running cycle card
+  ///
+  /// In en, this message translates to:
+  /// **'{count} farmers'**
+  String runningCycleFarmerCount(int count);
+
+  /// CC per-VMCC running balance screen
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle balance'**
+  String get ccCycleBalanceTitle;
+
+  /// CC home quick link
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle balance'**
+  String get ccCycleBalanceLink;
+
+  /// CC per-VMCC running balance screen
+  ///
+  /// In en, this message translates to:
+  /// **'No centre has collected yet this cycle'**
+  String get ccCycleBalanceEmpty;
+
+  /// Per-VMCC row subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Milk {amount}'**
+  String ccCycleBalanceMilk(String amount);
+
+  /// Per-VMCC row subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Comp {amount}'**
+  String ccCycleBalanceComp(String amount);
+
+  /// Running cycle card deduction line
+  ///
+  /// In en, this message translates to:
+  /// **'less dues {amount}'**
+  String runningCycleDeducted(String amount);
+
+  /// Running cycle card — operator comp folded into a CC bill
+  ///
+  /// In en, this message translates to:
+  /// **'plus comp {amount}'**
+  String runningCycleComp(String amount);
+
+  /// CC Payments tab — the per-VMCC view of the same cycles
+  ///
+  /// In en, this message translates to:
+  /// **'Centres'**
+  String get ccPaymentsCentresTitle;
+
+  /// Cycle card — payees are centres, not farmers (bulk-settled CC)
+  ///
+  /// In en, this message translates to:
+  /// **'{count} centres'**
+  String paymentsCentreCount(Object count);
+
+  /// Pending-to-pay subtitle for a bulk-settled CC
+  ///
+  /// In en, this message translates to:
+  /// **'{centres} centres · {open} open'**
+  String paymentsPendingCentresSub(Object centres, Object open);
+
+  /// Cycle detail — per-VMCC breakdown heading
+  ///
+  /// In en, this message translates to:
+  /// **'By centre'**
+  String get cycleCentreBreakup;
+
+  /// Cycle detail — empty breakdown
+  ///
+  /// In en, this message translates to:
+  /// **'No centre bills in this cycle'**
+  String get cycleNoBills;
+
+  /// Cycle detail — an unpaid centre bill
+  ///
+  /// In en, this message translates to:
+  /// **'Due'**
+  String get cycleBillDue;
 }
 
 class _AppLocalizationsDelegate

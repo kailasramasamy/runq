@@ -1111,12 +1111,19 @@ class MpQcTest {
 /// once it has actually been paid out.
 class MpVmccBill {
   final String id, billNo, cycleNo, periodStart, periodEnd, status;
+
+  /// Which centre this bill settles. Present on every list response — a cycle's
+  /// bills are only readable as a breakdown if each one names its VMCC.
+  final String vmccNodeId, vmccName, vmccCode;
   final double qtyLitres, milkCost, commission, salary, rent, totalAmount;
   final String? paymentDate, paymentMode, txnReference;
 
   MpVmccBill({
     required this.id,
     required this.billNo,
+    this.vmccNodeId = '',
+    this.vmccName = '',
+    this.vmccCode = '',
     required this.cycleNo,
     required this.periodStart,
     required this.periodEnd,
@@ -1141,6 +1148,9 @@ class MpVmccBill {
   factory MpVmccBill.fromJson(Map<String, dynamic> j) => MpVmccBill(
     id: _s(j['id']),
     billNo: _s(j['billNo']),
+    vmccNodeId: _s(j['vmccNodeId']),
+    vmccName: _s(j['vmccName']),
+    vmccCode: _s(j['vmccCode']),
     cycleNo: _s(j['cycleNo']),
     periodStart: _s(j['periodStart']),
     periodEnd: _s(j['periodEnd']),
@@ -1165,6 +1175,12 @@ class MpPayoutCycle {
   // Per-cycle line roll-ups (populated by the list endpoint, not the detail one).
   final int lineCount, paidCount;
   final double netTotal, paidTotal;
+
+  // The same roll-up for centres settled in bulk. A CC whose VMCCs are bought
+  // wholesale has NO farmer lines at all — its whole cycle is these bills — so
+  // reading only the line totals reported a lakh-rupee cycle as ₹0.
+  final int billCount, billPaidCount;
+  final double billTotal, billPaidTotal;
   MpPayoutCycle({
     required this.id,
     required this.cycleNo,
@@ -1181,14 +1197,30 @@ class MpPayoutCycle {
     this.paidCount = 0,
     this.netTotal = 0,
     this.paidTotal = 0,
+    this.billCount = 0,
+    this.billPaidCount = 0,
+    this.billTotal = 0,
+    this.billPaidTotal = 0,
   });
 
   bool get isPaid => status == 'paid';
 
-  /// Farmers still awaiting disbursement, and the rupees outstanding.
-  int get pendingCount => lineCount - paidCount;
-  double get pendingTotal => (netTotal - paidTotal).clamp(0, double.infinity);
-  bool get allPaid => lineCount > 0 && paidCount >= lineCount;
+  /// True when this cycle settles centres in bulk rather than farmer by farmer.
+  bool get isBillBased => billCount > 0 && lineCount == 0;
+
+  /// Everything the cycle owes and everything already disbursed, whichever way
+  /// it settles. Farmer lines and VMCC bills never cover the same milk, so they
+  /// add rather than compete.
+  double get payableTotal => netTotal + billTotal;
+  double get disbursedTotal => paidTotal + billPaidTotal;
+
+  /// Payees still awaiting disbursement — farmers, or centres, or both.
+  int get payeeCount => lineCount + billCount;
+  int get payeePaidCount => paidCount + billPaidCount;
+  int get pendingCount => payeeCount - payeePaidCount;
+  double get pendingTotal =>
+      (payableTotal - disbursedTotal).clamp(0, double.infinity);
+  bool get allPaid => payeeCount > 0 && payeePaidCount >= payeeCount;
 
   factory MpPayoutCycle.fromJson(Map<String, dynamic> j) => MpPayoutCycle(
     id: _s(j['id']),
@@ -1205,6 +1237,10 @@ class MpPayoutCycle {
     paidCount: _i(j['paidCount'] ?? 0),
     netTotal: _d(j['netTotal']),
     paidTotal: _d(j['paidTotal']),
+    billCount: _i(j['billCount'] ?? 0),
+    billPaidCount: _i(j['billPaidCount'] ?? 0),
+    billTotal: _d(j['billTotal']),
+    billPaidTotal: _d(j['billPaidTotal']),
     lines: ((j['lines'] as List?) ?? [])
         .map((e) => MpPayoutLine.fromJson(e as Map<String, dynamic>))
         .toList(),

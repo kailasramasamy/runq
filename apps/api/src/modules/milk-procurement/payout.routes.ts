@@ -6,12 +6,14 @@ import {
   createPayoutCycleSchema,
   payoutCycleFilterSchema,
   markLinePaidSchema,
+  runningBalanceFilterSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
 import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { PayoutService } from './payout.service';
+import { RunningBalanceService } from './running-balance.service';
 import { resolveMpPrincipal } from './access-scope';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
@@ -30,6 +32,15 @@ export const payoutRoutes: FastifyPluginAsync = async (app) => {
     const principal = await resolveMpPrincipal(request);
     const service = new PayoutService(request.server.db, request.tenantId);
     return { data: await service.ledgerForFarmer(farmerId, principal) };
+  });
+
+  // What the open (still-collecting) window would pay if billed today. Read-only
+  // and side-effect free — it never creates the cycle the way billing preview does.
+  app.get('/running', { preHandler: [rbacHook([...CYCLE_READ_ROLES])] }, async (request) => {
+    const { nodeId, farmerId } = runningBalanceFilterSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const service = new RunningBalanceService(request.server.db, request.tenantId);
+    return { data: await service.forNode(nodeId, principal, farmerId) };
   });
 
   // a farmer's own payout statements (lines joined with cycle window + status)

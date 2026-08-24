@@ -197,6 +197,9 @@ class DhenuRadii {
   static const cardLg = 24.0; // hero / net-payable cards
   static const button = 16.0;
   static const input = 14.0;
+  // Rounded square for the 30px header avatar. The existing radii are all
+  // ≥14, which on a box that size is indistinguishable from a circle.
+  static const avatar = 10.0;
   static const pill = 999.0;
   static const sheet = 28.0;
 }

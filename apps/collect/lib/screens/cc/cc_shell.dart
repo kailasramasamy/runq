@@ -5,15 +5,16 @@ import '../../l10n/app_localizations.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../widgets/app_bottom_nav.dart';
-import '../profile_tab.dart';
 import '../role_shell.dart';
 import 'cc_dispatch_tab.dart';
 import 'cc_home.dart';
+import 'cc_payments_tab.dart';
 import 'cc_receive_tab.dart';
 
 /// CC operator shell — receive from VMCCs, chill, dispatch onward to the plant.
-/// Home / ➕ Receive / Dispatch / Profile. (Payments are handled by the tenant
-/// owner on web — the CC operator isn't involved.)
+/// Home / ➕ Receive / Dispatch / Payments. Payments lives here, not
+/// only on web: cycles are CC-scoped, so this node owns the ones its VMCCs are
+/// settled from, and a CC manager is scoped to bill them.
 class CcShell extends ConsumerWidget {
   const CcShell({super.key, required this.node, this.header});
   final MpNode node;
@@ -25,7 +26,7 @@ class CcShell extends ConsumerWidget {
         DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
         DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive),
         DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, alert: owed),
-        DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
+        DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
       ];
 
   @override
@@ -45,7 +46,7 @@ class CcShell extends ConsumerWidget {
         CcHome(node: node),
         CcReceiveTab(node: node),
         CcDispatchTab(node: node),
-        ProfileTab(subtitle: node.name),
+        CcPaymentsTab(node: node),
       ],
     );
   }

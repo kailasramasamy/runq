@@ -26,6 +26,13 @@ export const farmerLinesFilterSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(24),
 });
 
+// The open cycle's running balance for a node (VMCC → its farmers, CC → its
+// VMCCs). `farmerId` narrows it to one farmer's card.
+export const runningBalanceFilterSchema = z.object({
+  nodeId: z.string().uuid(),
+  farmerId: z.string().uuid().optional(),
+});
+
 // `Payout`-prefixed to avoid clashing with HR review-cycle schemas in the barrel
 export const createPayoutCycleSchema = z.object({
   scopeNodeId: z.string().uuid().nullish(),
@@ -45,6 +52,7 @@ export const markLinePaidSchema = z.object({ paid: z.boolean() });
 export type CreateLedgerEntryInput = z.infer<typeof createLedgerEntrySchema>;
 export type LedgerFilter = z.infer<typeof ledgerFilterSchema>;
 export type FarmerLinesFilter = z.infer<typeof farmerLinesFilterSchema>;
+export type RunningBalanceFilter = z.infer<typeof runningBalanceFilterSchema>;
 export type CreatePayoutCycleInput = z.infer<typeof createPayoutCycleSchema>;
 export type PayoutCycleFilter = z.infer<typeof payoutCycleFilterSchema>;
 export type MarkLinePaidInput = z.infer<typeof markLinePaidSchema>;

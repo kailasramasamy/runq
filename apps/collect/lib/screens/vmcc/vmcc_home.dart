@@ -11,6 +11,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/profile_avatar_button.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../services/pour_queue.dart';
@@ -162,6 +163,8 @@ class VmccHome extends ConsumerWidget {
             ]),
           ),
           const NotificationBell(),
+          const SizedBox(width: DhenuSpacing.sm),
+          ProfileAvatarButton(subtitle: node.name),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
         Row(children: [

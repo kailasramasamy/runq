@@ -5,6 +5,7 @@ import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../providers/mp_payout_providers.dart';
+import '../../widgets/running_cycle_card.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -27,8 +28,11 @@ enum _PaymentsView { payouts, ledger, sold }
 /// lines, with statement and disbursement flag) and what they owe against
 /// advances and feed loans.
 class FarmerPaymentsTab extends ConsumerStatefulWidget {
-  const FarmerPaymentsTab({super.key, required this.farmer});
+  const FarmerPaymentsTab({super.key, required this.node, required this.farmer});
 
+  /// The centre the farmer pours at — the running balance is only meaningful
+  /// against one centre's collection window.
+  final MpNode node;
   final MpFarmer farmer;
 
   @override
@@ -40,7 +44,11 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
 
   MpFarmer get farmer => widget.farmer;
 
+  ({String nodeId, String farmerId}) get _key =>
+      (nodeId: widget.node.id, farmerId: farmer.id);
+
   Future<void> _refresh() async {
+    ref.invalidate(farmerRunningBalanceProvider(_key));
     ref.invalidate(farmerLedgerProvider(farmer.id));
     ref.invalidate(farmerSalesProvider(farmer.id));
     ref.invalidate(payoutLinesForFarmerProvider(farmer.id));
@@ -63,6 +71,8 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
         padding: const EdgeInsets.fromLTRB(DhenuSpacing.screen, DhenuSpacing.lg,
             DhenuSpacing.screen, DhenuSpacing.x4),
         children: [
+          _runningCycle(l),
+          const SizedBox(height: DhenuSpacing.md),
           _summary(t, l),
           const SizedBox(height: DhenuSpacing.lg),
           DhenuSegmented<_PaymentsView>(
@@ -82,6 +92,22 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
           },
         ],
       ),
+    );
+  }
+
+  /// What this farmer would be paid if the cycle were billed today — advances
+  /// and goods sold to them already netted off by the server.
+  Widget _runningCycle(AppLocalizations l) {
+    final async = ref.watch(farmerRunningBalanceProvider(_key));
+    return async.when(
+      loading: () => const DhenuLoadingList(rows: 1),
+      // A card that can't load must not swallow the tab: the ledger and payout
+      // history below it are independent and still worth reading.
+      error: (e, _) => DhenuCard(
+        child: Text(l.runningCycleLoadError,
+            style: DhenuText.caption.copyWith(color: DT(context).inkSoft)),
+      ),
+      data: (b) => RunningCycleCard(balance: b),
     );
   }
 

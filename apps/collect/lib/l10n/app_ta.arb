@@ -979,5 +979,142 @@
   "farmerSaleDelete": "நீக்கு",
   "farmerSaleDeleteConfirm": "இந்த விற்பனையை நீக்கவா? இனி பிடிக்கப்படாது.",
   "farmerSaleDeleted": "விற்பனை நீக்கப்பட்டது",
-  "farmerPaymentsStillOwed": "இந்தப் பணத்திற்குப் பிறகும் {amount} பாக்கி"
+  "farmerPaymentsStillOwed": "இந்தப் பணத்திற்குப் பிறகும் {amount} பாக்கி",
+  "runningCycleTitle": "இந்தச் சுழற்சி",
+  "@runningCycleTitle": {
+    "description": "Running cycle card heading"
+  },
+  "runningCycleNetPayable": "இப்போது செலுத்த வேண்டிய நிகரம்",
+  "@runningCycleNetPayable": {
+    "description": "Running cycle card"
+  },
+  "runningCycleGross": "பாலின் மதிப்பு",
+  "@runningCycleGross": {
+    "description": "Running cycle card"
+  },
+  "runningCycleNoCadence": "சுழற்சி காலம் அமைக்கப்படவில்லை",
+  "@runningCycleNoCadence": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoCadenceHint": "நடப்பு நிலுவையைப் பார்க்க அமைப்புகளில் சேகரிப்புச் சுழற்சியை அமைக்கவும்",
+  "@runningCycleNoCadenceHint": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleNoPours": "இந்தச் சுழற்சியில் இன்னும் சேகரிப்பு இல்லை",
+  "@runningCycleNoPours": {
+    "description": "Running cycle card empty state"
+  },
+  "runningCycleLoadError": "இந்தச் சுழற்சியை ஏற்ற முடியவில்லை",
+  "@runningCycleLoadError": {
+    "description": "Running cycle card error"
+  },
+  "runningCycleFrozen": "பூட்டப்பட்டது — இறுதி",
+  "@runningCycleFrozen": {
+    "description": "Chip shown when the cycle is locked/paid so the figure can no longer move"
+  },
+  "runningCycleLive": "நடப்புத் தொகை",
+  "@runningCycleLive": {
+    "description": "Chip shown while the cycle is still collecting"
+  },
+  "runningCycleFullyRecovered": "நிலுவைக்கு முழுமையாக ஈடுசெய்யப்பட்டது",
+  "@runningCycleFullyRecovered": {
+    "description": "Shown when deductions absorb the whole milk value"
+  },
+  "runningCycleVmccCount": "{count} மையங்கள்",
+  "@runningCycleVmccCount": {
+    "description": "Running cycle card, CC mode",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "runningCycleFarmerCount": "{count} விவசாயிகள்",
+  "@runningCycleFarmerCount": {
+    "description": "Running cycle card",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ccCycleBalanceTitle": "சுழற்சி நிலுவை",
+  "@ccCycleBalanceTitle": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceLink": "சுழற்சி நிலுவை",
+  "@ccCycleBalanceLink": {
+    "description": "CC home quick link"
+  },
+  "ccCycleBalanceEmpty": "இந்தச் சுழற்சியில் எந்த மையமும் இன்னும் சேகரிக்கவில்லை",
+  "@ccCycleBalanceEmpty": {
+    "description": "CC per-VMCC running balance screen"
+  },
+  "ccCycleBalanceMilk": "பால் {amount}",
+  "@ccCycleBalanceMilk": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccCycleBalanceComp": "ஊதியம் {amount}",
+  "@ccCycleBalanceComp": {
+    "description": "Per-VMCC row subtitle",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleDeducted": "நிலுவை கழித்து {amount}",
+  "@runningCycleDeducted": {
+    "description": "Running cycle card deduction line",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "runningCycleComp": "மேலும் ஊதியம் {amount}",
+  "@runningCycleComp": {
+    "description": "Running cycle card — operator comp folded into a CC bill",
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "ccPaymentsCentresTitle": "மையங்கள்",
+  "@ccPaymentsCentresTitle": {
+    "description": "CC Payments tab — the per-VMCC view of the same cycles"
+  },
+  "paymentsCentreCount": "{count} மையங்கள்",
+  "@paymentsCentreCount": {
+    "description": "Cycle card — payees are centres, not farmers (bulk-settled CC)",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "paymentsPendingCentresSub": "{centres} மையங்கள் · {open} திறந்துள்ளது",
+  "@paymentsPendingCentresSub": {
+    "description": "Pending-to-pay subtitle for a bulk-settled CC",
+    "placeholders": {
+      "centres": {},
+      "open": {}
+    }
+  },
+  "cycleCentreBreakup": "மையவாரியாக",
+  "@cycleCentreBreakup": {
+    "description": "Cycle detail — per-VMCC breakdown heading"
+  },
+  "cycleNoBills": "இந்தச் சுழற்சியில் மைய பில்கள் இல்லை",
+  "@cycleNoBills": {
+    "description": "Cycle detail — empty breakdown"
+  },
+  "cycleBillDue": "நிலுவை",
+  "@cycleBillDue": {
+    "description": "Cycle detail — an unpaid centre bill"
+  }
 }

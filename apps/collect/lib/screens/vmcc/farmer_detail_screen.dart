@@ -103,7 +103,7 @@ class _FarmerDetailScreenState extends ConsumerState<FarmerDetailScreen>
           _FarmerDetailsTab(farmer: farmer),
           FarmerPoursTab(node: widget.node, farmer: farmer),
           FarmerQcTab(node: widget.node, farmer: farmer),
-          FarmerPaymentsTab(farmer: farmer),
+          FarmerPaymentsTab(node: widget.node, farmer: farmer),
         ],
       ),
     );

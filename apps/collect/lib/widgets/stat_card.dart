@@ -20,6 +20,7 @@ class DhenuStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = DT(context);
     return DhenuCard(
+      elevated: true,
       padding: const EdgeInsets.all(DhenuSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
