@@ -209,6 +209,7 @@ export function BomDetailPage({ bomId }: Props) {
                     <Th align="right">Qty / output</Th>
                     <Th>UOM</Th>
                     <Th align="right">Scrap %</Th>
+                    <Th>Also accepts</Th>
                     <Th>Optional</Th>
                   </tr>
                 </TableHeader>
@@ -220,6 +221,19 @@ export function BomDetailPage({ bomId }: Props) {
                       <TableCell align="right" numeric>{l.qtyPerOutput}</TableCell>
                       <TableCell>{l.inputUom}</TableCell>
                       <TableCell align="right" numeric>{l.scrapPct}%</TableCell>
+                      <TableCell>
+                        {l.substitutes.length > 0 ? (
+                          <span
+                            className="text-[11px]"
+                            style={{ color: 'var(--text-2)' }}
+                            title="This line's qty may be drawn from any of these instead"
+                          >
+                            {l.substitutes.map((sub) => sub.itemName).join(', ')}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-3)' }}>—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {l.isOptional ? (
                           <span className="text-[11px] text-amber-600">Optional</span>

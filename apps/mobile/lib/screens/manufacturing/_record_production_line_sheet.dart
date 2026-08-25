@@ -39,6 +39,11 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
   late final TextEditingController _qtyCtl;
   late final TextEditingController _batchCtl;
 
+  /// Which item the override draws from. A line that accepts substitutes can
+  /// be filled from any of them, and the write-off has to name the stock that
+  /// actually moved — not the item the recipe happens to lead with.
+  late String _itemId;
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +51,17 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
     final startQty = a.allocatedQty > 0 ? a.allocatedQty : a.requiredQty;
     _qtyCtl = TextEditingController(text: _fmtQty(startQty));
     _batchCtl = TextEditingController(text: a.batches.isNotEmpty ? (a.batches.first.batchNo ?? '') : '');
+    _itemId = a.batches.isNotEmpty && a.batches.first.itemId.isNotEmpty
+        ? a.batches.first.itemId
+        : a.inputItemId;
   }
+
+  /// The line's own item first, then anything it accepts instead.
+  List<({String id, String name})> get _sourceItems => [
+        (id: widget.allocation.inputItemId, name: widget.allocation.inputItemName),
+        for (final sub in widget.allocation.substitutes)
+          (id: sub.itemId, name: sub.itemName),
+      ];
 
   @override
   void dispose() {
@@ -62,6 +77,11 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
     Navigator.pop(
       context,
       ProductionAllocationBatch(
+        itemId: _itemId,
+        itemName: _sourceItems
+            .firstWhere((i) => i.id == _itemId,
+                orElse: () => (id: _itemId, name: widget.allocation.inputItemName))
+            .name,
         batchNo: batchNo.isEmpty ? null : batchNo,
         qty: qty,
         unitCost: widget.allocation.batches.isNotEmpty ? widget.allocation.batches.first.unitCost : 0,
@@ -104,6 +124,23 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
               'BOM needs ${_fmtQty(a.requiredQty)} ${a.uom} · ${_fmtQty(a.availableQty)} ${a.uom} on hand',
               style: RunqText.caption.copyWith(color: t.muted),
             ),
+            if (a.substitutes.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text('Take from', style: RunqText.label.copyWith(color: t.muted)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final item in _sourceItems)
+                    _SourceChip(
+                      label: item.name,
+                      selected: item.id == _itemId,
+                      onTap: () => setState(() => _itemId = item.id),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _batchCtl,
@@ -149,4 +186,34 @@ class _RecordProductionLineSheetState extends State<_RecordProductionLineSheet> 
 
   static String _fmtQty(double v) =>
       v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+}
+
+/// One selectable source item on an override — the line's own, or a stand-in.
+class _SourceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SourceChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = MfgColors.brand(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? brand.withValues(alpha: 0.14) : t.bgWarm,
+          border: Border.all(color: selected ? brand : t.hairline),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: RunqText.caption.copyWith(color: selected ? brand : t.muted),
+        ),
+      ),
+    );
+  }
 }

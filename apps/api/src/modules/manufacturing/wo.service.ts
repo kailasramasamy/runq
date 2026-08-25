@@ -1,5 +1,5 @@
 import { and, eq, desc, or, sql, ilike, gte, lte, inArray } from 'drizzle-orm';
-import { workOrders, boms, bomLines, items, warehouses } from '@runq/db';
+import { workOrders, boms, bomLines, bomLineSubstitutes, items, warehouses } from '@runq/db';
 import type { Db } from '@runq/db';
 import { istDate } from './mfg-day';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -7,6 +7,7 @@ import type {
   WorkOrderListRow,
   WorkOrderWithDetail,
   WorkOrderExpectedLine,
+  WorkOrderExpectedSubstitute,
   WorkOrderStatus,
   WoEntryMode,
 } from '@runq/types';
@@ -115,6 +116,7 @@ export class WorkOrderService {
       .orderBy(bomLines.lineNo);
 
     const plannedQty = Number(row.wo.plannedQty);
+    const substitutesByLine = await this.loadLineSubstitutes(lines.map((l) => l.line.id));
 
     const expected: WorkOrderExpectedLine[] = lines.map((l) => {
       const qtyPerOutput = Number(l.line.qtyPerOutput);
@@ -128,6 +130,7 @@ export class WorkOrderService {
         inputUom: l.line.inputUom,
         scrapPct,
         expectedQty,
+        substitutes: substitutesByLine.get(l.line.id) ?? [],
         isOptional: l.line.isOptional,
       };
     });
@@ -342,6 +345,37 @@ export class WorkOrderService {
           )
         : undefined,
     );
+  }
+
+  /**
+   * Items each expected line will accept in place of its own. Loaded here so a
+   * WO screen can say "7 L of milk — A2, A1 or buffalo" instead of implying the
+   * line is stuck with one type.
+   */
+  private async loadLineSubstitutes(
+    lineIds: readonly string[],
+  ): Promise<Map<string, WorkOrderExpectedSubstitute[]>> {
+    const byLine = new Map<string, WorkOrderExpectedSubstitute[]>();
+    if (lineIds.length === 0) return byLine;
+
+    const rows = await this.db
+      .select({ bomLineId: bomLineSubstitutes.bomLineId, itemId: items.id, itemName: items.name })
+      .from(bomLineSubstitutes)
+      .innerJoin(items, eq(items.id, bomLineSubstitutes.itemId))
+      .where(
+        and(
+          eq(bomLineSubstitutes.tenantId, this.tenantId),
+          inArray(bomLineSubstitutes.bomLineId, [...lineIds]),
+        ),
+      )
+      .orderBy(bomLineSubstitutes.priority);
+
+    for (const row of rows) {
+      const list = byLine.get(row.bomLineId) ?? [];
+      list.push({ itemId: row.itemId, itemName: row.itemName });
+      byLine.set(row.bomLineId, list);
+    }
+    return byLine;
   }
 
   private toWO(row: typeof workOrders.$inferSelect) {

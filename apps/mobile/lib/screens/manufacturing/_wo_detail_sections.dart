@@ -106,16 +106,32 @@ class WoMaterialsCard extends ConsumerWidget {
           Text('This BOM has no input lines, so nothing will be consumed.',
               style: RunqText.caption.copyWith(color: t.muted))
         else
-          for (var i = 0; i < wo.expectedLines.length; i++) ...[
+          for (final (i, row) in _materialRows(available).indexed) ...[
             if (i > 0) Divider(color: t.hairline, height: 20),
-            _RequiredRow(
-              line: wo.expectedLines[i],
-              plannedQty: wo.plannedQty,
-              have: available[wo.expectedLines[i].inputItemId] ?? 0,
-            ),
+            _RequiredRow(row: row),
           ],
       ]),
     );
+  }
+
+  /// Materials as the recipe states them: one row per line, with the stock
+  /// behind it counting anything the line accepts instead of its own item —
+  /// otherwise a line that takes any raw milk reads as short on one type while
+  /// the tank is full of another.
+  List<_MaterialNeed> _materialRows(Map<String, double> available) {
+    return [
+      for (final line in wo.expectedLines)
+        _MaterialNeed(
+          name: line.inputItemName,
+          detail: line.substitutes.isEmpty
+              ? '${woQty(line.qtyPerOutput)} ${line.inputUom}/output'
+              : 'or ${line.substitutes.map((s) => s.itemName).join(' / ')}',
+          uom: line.inputUom,
+          need: line.expectedQty(wo.plannedQty),
+          have: [line.inputItemId, ...line.substitutes.map((s) => s.itemId)]
+              .fold(0.0, (sum, itemId) => sum + (available[itemId] ?? 0)),
+        ),
+    ];
   }
 }
 
@@ -180,41 +196,49 @@ class _ConsumedRow extends StatelessWidget {
   }
 }
 
-/// Draft view of one input: required vs on hand, with a shortfall call-out.
-class _RequiredRow extends StatelessWidget {
-  const _RequiredRow({
-    required this.line,
-    required this.plannedQty,
+/// One material requirement — a BOM line, or a pool of interchangeable ones.
+class _MaterialNeed {
+  const _MaterialNeed({
+    required this.name,
+    required this.detail,
+    required this.uom,
+    required this.need,
     required this.have,
   });
-  final WorkOrderExpectedLine line;
-  final double plannedQty;
+  final String name;
+  final String detail;
+  final String uom;
+  final double need;
   final double have;
+}
+
+/// Draft view of one requirement: needed vs on hand, with a shortfall call-out.
+class _RequiredRow extends StatelessWidget {
+  const _RequiredRow({required this.row});
+  final _MaterialNeed row;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final need = line.expectedQty(plannedQty);
-    final short = need - have;
+    final short = row.need - row.have;
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(line.inputItemName,
+          Text(row.name,
               style: RunqText.bodyStrong.copyWith(color: t.ink),
               maxLines: 2,
               overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
-          Text('${woQty(line.qtyPerOutput)} ${line.inputUom}/output',
-              style: RunqText.micro.copyWith(color: t.muted2)),
+          Text(row.detail, style: RunqText.micro.copyWith(color: t.muted2)),
         ]),
       ),
       const SizedBox(width: 12),
       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text('${woQty(need)} ${line.inputUom}',
+        Text('${woQty(row.need)} ${row.uom}',
             style: RunqText.bodyStrong.copyWith(color: t.ink)),
         const SizedBox(height: 2),
         Text(
-          short > 0.0005 ? 'short ${woQty(short)}' : '${woQty(have)} on hand',
+          short > 0.0005 ? 'short ${woQty(short)}' : '${woQty(row.have)} on hand',
           style: RunqText.micro.copyWith(
             color: short > 0.0005 ? MfgColors.error : t.muted,
           ),

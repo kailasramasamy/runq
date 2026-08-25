@@ -14,11 +14,17 @@ const bomLineSchema = z.object({
   qtyPerOutput: z.number().positive('Qty per output must be positive'),
   inputUom: z.string().min(1).max(20),
   scrapPct: z.number().min(0).max(99.99).default(0),
+  /**
+   * Items accepted in place of this line's own — "7 L of raw milk, A2 or A1 or
+   * buffalo". The qty above covers them all; substitutes carry none of their
+   * own, so a recipe never reads as 7 + 7 + 7.
+   */
+  substitutes: z.array(z.string().uuid()).max(10).default([]),
   isOptional: z.boolean().default(false),
   notes: z.string().nullish(),
 });
 
-export const createBomSchema = z.object({
+const bomBaseSchema = z.object({
   bomCode: z
     .string()
     .min(1, 'BOM code required')
@@ -38,10 +44,37 @@ export const createBomSchema = z.object({
   lines: z.array(bomLineSchema).min(1, 'At least one input line required'),
 });
 
-export const updateBomSchema = createBomSchema.partial().extend({
-  // bomCode is immutable once created — strip if sent
-  bomCode: z.never().optional(),
-});
+export const createBomSchema = bomBaseSchema.superRefine(checkSubstitutes);
+
+/**
+ * A line cannot stand in for itself, and cannot name the same stand-in twice —
+ * either would queue one batch of stock as two and let the run draw more milk
+ * than the tank holds.
+ */
+function checkSubstitutes(
+  value: { lines?: Array<{ inputItemId?: string; substitutes?: string[] }> },
+  ctx: z.RefinementCtx,
+) {
+  (value.lines ?? []).forEach((line, i) => {
+    const subs = line.substitutes ?? [];
+    if (subs.length === 0) return;
+
+    const message = subs.includes(line.inputItemId ?? '')
+      ? 'A line cannot list its own item as a substitute'
+      : new Set(subs).size !== subs.length
+        ? 'The same substitute is listed twice'
+        : null;
+    if (message) ctx.addIssue({ code: 'custom', path: ['lines', i, 'substitutes'], message });
+  });
+}
+
+export const updateBomSchema = bomBaseSchema
+  .partial()
+  .extend({
+    // bomCode is immutable once created — strip if sent
+    bomCode: z.never().optional(),
+  })
+  .superRefine(checkSubstitutes);
 
 export const bomFilterSchema = z.object({
   outputItemId: z.string().uuid().optional(),

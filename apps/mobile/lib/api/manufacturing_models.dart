@@ -82,6 +82,19 @@ class BomListRow {
       );
 }
 
+/// One acceptable stand-in for a BOM line's item.
+class BomLineSubstitute {
+  final String itemId;
+  final String itemName;
+
+  BomLineSubstitute({required this.itemId, required this.itemName});
+
+  factory BomLineSubstitute.fromJson(Map<String, dynamic> j) => BomLineSubstitute(
+        itemId: j['itemId'] as String,
+        itemName: (j['itemName'] as String?) ?? '',
+      );
+}
+
 /// One input line in a BOM.
 class BomLine {
   final String id;
@@ -92,6 +105,10 @@ class BomLine {
   final double qtyPerOutput;
   final String inputUom;
   final double scrapPct;
+
+  /// Items this line accepts instead of its own — "7 L of milk, A2 or A1 or
+  /// buffalo". The qty above covers them all; substitutes carry none.
+  final List<BomLineSubstitute> substitutes;
   final bool isOptional;
   final String? notes;
 
@@ -104,6 +121,7 @@ class BomLine {
     required this.qtyPerOutput,
     required this.inputUom,
     required this.scrapPct,
+    this.substitutes = const [],
     required this.isOptional,
     this.notes,
   });
@@ -117,6 +135,10 @@ class BomLine {
         qtyPerOutput: _num(j['qtyPerOutput']),
         inputUom: (j['inputUom'] as String?) ?? '',
         scrapPct: _num(j['scrapPct']),
+        substitutes: (j['substitutes'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BomLineSubstitute.fromJson)
+            .toList(),
         isOptional: _bool(j['isOptional']),
         notes: j['notes'] as String?,
       );
@@ -281,6 +303,9 @@ class WorkOrderExpectedLine {
   final double qtyPerOutput;
   final String inputUom;
   final double scrapPct;
+
+  /// Items the line accepts instead of its own; the qty above covers them all.
+  final List<BomLineSubstitute> substitutes;
   final bool isOptional;
 
   /// Expected qty = qtyPerOutput × plannedQty × (1 + scrapPct/100)
@@ -294,6 +319,7 @@ class WorkOrderExpectedLine {
     required this.qtyPerOutput,
     required this.inputUom,
     required this.scrapPct,
+    this.substitutes = const [],
     required this.isOptional,
   });
 
@@ -305,6 +331,10 @@ class WorkOrderExpectedLine {
         qtyPerOutput: _num(j['qtyPerOutput']),
         inputUom: (j['inputUom'] as String?) ?? '',
         scrapPct: _num(j['scrapPct']),
+        substitutes: (j['substitutes'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BomLineSubstitute.fromJson)
+            .toList(),
         isOptional: _bool(j['isOptional']),
       );
 }
@@ -746,12 +776,18 @@ class YieldTrendPoint {
 
 /// One FEFO-allocated batch slice within a [ProductionAllocation].
 class ProductionAllocationBatch {
+  /// The item this batch belongs to — differs from the line's own item when
+  /// the draw fell to a substitute.
+  final String itemId;
+  final String itemName;
   final String? batchNo;
   final double qty;
   final double unitCost;
   final String? expiryDate;
 
   ProductionAllocationBatch({
+    this.itemId = '',
+    this.itemName = '',
     this.batchNo,
     required this.qty,
     required this.unitCost,
@@ -760,6 +796,8 @@ class ProductionAllocationBatch {
 
   factory ProductionAllocationBatch.fromJson(Map<String, dynamic> j) =>
       ProductionAllocationBatch(
+        itemId: (j['itemId'] as String?) ?? '',
+        itemName: (j['itemName'] as String?) ?? '',
         batchNo: j['batchNo'] as String?,
         qty: _num(j['qty']),
         unitCost: _num(j['unitCost']),
@@ -783,6 +821,9 @@ class ProductionAllocation {
   final double requiredQty;
   final double availableQty;
   final bool isOptional;
+
+  /// Items this line accepts instead of its own; [availableQty] counts them.
+  final List<BomLineSubstitute> substitutes;
   final List<ProductionAllocationBatch> batches;
 
   ProductionAllocation({
@@ -793,6 +834,7 @@ class ProductionAllocation {
     required this.requiredQty,
     required this.availableQty,
     required this.isOptional,
+    this.substitutes = const [],
     required this.batches,
   });
 
@@ -809,6 +851,10 @@ class ProductionAllocation {
         requiredQty: _num(j['requiredQty']),
         availableQty: _num(j['availableQty']),
         isOptional: _bool(j['isOptional']),
+        substitutes: (j['substitutes'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BomLineSubstitute.fromJson)
+            .toList(),
         batches: (j['batches'] as List? ?? const [])
             .cast<Map<String, dynamic>>()
             .map(ProductionAllocationBatch.fromJson)
@@ -824,6 +870,7 @@ class ProductionAllocation {
         requiredQty: requiredQty,
         availableQty: availableQty,
         isOptional: isOptional,
+        substitutes: substitutes,
         batches: batches ?? this.batches,
       );
 }

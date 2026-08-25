@@ -47,6 +47,11 @@ export interface WorkOrder {
   updatedAt: string;
 }
 
+export interface WorkOrderExpectedSubstitute {
+  itemId: string;
+  itemName: string;
+}
+
 export interface WorkOrderExpectedLine {
   bomLineId: string;
   inputItemId: string;
@@ -55,6 +60,8 @@ export interface WorkOrderExpectedLine {
   inputUom: string;
   scrapPct: number;
   expectedQty: number;
+  /** Items the line accepts instead of its own; the qty above covers them all. */
+  substitutes: WorkOrderExpectedSubstitute[];
   isOptional: boolean;
 }
 

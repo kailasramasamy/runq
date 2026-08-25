@@ -22,6 +22,15 @@ export interface Bom {
   updatedAt: string;
 }
 
+/** One acceptable stand-in for a BOM line's item. */
+export interface BomLineSubstitute {
+  itemId: string;
+  /** Joined from items master at read time. Always populated by the API. */
+  itemName: string;
+  /** Tiebreak between equally-fresh stock; the draw is FEFO first. */
+  priority: number;
+}
+
 export interface BomLine {
   id: string;
   tenantId: string;
@@ -33,6 +42,11 @@ export interface BomLine {
   qtyPerOutput: number;
   inputUom: string;
   scrapPct: number;
+  /**
+   * Items this line will accept instead of its own — "7 L of milk, A2 or A1 or
+   * buffalo". The qty stays on the line; substitutes carry none of their own.
+   */
+  substitutes: BomLineSubstitute[];
   isOptional: boolean;
   notes: string | null;
 }

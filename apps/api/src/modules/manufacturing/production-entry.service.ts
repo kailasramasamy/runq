@@ -14,8 +14,8 @@
  * Spec: docs/manufacturing-plan.md §5.6.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
-import { boms, bomLines, items, warehouses, workOrders } from '@runq/db';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { boms, bomLines, bomLineSubstitutes, items, warehouses, workOrders } from '@runq/db';
 import type { Db } from '@runq/db';
 import { NotFoundError, ConflictError, UnprocessableError } from '../../utils/errors';
 import { WorkOrderService } from './wo.service';
@@ -24,13 +24,13 @@ import { WoOutputService } from './output.service';
 import { WoLifecycleService } from './wo-lifecycle.service';
 import { BatchSuggestService } from './batch-suggest.service';
 import {
-  allocateFefo,
   applyOverrides,
-  computeRequiredQty,
+  buildAllocations,
   findOverdrawnBatches,
   findShortages,
   roundQty,
 } from './production-backflush';
+import type { BomInputLine } from './production-backflush';
 import type {
   ProductionAllocation,
   ProductionPreview,
@@ -54,17 +54,6 @@ interface ResolvedBom {
   outputQty: number;
   outputUom: string;
   outputTracksBatches: boolean;
-}
-
-interface BomInputLine {
-  bomLineId: string;
-  inputItemId: string;
-  inputItemName: string;
-  qtyPerOutput: number;
-  inputUom: string;
-  scrapPct: number;
-  isOptional: boolean;
-  tracksBatches: boolean;
 }
 
 export interface RecordProductionResult {
@@ -220,7 +209,9 @@ export class ProductionEntryService {
           woId,
           {
             bomLineId: alloc.bomLineId,
-            inputItemId: alloc.inputItemId,
+            // The batch names its own item: a line that accepted a substitute
+            // consumed that stock, not the item the recipe leads with.
+            inputItemId: batch.itemId,
             batchNo: batch.batchNo,
             warehouseId: preview.warehouseId,
             qty: batch.qty,
@@ -307,7 +298,7 @@ export class ProductionEntryService {
     };
   }
 
-  /** FEFO-allocate every BOM input, keeping the raw availability for override checks. */
+  /** Read what each input has on hand, then hand the arithmetic to the backflush. */
   private async buildAllocations(
     exec: Tx,
     lines: readonly BomInputLine[],
@@ -320,29 +311,26 @@ export class ProductionEntryService {
   }> {
     const availableByItem = new Map<string, SuggestedBatch[]>();
     const tracksBatchesByItem = new Map<string, boolean>();
-    const allocations: ProductionAllocation[] = [];
 
     for (const line of lines) {
-      const available = await this.batchSuggest.suggestInTx(exec, line.inputItemId, warehouseId);
-      availableByItem.set(line.inputItemId, available);
-      tracksBatchesByItem.set(line.inputItemId, line.tracksBatches);
-
-      const requiredQty = computeRequiredQty(line.qtyPerOutput, runs, line.scrapPct);
-      const { batches } = allocateFefo(requiredQty, available, line.tracksBatches);
-
-      allocations.push({
-        bomLineId: line.bomLineId,
-        inputItemId: line.inputItemId,
-        inputItemName: line.inputItemName,
-        uom: line.inputUom,
-        requiredQty,
-        availableQty: roundQty(available.reduce((sum, b) => sum + b.availableQty, 0)),
-        isOptional: line.isOptional,
-        batches,
-      });
+      const itemIds = [line.inputItemId, ...line.substitutes.map((s) => s.itemId)];
+      for (const itemId of itemIds) {
+        if (availableByItem.has(itemId)) continue;
+        availableByItem.set(
+          itemId,
+          await this.batchSuggest.suggestInTx(exec, itemId, warehouseId),
+        );
+        // A substitute stands in for the line's item, so it is stocked the same
+        // way — batch tracking follows the line.
+        tracksBatchesByItem.set(itemId, line.tracksBatches);
+      }
     }
 
-    return { allocations, availableByItem, tracksBatchesByItem };
+    return {
+      allocations: buildAllocations(lines, runs, availableByItem),
+      availableByItem,
+      tracksBatchesByItem,
+    };
   }
 
   private estimateInputValue(allocations: readonly ProductionAllocation[]): number {
@@ -403,6 +391,11 @@ export class ProductionEntryService {
       throw new ConflictError('BOM has no input lines — nothing to backflush');
     }
 
+    const substitutes = await this.loadSubstitutes(
+      exec,
+      rows.map((r: { line: typeof bomLines.$inferSelect }) => r.line.id),
+    );
+
     return rows.map((r: { line: typeof bomLines.$inferSelect; itemName: string; trackBatches: boolean | null }) => ({
       bomLineId: r.line.id,
       inputItemId: r.line.inputItemId,
@@ -412,7 +405,44 @@ export class ProductionEntryService {
       scrapPct: Number(r.line.scrapPct),
       isOptional: r.line.isOptional,
       tracksBatches: r.trackBatches ?? false,
+      substitutes: substitutes.get(r.line.id) ?? [],
     }));
+  }
+
+  /** Items each line will accept instead of its own, in preference order. */
+  private async loadSubstitutes(
+    exec: Tx,
+    lineIds: readonly string[],
+  ): Promise<Map<string, Array<{ itemId: string; itemName: string; priority: number }>>> {
+    const byLine = new Map<
+      string,
+      Array<{ itemId: string; itemName: string; priority: number }>
+    >();
+    if (lineIds.length === 0) return byLine;
+
+    const rows = await exec
+      .select({
+        bomLineId: bomLineSubstitutes.bomLineId,
+        itemId: items.id,
+        itemName: items.name,
+        priority: bomLineSubstitutes.priority,
+      })
+      .from(bomLineSubstitutes)
+      .innerJoin(items, eq(items.id, bomLineSubstitutes.itemId))
+      .where(
+        and(
+          eq(bomLineSubstitutes.tenantId, this.tenantId),
+          inArray(bomLineSubstitutes.bomLineId, [...lineIds]),
+        ),
+      )
+      .orderBy(bomLineSubstitutes.priority);
+
+    for (const row of rows) {
+      const list = byLine.get(row.bomLineId) ?? [];
+      list.push({ itemId: row.itemId, itemName: row.itemName, priority: row.priority });
+      byLine.set(row.bomLineId, list);
+    }
+    return byLine;
   }
 
   private async loadWarehouseName(exec: Tx, warehouseId: string): Promise<string> {

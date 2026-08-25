@@ -55,6 +55,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
           (double.tryParse(l.qtyCtl.text) ?? 0) > 0 &&
           l.inputUom.isNotEmpty);
 
+
   Future<void> _pickOutputItem() async {
     final picked = await showMfgItemPicker(context, title: 'Pick output item', itemClassGroup: 'finished');
     if (picked != null && mounted) {
@@ -122,6 +123,7 @@ class _BomCreateScreenState extends ConsumerState<BomCreateScreen> {
           'qtyPerOutput': double.parse(e.value.qtyCtl.text),
           'inputUom': e.value.inputUom,
           'scrapPct': double.tryParse(e.value.scrapCtl.text) ?? 0,
+          'substitutes': [for (final sub in e.value.substitutes) sub.itemId],
           'isOptional': e.value.isOptional,
         }).toList(),
       );
@@ -366,6 +368,10 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
         initialQty: line.qtyPerOutput,
         initialScrap: line.scrapPct,
         isOptional: line.isOptional,
+        substitutes: [
+          for (final sub in line.substitutes)
+            (itemId: sub.itemId, itemName: sub.itemName),
+        ],
       ));
     }
     _loaded = true;
@@ -436,6 +442,7 @@ class _BomEditScreenState extends ConsumerState<BomEditScreen> {
           'qtyPerOutput': double.parse(e.value.qtyCtl.text),
           'inputUom': e.value.inputUom,
           'scrapPct': double.tryParse(e.value.scrapCtl.text) ?? 0,
+          'substitutes': [for (final sub in e.value.substitutes) sub.itemId],
           'isOptional': e.value.isOptional,
         }).toList(),
       });
@@ -661,6 +668,10 @@ class _BomLineInput {
   String? inputItemId;
   String inputItemName;
   bool isOptional;
+
+  /// Items this line will accept instead of its own — "7 L of milk, A2 or A1
+  /// or buffalo". The qty stays on the line; these carry none of their own.
+  List<({String itemId, String itemName})> substitutes;
   final TextEditingController qtyCtl;
   final TextEditingController scrapCtl;
   // UoM is editable per line, like the web form: the item's stocking unit is
@@ -676,7 +687,9 @@ class _BomLineInput {
     double initialQty = 1,
     double initialScrap = 0,
     this.isOptional = false,
-  })  : qtyCtl = TextEditingController(text: initialQty == 1 ? '' : '$initialQty'),
+    List<({String itemId, String itemName})>? substitutes,
+  })  : substitutes = substitutes ?? [],
+        qtyCtl = TextEditingController(text: initialQty == 1 ? '' : '$initialQty'),
         scrapCtl = TextEditingController(
           text: initialScrap == 0 ? '' : initialScrap.toStringAsFixed(2),
         ),
@@ -791,7 +804,78 @@ class _BomLineEditorState extends State<_BomLineEditor> {
             Text('Optional', style: RunqText.caption.copyWith(color: t.muted)),
           ],
         ),
+        _SubstituteStrip(line: widget.line, onChange: widget.onChange),
       ],
+    );
+  }
+}
+
+/// The items a line will accept instead of its own.
+///
+/// The qty is never repeated here — that is the point: "7 L of milk, A2 or A1
+/// or buffalo" is one requirement, and listing each type as its own line would
+/// read as three times the milk.
+class _SubstituteStrip extends StatefulWidget {
+  final _BomLineInput line;
+  final VoidCallback onChange;
+  const _SubstituteStrip({required this.line, required this.onChange});
+
+  @override
+  State<_SubstituteStrip> createState() => _SubstituteStripState();
+}
+
+class _SubstituteStripState extends State<_SubstituteStrip> {
+  Future<void> _add() async {
+    final picked = await showMfgItemPicker(context,
+        title: 'Accept instead of ${widget.line.inputItemName}',
+        itemClassGroup: 'bom_inputs',
+        suggestFrom: widget.line.inputItemName);
+    if (picked == null || !mounted) return;
+    if (picked.id == widget.line.inputItemId) {
+      showRunqSnack(context, 'That is the line\'s own item', kind: SnackKind.warning);
+      return;
+    }
+    if (widget.line.substitutes.any((s) => s.itemId == picked.id)) return;
+    setState(() =>
+        widget.line.substitutes.add((itemId: picked.id, itemName: picked.name)));
+    widget.onChange();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text('also accepts', style: RunqText.caption.copyWith(color: t.muted)),
+          for (final sub in widget.line.substitutes)
+            InputChip(
+              label: Text(sub.itemName, style: RunqText.caption.copyWith(color: t.ink)),
+              onDeleted: () {
+                setState(() => widget.line.substitutes
+                    .removeWhere((s) => s.itemId == sub.itemId));
+                widget.onChange();
+              },
+              backgroundColor: t.bgWarm,
+              side: BorderSide(color: t.hairline),
+              visualDensity: VisualDensity.compact,
+            ),
+          TextButton.icon(
+            onPressed: widget.line.inputItemId == null ? null : _add,
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: Text('Add', style: RunqText.caption),
+            style: TextButton.styleFrom(
+              foregroundColor: MfgColors.brand(context),
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

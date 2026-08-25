@@ -1,10 +1,10 @@
 import { and, eq, desc, sql, ilike, or, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { boms, bomLines, workOrders, woConsumption } from '@runq/db';
+import { boms, bomLines, bomLineSubstitutes, workOrders, woConsumption } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { items, categories } from '@runq/db';
-import type { BomListRow, BomWithLines, BomLine } from '@runq/types';
+import type { BomListRow, BomWithLines, BomLine, BomLineSubstitute } from '@runq/types';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
@@ -111,10 +111,17 @@ export class BomService {
       .from(workOrders)
       .where(and(eq(workOrders.tenantId, this.tenantId), eq(workOrders.bomId, id)));
 
+    const substitutes = await this.loadSubstitutes(
+      this.db,
+      lines.map((l) => l.line.id),
+    );
+
     return {
       ...this.toBom(row.bom),
       outputItemName: row.outputItemName,
-      lines: lines.map((l) => this.toLine(l.line, l.inputItemName)),
+      lines: lines.map((l) =>
+        this.toLine(l.line, l.inputItemName, substitutes.get(l.line.id) ?? []),
+      ),
       linkedWoCount: count ?? 0,
     };
   }
@@ -151,18 +158,26 @@ export class BomService {
         })
         .returning();
 
-      await tx.insert(bomLines).values(
-        input.lines.map((l, i) => ({
-          tenantId: this.tenantId,
-          bomId: bom!.id,
-          lineNo: i + 1,
-          inputItemId: l.inputItemId,
-          qtyPerOutput: String(l.qtyPerOutput),
-          inputUom: l.inputUom,
-          scrapPct: String(l.scrapPct),
-          isOptional: l.isOptional,
-          notes: l.notes ?? null,
-        })),
+      const inserted = await tx
+        .insert(bomLines)
+        .values(
+          input.lines.map((l, i) => ({
+            tenantId: this.tenantId,
+            bomId: bom!.id,
+            lineNo: i + 1,
+            inputItemId: l.inputItemId,
+            qtyPerOutput: String(l.qtyPerOutput),
+            inputUom: l.inputUom,
+            scrapPct: String(l.scrapPct),
+            isOptional: l.isOptional,
+            notes: l.notes ?? null,
+          })),
+        )
+        .returning({ id: bomLines.id });
+
+      await this.replaceSubstitutes(
+        tx,
+        input.lines.map((l, i) => ({ lineId: inserted[i]!.id, items: l.substitutes ?? [] })),
       );
 
       return bom!;
@@ -207,17 +222,28 @@ export class BomService {
         })
         .returning();
 
-      await tx.insert(bomLines).values(
-        source.lines.map((l) => ({
-          tenantId: this.tenantId,
-          bomId: newBom!.id,
-          lineNo: l.lineNo,
-          inputItemId: l.inputItemId,
-          qtyPerOutput: String(l.qtyPerOutput),
-          inputUom: l.inputUom,
-          scrapPct: String(l.scrapPct),
-          isOptional: l.isOptional,
-          notes: l.notes ?? null,
+      const inserted = await tx
+        .insert(bomLines)
+        .values(
+          source.lines.map((l) => ({
+            tenantId: this.tenantId,
+            bomId: newBom!.id,
+            lineNo: l.lineNo,
+            inputItemId: l.inputItemId,
+            qtyPerOutput: String(l.qtyPerOutput),
+            inputUom: l.inputUom,
+            scrapPct: String(l.scrapPct),
+            isOptional: l.isOptional,
+            notes: l.notes ?? null,
+          })),
+        )
+        .returning({ id: bomLines.id });
+
+      await this.replaceSubstitutes(
+        tx,
+        source.lines.map((l, i) => ({
+          lineId: inserted[i]!.id,
+          items: l.substitutes.map((sub) => sub.itemId),
         })),
       );
 
@@ -333,6 +359,7 @@ export class BomService {
     }
 
     const kept = new Set<string>();
+    const subs: Array<{ lineId: string; items: string[] }> = [];
     for (const [i, l] of lines.entries()) {
       const values = {
         lineNo: i + 1,
@@ -347,10 +374,16 @@ export class BomService {
       if (reuseId) {
         kept.add(reuseId);
         await tx.update(bomLines).set(values).where(eq(bomLines.id, reuseId));
+        subs.push({ lineId: reuseId, items: l.substitutes ?? [] });
       } else {
-        await tx.insert(bomLines).values({ tenantId: this.tenantId, bomId, ...values });
+        const [row] = await tx
+          .insert(bomLines)
+          .values({ tenantId: this.tenantId, bomId, ...values })
+          .returning({ id: bomLines.id });
+        subs.push({ lineId: row!.id, items: l.substitutes ?? [] });
       }
     }
+    await this.replaceSubstitutes(tx, subs);
 
     const dropped = existing.map((r) => r.id).filter((rowId) => !kept.has(rowId));
     if (dropped.length === 0) return;
@@ -362,6 +395,59 @@ export class BomService {
       .set({ bomLineId: null })
       .where(inArray(woConsumption.bomLineId, dropped));
     await tx.delete(bomLines).where(inArray(bomLines.id, dropped));
+  }
+
+  /**
+   * Rewrite each line's substitutes. They carry no history of their own — no
+   * consumption row points at them — so replacing outright is both correct and
+   * simpler than reconciling.
+   */
+  private async replaceSubstitutes(
+    tx: Tx,
+    lines: ReadonlyArray<{ lineId: string; items: readonly string[] }>,
+  ): Promise<void> {
+    const lineIds = lines.map((l) => l.lineId);
+    if (lineIds.length > 0) {
+      await tx
+        .delete(bomLineSubstitutes)
+        .where(inArray(bomLineSubstitutes.bomLineId, lineIds));
+    }
+
+    const rows = lines.flatMap((line) =>
+      [...new Set(line.items)].map((itemId, i) => ({
+        tenantId: this.tenantId,
+        bomLineId: line.lineId,
+        itemId,
+        priority: i,
+      })),
+    );
+    if (rows.length > 0) await tx.insert(bomLineSubstitutes).values(rows);
+  }
+
+  private async loadSubstitutes(
+    exec: Db | Tx,
+    lineIds: readonly string[],
+  ): Promise<Map<string, BomLineSubstitute[]>> {
+    const byLine = new Map<string, BomLineSubstitute[]>();
+    if (lineIds.length === 0) return byLine;
+
+    const rows = await exec
+      .select({ sub: bomLineSubstitutes, itemName: items.name })
+      .from(bomLineSubstitutes)
+      .innerJoin(items, eq(items.id, bomLineSubstitutes.itemId))
+      .where(inArray(bomLineSubstitutes.bomLineId, [...lineIds]))
+      .orderBy(bomLineSubstitutes.priority);
+
+    for (const row of rows) {
+      const list = byLine.get(row.sub.bomLineId) ?? [];
+      list.push({
+        itemId: row.sub.itemId,
+        itemName: row.itemName,
+        priority: row.sub.priority,
+      });
+      byLine.set(row.sub.bomLineId, list);
+    }
+    return byLine;
   }
 
   private buildWhere(filters: BomFilter) {
@@ -401,6 +487,7 @@ export class BomService {
   private toLine(
     row: typeof bomLines.$inferSelect,
     inputItemName: string,
+    substitutes: BomLineSubstitute[],
   ): BomLine {
     return {
       id: row.id,
@@ -412,6 +499,7 @@ export class BomService {
       qtyPerOutput: Number(row.qtyPerOutput),
       inputUom: row.inputUom,
       scrapPct: Number(row.scrapPct),
+      substitutes,
       isOptional: row.isOptional,
       notes: row.notes ?? null,
     };

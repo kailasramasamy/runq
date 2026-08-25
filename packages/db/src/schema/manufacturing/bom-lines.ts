@@ -19,6 +19,9 @@ import { boms } from './boms';
  *   expected = qty_per_output × wo_qty × (1 + scrap_pct / 100)
  *
  * `scrap_pct` drives expected-qty math only — no scrap stock movements in v1.
+ *
+ * A line that accepts stand-ins (any raw milk, say) keeps its single qty and
+ * lists them in bom_line_substitutes — see that table.
  */
 export const bomLines = pgTable(
   'bom_lines',

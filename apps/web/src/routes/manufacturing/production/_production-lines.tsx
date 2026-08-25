@@ -42,7 +42,7 @@ export function ProductionLinesPanel({ allocations, shortages, isLoading, hasQue
         <EmptyState icon={PackageSearch} title="No input lines" description="This BOM has no input lines to backflush." />
       ) : (
         allocations.map((a) => (
-          <AllocationCard key={a.inputItemId} allocation={a} onLineChange={onLineChange} />
+          <AllocationCard key={a.bomLineId ?? a.inputItemId} allocation={a} onLineChange={onLineChange} />
         ))
       )}
     </div>
@@ -59,8 +59,8 @@ function ShortageBanner({ shortages }: { shortages: ProductionShortage[] }) {
         <AlertTriangle size={14} /> Insufficient stock — cannot post
       </div>
       <ul className="list-disc space-y-0.5 pl-5">
-        {shortages.map((s) => (
-          <li key={s.inputItemId}>
+        {shortages.map((s, i) => (
+          <li key={`${s.inputItemId}-${i}`}>
             {s.inputItemName} — short {s.shortQty.toFixed(3)} {s.uom}
             {' '}(need {s.requiredQty.toFixed(3)}, have {s.availableQty.toFixed(3)})
           </li>
@@ -87,7 +87,13 @@ function AllocationCard({
   function updateRow(idx: number, patch: Partial<LineBatchDraft>) {
     const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
     setRows(next);
-    onLineChange(allocation.inputItemId, next.map((r) => ({ batchNo: r.batchNo, qty: r.qty })));
+    // Overrides are keyed by item, and a line that accepts substitutes can draw
+    // from several — so each item's rows are sent as its own override set.
+    const edited = next[idx]!;
+    onLineChange(
+      edited.itemId,
+      next.filter((r) => r.itemId === edited.itemId).map((r) => ({ batchNo: r.batchNo, qty: r.qty })),
+    );
   }
 
   return (
@@ -103,6 +109,12 @@ function AllocationCard({
         }
       />
       <CardContent>
+        {/* The line will take any of these, so its "in stock" counts them all. */}
+        {allocation.substitutes.length > 0 && (
+          <p className="mb-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
+            or {allocation.substitutes.map((s) => s.itemName).join(' / ')}
+          </p>
+        )}
         <div className="mb-2 flex justify-between text-[11px]" style={{ color: 'var(--text-3)' }}>
           <span>Required: {allocation.requiredQty.toFixed(3)} {allocation.uom}</span>
           <span>In stock: {allocation.availableQty.toFixed(3)} {allocation.uom}</span>
@@ -127,7 +139,13 @@ function AllocationCard({
         ) : (
           <div className="space-y-2">
             {rows.map((b, idx) => (
-              <BatchRow key={idx} batch={b} uom={allocation.uom} onChange={(patch) => updateRow(idx, patch)} />
+              <BatchRow
+                key={idx}
+                batch={b}
+                uom={allocation.uom}
+                showItem={b.itemId !== allocation.inputItemId}
+                onChange={(patch) => updateRow(idx, patch)}
+              />
             ))}
           </div>
         )}
@@ -137,14 +155,22 @@ function AllocationCard({
 }
 
 function BatchRow({
-  batch, uom, onChange,
+  batch, uom, showItem, onChange,
 }: {
   batch: ProductionAllocationBatch;
   uom: string;
+  /** True when this batch came from a substitute — say which, or the row lies. */
+  showItem: boolean;
   onChange: (patch: Partial<LineBatchDraft>) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-md px-1 py-1" style={{ background: 'var(--surface-2)' }}>
+    <div className="rounded-md px-1 py-1" style={{ background: 'var(--surface-2)' }}>
+      {showItem && (
+        <p className="px-1 pt-1 text-[11px] font-medium" style={{ color: 'var(--text-2)' }}>
+          {batch.itemName}
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
       <Input
         label="Batch"
         value={batch.batchNo ?? ''}
@@ -159,6 +185,7 @@ function BatchRow({
       <div className="flex flex-col justify-end pb-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
         <span>{batch.expiryDate ? `Exp ${batch.expiryDate}` : 'No expiry'}</span>
         <span>{formatINR(batch.unitCost)}/{uom}</span>
+      </div>
       </div>
     </div>
   );

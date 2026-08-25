@@ -16,6 +16,7 @@ export * from './ap/vendor-catalog-items';
 export * from './purchase/purchase-orders';
 export * from './manufacturing/boms';
 export * from './manufacturing/bom-lines';
+export * from './manufacturing/bom-line-substitutes';
 export * from './manufacturing/work-orders';
 export * from './manufacturing/wo-consumption';
 export * from './manufacturing/wo-output';

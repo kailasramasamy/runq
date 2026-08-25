@@ -228,7 +228,15 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   Future<void> _editLine(ProductionAllocation alloc) async {
     final result = await showRecordProductionLineSheet(context, allocation: alloc);
     if (result == null || !mounted) return;
-    setState(() => _overrides[alloc.inputItemId] = result);
+    setState(() {
+      // Overrides are keyed by item. Switching the draw to a substitute must
+      // clear the one it replaces, or the line posts against both.
+      _overrides.remove(alloc.inputItemId);
+      for (final sub in alloc.substitutes) {
+        _overrides.remove(sub.itemId);
+      }
+      _overrides[result.itemId.isEmpty ? alloc.inputItemId : result.itemId] = result;
+    });
     _schedulePreview();
   }
 
@@ -243,7 +251,12 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     for (final a in preview.allocations) {
       final qty = double.tryParse(_wastageCtls[a.inputItemId]?.text.trim() ?? '') ?? 0;
       if (qty <= 0) continue;
-      lines.add({'itemId': a.inputItemId, 'qty': qty});
+      // Write the loss off against the stock the run actually drew: a line that
+      // took buffalo milk cannot waste A2 it never touched.
+      final drawnItem = a.batches.isNotEmpty && a.batches.first.itemId.isNotEmpty
+          ? a.batches.first.itemId
+          : a.inputItemId;
+      lines.add({'itemId': drawnItem, 'qty': qty});
     }
     if (lines.isEmpty) return null;
     final notes = _wastageNotesCtl.text.trim();

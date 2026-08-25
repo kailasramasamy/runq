@@ -491,7 +491,8 @@ class _BomLineRow extends StatelessWidget {
               Text(
                 '${_qty(line.qtyPerOutput)} x ${line.inputUom} per output'
                 '${line.scrapPct > 0 ? ' · ${line.scrapPct.toStringAsFixed(1)}% scrap' : ''}'
-                '${line.isOptional ? ' · optional' : ''}',
+                '${line.isOptional ? ' · optional' : ''}'
+                '${line.substitutes.isEmpty ? '' : ' · or ${line.substitutes.map((s) => s.itemName).join(' / ')}'}',
                 style: RunqText.caption.copyWith(color: t.muted),
               ),
             ],

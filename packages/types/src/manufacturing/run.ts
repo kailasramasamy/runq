@@ -51,6 +51,12 @@ export interface SuggestedBatch {
   availableQty: number;
   unitCost: number;
   expiryDate: string | null;
+  /**
+   * Last stock movement on the batch. Only a tiebreak: pooling several items
+   * into one FEFO queue needs an age signal for undated stock, and raw milk
+   * carries no expiry date.
+   */
+  lastMovementAt?: string | null;
 }
 
 /** Per-input costing preview computed by `costing.service` while a WO is in_progress. */

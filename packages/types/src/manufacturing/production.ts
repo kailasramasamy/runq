@@ -14,14 +14,31 @@ export interface ProductionAllocation {
   uom: string;
   /** qtyPerOutput × runs × (1 + scrapPct/100), rounded to 4dp. */
   requiredQty: number;
-  /** Sum of on-hand across every batch of this item in the warehouse. */
+  /**
+   * Sum of on-hand behind this line in the warehouse — the line's own item
+   * plus any substitutes, since the line will accept them.
+   */
   availableQty: number;
   isOptional: boolean;
+  /** Items this line accepts instead of its own, in the order it prefers them. */
+  substitutes: ProductionAllocationSubstitute[];
   /** Empty when nothing is on hand — pair with the matching shortage row. */
   batches: ProductionAllocationBatch[];
 }
 
+export interface ProductionAllocationSubstitute {
+  itemId: string;
+  itemName: string;
+}
+
 export interface ProductionAllocationBatch {
+  /**
+   * Which item the batch belongs to. Differs from the allocation's own item
+   * when the draw fell to a substitute, so consumption posts against the stock
+   * that actually moved.
+   */
+  itemId: string;
+  itemName: string;
   batchNo: string | null;
   qty: number;
   unitCost: number;
@@ -30,6 +47,7 @@ export interface ProductionAllocationBatch {
 
 /** An input the BOM demands but the warehouse cannot cover. Blocks posting. */
 export interface ProductionShortage {
+  /** The first member item for a pooled shortage — the pool has no single id. */
   inputItemId: string;
   inputItemName: string;
   uom: string;

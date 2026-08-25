@@ -989,23 +989,20 @@ class _MaterialPlan extends ConsumerWidget {
     // BOM quantities are per `bom.outputQty` of output, so scale by the run.
     // Scrap is a percentage uplift on the consumed quantity.
     final batches = bom.outputQty > 0 ? plannedQty / bom.outputQty : 0.0;
-    final rows = bom.lines.map((l) {
-      final need = l.qtyPerOutput * batches * (1 + l.scrapPct / 100);
-      final have = available[l.inputItemId] ?? 0;
-      return (line: l, need: need, have: have, short: need - have);
-    }).toList();
+    final rows = _planRows(bom, batches, available);
 
     // How many units of output the tightest input allows. Optional lines don't
-    // gate a run, so they're excluded from the ceiling.
+    // gate a run, so they're excluded from the ceiling. A pool counts once —
+    // its members' stock and its members' demand both add up.
     double? ceiling;
     for (final r in rows) {
-      if (r.line.isOptional) continue;
-      final perUnit = r.line.qtyPerOutput * (1 + r.line.scrapPct / 100) / bom.outputQty;
+      if (r.optional) continue;
+      final perUnit = r.perOutput / bom.outputQty;
       if (perUnit <= 0) continue;
       final canMake = r.have / perUnit;
       if (ceiling == null || canMake < ceiling) ceiling = canMake;
     }
-    final blocking = rows.where((r) => !r.line.isOptional && r.short > 0.0001).toList();
+    final blocking = rows.where((r) => !r.optional && r.short > 0.0001).toList();
     final planned = plannedQty > 0;
 
     return MfgCard(
@@ -1029,13 +1026,15 @@ class _MaterialPlan extends ConsumerWidget {
         ],
         for (final r in rows) ...[
           _MaterialRow(
-            name: r.line.inputItemName,
-            uom: r.line.inputUom,
+            name: r.alternates.isEmpty
+                ? r.name
+                : '${r.name} or ${r.alternates.join(' / ')}',
+            uom: r.uom,
             need: planned ? r.need : null,
             have: r.have,
-            short: planned && !r.line.isOptional && r.short > 0.0001,
-            optional: r.line.isOptional,
-            scrapPct: r.line.scrapPct,
+            short: planned && !r.optional && r.short > 0.0001,
+            optional: r.optional,
+            scrapPct: r.scrapPct,
           ),
           const SizedBox(height: 8),
         ],
@@ -1048,11 +1047,64 @@ class _MaterialPlan extends ConsumerWidget {
 
   static String _trim(double v) =>
       v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
+
+  /// One plan row per BOM line, with the stock behind it counting anything the
+  /// line accepts instead of its own item — a line that takes any raw milk is
+  /// limited by the tank, not by one type.
+  static List<_PlanRow> _planRows(
+    Bom bom,
+    double batches,
+    Map<String, double> available,
+  ) {
+    return [
+      for (final l in bom.lines)
+        _PlanRow(
+          name: l.inputItemName,
+          alternates: l.substitutes.map((s) => s.itemName).toList(),
+          uom: l.inputUom,
+          need: l.qtyPerOutput * batches * (1 + l.scrapPct / 100),
+          have: [l.inputItemId, ...l.substitutes.map((s) => s.itemId)]
+              .fold(0.0, (sum, itemId) => sum + (available[itemId] ?? 0)),
+          perOutput: l.qtyPerOutput * (1 + l.scrapPct / 100),
+          optional: l.isOptional,
+          scrapPct: l.scrapPct,
+        ),
+    ];
+  }
+}
+
+/// A single material requirement in the plan — one BOM line, and whatever it
+/// will accept in place of its own item.
+class _PlanRow {
+  const _PlanRow({
+    required this.name,
+    required this.alternates,
+    required this.uom,
+    required this.need,
+    required this.have,
+    required this.perOutput,
+    required this.optional,
+    required this.scrapPct,
+  });
+  final String name;
+
+  /// Items the line will accept instead; their stock is already in [have].
+  final List<String> alternates;
+  final String uom;
+  final double need;
+  final double have;
+
+  /// Qty consumed per BOM output batch, scrap included — the ceiling divisor.
+  final double perOutput;
+  final bool optional;
+  final double scrapPct;
+
+  double get short => need - have;
 }
 
 class _ShortfallBanner extends StatelessWidget {
   const _ShortfallBanner({required this.rows, required this.ceiling, required this.outputUom});
-  final List<({BomLine line, double need, double have, double short})> rows;
+  final List<_PlanRow> rows;
   final double? ceiling;
   final String? outputUom;
 
@@ -1077,8 +1129,8 @@ class _ShortfallBanner extends StatelessWidget {
                 style: RunqText.bodyStrong.copyWith(color: t.ink)),
             const SizedBox(height: 2),
             Text(
-              'Short ${_MaterialPlan._trim(first.short)} ${first.line.inputUom} of '
-              '${first.line.inputItemName}'
+              'Short ${_MaterialPlan._trim(first.short)} ${first.uom} of '
+              '${first.name}'
               '${more > 0 ? ' and $more other input${more == 1 ? '' : 's'}' : ''}.'
               '${ceiling != null ? ' Stock covers about ${_MaterialPlan._trim(ceiling!)}'
                   '${outputUom != null ? ' $outputUom' : ''}.' : ''}',

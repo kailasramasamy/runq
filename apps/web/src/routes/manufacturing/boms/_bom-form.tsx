@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
   Button, Input, Combobox, Card, CardHeader, CardContent,
 } from '@/components/ui';
@@ -32,6 +32,8 @@ interface BomLineField {
   qtyPerOutput: string;
   inputUom: string;
   scrapPct: string;
+  /** Item ids this line will accept instead of its own. */
+  substitutes: string[];
   isOptional: boolean;
   notes: string;
 }
@@ -63,6 +65,7 @@ function emptyLine(): BomLineField {
     qtyPerOutput: '',
     inputUom: '',
     scrapPct: '0',
+    substitutes: [],
     isOptional: false,
     notes: '',
   };
@@ -94,6 +97,7 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
           qtyPerOutput: String(l.qtyPerOutput),
           inputUom: l.inputUom,
           scrapPct: String(l.scrapPct),
+          substitutes: l.substitutes.map((sub) => sub.itemId),
           isOptional: l.isOptional,
           notes: l.notes ?? '',
         }))
@@ -156,9 +160,28 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
     })),
   ];
 
-  function updateLine(idx: number, field: keyof BomLineField, value: string | boolean) {
+  function updateLine(
+    idx: number,
+    field: keyof BomLineField,
+    value: string | boolean | string[],
+  ) {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)));
+  }
+
+  /** Add or drop one acceptable stand-in for a line. */
+  function toggleSubstitute(idx: number, itemId: string) {
+    if (!itemId) return;
     setLines((prev) =>
-      prev.map((l, i) => (i === idx ? { ...l, [field]: value } : l)),
+      prev.map((l, i) => {
+        if (i !== idx) return l;
+        const has = l.substitutes.includes(itemId);
+        return {
+          ...l,
+          substitutes: has
+            ? l.substitutes.filter((s) => s !== itemId)
+            : [...l.substitutes, itemId],
+        };
+      }),
     );
   }
 
@@ -182,6 +205,10 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
       if (!l.inputItemId) errs[`line_${i}_item`] = 'Item required';
       if (!l.qtyPerOutput || Number(l.qtyPerOutput) <= 0) errs[`line_${i}_qty`] = 'Qty required';
       if (!l.inputUom.trim()) errs[`line_${i}_uom`] = 'UOM required';
+      // A line standing in for itself would count the same stock twice.
+      if (l.substitutes.includes(l.inputItemId)) {
+        errs[`line_${i}_subs`] = 'A line cannot accept its own item';
+      }
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -204,6 +231,7 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
         qtyPerOutput: Number(l.qtyPerOutput),
         inputUom: l.inputUom.trim(),
         scrapPct: Number(l.scrapPct) || 0,
+        substitutes: l.substitutes,
         isOptional: l.isOptional,
         notes: l.notes.trim() || null,
       })),
@@ -356,9 +384,11 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
           {errors.lines && (
             <p className="px-4 py-2 text-[11px] text-red-500">{errors.lines}</p>
           )}
+
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {lines.map((line, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 p-3 items-end">
+              <div key={idx} className="p-3">
+                <div className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-12 sm:col-span-4">
                   {idx === 0 && (
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
@@ -433,6 +463,14 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
                     <Trash2 size={14} />
                   </button>
                 </div>
+                </div>
+                <SubstituteStrip
+                  line={line}
+                  options={inputItemOptions}
+                  itemName={(id) => pickedInputItem(id)?.name ?? 'Item'}
+                  error={errors[`line_${idx}_subs`]}
+                  onToggle={(itemId) => toggleSubstitute(idx, itemId)}
+                />
               </div>
             ))}
           </div>
@@ -445,5 +483,60 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The items a line will accept instead of its own.
+ *
+ * The qty stays on the line and is never repeated here — that is the whole
+ * point: "7 L of milk, A2 or A1 or buffalo" is one requirement, and a recipe
+ * that listed each type as its own line would read as three times the milk.
+ */
+function SubstituteStrip({
+  line,
+  options,
+  itemName,
+  error,
+  onToggle,
+}: {
+  line: BomLineField;
+  options: Array<{ value: string; label: string }>;
+  itemName: (id: string) => string;
+  error?: string;
+  onToggle: (itemId: string) => void;
+}) {
+  const pickable = options.filter(
+    (o) => o.value && o.value !== line.inputItemId && !line.substitutes.includes(o.value),
+  );
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-0.5">
+      <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+        also accepts
+      </span>
+      {line.substitutes.map((itemId) => (
+        <button
+          key={itemId}
+          type="button"
+          onClick={() => onToggle(itemId)}
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors hover:opacity-80"
+          style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+          title="Remove this alternate"
+        >
+          {itemName(itemId)}
+          <X size={10} />
+        </button>
+      ))}
+      <div className="w-56">
+        <Combobox
+          options={[{ value: '', label: 'Add an alternate…' }, ...pickable]}
+          value=""
+          onChange={(v) => onToggle(v)}
+          placeholder="Add an alternate…"
+        />
+      </div>
+      {error && <span className="text-[10px] text-red-500">{error}</span>}
+    </div>
   );
 }

@@ -194,7 +194,14 @@ export function WoForm({ initial, onSubmit, isLoading }: WoFormProps) {
                     const expected = Number(l.qtyPerOutput) * Number(plannedQty) * (1 + Number(l.scrapPct) / 100);
                     return (
                       <li key={l.id} className="flex items-center justify-between gap-2 text-[12px]">
-                        <span>{l.inputItemName}</span>
+                        <span>
+                          {l.inputItemName}
+                          {l.substitutes.length > 0 && (
+                            <span className="ml-1 text-[10px]" style={{ color: 'var(--text-3)' }}>
+                              or {l.substitutes.map((sub) => sub.itemName).join(' / ')}
+                            </span>
+                          )}
+                        </span>
                         <span className="font-mono tabular-nums" style={{ color: 'var(--text-2)' }}>
                           {expected.toFixed(3)} {l.inputUom}
                           {l.scrapPct > 0 && (

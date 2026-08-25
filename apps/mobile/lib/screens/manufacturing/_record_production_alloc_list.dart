@@ -224,11 +224,24 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            allocation.inputItemName,
-            style: RunqText.bodyStrong.copyWith(color: t.ink),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                allocation.inputItemName,
+                style: RunqText.bodyStrong.copyWith(color: t.ink),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              // The line takes any of these, so its "in stock" counts them all.
+              if (allocation.substitutes.isNotEmpty)
+                Text(
+                  'or ${allocation.substitutes.map((s) => s.itemName).join(' / ')}',
+                  style: RunqText.micro.copyWith(color: t.muted),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
           ),
         ),
         if (allocation.isOptional) ...[
@@ -348,7 +361,13 @@ class _Batches extends StatelessWidget {
         Text('TAKING FROM', style: RunqText.micro.copyWith(color: t.muted2)),
         const SizedBox(height: 6),
         for (final b in allocation.batches)
-          _BatchRow(batch: b, uom: allocation.uom),
+          _BatchRow(
+            batch: b,
+            uom: allocation.uom,
+            // Name the item only when the draw fell to a stand-in, or the row
+            // reads as the line's own milk when it isn't.
+            showItem: b.itemId.isNotEmpty && b.itemId != allocation.inputItemId,
+          ),
       ],
     );
   }
@@ -357,9 +376,10 @@ class _Batches extends StatelessWidget {
 /// One batch the run draws down: label left, quantity right. Full-width rows
 /// stack cleanly however many batches FEFO picks.
 class _BatchRow extends StatelessWidget {
-  const _BatchRow({required this.batch, required this.uom});
+  const _BatchRow({required this.batch, required this.uom, this.showItem = false});
   final ProductionAllocationBatch batch;
   final String uom;
+  final bool showItem;
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +401,9 @@ class _BatchRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  labelled ? batch.batchNo! : 'No batch',
+                  showItem
+                      ? '${batch.itemName} · ${labelled ? batch.batchNo! : 'No batch'}'
+                      : (labelled ? batch.batchNo! : 'No batch'),
                   style: RunqText.caption.copyWith(
                     color: labelled ? t.ink : t.muted,
                     fontWeight: FontWeight.w600,

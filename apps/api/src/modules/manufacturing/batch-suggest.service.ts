@@ -84,6 +84,7 @@ export class BatchSuggestService {
         soh.batch_no,
         soh.qty::float   AS available_qty,
         soh.avg_cost::float AS unit_cost,
+        soh.last_movement_at,
         me.expiry_date
       FROM stock_on_hand soh
       LEFT JOIN min_expiry me ON me.batch_no = soh.batch_no
@@ -99,6 +100,7 @@ export class BatchSuggestService {
       batch_no: string;
       available_qty: number;
       unit_cost: number;
+      last_movement_at: string | Date | null;
       expiry_date: string | null;
     };
 
@@ -108,6 +110,9 @@ export class BatchSuggestService {
       availableQty: Number(r.available_qty),
       unitCost: Number(r.unit_cost),
       expiryDate: r.expiry_date ?? null,
+      lastMovementAt: r.last_movement_at
+        ? new Date(r.last_movement_at).toISOString()
+        : null,
     }));
   }
 }
