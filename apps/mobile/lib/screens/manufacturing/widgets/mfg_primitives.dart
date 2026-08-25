@@ -818,7 +818,8 @@ class MfgQuickActionTile extends StatelessWidget {
     // Rose wash that deepens toward the bottom-right, over the card surface so
     // the tint reads the same in both themes. Blended (not overlaid at alpha)
     // so text keeps its contrast against an opaque colour.
-    final washStrength = Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.09;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final washStrength = isDark ? 0.16 : 0.09;
     final wash = Color.alphaBlend(MfgColors.rose.withValues(alpha: washStrength), t.surface);
     return Material(
       color: Colors.transparent,
@@ -827,6 +828,9 @@ class MfgQuickActionTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: MfgColors.rose.withValues(alpha: 0.14)),
+          // Lifted off the page: the wash alone left these reading as
+          // flat panels rather than the tap targets they are.
+          boxShadow: RunqShadows.actionTile(isDark),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,

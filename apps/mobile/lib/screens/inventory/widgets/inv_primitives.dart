@@ -596,7 +596,8 @@ class InvActionTile extends StatelessWidget {
     final t = RT(context);
     // Amber wash deepening toward the bottom-right, blended onto the surface
     // (not overlaid at alpha) so the fill stays opaque and text keeps contrast.
-    final washStrength = Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.09;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final washStrength = isDark ? 0.16 : 0.09;
     final wash = Color.alphaBlend(InvColors.amber.withValues(alpha: washStrength), t.surface);
     return Material(
       color: Colors.transparent,
@@ -605,6 +606,9 @@ class InvActionTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: InvColors.amber.withValues(alpha: 0.14)),
+          // Lifted off the page: the wash alone left these reading as
+          // flat panels rather than the tap targets they are.
+          boxShadow: RunqShadows.actionTile(isDark),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,

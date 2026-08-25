@@ -197,4 +197,15 @@ class RunqShadows {
   static const sheet = <BoxShadow>[
     BoxShadow(color: Color(0x33141210), blurRadius: 40, offset: Offset(0, 12)),
   ];
+
+  /// Quick-action tiles sit on the same ground as the cards around them, so
+  /// they need more lift than [card] to read as the tappable row they are.
+  /// Dark mode takes the deeper alpha — a 7% black vanishes on a dark ground.
+  static List<BoxShadow> actionTile(bool dark) => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: dark ? 0.30 : 0.07),
+      blurRadius: 10,
+      offset: const Offset(0, 3),
+    ),
+  ];
 }
