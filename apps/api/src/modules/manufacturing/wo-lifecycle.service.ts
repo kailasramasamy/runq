@@ -13,9 +13,10 @@
 import { and, eq, sql, inArray } from 'drizzle-orm';
 import { workOrders, woConsumption, woOutput, items, boms } from '@runq/db';
 import type { Db } from '@runq/db';
-import { NotFoundError, ConflictError } from '../../utils/errors';
+import { NotFoundError, ConflictError, UnprocessableError } from '../../utils/errors';
 import { WorkOrderService } from './wo.service';
 import { StockLedgerService } from '../inventory/stock-ledger.service';
+import { AdjustmentService } from '../inventory/adjustment.service';
 import { ManufacturingGlPoster } from './gl-poster';
 import { restoreConsumedInputs } from './wo-reversal.service';
 import {
@@ -25,7 +26,7 @@ import {
   isHighVariance,
 } from './costing.service';
 import type { WorkOrderWithDetail } from '@runq/types';
-import type { CloseWorkOrderInput } from '@runq/validators';
+import type { CloseWorkOrderInput, WastageInput } from '@runq/validators';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
@@ -237,6 +238,149 @@ export class WoLifecycleService {
           AND source_id = ${id}
       `);
     }
+
+    if (input.wastage) {
+      const fallbackWarehouse = consumptionRows[0]?.warehouseId;
+      await this.postWastage(tx, id, wo.woNumber, today, input.wastage, fallbackWarehouse, userId);
+    }
+  }
+
+  /**
+   * Write off input material that never reached output, as a production_loss
+   * adjustment linked back to this WO.
+   *
+   * Deliberately NOT booked as extra consumption: absorbing it into the
+   * finished goods' unit cost is the textbook treatment for normal loss, but
+   * it also makes the loss invisible, which is the opposite of what a wastage
+   * register is for. It goes to 5104 Inventory Write-off instead, where the
+   * daily report can price it.
+   *
+   * Posted inside the close transaction — if the write-off fails (no stock in
+   * the batch, say) the whole close rolls back rather than leaving a closed WO
+   * beside a stranded draft adjustment.
+   */
+  private async postWastage(
+    tx: Tx,
+    woId: string,
+    woNumber: string,
+    date: string,
+    wastage: WastageInput,
+    fallbackWarehouseId: string | undefined,
+    userId?: string,
+  ): Promise<void> {
+    const warehouseId = wastage.warehouseId ?? fallbackWarehouseId;
+    if (!warehouseId) {
+      throw new ConflictError('Cannot record wastage: no warehouse on the run to draw it from');
+    }
+
+    const adjustments = new AdjustmentService({ db: this.db, tenantId: this.tenantId, userId });
+    const adj = await adjustments.createInTx(tx, {
+      warehouseId,
+      reason: 'production_loss',
+      adjustmentDate: date,
+      notes: wastage.notes ?? `Wastage on ${woNumber}`,
+      sourceWoId: woId,
+      lines: await this.resolveWastageLines(tx, woId, warehouseId, wastage),
+    });
+
+    // Zero-cost stock (MP raw milk, already expensed at cycle lock) prices the
+    // write-off at 0, and postAdjustment skips the JE for a zero delta — the
+    // litres are still recorded, so the wastage register stays complete.
+    await adjustments.postInTx(tx, adj.id);
+  }
+
+  /**
+   * Spread each wasted quantity across the batches the run left behind.
+   *
+   * Called after consumption has posted, so `stock_on_hand` already reflects
+   * the draw. The caller must not pick the batch: FEFO drains the oldest batch
+   * outright for the run itself, so a write-off aimed at the first allocated
+   * batch hits a zero balance — which is exactly what the plant hit.
+   *
+   * An explicit batchNo is honoured as-is, for wastage traced to one batch.
+   */
+  private async resolveWastageLines(
+    tx: Tx,
+    woId: string,
+    warehouseId: string,
+    wastage: WastageInput,
+  ): Promise<Array<{ itemId: string; batchNo: string | null; qtyDelta: number; notes: string | null }>> {
+    const tracksBatches = await this.loadTrackBatchesMap(tx, wastage.lines.map((l) => l.itemId));
+    const lines = [];
+
+    for (const l of wastage.lines) {
+      const qty = Math.abs(l.qty);
+      const notes = l.notes ?? null;
+      if (l.batchNo || !tracksBatches.get(l.itemId)) {
+        lines.push({ itemId: l.itemId, batchNo: l.batchNo ?? null, qtyDelta: -qty, notes });
+        continue;
+      }
+
+      let left = qty;
+      for (const b of await this.wastageBatches(tx, woId, l.itemId, warehouseId)) {
+        if (left <= 0) break;
+        const take = Math.min(left, b.qty);
+        if (take <= 0) continue;
+        lines.push({ itemId: l.itemId, batchNo: b.batchNo, qtyDelta: -take, notes });
+        left -= take;
+      }
+      if (left > 1e-6) await this.throwWastageShortage(tx, l.itemId, qty, qty - left);
+    }
+    return lines;
+  }
+
+  /**
+   * Batches to draw the wastage from, best candidate first.
+   *
+   * The batches this run consumed come first, most-recently-drawn first: the
+   * run empties each batch in turn, so the remainder sits in the last one it
+   * touched — that is the milk still in the tank when packing ended. Batches
+   * the run never touched come after, oldest movement first, as a fallback for
+   * wastage larger than the run's own leftovers.
+   */
+  private async wastageBatches(
+    tx: Tx,
+    woId: string,
+    itemId: string,
+    warehouseId: string,
+  ): Promise<Array<{ batchNo: string; qty: number }>> {
+    const result = await tx.execute(sql`
+      SELECT soh.batch_no, soh.qty::float AS qty
+      FROM stock_on_hand soh
+      LEFT JOIN (
+        SELECT batch_no, MAX(consumed_at) AS last_at
+        FROM wo_consumption
+        WHERE wo_id = ${woId} AND input_item_id = ${itemId} AND batch_no IS NOT NULL
+        GROUP BY batch_no
+      ) c ON c.batch_no = soh.batch_no
+      WHERE soh.tenant_id = ${this.tenantId}
+        AND soh.item_id = ${itemId}
+        AND soh.warehouse_id = ${warehouseId}
+        AND soh.qty > 0
+        AND soh.batch_no IS NOT NULL AND soh.batch_no <> ''
+      ORDER BY c.last_at DESC NULLS LAST, soh.last_movement_at ASC
+    `);
+    return (result as unknown as { rows: Array<{ batch_no: string; qty: number }> }).rows
+      .map((r) => ({ batchNo: r.batch_no, qty: Number(r.qty) }));
+  }
+
+  /** Names the item and what the run actually left, so the floor can act on it. */
+  private async throwWastageShortage(
+    tx: Tx,
+    itemId: string,
+    requested: number,
+    available: number,
+  ): Promise<never> {
+    const [item] = await tx
+      .select({ name: items.name, unit: items.unit })
+      .from(items)
+      .where(and(eq(items.id, itemId), eq(items.tenantId, this.tenantId)))
+      .limit(1);
+    const uom = item?.unit ? ` ${item.unit}` : '';
+    throw new UnprocessableError(
+      `Cannot write off ${requested}${uom} of ${item?.name ?? 'this item'} — only ` +
+      `${Number(available.toFixed(3))}${uom} is left after this run.`,
+    );
   }
 
   async cancelWithReversal(

@@ -14,6 +14,7 @@ import { ApiClientError } from '@/lib/api-client';
 import { ProductionForm, type ProductionFormState } from './_production-form';
 import { ProductionLinesPanel, type LineBatchDraft } from './_production-lines';
 import { ProductionCostingStrip } from './_production-costing-strip';
+import { ProductionWastagePanel, type WastageDraft } from './_production-wastage';
 import type { ProductionShortage } from '@runq/types';
 import type { ProductionLineOverride, ProductionPreviewInput } from '@runq/validators';
 
@@ -27,6 +28,7 @@ export function RecordProductionPage() {
   const { toast } = useToast();
   const [form, setForm] = useState<ProductionFormState>(INITIAL_STATE);
   const [overrides, setOverrides] = useState<ProductionLineOverride[]>([]);
+  const [wastage, setWastage] = useState<WastageDraft>({});
   const [submitShortages, setSubmitShortages] = useState<ProductionShortage[] | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const recordM = useRecordProduction();
@@ -38,7 +40,7 @@ export function RecordProductionPage() {
 
   // Overrides are only meaningful against a specific BOM + warehouse — a new
   // pick invalidates them.
-  useEffect(() => { setOverrides([]); }, [form.bomId, form.warehouseId]);
+  useEffect(() => { setOverrides([]); setWastage({}); }, [form.bomId, form.warehouseId]);
 
   const rawBody: ProductionPreviewInput = useMemo(() => ({
     bomId: form.bomId || undefined,
@@ -58,6 +60,29 @@ export function RecordProductionPage() {
   const { data: previewRes, isLoading: previewLoading, isFetching: previewFetching } =
     useProductionPreview(debouncedBody, hasQuery);
   const preview = previewRes?.data;
+
+  function patchWastage(inputItemId: string, patch: { qty?: string; notes?: string }) {
+    setWastage((prev) => ({
+      ...prev,
+      [inputItemId]: { ...(prev[inputItemId] ?? { qty: '', notes: '' }), ...patch },
+    }));
+  }
+
+  /**
+   * No batch is sent: the server FEFO-allocates the write-off against what the
+   * run actually left behind. Naming a batch here gets it wrong — the run
+   * usually drains the oldest batch completely, so the leftover is in whichever
+   * batch the allocation stopped part-way through.
+   */
+  function wastagePayload() {
+    const lines = (preview?.allocations ?? []).flatMap((a) => {
+      const row = wastage[a.inputItemId];
+      const qty = Number(row?.qty) || 0;
+      if (qty <= 0) return [];
+      return [{ itemId: a.inputItemId, qty, notes: row?.notes?.trim() || null }];
+    });
+    return lines.length ? { warehouseId: form.warehouseId, lines } : undefined;
+  }
 
   function handleLineChange(inputItemId: string, batches: LineBatchDraft[]) {
     setSubmitShortages(null);
@@ -93,6 +118,7 @@ export function RecordProductionPage() {
         shift: form.shift || undefined,
         producedOn: form.producedOn || undefined,
         notes: form.notes || undefined,
+        wastage: wastagePayload(),
       },
       {
         onSuccess: (res) => {
@@ -151,13 +177,20 @@ export function RecordProductionPage() {
             outputLabel={outputLabel}
             errors={errors}
           />
-          <ProductionLinesPanel
-            allocations={preview?.allocations ?? []}
-            shortages={shortages}
-            isLoading={previewLoading || previewFetching}
-            hasQuery={hasQuery}
-            onLineChange={handleLineChange}
-          />
+          <div className="flex flex-col gap-4">
+            <ProductionLinesPanel
+              allocations={preview?.allocations ?? []}
+              shortages={shortages}
+              isLoading={previewLoading || previewFetching}
+              hasQuery={hasQuery}
+              onLineChange={handleLineChange}
+            />
+            <ProductionWastagePanel
+              allocations={preview?.allocations ?? []}
+              draft={wastage}
+              onChange={patchWastage}
+            />
+          </div>
         </div>
       </div>
 

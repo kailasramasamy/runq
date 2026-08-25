@@ -287,6 +287,7 @@ import { StockSummaryReportPage } from './inventory/reports/summary';
 import { ValuationReportPage } from './inventory/reports/valuation';
 import { AgeingReportPage } from './inventory/reports/ageing';
 import { MovementReportPage } from './inventory/reports/movement';
+import { WriteOffReportPage } from './inventory/reports/write-offs';
 import { DeadStockReportPage } from './inventory/reports/dead-stock';
 import { InventoryAnalyticsPage } from './inventory/analytics';
 import { SerialListPage } from './inventory/serials/index';
@@ -2277,6 +2278,11 @@ const invMovementRoute = createRoute({
   path: '/reports/movement',
   component: MovementReportPage,
 });
+const invWriteOffsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/reports/write-offs',
+  component: WriteOffReportPage,
+});
 const invDeadStockRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/reports/dead-stock',
@@ -3063,7 +3069,8 @@ export const routeTree = rootRoute.addChildren([
       invValuationRoute,
       invAgeingRoute,
       invMovementRoute,
-      invDeadStockRoute,
+      invWriteOffsRoute,
+  invDeadStockRoute,
       invAnalyticsRoute,
       invSerialsRoute,
       invItemsRoute,

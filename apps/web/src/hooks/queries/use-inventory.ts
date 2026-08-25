@@ -602,7 +602,10 @@ export type AdjustmentReason =
   | 'damage' | 'expiry' | 'theft' | 'found' | 'revaluation' | 'correction' | 'opening_balance'
   // Stock given away without an invoice — extra cases to the logistics team to
   // cover their breakages, trade samples. Books to 5106, not write-off.
-  | 'free_issue';
+  | 'free_issue'
+  // Material lost into the process (fill variation, line residue, spillage).
+  // Raised at Record Production and shown in the daily write-off register.
+  | 'production_loss';
 
 export interface Adjustment {
   id: string;
@@ -1072,6 +1075,45 @@ export interface MovementResult {
   to: string;
   groupBy: 'day' | 'week' | 'month';
   rows: MovementRow[];
+}
+
+export interface WriteOffLine {
+  adjNo: string;
+  reason: string;
+  itemName: string;
+  itemSku: string;
+  uom: string | null;
+  batchNo: string | null;
+  warehouseName: string;
+  /** The run this loss came off, when it was raised at production time. */
+  woNumber: string | null;
+  qty: number;
+  value: number;
+}
+
+export interface WriteOffDay {
+  date: string;
+  qty: number;
+  value: number;
+  lines: WriteOffLine[];
+}
+
+export interface WriteOffResult {
+  from: string;
+  to: string;
+  days: WriteOffDay[];
+  totalQty: number;
+  totalValue: number;
+}
+
+export function useWriteOffs(filter: {
+  from?: string; to?: string; warehouseId?: string; itemId?: string; reason?: string;
+} = {}) {
+  return useQuery({
+    queryKey: ['inv', 'rpt', 'write-offs', filter] as const,
+    queryFn: () =>
+      api.get<{ data: WriteOffResult }>(`/inventory/reports/write-offs${qs(filter)}`).then(get),
+  });
 }
 
 export function useMovementSummary(filter: {

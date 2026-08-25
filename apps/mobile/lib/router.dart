@@ -145,6 +145,7 @@ import 'screens/manufacturing/wo_run_screen.dart';
 import 'screens/manufacturing/wo_run_simple_screen.dart';
 import 'screens/manufacturing/reports/wo_summary_screen.dart';
 import 'screens/manufacturing/reports/yield_trend_screen.dart';
+import 'screens/manufacturing/reports/write_offs_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'api/hr_models.dart' show HrEmployee, HrExpenseClaim;
 import 'providers/app_role_provider.dart';
@@ -964,6 +965,20 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(const YieldTrendScreen(), key: state.pageKey),
+        ),
+        // Reachable from both module menus — the register is an inventory
+        // report, but the wastage it tracks is raised on the production floor.
+        GoRoute(
+          path: '/manufacturing/reports/write-offs',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const WriteOffsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/reports/write-offs',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const WriteOffsScreen(), key: state.pageKey),
         ),
         // ─── PP detail / form screens (full-screen via rootKey) ─────────
         // The tab routes (Home, PO list, Direct receipts, Match) live

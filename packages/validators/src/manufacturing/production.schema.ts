@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { wastageSchema } from './run.schema';
 
 /**
  * Manufacturing — unplanned production entry validators.
@@ -54,6 +55,8 @@ export const recordProductionSchema = productionBaseSchema
     notes: z.string().nullish(),
     /** Client-generated dedupe key (mobile offline-queue replay). */
     idempotencyKey: z.string().max(64).nullish(),
+    /** Input material lost in the run — written off, not absorbed into cost. */
+    wastage: wastageSchema.optional(),
   })
   .superRefine(requireBomRef);
 

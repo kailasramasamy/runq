@@ -17,7 +17,7 @@ import {
   Network, Waypoints,
   Check, Wallet2, UserCircle2, CalendarOff, Scale, Coins, Calculator, HardHat, FileSignature,
   Megaphone, MapPin, UserPlus, LogOut, FileCheck2, Award, Gift,
-  Factory, FlaskConical, TrendingUp, Milk, Droplets, Users2, SlidersHorizontal,
+  Factory, FlaskConical, TrendingUp, Milk, Droplets, Users2, SlidersHorizontal, Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -249,6 +249,7 @@ export const INVENTORY_NAV_GROUPS: NavGroup[] = [
       { key: 'inv-valuation', label: 'Valuation', icon: Wallet, path: '/inventory/reports/valuation' },
       { key: 'inv-ageing', label: 'Ageing', icon: History, path: '/inventory/reports/ageing' },
       { key: 'inv-movement', label: 'Movement', icon: BarChart3, path: '/inventory/reports/movement' },
+      { key: 'inv-write-offs', label: 'Write-offs', icon: Trash2, path: '/inventory/reports/write-offs' },
       { key: 'inv-dead-stock', label: 'Dead stock', icon: FileX, path: '/inventory/reports/dead-stock' },
       { key: 'inv-alerts', label: 'Stock alerts', icon: AlarmClock, path: '/inventory/alerts' },
       { key: 'inv-expiry', label: 'Batch expiry', icon: CalendarClock, path: '/inventory/reports/expiry' },

@@ -30,6 +30,7 @@ import '../../widgets/runq_snack.dart';
 import '_record_production_alloc_list.dart';
 import '_record_production_form_cards.dart';
 import '_record_production_line_sheet.dart';
+import '_record_production_wastage.dart';
 import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
@@ -75,6 +76,11 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   final _batchNoCtl = TextEditingController();
   String? _shift;
   final _notesCtl = TextEditingController();
+
+  /// Wasted qty per input item, plus one shared reason for the write-off.
+  /// Held here so the values survive the preview refreshing underneath.
+  final _wastageCtls = <String, TextEditingController>{};
+  final _wastageNotesCtl = TextEditingController();
 
   /// Per-input-item batch/qty overrides the technician has made on top of
   /// the server's FEFO default. Rebuilt into the `lines` request param on
@@ -130,6 +136,10 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     _producedQtyCtl.dispose();
     _batchNoCtl.dispose();
     _notesCtl.dispose();
+    _wastageNotesCtl.dispose();
+    for (final c in _wastageCtls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -222,6 +232,28 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     _schedulePreview();
   }
 
+  /// No batch is sent: the server FEFO-allocates the write-off across what the
+  /// run actually left behind. Naming a batch here gets it wrong — the run
+  /// usually drains the oldest batch outright, so the leftover sits in whichever
+  /// batch the allocation stopped part-way through.
+  Map<String, dynamic>? _wastagePayload() {
+    final preview = _preview;
+    if (preview == null) return null;
+    final lines = <Map<String, dynamic>>[];
+    for (final a in preview.allocations) {
+      final qty = double.tryParse(_wastageCtls[a.inputItemId]?.text.trim() ?? '') ?? 0;
+      if (qty <= 0) continue;
+      lines.add({'itemId': a.inputItemId, 'qty': qty});
+    }
+    if (lines.isEmpty) return null;
+    final notes = _wastageNotesCtl.text.trim();
+    return {
+      'warehouseId': _warehouseId,
+      if (notes.isNotEmpty) 'notes': notes,
+      'lines': lines,
+    };
+  }
+
   Future<void> _submit() async {
     if (!_canSubmit) return;
     setState(() => _busy = true);
@@ -235,6 +267,7 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         expiryDate: _expiryDate == null ? null : _isoDate(_expiryDate!),
         shift: _shift,
         notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
+        wastage: _wastagePayload(),
       );
       if (!mounted) return;
       if (result.outcome == EnqueueOutcome.queued) {
@@ -368,8 +401,16 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
                     const LinearProgressIndicator()
                   else if (_previewError != null)
                     _previewErrorCard(t)
-                  else if (_preview != null)
+                  else if (_preview != null) ...[
                     RecordProductionAllocList(preview: _preview!, onEditLine: _editLine),
+                    const SizedBox(height: 12),
+                    RecordProductionWastage(
+                      preview: _preview!,
+                      qtyControllers: _wastageCtls,
+                      notesCtl: _wastageNotesCtl,
+                      onChanged: () => setState(() {}),
+                    ),
+                  ],
                 ],
               ),
             ),

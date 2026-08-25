@@ -24,6 +24,7 @@ const REASON_OPTIONS: { value: AdjustmentReason; label: string }[] = [
   { value: 'correction', label: 'Correction' },
   { value: 'opening_balance', label: 'Opening balance' },
   { value: 'free_issue', label: 'Free issue (no invoice)' },
+  { value: 'production_loss', label: 'Production loss (wastage)' },
 ];
 
 // Reasons where the goods left without a taxable supply, so the input tax

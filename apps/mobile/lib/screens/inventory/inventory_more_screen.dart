@@ -59,6 +59,8 @@ class InventoryMoreScreen extends ConsumerWidget {
                   onTap: () => context.go('/inventory/alerts')),
               SettingsRow(Icons.event_busy_outlined, 'Expiry report',
                   onTap: () => context.go('/inventory/reports/expiry')),
+              SettingsRow(Icons.delete_outline, 'Write-offs & wastage',
+                  onTap: () => context.push('/inventory/reports/write-offs')),
             ],
           ),
           const SizedBox(height: 16),

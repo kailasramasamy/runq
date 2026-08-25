@@ -573,6 +573,22 @@ class InventoryRepo {
     return InvApplyLevelsResult.fromJson(_data(res));
   }
 
+  /// Daily write-off register — what stock was lost each day and what it cost.
+  Future<InvWriteOffReport> writeOffs({
+    String? from,
+    String? to,
+    String? warehouseId,
+    String? reason,
+  }) async {
+    final res = await apiClient.get('/inventory/reports/write-offs${_qs({
+      if (from != null) 'from': from,
+      if (to != null) 'to': to,
+      if (warehouseId != null) 'warehouseId': warehouseId,
+      if (reason != null) 'reason': reason,
+    })}');
+    return InvWriteOffReport.fromJson(_data(res));
+  }
+
   String _qs(Map<String, String> qp) => qp.isEmpty ? '' : '?${Uri(queryParameters: qp).query}';
 
   String _mimeFromPath(String path) {

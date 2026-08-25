@@ -12,9 +12,17 @@ import { warehouses } from './warehouses';
  * distribution cost, not write-off, and under GST §17(5)(h) a free supply
  * requires the input tax on it to be reversed.
  */
+/**
+ * `production_loss` — material that vanished into the process: fill variation,
+ * line residue, spillage while packing. Distinct from `damage` because nothing
+ * was spoiled or mishandled, which keeps the wastage register able to tell
+ * process loss from handling loss, and because normal loss inherent in
+ * manufacture does not attract the §17(5)(h) ITC reversal that destroyed or
+ * stolen goods do.
+ */
 export const adjustmentReasonEnum = pgEnum('inv_adjustment_reason', [
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
-  'free_issue',
+  'free_issue', 'production_loss',
 ]);
 
 export const adjustmentStatusEnum = pgEnum('inv_adjustment_status', [
@@ -53,6 +61,11 @@ export const inventoryAdjustments = pgTable(
      * the JE is skipped, so the quantity trail stays complete.
      */
     postGl: boolean('post_gl').notNull().default(true),
+    /**
+     * The work order this loss was raised from, when it was. Nullable —
+     * wastage spotted outside a run is recorded the same way, without a WO.
+     */
+    sourceWoId: uuid('source_wo_id'),
     journalEntryId: uuid('journal_entry_id'),
     postedAt: timestamp('posted_at', { withTimezone: true }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

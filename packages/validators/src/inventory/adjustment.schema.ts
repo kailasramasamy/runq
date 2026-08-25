@@ -6,9 +6,12 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'
 // logistics team to cover their breakages, trade samples). Separate from
 // `damage` because the goods are intact: the cost is distribution, not
 // write-off, and GST §17(5)(h) requires the input tax on it to be reversed.
+// `production_loss` — material lost into the process (fill variation, line
+// residue, spillage while packing). Kept apart from `damage` so the wastage
+// register can separate process loss from handling loss.
 export const adjustmentReasonSchema = z.enum([
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
-  'free_issue',
+  'free_issue', 'production_loss',
 ]);
 
 export const adjustmentLineInputSchema = z.object({
@@ -34,6 +37,8 @@ export const createAdjustmentSchema = z.object({
   // False = write the ledger movements but no journal entry, for stock the GL
   // never capitalised (MP raw milk). Defaults true.
   postGl: z.boolean().optional(),
+  /** The work order this wastage came off, when raised at WO close. */
+  sourceWoId: z.string().uuid().nullish(),
   lines: z.array(adjustmentLineInputSchema).min(1),
 });
 

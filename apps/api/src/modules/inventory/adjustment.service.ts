@@ -115,39 +115,47 @@ export class AdjustmentService {
   }
 
   async create(input: CreateAdjustmentInput) {
-    return this.ctx.db.transaction(async (tx: Tx) => {
-      const adjNo = await nextDocNo(tx, this.ctx.tenantId, 'ADJ');
-      const initialStatus = input.requiresApproval ? 'pending_approval' : 'draft';
-      const [a] = await tx
-        .insert(inventoryAdjustments)
-        .values({
-          tenantId: this.ctx.tenantId,
-          adjNo,
-          warehouseId: input.warehouseId,
-          reason: input.reason,
-          adjustmentDate: input.adjustmentDate,
-          notes: input.notes ?? null,
-          requiresApproval: input.requiresApproval ?? false,
-          itcReversalValue: String(input.itcReversalValue ?? 0),
-          postGl: input.postGl ?? true,
-          status: initialStatus,
-          createdBy: this.ctx.userId ?? null,
-        })
-        .returning();
+    return this.ctx.db.transaction((tx: Tx) => this.createInTx(tx, input));
+  }
 
-      await tx.insert(inventoryAdjustmentLines).values(
-        input.lines.map((l) => ({
-          tenantId: this.ctx.tenantId,
-          adjustmentId: a!.id,
-          itemId: l.itemId,
-          batchNo: l.batchNo ?? null,
-          qtyDelta: String(l.qtyDelta),
-          unitCost: String(l.unitCost ?? 0),
-          notes: l.notes ?? null,
-        })),
-      );
-      return a!;
-    });
+  /**
+   * Create joined to a caller's transaction — WO close raises its wastage
+   * write-off inside the close transaction, so a failed posting takes the
+   * close down with it rather than leaving a stray draft behind.
+   */
+  async createInTx(tx: Tx, input: CreateAdjustmentInput) {
+    const adjNo = await nextDocNo(tx, this.ctx.tenantId, 'ADJ');
+    const initialStatus = input.requiresApproval ? 'pending_approval' : 'draft';
+    const [a] = await tx
+      .insert(inventoryAdjustments)
+      .values({
+        tenantId: this.ctx.tenantId,
+        adjNo,
+        warehouseId: input.warehouseId,
+        reason: input.reason,
+        adjustmentDate: input.adjustmentDate,
+        notes: input.notes ?? null,
+        requiresApproval: input.requiresApproval ?? false,
+        itcReversalValue: String(input.itcReversalValue ?? 0),
+        postGl: input.postGl ?? true,
+        sourceWoId: input.sourceWoId ?? null,
+        status: initialStatus,
+        createdBy: this.ctx.userId ?? null,
+      })
+      .returning();
+
+    await tx.insert(inventoryAdjustmentLines).values(
+      input.lines.map((l) => ({
+        tenantId: this.ctx.tenantId,
+        adjustmentId: a!.id,
+        itemId: l.itemId,
+        batchNo: l.batchNo ?? null,
+        qtyDelta: String(l.qtyDelta),
+        unitCost: String(l.unitCost ?? 0),
+        notes: l.notes ?? null,
+      })),
+    );
+    return a!;
   }
 
   async update(id: string, input: UpdateAdjustmentInput) {
@@ -220,87 +228,90 @@ export class AdjustmentService {
   }
 
   async post(id: string) {
-    return this.ctx.db.transaction(async (tx: Tx) => {
-      const [a] = await tx
-        .select()
-        .from(inventoryAdjustments)
-        .where(and(eq(inventoryAdjustments.id, id), eq(inventoryAdjustments.tenantId, this.ctx.tenantId)))
-        .limit(1);
-      if (!a) throw new NotFoundError('Adjustment');
-      if (a.status === 'pending_approval') throw new ConflictError('Approval required first');
-      if (a.status !== 'draft') throw new ConflictError(`Adjustment is ${a.status}`);
+    return this.ctx.db.transaction((tx: Tx) => this.postInTx(tx, id));
+  }
 
-      const lines = await tx
-        .select()
-        .from(inventoryAdjustmentLines)
-        .where(eq(inventoryAdjustmentLines.adjustmentId, id));
-      if (lines.length === 0) throw new AppError(400, 'No lines to post');
+  /** Post joined to a caller's transaction. See createInTx. */
+  async postInTx(tx: Tx, id: string) {
+    const [a] = await tx
+      .select()
+      .from(inventoryAdjustments)
+      .where(and(eq(inventoryAdjustments.id, id), eq(inventoryAdjustments.tenantId, this.ctx.tenantId)))
+      .limit(1);
+    if (!a) throw new NotFoundError('Adjustment');
+    if (a.status === 'pending_approval') throw new ConflictError('Approval required first');
+    if (a.status !== 'draft') throw new ConflictError(`Adjustment is ${a.status}`);
 
-      const ledger = new StockLedgerService(this.ctx.tenantId);
-      const movedAt = new Date(a.adjustmentDate);
-      let totalValueDelta = 0;
-      for (const line of lines) {
-        const qtyDelta = Number(line.qtyDelta);
-        const overrideCost = Number(line.unitCost);
-        const result = await ledger.recordMovement(tx, {
-          itemId: line.itemId,
-          warehouseId: a.warehouseId,
-          batchNo: line.batchNo ?? null,
-          movementType: qtyDelta > 0 ? 'adjustment_in' : 'adjustment_out',
-          sourceType: 'inventory_adjustment',
-          sourceId: a.id,
-          sourceLineId: line.id,
-          qtyDelta,
-          unitCost: overrideCost > 0 ? overrideCost : undefined,
-          movedAt,
-          postedBy: this.ctx.userId ?? null,
-        });
-        const lineValueDelta = qtyDelta * result.unitCostUsed;
-        totalValueDelta += lineValueDelta;
-        await tx
-          .update(inventoryAdjustmentLines)
-          .set({
-            unitCost: String(result.unitCostUsed),
-            valueDelta: String(lineValueDelta),
-          })
-          .where(eq(inventoryAdjustmentLines.id, line.id));
-      }
+    const lines = await tx
+      .select()
+      .from(inventoryAdjustmentLines)
+      .where(eq(inventoryAdjustmentLines.adjustmentId, id));
+    if (lines.length === 0) throw new AppError(400, 'No lines to post');
 
-      // post_gl=false unwinds stock the GL never capitalised (MP raw milk), so
-      // there is no asset to credit and no second expense to book. Ledger rows
-      // above are already written — only the JE is skipped.
-      const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
-      const jeId = a.postGl
-        ? await poster.postAdjustment({
-          date: a.adjustmentDate,
-          adjustmentId: a.id,
-          adjNo: a.adjNo,
-          reason: a.reason,
-          valueDelta: totalValueDelta,
-        })
-        : null;
-
-      const [updated] = await tx
-        .update(inventoryAdjustments)
+    const ledger = new StockLedgerService(this.ctx.tenantId);
+    const movedAt = new Date(a.adjustmentDate);
+    let totalValueDelta = 0;
+    for (const line of lines) {
+      const qtyDelta = Number(line.qtyDelta);
+      const overrideCost = Number(line.unitCost);
+      const result = await ledger.recordMovement(tx, {
+        itemId: line.itemId,
+        warehouseId: a.warehouseId,
+        batchNo: line.batchNo ?? null,
+        movementType: qtyDelta > 0 ? 'adjustment_in' : 'adjustment_out',
+        sourceType: 'inventory_adjustment',
+        sourceId: a.id,
+        sourceLineId: line.id,
+        qtyDelta,
+        unitCost: overrideCost > 0 ? overrideCost : undefined,
+        movedAt,
+        postedBy: this.ctx.userId ?? null,
+      });
+      const lineValueDelta = qtyDelta * result.unitCostUsed;
+      totalValueDelta += lineValueDelta;
+      await tx
+        .update(inventoryAdjustmentLines)
         .set({
-          status: 'posted',
-          totalValueDelta: String(totalValueDelta),
-          journalEntryId: jeId,
-          postedAt: new Date(),
-          updatedAt: new Date(),
+          unitCost: String(result.unitCostUsed),
+          valueDelta: String(lineValueDelta),
         })
-        .where(eq(inventoryAdjustments.id, id))
-        .returning();
+        .where(eq(inventoryAdjustmentLines.id, line.id));
+    }
 
-      if (jeId) {
-        await tx.execute(sql`
-          UPDATE stock_ledger SET journal_entry_id = ${jeId}
-          WHERE tenant_id = ${this.ctx.tenantId}
-            AND source_type = 'inventory_adjustment' AND source_id = ${a.id}
-        `);
-      }
-      return updated!;
-    });
+    // post_gl=false unwinds stock the GL never capitalised (MP raw milk), so
+    // there is no asset to credit and no second expense to book. Ledger rows
+    // above are already written — only the JE is skipped.
+    const poster = new InventoryGlPoster(tx, this.ctx.tenantId, this.ctx.userId);
+    const jeId = a.postGl
+      ? await poster.postAdjustment({
+        date: a.adjustmentDate,
+        adjustmentId: a.id,
+        adjNo: a.adjNo,
+        reason: a.reason,
+        valueDelta: totalValueDelta,
+      })
+      : null;
+
+    const [updated] = await tx
+      .update(inventoryAdjustments)
+      .set({
+        status: 'posted',
+        totalValueDelta: String(totalValueDelta),
+        journalEntryId: jeId,
+        postedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(inventoryAdjustments.id, id))
+      .returning();
+
+    if (jeId) {
+      await tx.execute(sql`
+        UPDATE stock_ledger SET journal_entry_id = ${jeId}
+        WHERE tenant_id = ${this.ctx.tenantId}
+          AND source_type = 'inventory_adjustment' AND source_id = ${a.id}
+      `);
+    }
+    return updated!;
   }
 
   async cancel(id: string, input: CancelAdjustmentInput) {

@@ -195,7 +195,13 @@ export class ProductionEntryService {
     // overrides move the unit cost instead, which costing picks up. Passed
     // unacknowledged anyway so any future variance surfaces as a warning;
     // close posts regardless, it never blocks on variance.
-    await this.lifecycle.closeInTx(tx, woId, { varianceAcknowledged: false }, warnings, userId);
+    await this.lifecycle.closeInTx(
+      tx,
+      woId,
+      { varianceAcknowledged: false, wastage: input.wastage },
+      warnings,
+      userId,
+    );
 
     return woId;
   }

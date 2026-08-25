@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../providers/app_module_provider.dart';
 import '../../widgets/settings_kit.dart';
 import 'widgets/mfg_colors.dart';
 
@@ -19,6 +20,9 @@ class ManufacturingMoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final brand = MfgColors.brand(context);
+    // The register reads /inventory/reports/write-offs, which is gated on the
+    // inventory module — hide the row rather than route into a 403.
+    final hasInventory = ref.watch(allowedModulesProvider).contains(AppModule.inventory);
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: AppBar(
@@ -62,6 +66,9 @@ class ManufacturingMoreScreen extends ConsumerWidget {
                   onTap: () => context.push('/manufacturing/reports/wo-summary')),
               SettingsRow(Icons.show_chart_rounded, 'Yield trend',
                   onTap: () => context.push('/manufacturing/reports/yield-trend')),
+              if (hasInventory)
+                SettingsRow(Icons.delete_outline, 'Write-offs & wastage',
+                    onTap: () => context.push('/manufacturing/reports/write-offs')),
             ],
           ),
           const SizedBox(height: 16),

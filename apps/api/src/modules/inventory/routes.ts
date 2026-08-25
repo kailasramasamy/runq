@@ -17,6 +17,7 @@ import {
   upsertReorderRuleSchema, expiryFilterSchema, stockAlertFilterSchema,
   stockSummaryFilterSchema, valuationFilterSchema, ageingFilterSchema,
   movementSummaryFilterSchema, deadStockFilterSchema, serialLookupFilterSchema,
+  writeOffFilterSchema,
   inventoryAnalyticsFilterSchema, inventoryPerformanceFilterSchema,
   inventoryTrendFilterSchema, inventoryForecastFilterSchema,
   inventoryReplenishmentFilterSchema, applyReplenishmentSchema,
@@ -506,6 +507,11 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const filter = movementSummaryFilterSchema.parse(req.query);
     const svc = new ReportsService(req.server.db, req.tenantId);
     return { data: await svc.movementSummary(filter) };
+  });
+  app.get('/reports/write-offs', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = writeOffFilterSchema.parse(req.query);
+    const svc = new ReportsService(req.server.db, req.tenantId);
+    return { data: await svc.writeOffs(filter) };
   });
   app.get('/reports/dead-stock', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const filter = deadStockFilterSchema.parse(req.query);

@@ -226,3 +226,17 @@ final invReplenishmentProvider =
     window: ref.watch(invAnalyticsWindowProvider),
   );
 });
+
+/// Filters for the daily write-off register. Null dates let the server default
+/// to the last 30 days; null reason means every loss reason.
+typedef InvWriteOffParams = ({String? from, String? to, String? warehouseId, String? reason});
+
+final invWriteOffsProvider = FutureProvider.autoDispose
+    .family<InvWriteOffReport, InvWriteOffParams>((ref, p) async {
+  return inventoryRepo.writeOffs(
+    from: p.from,
+    to: p.to,
+    warehouseId: p.warehouseId,
+    reason: p.reason,
+  );
+});

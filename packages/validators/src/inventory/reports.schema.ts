@@ -31,6 +31,23 @@ export const movementSummaryFilterSchema = z.object({
   groupBy: z.enum(['day', 'week', 'month']).default('day'),
 });
 
+/**
+ * Write-off register. Defaults to the reasons that represent stock actually
+ * lost — `revaluation`, `correction` and `opening_balance` move value without
+ * anything going missing, so they are never losses and stay out.
+ */
+export const writeOffReasonSchema = z.enum([
+  'production_loss', 'damage', 'expiry', 'theft', 'free_issue',
+]);
+
+export const writeOffFilterSchema = z.object({
+  from: dateString.optional(),
+  to: dateString.optional(),
+  warehouseId: z.string().uuid().optional(),
+  itemId: z.string().uuid().optional(),
+  reason: writeOffReasonSchema.optional(),
+});
+
 export const deadStockFilterSchema = z.object({
   warehouseId: z.string().uuid().optional(),
   // No movement for at least this many days. Default 90.
@@ -50,4 +67,5 @@ export type ValuationFilter = z.infer<typeof valuationFilterSchema>;
 export type AgeingFilter = z.infer<typeof ageingFilterSchema>;
 export type MovementSummaryFilter = z.infer<typeof movementSummaryFilterSchema>;
 export type DeadStockFilter = z.infer<typeof deadStockFilterSchema>;
+export type WriteOffFilter = z.infer<typeof writeOffFilterSchema>;
 export type SerialLookupFilter = z.infer<typeof serialLookupFilterSchema>;

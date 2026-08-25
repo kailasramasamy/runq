@@ -965,6 +965,99 @@ class InvExpiringBatch {
   );
 }
 
+/// One write-off line in the daily register — a single item lost off a single
+/// batch. `woNumber` is set when the loss was raised at Record Production.
+class InvWriteOffLine {
+  final String adjNo;
+  final String reason;
+  final String itemName;
+  final String? itemSku;
+  final String? uom;
+  final String? batchNo;
+  final String warehouseName;
+  final String? woNumber;
+  final double qty;
+  final double value;
+
+  const InvWriteOffLine({
+    required this.adjNo,
+    required this.reason,
+    required this.itemName,
+    this.itemSku,
+    this.uom,
+    this.batchNo,
+    required this.warehouseName,
+    this.woNumber,
+    required this.qty,
+    required this.value,
+  });
+
+  factory InvWriteOffLine.fromJson(Map<String, dynamic> j) => InvWriteOffLine(
+    adjNo: (j['adjNo'] as String?) ?? '',
+    reason: (j['reason'] as String?) ?? '',
+    itemName: (j['itemName'] as String?) ?? '',
+    itemSku: j['itemSku'] as String?,
+    uom: j['uom'] as String?,
+    batchNo: j['batchNo'] as String?,
+    warehouseName: (j['warehouseName'] as String?) ?? '',
+    woNumber: j['woNumber'] as String?,
+    qty: (j['qty'] as num?)?.toDouble() ?? 0,
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+  );
+}
+
+/// One day's losses, with the day's own subtotals.
+class InvWriteOffDay {
+  final String date;
+  final double qty;
+  final double value;
+  final List<InvWriteOffLine> lines;
+
+  const InvWriteOffDay({
+    required this.date,
+    required this.qty,
+    required this.value,
+    required this.lines,
+  });
+
+  factory InvWriteOffDay.fromJson(Map<String, dynamic> j) => InvWriteOffDay(
+    date: (j['date'] as String?) ?? '',
+    qty: (j['qty'] as num?)?.toDouble() ?? 0,
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+    lines: ((j['lines'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvWriteOffLine.fromJson)
+        .toList(),
+  );
+}
+
+class InvWriteOffReport {
+  final String from;
+  final String to;
+  final List<InvWriteOffDay> days;
+  final double totalQty;
+  final double totalValue;
+
+  const InvWriteOffReport({
+    required this.from,
+    required this.to,
+    required this.days,
+    required this.totalQty,
+    required this.totalValue,
+  });
+
+  factory InvWriteOffReport.fromJson(Map<String, dynamic> j) => InvWriteOffReport(
+    from: (j['from'] as String?) ?? '',
+    to: (j['to'] as String?) ?? '',
+    days: ((j['days'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvWriteOffDay.fromJson)
+        .toList(),
+    totalQty: (j['totalQty'] as num?)?.toDouble() ?? 0,
+    totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
+  );
+}
+
 class InvDn {
   final String id;
   final String dnNo;

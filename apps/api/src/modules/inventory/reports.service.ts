@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import type {
   StockSummaryFilter, ValuationFilter, AgeingFilter,
-  MovementSummaryFilter, DeadStockFilter,
+  MovementSummaryFilter, DeadStockFilter, WriteOffFilter,
 } from '@runq/validators';
 
 interface QueryResult<T> { rows: T[] }
@@ -270,6 +270,56 @@ export class ReportsService {
     };
   }
 
+
+  /**
+   * Daily write-off register — what was lost each day and what it cost.
+   *
+   * Reads posted adjustments rather than the ledger so every row carries its
+   * reason and its backlink to the run that caused it. Only outbound lines
+   * count: a `found` gain on the same document is not a loss and would net
+   * the day's figure down misleadingly.
+   *
+   * Qty and value are reported as positive magnitudes — this is a loss
+   * register, the sign is implied. Value can legitimately be 0: stock the GL
+   * never capitalised (MP raw milk, expensed at cycle lock) still has litres
+   * worth reporting.
+   */
+  async writeOffs(filter: WriteOffFilter) {
+    const from = filter.from ?? new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const to = filter.to ?? new Date().toISOString().slice(0, 10);
+    const result = await this.db.execute(sql`
+      SELECT
+        a.adjustment_date::text          AS date,
+        a.adj_no                         AS adj_no,
+        a.reason                         AS reason,
+        i.name                           AS item_name,
+        i.sku                            AS item_sku,
+        i.unit                           AS uom,
+        l.batch_no                       AS batch_no,
+        w.name                           AS warehouse_name,
+        wo.wo_number                     AS wo_number,
+        (-l.qty_delta)::text             AS qty,
+        (-l.value_delta)::text           AS value
+      FROM inventory_adjustment_lines l
+      JOIN inventory_adjustments a ON a.id = l.adjustment_id
+      JOIN items i                ON i.id = l.item_id
+      JOIN warehouses w           ON w.id = a.warehouse_id
+      LEFT JOIN work_orders wo    ON wo.id = a.source_wo_id
+      WHERE a.tenant_id = ${this.tenantId}
+        AND a.status = 'posted'
+        AND l.qty_delta < 0
+        AND a.reason IN ('production_loss', 'damage', 'expiry', 'theft', 'free_issue')
+        AND a.adjustment_date >= ${from}::date
+        AND a.adjustment_date <= ${to}::date
+        ${filter.reason ? sql`AND a.reason = ${filter.reason}` : sql``}
+        ${filter.warehouseId ? sql`AND a.warehouse_id = ${filter.warehouseId}` : sql``}
+        ${filter.itemId ? sql`AND l.item_id = ${filter.itemId}` : sql``}
+      ORDER BY a.adjustment_date DESC, a.adj_no ASC
+    `) as unknown as QueryResult<WriteOffRow>;
+
+    return { from, to, ...groupWriteOffsByDay(result.rows) };
+  }
+
   /** Items with on-hand > 0 but no movement in the last N days. */
   async deadStock(filter: DeadStockFilter) {
     const whCond = filter.warehouseId
@@ -323,4 +373,43 @@ export class ReportsService {
       daysSinceMovement: r.days_since,
     }));
   }
+}
+
+interface WriteOffRow {
+  date: string; adj_no: string; reason: string;
+  item_name: string; item_sku: string; uom: string;
+  batch_no: string | null; warehouse_name: string; wo_number: string | null;
+  qty: string; value: string;
+}
+
+/** Detail rows into day buckets with subtotals, plus a period total. */
+function groupWriteOffsByDay(rows: WriteOffRow[]) {
+  const days = new Map<string, { date: string; qty: number; value: number; lines: object[] }>();
+  let totalValue = 0;
+  let totalQty = 0;
+
+  for (const r of rows) {
+    const qty = Number(r.qty ?? 0);
+    const value = Number(r.value ?? 0);
+    const day = days.get(r.date) ?? { date: r.date, qty: 0, value: 0, lines: [] };
+    day.qty += qty;
+    day.value += value;
+    day.lines.push({
+      adjNo: r.adj_no,
+      reason: r.reason,
+      itemName: r.item_name,
+      itemSku: r.item_sku,
+      uom: r.uom,
+      batchNo: r.batch_no,
+      warehouseName: r.warehouse_name,
+      woNumber: r.wo_number,
+      qty,
+      value,
+    });
+    days.set(r.date, day);
+    totalQty += qty;
+    totalValue += value;
+  }
+
+  return { days: [...days.values()], totalQty, totalValue };
 }

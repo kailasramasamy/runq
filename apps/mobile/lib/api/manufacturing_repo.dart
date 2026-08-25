@@ -392,6 +392,7 @@ class ManufacturingRepo {
     String? shift,
     String? producedOn,
     String? notes,
+    Map<String, dynamic>? wastage,
   }) async {
     final body = <String, dynamic>{
       if (bomId != null) 'bomId': bomId,
@@ -404,6 +405,7 @@ class ManufacturingRepo {
       if (shift != null && shift.isNotEmpty) 'shift': shift,
       if (producedOn != null && producedOn.isNotEmpty) 'producedOn': producedOn,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (wastage != null) 'wastage': wastage,
     };
     return WoRunQueue.instance.recordProduction(body: body);
   }
