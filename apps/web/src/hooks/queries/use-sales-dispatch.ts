@@ -121,7 +121,13 @@ export function fetchPendingDispatches(filter: Record<string, unknown>) {
 export type DispatchOutcome =
   | { status: 'off' }
   | { status: 'skipped'; reason: string }
-  | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
+  | {
+    status: 'dispatched';
+    dnId: string;
+    dnNo: string;
+    lineCount: number;
+    shortfall?: { dnId: string; dnNo: string; lineCount: number; reason: string };
+  }
   | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
 
 export interface BulkDispatchResult { invoiceId: string; outcome: DispatchOutcome }

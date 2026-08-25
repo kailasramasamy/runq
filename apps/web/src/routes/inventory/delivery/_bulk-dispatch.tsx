@@ -155,7 +155,19 @@ function tally(
   let { done, shipped, skipped, failed } = p;
   for (const { invoiceId, outcome } of results) {
     done++;
-    if (outcome.status === 'dispatched') { shipped++; continue; }
+    if (outcome.status === 'dispatched') {
+      shipped++;
+      // Shipped, but not in full: the remainder is a draft someone must work
+      // once stock lands, and it leaves the queue with this invoice.
+      if (outcome.shortfall) {
+        problems.push({
+          invoiceNumber: numberOf.get(invoiceId) ?? '—',
+          reason: `${outcome.shortfall.reason} — draft ${outcome.shortfall.dnNo}`,
+          failed: false,
+        });
+      }
+      continue;
+    }
     const isFailure = outcome.status === 'failed';
     if (isFailure) failed++; else skipped++;
     problems.push({

@@ -141,7 +141,14 @@ export function useUpdateInvoiceHsn() {
  */
 export type AutoDispatchOutcome =
   | { status: 'skipped'; reason: string }
-  | { status: 'dispatched'; dnId: string; dnNo: string; lineCount: number }
+  | {
+    status: 'dispatched';
+    dnId: string;
+    dnNo: string;
+    lineCount: number;
+    /** Lines the warehouse couldn't cover, left as a draft DN in the queue. */
+    shortfall?: { dnId: string; dnNo: string; lineCount: number; reason: string };
+  }
   | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
 
 /** What became of the customer email, mirrored from InvoiceEmailResult on the API. */

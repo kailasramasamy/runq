@@ -146,7 +146,13 @@ export function InvoiceDetailPage({ invoiceId }: Props) {
 
           const d = res.data.autoDispatch;
           if (!d) return;
-          if (d.status === 'dispatched') {
+          if (d.status === 'dispatched' && d.shortfall) {
+            toast(
+              `Invoice sent · ${d.dnNo} dispatched. ${d.shortfall.reason}`
+                + ` — draft ${d.shortfall.dnNo} is waiting in Sales dispatch.`,
+              'info',
+            );
+          } else if (d.status === 'dispatched') {
             toast(`Invoice sent · ${d.dnNo} dispatched, stock updated`, 'success');
           } else if (d.status === 'failed') {
             toast(
