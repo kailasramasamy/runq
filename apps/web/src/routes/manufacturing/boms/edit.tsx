@@ -12,8 +12,6 @@ export function EditBomPage({ bomId }: Props) {
   const mutation = useUpdateBom();
 
   const bom = data?.data;
-  // BOM detail now carries linkedWoCount directly — no second query needed.
-  const hasWOs = (bom?.linkedWoCount ?? 0) > 0;
 
   function handleSubmit(input: CreateBomInput) {
     // Strip bomCode from input since update schema strips it
@@ -55,7 +53,6 @@ export function EditBomPage({ bomId }: Props) {
         initial={bom}
         onSubmit={handleSubmit}
         isLoading={mutation.isPending}
-        showVersionWarn={hasWOs}
       />
     </div>
   );

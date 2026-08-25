@@ -1,6 +1,6 @@
-import { and, eq, desc, sql, ilike, or } from 'drizzle-orm';
+import { and, eq, desc, sql, ilike, or, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { boms, bomLines, workOrders, woConsumption, woOutput } from '@runq/db';
+import { boms, bomLines, workOrders, woConsumption } from '@runq/db';
 import type { Db } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { items, categories } from '@runq/db';
@@ -8,6 +8,9 @@ import type { BomListRow, BomWithLines, BomLine } from '@runq/types';
 import type { PaginationMeta } from '@runq/types';
 import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
+
+/** The handle drizzle hands a `db.transaction()` callback. */
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export interface BomListResult {
   data: BomListRow[];
@@ -168,76 +171,18 @@ export class BomService {
     return this.getById(result.id);
   }
 
-  async update(id: string, input: UpdateBomInput, userId?: string): Promise<BomWithLines> {
-    const existing = await this.getById(id);
-
-    // Version-bump only when a referencing WO has actually locked in the old
-    // recipe — i.e. consumption recorded, output recorded, or JE posted. A
-    // bare draft WO computes its expected qty from the current BOM at run-
-    // time, so editing in-place is safe. This avoids the "every edit makes a
-    // new BOM" surprise during early setup, while still preserving the audit
-    // snapshot once the shop floor has touched the recipe.
-    const [lockedWo] = await this.db
-      .select({ id: workOrders.id })
-      .from(workOrders)
-      .where(and(
-        eq(workOrders.tenantId, this.tenantId),
-        eq(workOrders.bomId, id),
-        or(
-          sql`${workOrders.jeId} IS NOT NULL`,
-          sql`EXISTS (SELECT 1 FROM ${woConsumption} c WHERE c.wo_id = ${workOrders.id})`,
-          sql`EXISTS (SELECT 1 FROM ${woOutput}      o WHERE o.wo_id = ${workOrders.id})`,
-        ),
-      ))
-      .limit(1);
-
-    if (!lockedWo) {
-      // No WO has acted on this BOM yet — safe to edit in place.
-      return this.updateInPlace(id, input);
-    }
-
-    // WOs exist — create a new version row
-    return this.db.transaction(async (tx) => {
-      await tx
-        .update(boms)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
-
-      const [newBom] = await tx
-        .insert(boms)
-        .values({
-          tenantId: this.tenantId,
-          bomCode: existing.bomCode,
-          name: input.name ?? existing.name,
-          outputItemId: existing.outputItemId,
-          outputQty: String(input.outputQty ?? existing.outputQty),
-          outputUom: input.outputUom ?? existing.outputUom,
-          version: existing.version + 1,
-          isActive: true,
-          allowAutoRepack: input.allowAutoRepack ?? existing.allowAutoRepack,
-          effectiveFrom: input.effectiveFrom !== undefined ? (input.effectiveFrom ?? null) : existing.effectiveFrom,
-          notes: input.notes !== undefined ? (input.notes ?? null) : existing.notes,
-          createdBy: userId ?? null,
-        })
-        .returning();
-
-      const linesToInsert = input.lines ?? existing.lines;
-      await tx.insert(bomLines).values(
-        linesToInsert.map((l, i) => ({
-          tenantId: this.tenantId,
-          bomId: newBom!.id,
-          lineNo: i + 1,
-          inputItemId: l.inputItemId,
-          qtyPerOutput: String(l.qtyPerOutput),
-          inputUom: l.inputUom,
-          scrapPct: String(l.scrapPct ?? 0),
-          isOptional: l.isOptional ?? false,
-          notes: l.notes ?? null,
-        })),
-      );
-
-      return newBom!.id;
-    }).then((newId) => this.getById(newId));
+  /**
+   * Edit a BOM in place — never spawn a version row.
+   *
+   * The BOM only ever supplies *expected* figures: a WO screen joins the live
+   * bom_lines to show planned qty. What actually moved is already frozen in
+   * wo_consumption / wo_output (qty, batch, unit cost) and in the posted JE,
+   * so editing the recipe cannot restate any history or GL. Versioning every
+   * edit just buried the list under deactivated rows.
+   */
+  async update(id: string, input: UpdateBomInput): Promise<BomWithLines> {
+    await this.getById(id); // tenant guard + 404
+    return this.updateInPlace(id, input);
   }
 
   async clone(id: string, newBomCode: string, userId?: string): Promise<BomWithLines> {
@@ -357,25 +302,66 @@ export class BomService {
       await tx.update(boms).set(patch)
         .where(and(eq(boms.id, id), eq(boms.tenantId, this.tenantId)));
 
-      if (input.lines) {
-        await tx.delete(bomLines).where(eq(bomLines.bomId, id));
-        await tx.insert(bomLines).values(
-          input.lines.map((l, i) => ({
-            tenantId: this.tenantId,
-            bomId: id,
-            lineNo: i + 1,
-            inputItemId: l.inputItemId,
-            qtyPerOutput: String(l.qtyPerOutput),
-            inputUom: l.inputUom,
-            scrapPct: String(l.scrapPct ?? 0),
-            isOptional: l.isOptional ?? false,
-            notes: l.notes ?? null,
-          })),
-        );
-      }
+      if (input.lines) await this.syncLines(tx, id, input.lines);
     });
 
     return this.getById(id);
+  }
+
+  /**
+   * Reconcile bom_lines against the submitted recipe, reusing existing rows
+   * per input item instead of delete-and-reinsert. wo_consumption.bom_line_id
+   * points at these rows, so a blind delete would either break the FK or
+   * orphan the plan-vs-actual grouping on every past run.
+   */
+  private async syncLines(
+    tx: Tx,
+    bomId: string,
+    lines: NonNullable<UpdateBomInput['lines']>,
+  ): Promise<void> {
+    const existing = await tx
+      .select({ id: bomLines.id, inputItemId: bomLines.inputItemId })
+      .from(bomLines)
+      .where(eq(bomLines.bomId, bomId))
+      .orderBy(bomLines.lineNo);
+
+    const spare = new Map<string, string[]>();
+    for (const row of existing) {
+      const bucket = spare.get(row.inputItemId);
+      if (bucket) bucket.push(row.id);
+      else spare.set(row.inputItemId, [row.id]);
+    }
+
+    const kept = new Set<string>();
+    for (const [i, l] of lines.entries()) {
+      const values = {
+        lineNo: i + 1,
+        inputItemId: l.inputItemId,
+        qtyPerOutput: String(l.qtyPerOutput),
+        inputUom: l.inputUom,
+        scrapPct: String(l.scrapPct ?? 0),
+        isOptional: l.isOptional ?? false,
+        notes: l.notes ?? null,
+      };
+      const reuseId = spare.get(l.inputItemId)?.shift();
+      if (reuseId) {
+        kept.add(reuseId);
+        await tx.update(bomLines).set(values).where(eq(bomLines.id, reuseId));
+      } else {
+        await tx.insert(bomLines).values({ tenantId: this.tenantId, bomId, ...values });
+      }
+    }
+
+    const dropped = existing.map((r) => r.id).filter((rowId) => !kept.has(rowId));
+    if (dropped.length === 0) return;
+
+    // A removed line may still be cited by a past run — detach it there so the
+    // consumption row survives as ad-hoc rather than blocking the edit.
+    await tx
+      .update(woConsumption)
+      .set({ bomLineId: null })
+      .where(inArray(woConsumption.bomLineId, dropped));
+    await tx.delete(bomLines).where(inArray(bomLines.id, dropped));
   }
 
   private buildWhere(filters: BomFilter) {

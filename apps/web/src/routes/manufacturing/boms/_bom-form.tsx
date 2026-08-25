@@ -40,7 +40,6 @@ interface BomFormProps {
   initial?: BomWithLines;
   onSubmit: (data: CreateBomInput) => void;
   isLoading?: boolean;
-  showVersionWarn?: boolean;
 }
 
 const UOM_OPTIONS = [
@@ -69,7 +68,7 @@ function emptyLine(): BomLineField {
   };
 }
 
-export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFormProps) {
+export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
   const [bomCode, setBomCode] = useState(initial?.bomCode ?? '');
   const [name, setName] = useState(initial?.name ?? '');
   const [outputItemId, setOutputItemId] = useState(initial?.outputItemId ?? '');
@@ -213,19 +212,6 @@ export function BomForm({ initial, onSubmit, isLoading, showVersionWarn }: BomFo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {showVersionWarn && (
-        <div
-          className="rounded-lg border px-4 py-3 text-[12.5px]"
-          style={{
-            background: 'rgba(234, 88, 12, 0.08)',
-            borderColor: 'rgba(234, 88, 12, 0.30)',
-            color: '#c2410c',
-          }}
-        >
-          <strong>Note:</strong> Editing a BOM that has work orders referencing it will automatically create a new version. Existing work orders will keep their current snapshot.
-        </div>
-      )}
-
       <Card>
         <CardHeader title="BOM details" />
         <CardContent>

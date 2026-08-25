@@ -60,7 +60,7 @@ export const bomRoutes: FastifyPluginAsync = async (app) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = updateBomSchema.parse(request.body);
       const service = new BomService(request.server.db, request.tenantId);
-      const data = await service.update(id, input, request.user?.userId);
+      const data = await service.update(id, input);
       return { data };
     },
   );
