@@ -1,7 +1,10 @@
-// Full-feed view for inventory recent activity. "See all →" on the Home
-// recent-activity card pushes here so the user can scroll the complete
-// stock-ledger slice the dashboard returns (up to N latest rows). Renders
-// each entry through the same `InvActivityRow` chrome the Home card uses.
+// Stock Movement — the filtered, valued view of the stock ledger.
+//
+// Home's Movement tiles ("Today in", "Today out") are rupee figures, and both
+// used to open the same unfiltered list of quantities: the tap answered a
+// different question than the one it was asked. This screen takes the filter
+// as a route argument, so "Today out" lands on today's outflow with today's
+// outflow money on top, and every other cut of the ledger is one chip away.
 
 library;
 
@@ -15,113 +18,345 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/movement_filters.dart';
 
-class InventoryActivityScreen extends ConsumerWidget {
-  const InventoryActivityScreen({super.key});
+class InventoryActivityScreen extends ConsumerStatefulWidget {
+  const InventoryActivityScreen({super.key, this.initial});
+
+  /// Filter the screen opens with. Home passes 'in'/'out' + 'today'; the
+  /// More menu and the Home card's "See all" open unfiltered on today.
+  final InvMovementFilter? initial;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(invRecentActivityProvider);
+  ConsumerState<InventoryActivityScreen> createState() =>
+      _InventoryActivityScreenState();
+}
+
+class _InventoryActivityScreenState
+    extends ConsumerState<InventoryActivityScreen> {
+  late InvMovementFilter _filter =
+      widget.initial ?? const InvMovementFilter();
+  final _searchCtrl = TextEditingController();
+  bool _searching = false;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _apply(InvMovementFilter f) => setState(() => _filter = f);
+
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching && _filter.search.isNotEmpty) {
+        _searchCtrl.clear();
+        _filter = _filter.copyWith(search: '');
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RT(context);
+    final async = ref.watch(invMovementFeedProvider(_filter));
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: InvPlainAppBar(
-        title: 'Recent Activity',
+        title: 'Stock Movement',
         onBack: () => context.pop(),
+        trailing: IconButton(
+          icon: Icon(
+            _searching ? Icons.close_rounded : Icons.search_rounded,
+            size: 20,
+            color: t.ink,
+          ),
+          onPressed: _toggleSearch,
+        ),
       ),
       body: RefreshIndicator(
         color: InvColors.brand(context),
         onRefresh: () async {
-          ref.invalidate(invRecentActivityProvider);
-          await Future<void>.delayed(const Duration(milliseconds: 200));
+          ref.invalidate(invMovementFeedProvider);
+          await ref.read(invMovementFeedProvider(_filter).future);
         },
-        child: async.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => _error(context, '$e'),
-          data: (rows) => rows.isEmpty
-              ? const InvEmptyState(
-                  icon: Icons.history_rounded,
-                  title: 'No movements yet',
-                  subtitle:
-                      'Receive or dispatch stock to see entries here.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-                  children: [
-                    InvCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 4,
-                      ),
-                      child: Column(
-                        children: [
-                          for (var i = 0; i < rows.length; i++) ...[
-                            _row(rows[i]),
-                            if (i < rows.length - 1)
-                              Divider(
-                                height: 1, thickness: 0.5,
-                                color: t.hairlineSoft,
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.only(bottom: 40),
+          children: [
+            const SizedBox(height: 12),
+            if (_searching) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: InvSearchBar(
+                  controller: _searchCtrl,
+                  hint: 'Item, SKU or batch',
+                  onChanged: (v) => _apply(_filter.copyWith(search: v)),
                 ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: InvMovementMoneyHeader(
+                summary: async.valueOrNull?.summary,
+                periodLabel: _periodLabel(_filter.period),
+                direction: _filter.direction,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InvMovementFilterBar(filter: _filter, onChanged: _apply),
+            const SizedBox(height: 14),
+            async.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => _error(context, '$e'),
+              data: (feed) =>
+                  feed.rows.isEmpty ? _empty() : _days(context, feed.rows),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  static String _periodLabel(String period) =>
+      invMovementPeriods.firstWhere((p) => p.value == period).label;
+
+  Widget _empty() => InvEmptyState(
+        icon: Icons.history_rounded,
+        title: _filter.hasNarrowing ? 'Nothing matches' : 'No movements yet',
+        subtitle: _filter.hasNarrowing
+            ? 'Widen the window or clear a filter to see more.'
+            : 'Receive or dispatch stock to see entries here.',
+      );
 
   Widget _error(BuildContext context, String msg) {
     final t = RT(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Failed to load activity: $msg',
-          style: RunqText.caption.copyWith(color: t.muted),
-          textAlign: TextAlign.center,
-        ),
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'Failed to load movement: $msg',
+        style: RunqText.caption.copyWith(color: t.muted),
+        textAlign: TextAlign.center,
       ),
     );
   }
 
-  Widget _row(InvActivity a) => InvActivityRow(
-        type: a.iconKey,
-        refLabel: a.itemName,
-        description: '${_src(a.movementType)} · ${a.warehouseName}',
-        amount: _qty(a),
-        time: _rel(a.movedAt),
+  /// Rows grouped into one card per calendar day.
+  ///
+  /// A flat list reads as noise the moment the window is wider than today:
+  /// the day header carries that day's own in / out money, so scrolling a
+  /// month answers "which day did the value move" without a chart.
+  Widget _days(BuildContext context, List<InvActivity> rows) {
+    final groups = <DateTime, List<InvActivity>>{};
+    for (final r in rows) {
+      final day = DateTime(r.movedAt.year, r.movedAt.month, r.movedAt.day);
+      groups.putIfAbsent(day, () => []).add(r);
+    }
+    final t = RT(context);
+    return Column(
+      children: [
+        for (final day in groups.keys) ...[
+          _DayHeader(day: day, rows: groups[day]!),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: InvCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              child: Column(
+                children: [
+                  for (var i = 0; i < groups[day]!.length; i++) ...[
+                    _MovementRow(a: groups[day]![i]),
+                    if (i < groups[day]!.length - 1)
+                      Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Day header ────────────────────────────────────────────────────────────
+
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.day, required this.rows});
+  final DateTime day;
+  final List<InvActivity> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    var inV = 0.0, outV = 0.0;
+    for (final r in rows) {
+      if (r.isIn) {
+        inV += r.qtyIn * r.unitCost;
+      } else {
+        outV += r.qtyOut * r.unitCost;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Row(
+        children: [
+          Text(
+            _dayLabel(day),
+            style: RunqText.micro.copyWith(
+              color: t.muted,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          if (inV > 0) _tally('+${compactINR(inV)}', InvColors.success),
+          if (inV > 0 && outV > 0) const SizedBox(width: 8),
+          if (outV > 0) _tally('-${compactINR(outV)}', InvColors.amberDeep),
+        ],
+      ),
+    );
+  }
+
+  Widget _tally(String text, Color c) => Text(
+        text,
+        style: RunqText.micro.copyWith(
+          color: c,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
       );
 
-  static String _src(String m) => switch (m) {
-        'grn' => 'GRN',
-        'dn' => 'Delivery',
-        'transfer_in' => 'Transfer in',
-        'transfer_out' => 'Transfer out',
-        'adjustment' => 'Adjustment',
-        'stock_take' => 'Stock take',
-        _ => m,
-      };
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  static String _dayLabel(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = today.difference(d).inDays;
+    if (diff == 0) return 'TODAY';
+    if (diff == 1) return 'YESTERDAY';
+    final y = d.year == now.year ? '' : ' ${d.year}';
+    return '${d.day} ${_months[d.month - 1]}$y'.toUpperCase();
+  }
+}
+
+// ── Row ───────────────────────────────────────────────────────────────────
+
+/// One ledger entry: what moved, how much of it, and what it was worth.
+///
+/// Quantity leads and value sits under it, not the other way round. The
+/// rupee figure is the reason the user is on this screen, but it is the
+/// derived number — a ₹0 line is normal for stock the GL capitalises later
+/// (MP raw milk), and reading "₹0" as the headline would look like a bug.
+class _MovementRow extends StatelessWidget {
+  const _MovementRow({required this.a});
+  final InvActivity a;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final inbound = a.isIn;
+    final tone = inbound ? InvColors.success : InvColors.error;
+    final meta = [
+      invMovementLabel(a.movementType),
+      a.warehouseName,
+      if (a.batchNo != null && a.batchNo!.isNotEmpty) a.batchNo!,
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: InvActivityIcon.colorFor(invMovementIconKey(a.movementType))
+                  .withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              InvActivityIcon.iconFor(invMovementIconKey(a.movementType)),
+              size: 17,
+              color: InvActivityIcon.colorFor(invMovementIconKey(a.movementType)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  a.itemName,
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  meta,
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _qty(a),
+                style: RunqText.caption.copyWith(
+                  color: tone,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                a.unitCost > 0 ? indianINR(a.value.abs()) : '—',
+                style: RunqText.micro.copyWith(
+                  color: t.muted,
+                  letterSpacing: 0,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                _time(a.movedAt),
+                style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   static String _qty(InvActivity a) {
     final q = a.signedQty;
-    final unit = a.itemUnit == null || a.itemUnit!.isEmpty ? '' : ' ${a.itemUnit}';
+    final unit = (a.itemUnit ?? '').isEmpty ? '' : ' ${a.itemUnit}';
     final mag = q.abs();
-    final s = mag == mag.roundToDouble() ? mag.toStringAsFixed(0)
-                                         : mag.toStringAsFixed(2);
-    if (q > 0) return '+$s$unit';
-    if (q < 0) return '-$s$unit';
-    return s + unit;
+    final s = mag == mag.roundToDouble()
+        ? mag.toStringAsFixed(0)
+        : mag.toStringAsFixed(2);
+    return '${q < 0 ? '-' : '+'}$s$unit';
   }
 
-  static String _rel(DateTime when) {
-    final d = DateTime.now().difference(when);
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes}m';
-    if (d.inHours < 24)   return '${d.inHours}h';
-    if (d.inDays < 7)     return '${d.inDays}d';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${when.day} ${months[when.month - 1]}';
+  static String _time(DateTime when) {
+    final h = when.hour % 12 == 0 ? 12 : when.hour % 12;
+    final m = when.minute.toString().padLeft(2, '0');
+    return '$h:$m ${when.hour < 12 ? 'am' : 'pm'}';
   }
 }

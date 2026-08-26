@@ -94,6 +94,7 @@ import 'screens/inventory/inventory_expiry_screen.dart';
 import 'screens/inventory/inventory_analytics_screen.dart';
 import 'screens/inventory/inventory_reorder_screen.dart';
 import 'screens/inventory/inventory_stock_alerts_screen.dart';
+import 'api/inventory_models.dart';
 import 'screens/inventory/inventory_activity_screen.dart';
 import 'screens/hr/hr_people_screen.dart';
 import 'screens/hr/hr_employee_detail_screen.dart';
@@ -546,9 +547,24 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           pageBuilder: (ctx, state) => _slidePage(const InventoryReorderScreen(), key: state.pageKey),
         ),
         GoRoute(
+          // ?direction=in|out&period=today|7d|30d|month|all&group=<movement
+          // group>. Home's "Today in" / "Today out" tiles deep-link with the
+          // filter already applied rather than dumping the whole ledger.
           path: '/inventory/activity',
           parentNavigatorKey: rootKey,
-          pageBuilder: (ctx, state) => _slidePage(const InventoryActivityScreen(), key: state.pageKey),
+          pageBuilder: (ctx, state) {
+            final q = state.uri.queryParameters;
+            return _slidePage(
+              InventoryActivityScreen(
+                initial: InvMovementFilter(
+                  direction: q['direction'],
+                  group: q['group'],
+                  period: q['period'] ?? 'today',
+                ),
+              ),
+              key: state.pageKey,
+            );
+          },
         ),
         GoRoute(
           path: '/inventory/warehouses',

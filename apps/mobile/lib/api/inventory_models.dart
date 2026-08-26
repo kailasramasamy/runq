@@ -26,12 +26,31 @@ class InvKpis {
   final int activeItems, warehouseCount;
 
   /// Batches expiring inside 30 days, and batches unmoved for 90+ days. Both
-  /// drive the Needs-attention list on Home.
+  /// drive the Needs-attention list on Home, which leads with the rupee value
+  /// rather than the count — an owner triages write-off risk and locked-up
+  /// cash by amount, not by how many batch rows are involved.
   final int expiringSoon, deadStock;
+  final double expiringSoonValue, deadStockValue;
 
   /// Value received / issued so far this month — the movement trend behind the
   /// stock-value figure.
   final double monthInValue, monthOutValue;
+
+  /// Value issued over the trailing 30 days. Trailing rather than
+  /// month-to-date because [daysOfCover] divides by it.
+  final double out30Value;
+
+  /// Stock lost this month — spoilage, damage, expiry, pilferage, free issue.
+  /// The only money on the dashboard that is gone rather than merely idle.
+  /// Bound server-side to the write-off register's own reason enum, so this
+  /// and /reports/write-offs can never disagree.
+  final double writeOffMonthValue;
+
+  /// Ordered-but-unreceived PO value (ex-tax), and how many of those POs are
+  /// due inside 7 days. Days of cover says how long stock lasts; this says
+  /// whether more is on the way.
+  final double incomingValue;
+  final int incomingDueSoon;
   const InvKpis({
     required this.totalValue,
     required this.activeRows,
@@ -49,6 +68,12 @@ class InvKpis {
     this.deadStock = 0,
     this.monthInValue = 0,
     this.monthOutValue = 0,
+    this.out30Value = 0,
+    this.writeOffMonthValue = 0,
+    this.incomingValue = 0,
+    this.incomingDueSoon = 0,
+    this.expiringSoonValue = 0,
+    this.deadStockValue = 0,
   });
   factory InvKpis.fromJson(Map<String, dynamic> j) => InvKpis(
     totalValue: (j['totalValue'] as num?)?.toDouble() ?? 0,
@@ -67,7 +92,37 @@ class InvKpis {
     deadStock: (j['deadStockCount'] as num?)?.toInt() ?? 0,
     monthInValue: (j['monthInValue'] as num?)?.toDouble() ?? 0,
     monthOutValue: (j['monthOutValue'] as num?)?.toDouble() ?? 0,
+    out30Value: (j['out30Value'] as num?)?.toDouble() ?? 0,
+    writeOffMonthValue: (j['writeOffMonthValue'] as num?)?.toDouble() ?? 0,
+    incomingValue: (j['incomingValue'] as num?)?.toDouble() ?? 0,
+    incomingDueSoon: (j['incomingDueSoon'] as num?)?.toInt() ?? 0,
+    expiringSoonValue: (j['expiringSoonValue'] as num?)?.toDouble() ?? 0,
+    deadStockValue: (j['deadStockValue'] as num?)?.toDouble() ?? 0,
   );
+
+  /// Net change in stock value so far this month. Positive means working
+  /// capital is building up in the godown.
+  double get monthNetValue => monthInValue - monthOutValue;
+
+  /// Average value issued per day over the trailing 30 days — the baseline
+  /// that turns "Today out ₹85K" from a reading into a signal.
+  double get avgDailyOut => out30Value / 30;
+
+  /// Share of this month's outward value that was written off rather than
+  /// sold or consumed. Null when nothing has left — a percentage of zero is
+  /// not 0%, it is undefined.
+  double? get writeOffPctOfOut {
+    if (monthOutValue <= 0) return null;
+    return writeOffMonthValue / monthOutValue * 100;
+  }
+
+  /// How many days the current stock lasts at the trailing-30-day burn rate.
+  /// Null when nothing has moved out — a runway is undefined, not infinite,
+  /// and rendering "∞ days" on a dormant godown reads as a healthy number.
+  double? get daysOfCover {
+    if (out30Value <= 0 || totalValue <= 0) return null;
+    return totalValue / (out30Value / 30);
+  }
 }
 
 /// Stock value held at one warehouse. Backs the Home breakdown so the value in
@@ -1695,6 +1750,15 @@ class InvActivity {
   final String? itemSku;
   final String? itemUnit;
   final String warehouseName;
+  final String? batchNo;
+
+  /// Moving-weighted-average cost the movement was posted at.
+  final double unitCost;
+
+  /// Signed rupee value of the movement (`(qtyIn - qtyOut) x unitCost`).
+  /// Legitimately 0 for zero-valued stock — MP raw milk is capitalised at
+  /// cycle lock, not at receipt — so the qty is what proves it moved.
+  final double value;
   const InvActivity({
     required this.id,
     required this.movementType,
@@ -1707,6 +1771,9 @@ class InvActivity {
     this.itemSku,
     this.itemUnit,
     required this.warehouseName,
+    this.batchNo,
+    this.unitCost = 0,
+    this.value = 0,
   });
 
   /// Collapse direction-split movement types to the icon bucket
@@ -1719,6 +1786,9 @@ class InvActivity {
   /// Signed qty — positive for inflows, negative for outflows. Used to
   /// render the right-edge "+5 / -3" amount on each row.
   double get signedQty => qtyIn - qtyOut;
+
+  /// True for a receipt, false for an issue. A ledger row is never both.
+  bool get isIn => qtyIn > 0;
   factory InvActivity.fromJson(Map<String, dynamic> j) => InvActivity(
     id: j['id'] as String,
     movementType: (j['movementType'] as String?) ?? '',
@@ -1733,7 +1803,114 @@ class InvActivity {
     itemSku: j['itemSku'] as String?,
     itemUnit: j['itemUnit'] as String?,
     warehouseName: (j['warehouseName'] as String?) ?? '',
+    batchNo: j['batchNo'] as String?,
+    unitCost: (j['unitCost'] as num?)?.toDouble() ?? 0,
+    value: (j['value'] as num?)?.toDouble() ?? 0,
   );
+}
+
+// ── Movement feed ────────────────────────────────────────────────────────
+// The Stock Movement screen (mobile) — the filtered, valued view of the same
+// ledger slice. Mirrors `movementFeed()` in dashboard.service.ts.
+
+/// Filter state for the movement feed. A value type so it can key a
+/// Riverpod family without a manual cache-buster.
+class InvMovementFilter {
+  /// 'in' | 'out' | null (both).
+  final String? direction;
+
+  /// Movement group — receipt | dispatch | production | transfer |
+  /// adjustment | stock_take | return | other. Null means every group.
+  final String? group;
+  final String? warehouseId;
+
+  /// today | 7d | 30d | month | all.
+  final String period;
+  final String search;
+  const InvMovementFilter({
+    this.direction,
+    this.group,
+    this.warehouseId,
+    this.period = 'today',
+    this.search = '',
+  });
+
+  InvMovementFilter copyWith({
+    String? Function()? direction,
+    String? Function()? group,
+    String? Function()? warehouseId,
+    String? period,
+    String? search,
+  }) =>
+      InvMovementFilter(
+        direction: direction == null ? this.direction : direction(),
+        group: group == null ? this.group : group(),
+        warehouseId: warehouseId == null ? this.warehouseId : warehouseId(),
+        period: period ?? this.period,
+        search: search ?? this.search,
+      );
+
+  /// Everything except the window — used to decide whether to show a
+  /// "clear filters" affordance, since a period is always set.
+  bool get hasNarrowing =>
+      direction != null ||
+      group != null ||
+      warehouseId != null ||
+      search.isNotEmpty;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InvMovementFilter &&
+      other.direction == direction &&
+      other.group == group &&
+      other.warehouseId == warehouseId &&
+      other.period == period &&
+      other.search == search;
+
+  @override
+  int get hashCode => Object.hash(direction, group, warehouseId, period, search);
+}
+
+/// In / out money and document counts across the whole filtered set — not
+/// just the page of rows that came back.
+class InvMovementSummary {
+  final double inValue;
+  final double outValue;
+  final double netValue;
+  final int inDocs;
+  final int outDocs;
+  final int totalRows;
+  const InvMovementSummary({
+    required this.inValue,
+    required this.outValue,
+    required this.netValue,
+    required this.inDocs,
+    required this.outDocs,
+    required this.totalRows,
+  });
+  factory InvMovementSummary.fromJson(Map<String, dynamic> j) =>
+      InvMovementSummary(
+        inValue: _d(j['inValue']),
+        outValue: _d(j['outValue']),
+        netValue: _d(j['netValue']),
+        inDocs: _i(j['inDocs']),
+        outDocs: _i(j['outDocs']),
+        totalRows: _i(j['totalRows']),
+      );
+}
+
+class InvMovementFeed {
+  final List<InvActivity> rows;
+  final InvMovementSummary summary;
+  const InvMovementFeed({required this.rows, required this.summary});
+  factory InvMovementFeed.fromJson(Map<String, dynamic> j) => InvMovementFeed(
+        rows: ((j['rows'] as List?) ?? const [])
+            .map((e) => InvActivity.fromJson((e as Map).cast<String, dynamic>()))
+            .toList(),
+        summary: InvMovementSummary.fromJson(
+          ((j['summary'] as Map?) ?? const {}).cast<String, dynamic>(),
+        ),
+      );
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────

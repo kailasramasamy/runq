@@ -6,6 +6,7 @@ import {
   deliveryNoteFilterSchema, dispatchFromInvoiceSchema, pendingDispatchFilterSchema,
   bulkDispatchSchema, waiveDispatchSchema, salesReturnSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
+  movementFeedQuerySchema,
   itemMovementFilterSchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
@@ -554,6 +555,14 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
   app.get('/dashboard/recent-activity', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
     return { data: await svc.recentActivity(10) };
+  });
+  // Filterable, valued version of the same feed — drives the mobile Stock
+  // Movement screen, which the Home "Today in" / "Today out" tiles open
+  // pre-filtered.
+  app.get('/dashboard/activity', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const q = movementFeedQuerySchema.parse(req.query);
+    const svc = new InventoryDashboardService(req.server.db, req.tenantId);
+    return { data: await svc.movementFeed(q) };
   });
   // Home-screen strips: most-recently-moved stock in one class bucket.
   app.get('/dashboard/stock-highlights', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {

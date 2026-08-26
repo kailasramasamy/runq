@@ -100,3 +100,37 @@ export const itemMovementFilterSchema = z.object({
 });
 
 export type ItemMovementFilter = z.infer<typeof itemMovementFilterSchema>;
+
+// ── Movement feed (mobile "Stock Movement" screen) ────────────────────────
+// The ledger has 17 movement types; an owner thinks in about seven. These
+// groups are the filter vocabulary the screen offers, resolved server-side
+// to the concrete enum values.
+export const movementGroupMembers = {
+  receipt:    ['grn'],
+  dispatch:   ['delivery'],
+  production: ['production_in', 'production_out'],
+  transfer:   ['transfer_in', 'transfer_out'],
+  adjustment: ['adjustment_in', 'adjustment_out'],
+  stock_take: ['stock_take_in', 'stock_take_out'],
+  return:     ['sales_return_in', 'reclaim_in', 'reclaim_out'],
+  other:      ['opening', 'reversal'],
+} as const;
+export const movementGroupSchema = z.enum(
+  Object.keys(movementGroupMembers) as [keyof typeof movementGroupMembers],
+);
+export type MovementGroup = z.infer<typeof movementGroupSchema>;
+
+/** Relative windows the feed offers. All are IST calendar windows. */
+export const movementPeriodSchema = z.enum(['today', '7d', '30d', 'month', 'all']);
+export type MovementPeriod = z.infer<typeof movementPeriodSchema>;
+
+export const movementFeedQuerySchema = z.object({
+  direction: z.enum(['in', 'out']).optional(),
+  group: movementGroupSchema.optional(),
+  warehouseId: z.string().uuid().optional(),
+  period: movementPeriodSchema.default('today'),
+  search: z.string().trim().max(80).optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type MovementFeedQuery = z.infer<typeof movementFeedQuerySchema>;

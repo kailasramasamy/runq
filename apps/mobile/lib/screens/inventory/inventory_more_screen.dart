@@ -75,7 +75,7 @@ class InventoryMoreScreen extends ConsumerWidget {
               SettingsRow(Icons.checklist_outlined, 'Stock take',
                   onTap: () => context.push('/inventory/stock-take')),
               SettingsRow(Icons.receipt_long_outlined, 'Activity feed',
-                  onTap: () => context.push('/inventory/activity')),
+                  onTap: () => context.push('/inventory/activity?period=7d')),
             ],
           ),
           const SizedBox(height: 16),

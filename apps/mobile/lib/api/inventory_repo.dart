@@ -36,6 +36,23 @@ class InventoryRepo {
     return _dataList(res).map(InvActivity.fromJson).toList();
   }
 
+  /// Filtered, valued movement feed. Drives the Stock Movement screen —
+  /// the same ledger slice as [recentActivity], but scoped and totalled.
+  Future<InvMovementFeed> movementFeed(
+    InvMovementFilter f, {
+    int limit = 100,
+  }) async {
+    final res = await apiClient.get('/inventory/dashboard/activity${_qs({
+      'period': f.period,
+      if (f.direction != null) 'direction': f.direction!,
+      if (f.group != null) 'group': f.group!,
+      if (f.warehouseId != null) 'warehouseId': f.warehouseId!,
+      if (f.search.trim().isNotEmpty) 'search': f.search.trim(),
+      'limit': '$limit',
+    })}');
+    return InvMovementFeed.fromJson(_data(res));
+  }
+
   /// Most-recently-moved stock in one class bucket. Drives the Home
   /// "Finished goods" / "Raw materials available" strips.
   Future<List<InvStockHighlight>> stockHighlights({required String group, int limit = 5}) async {

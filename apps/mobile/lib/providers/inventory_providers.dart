@@ -18,6 +18,13 @@ final invRecentActivityProvider =
   return inventoryRepo.recentActivity();
 });
 
+/// Movement feed, keyed by its filter. `autoDispose` + a value-type key
+/// means flipping a chip refetches and flipping back is instant.
+final invMovementFeedProvider = FutureProvider.autoDispose
+    .family<InvMovementFeed, InvMovementFilter>((ref, filter) async {
+  return inventoryRepo.movementFeed(filter);
+});
+
 final invWarehouseValuesProvider =
     FutureProvider.autoDispose<List<InvWarehouseValue>>((ref) async {
   return inventoryRepo.warehouseValues();
@@ -175,6 +182,14 @@ final invItemPriceListsProvider = FutureProvider.autoDispose
   return inventoryRepo.itemPriceLists(id);
 });
 
+/// Bumped by [invalidateStockViews] / [invalidateThresholdViews].
+///
+/// Provider-backed screens refresh on invalidation alone, but the Items list
+/// pages imperatively into local state, so nothing reached it — post an
+/// adjustment, walk back, and the tile still showed the pre-movement balance
+/// until a manual pull. Screens that own their own rows watch this instead.
+final invStockRevisionProvider = StateProvider<int>((ref) => 0);
+
 /// Invalidate every view derived from stock levels.
 ///
 /// Call after anything that moves stock — adjustment, GRN, dispatch, transfer,
@@ -188,11 +203,13 @@ final invItemPriceListsProvider = FutureProvider.autoDispose
 void invalidateStockViews(WidgetRef ref) {
   ref.invalidate(invKpisProvider);
   ref.invalidate(invRecentActivityProvider);
+  ref.invalidate(invMovementFeedProvider);
   ref.invalidate(invWarehouseValuesProvider);
   ref.invalidate(invStockHighlightsProvider);
   ref.invalidate(invOnHandProvider);
   ref.invalidate(invExpiringProvider);
   ref.invalidate(invReorderAlertsProvider);
+  ref.read(invStockRevisionProvider.notifier).state++;
 }
 
 /// Invalidate every view derived from an item's reorder level.
@@ -209,6 +226,7 @@ void invalidateThresholdViews(WidgetRef ref, String itemId) {
   ref.invalidate(invStockAlertCountsProvider);
   ref.invalidate(invReorderAlertsProvider);
   ref.invalidate(invKpisProvider);
+  ref.read(invStockRevisionProvider.notifier).state++;
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────

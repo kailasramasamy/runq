@@ -35,7 +35,7 @@ List<MenuItem> _items(WidgetRef ref) => const [
       MenuItem(Icons.trending_up_rounded, 'Analytics', Color(0xFF7C3AED),
           '/inventory/analytics', isTab: true),
       MenuItem(Icons.receipt_long_outlined, 'Activity feed',
-          InvColors.amberDeep, '/inventory/activity'),
+          InvColors.amberDeep, '/inventory/activity?period=7d'),
       // Item master is reference data, not daily floor work — it sits last.
       MenuItem(Icons.category_outlined, 'Items', InvColors.amber,
           '/inventory/items'),

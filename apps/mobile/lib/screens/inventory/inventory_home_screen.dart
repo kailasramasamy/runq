@@ -1,9 +1,9 @@
 // Inventory Home — godown-floor dashboard. Matches the Finance / HR home
 // chrome: light scaffold, module switcher pinned top-left, a bell on the
-// right, then a hero card holding stock-value KPIs, the Low / In / Out
-// strip, and the warehouse pill. Body keeps the 2-col mini-stat row, 2x4
-// quick actions grid, and a 5-row Recent activity card with a "See all"
-// deep-link.
+// right, then a hero card holding the two level KPIs (stock value with its
+// month delta, days of cover), the Out / Low alert pair, and the warehouse
+// pill. Body then runs Movement (today's flow, inbound, shrinkage), Needs
+// attention, the two stock strips, and Recent activity.
 
 library;
 
@@ -80,6 +80,9 @@ class _HomeBody extends StatelessWidget {
         const SliverToBoxAdapter(child: _TopBar()),
         const SliverToBoxAdapter(child: _Greeting()),
         SliverToBoxAdapter(child: _HeroCard(k: k)),
+        // Flow, not level: what came in, what went out and against what
+        // baseline, what is still on its way, and what was lost outright.
+        SliverToBoxAdapter(child: _Movement(k: k)),
         // The dispatch queue and every open exception, as one tile grid.
         SliverToBoxAdapter(child: _NeedsAttention(k: k)),
         // What's actually on the floor right now — goods that just came off
@@ -288,7 +291,7 @@ class _AnalyticsPill extends StatelessWidget {
   }
 }
 
-// ── Hero card (Stock value + Active SKUs + warehouse pill) ───────────────
+// ── Hero card (Stock value + Days of cover + alerts + warehouse pill) ────
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({required this.k});
@@ -322,19 +325,38 @@ class _HeroCard extends StatelessWidget {
                     child: InvHeroKpi(
                       label: 'Stock Value',
                       value: compactINR(k.totalValue),
+                      // A bare total cannot answer the owner's actual
+                      // question — is working capital piling up in the
+                      // godown? The month's net movement can.
+                      footnote: _monthDelta(k),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
+                    // Replaced 'Active SKUs', which no owner ever acted on.
+                    // Days of cover is the one inventory figure that drives a
+                    // decision: buy sooner, or stop buying.
                     child: InvHeroKpi(
-                      label: 'Active SKUs',
-                      value: _commaInt(k.activeRows),
+                      label: 'Days of Cover',
+                      value: _coverValue(k),
+                      footnote: k.daysOfCover == null
+                          ? 'nothing issued in 30d'
+                          : 'at 30-day burn rate',
+                      // Deliberately never red. "Low cover" has no
+                      // cross-industry threshold: this dairy runs at 3 days
+                      // because milk turns daily, while a hardware counter at
+                      // 3 days is an emergency. Without a per-tenant target
+                      // any colour we pick is a false alarm for someone.
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 10),
+            // Two tiles, not four. Today In / Today Out moved down to the
+            // Movement section: they are flow, the hero is level, and at four
+            // across nothing fit — "Out of Stock" had to be abbreviated to
+            // "Stockouts" purely to survive the width.
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -342,12 +364,10 @@ class _HeroCard extends StatelessWidget {
                   Expanded(
                     child: _HeroMiniKpi(
                       // Out of stock leads: it is already costing sales,
-                      // where "low" is still only a warning. Labelled
-                      // "Stockouts" because "Out of Stock" ellipsises at
-                      // four tiles across on a small phone.
-                      label: 'Stockouts',
+                      // where "low" is still only a warning.
+                      label: 'Out of Stock',
                       value: k.outOfStockCount.toString(),
-                      sub: 'items',
+                      sub: k.outOfStockCount == 1 ? 'item' : 'items',
                       alert: k.outOfStockCount > 0,
                       onTap: () => context.push('/inventory/alerts'),
                     ),
@@ -357,25 +377,9 @@ class _HeroCard extends StatelessWidget {
                     child: _HeroMiniKpi(
                       label: 'Low Stock',
                       value: k.lowStockCount.toString(),
-                      sub: 'items',
+                      sub: k.lowStockCount == 1 ? 'item' : 'items',
                       alert: k.lowStockCount > 0,
                       onTap: () => context.push('/inventory/alerts'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _HeroMiniKpi(
-                      label: 'Today In',
-                      value: k.todayInCount.toString(),
-                      sub: compactINR(k.todayInValue),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _HeroMiniKpi(
-                      label: 'Today Out',
-                      value: k.todayOutCount.toString(),
-                      sub: compactINR(k.todayOutValue),
                     ),
                   ),
                 ],
@@ -397,56 +401,86 @@ class _HeroCard extends StatelessWidget {
     );
   }
 
-  static String _commaInt(int n) => n.toString().replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-        (m) => '${m[1]},',
-      );
+  /// Net stock-value movement so far this month, as a hero footnote. Left
+  /// tone-neutral on purpose: stock building up is a strong order book or
+  /// dead capital, and the dashboard cannot tell which.
+  static String _monthDelta(InvKpis k) {
+    final net = k.monthNetValue;
+    // Sub-₹1000 swings are rounding, not a trend worth an arrow.
+    if (net.abs() < 1000) return 'flat this month';
+    final arrow = net > 0 ? '↑' : '↓';
+    return '$arrow ${compactINR(net.abs())} this month';
+  }
+
+  static String _coverValue(InvKpis k) {
+    final d = k.daysOfCover;
+    if (d == null) return '—';
+    // Past a quarter the exact figure is noise; the message is "too much".
+    if (d > 99) return '99+';
+    return d.round().toString();
+  }
 }
 
+String _batches(int n) => n == 1 ? '1 batch' : '$n batches';
+
+/// Scope line for the hero figures, and the way into the per-warehouse split.
+///
+/// This used to print the *default* warehouse's name beside numbers that were
+/// tenant-wide, so an owner with three godowns read "₹42L · Main Godown" and
+/// believed it. It also carried a dropdown chevron and no tap handler at all.
+/// The label now states the real scope, and the tap goes to the breakdown that
+/// actually answers "what is sitting in Godown B" — the numbers above it are
+/// still tenant-wide, by design, so nothing here is half-scoped.
 class _WarehousePill extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final whAsync = ref.watch(invWarehousesProvider);
     final label = whAsync.maybeWhen(
-      data: (rows) {
-        if (rows.isEmpty) return 'All warehouses';
-        final def = rows.firstWhere(
-          (w) => w.isDefault,
-          orElse: () => rows.first,
-        );
-        return def.name;
+      // One warehouse means tenant-wide and site-wide are the same number, so
+      // naming it is accurate rather than misleading.
+      data: (rows) => switch (rows.length) {
+        0 || 1 => rows.isEmpty ? 'All warehouses' : rows.first.name,
+        final n => 'All warehouses · $n',
       },
       orElse: () => 'All warehouses',
     );
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: () => context.push('/inventory/warehouses'),
           borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.warehouse_outlined, size: 13, color: Colors.white),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+              borderRadius: BorderRadius.circular(999),
             ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: Colors.white.withValues(alpha: 0.7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.warehouse_outlined, size: 13, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: RunqText.caption.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Forward chevron, not a dropdown caret: this navigates, it
+                // does not filter the screen you are on.
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -558,7 +592,7 @@ class _RecentActivityCard extends ConsumerWidget {
         InvSectionHeader(
           title: 'Recent Activity',
           action: 'See all →',
-          onAction: () => context.push('/inventory/activity'),
+          onAction: () => context.push('/inventory/activity?period=7d'),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -718,7 +752,116 @@ class _HomeError extends StatelessWidget {
 }
 
 
-// ── Today's throughput ────────────────────────────────────────────────────
+// ── Movement ─────────────────────────────────────────────────────────────
+
+/// Today's throughput, what is inbound, and what was lost — the four flow
+/// figures, in a 2x2 grid.
+///
+/// The hero above answers "what do I hold". None of that tells an owner
+/// whether today is a normal day, whether more stock is on its way, or how
+/// much simply went missing. Shrinkage in particular lived only in a report
+/// three taps deep, which is the same as not existing.
+class _Movement extends ConsumerWidget {
+  const _Movement({required this.k});
+  final InvKpis k;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    // Tapping through to POs would bounce a user without the purchase grant
+    // off the module gate in router.dart, so the tile is inert for them
+    // rather than being a trapdoor.
+    final canSeePurchase = ref.watch(authProvider).modules.contains('purchase');
+
+    final tiles = <Widget>[
+      InvMiniStat(
+        icon: Icons.south_west_rounded,
+        iconColor: InvColors.success,
+        value: compactINR(k.todayInValue),
+        // Keeps the document count: raw milk posts to stock at zero value
+        // (the GL capitalises it at cycle lock, not receipt), so a dairy can
+        // legitimately read ₹0 in on a morning that took 12 deliveries. The
+        // count is what proves the stock actually moved.
+        label: 'Today in · ${_docs(k.todayInCount)}',
+        onTap: () => context.push(
+          '/inventory/activity?direction=in&period=today',
+        ),
+      ),
+      InvMiniStat(
+        icon: Icons.north_east_rounded,
+        iconColor: InvColors.amberDeep,
+        value: compactINR(k.todayOutValue),
+        label: _todayOutLabel(k),
+        onTap: () => context.push(
+          '/inventory/activity?direction=out&period=today',
+        ),
+      ),
+      InvMiniStat(
+        icon: Icons.local_shipping_outlined,
+        iconColor: InvColors.info,
+        value: compactINR(k.incomingValue),
+        label: k.incomingDueSoon > 0
+            ? 'Arriving · ${k.incomingDueSoon} due in 7d'
+            : 'Arriving · on open POs',
+        onTap: canSeePurchase ? () => context.push('/purchase/pos') : null,
+      ),
+      InvMiniStat(
+        icon: Icons.delete_outline,
+        // Only red once something has actually been lost — a red ₹0 trains
+        // the eye to ignore the tile on the months it matters.
+        iconColor:
+            k.writeOffMonthValue > 0 ? InvColors.error : t.muted,
+        value: compactINR(k.writeOffMonthValue),
+        label: _writeOffLabel(k),
+        onTap: () => context.push('/inventory/reports/write-offs'),
+      ),
+    ];
+
+    return Column(children: [
+      const InvSectionHeader(title: 'Movement'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(children: [
+          for (var i = 0; i < tiles.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 10),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: tiles[i]),
+                  const SizedBox(width: 10),
+                  Expanded(child: tiles[i + 1]),
+                ],
+              ),
+            ),
+          ],
+        ]),
+      ),
+    ]);
+  }
+
+  /// Today's outward value against the 30-day daily average.
+  ///
+  /// Deliberately states the baseline rather than a "23% below average"
+  /// verdict: today is a partial day, and at 10am every business on earth is
+  /// below its own daily average. The owner knows what time it is; the
+  /// dashboard does not get to call that a slump.
+  static String _todayOutLabel(InvKpis k) {
+    if (k.avgDailyOut <= 0) return 'Today out';
+    return 'Today out · avg ${compactINR(k.avgDailyOut)}/day';
+  }
+
+  static String _writeOffLabel(InvKpis k) {
+    final pct = k.writeOffPctOfOut;
+    if (k.writeOffMonthValue <= 0) return 'Written off · none this month';
+    // The share matters more than the rupees: ₹44K means nothing alone, but
+    // 3.7% against last month's 0.9% is a conversation with the plant.
+    if (pct == null) return 'Written off · this month';
+    return 'Written off · ${pct.toStringAsFixed(1)}% of issues';
+  }
+
+  static String _docs(int n) => n == 1 ? '1 doc' : '$n docs';
+}
 
 // ── Needs attention ───────────────────────────────────────────────────────
 
@@ -754,12 +897,17 @@ class _NeedsAttention extends ConsumerWidget {
           value: '${k.lowStockCount}',
           onTap: () => context.push('/inventory/alerts'),
         ),
+      // Expiry and dead stock lead with the amount, not the batch count: both
+      // are money decisions (write-off risk, locked-up cash) and "12 batches"
+      // gives an owner nothing to weigh them against. Low / out-of-stock stay
+      // as counts — an out-of-stock line is worth ₹0 by definition, and for a
+      // low line the on-hand value is not the story either.
       if (k.expiringSoon > 0)
         InvMiniStat(
           icon: Icons.schedule_rounded,
           iconColor: InvColors.error,
-          label: 'Expiring in 30 days',
-          value: '${k.expiringSoon}',
+          label: 'Expiring in 30d · ${_batches(k.expiringSoon)}',
+          value: compactINR(k.expiringSoonValue),
           onTap: () => context.push('/inventory/reports/expiry'),
         ),
       if (k.inTransitTransfers > 0)
@@ -782,8 +930,8 @@ class _NeedsAttention extends ConsumerWidget {
         InvMiniStat(
           icon: Icons.hourglass_bottom_rounded,
           iconColor: t.muted,
-          label: 'Unmoved for 90+ days',
-          value: '${k.deadStock}',
+          label: 'Unmoved 90+ days · ${_batches(k.deadStock)}',
+          value: compactINR(k.deadStockValue),
           onTap: () => context.push('/inventory/on-hand'),
         ),
     ];
