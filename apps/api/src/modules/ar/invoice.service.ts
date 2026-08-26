@@ -1034,6 +1034,7 @@ export class InvoiceService {
   async batchUpdateStatus(
     invoiceIds: string[],
     targetStatus: 'sent' | 'cancelled',
+    userId?: string,
   ): Promise<{
     updated: number;
     skipped: { id: string; reason: string }[];
@@ -1070,7 +1071,7 @@ export class InvoiceService {
       return { updated: updatedIds.size, skipped };
     }
 
-    const outcomes = await this.autoDispatchBatch([...updatedIds]);
+    const outcomes = await this.autoDispatchBatch([...updatedIds], userId);
     if (outcomes.every((o) => o.status === 'off')) {
       return { updated: updatedIds.size, skipped };
     }
@@ -1117,7 +1118,7 @@ export class InvoiceService {
     // the goods moved before they walk away from the screen. The invoice is
     // already committed, and runForInvoice never throws, so a warehouse problem
     // can only downgrade the message — never the billing document.
-    const autoDispatch = await this.autoDispatch().runForInvoice(id);
+    const autoDispatch = await this.autoDispatch(userId).runForInvoice(id);
     return {
       ...invoice,
       ...(autoDispatch.status === 'off' ? {} : { autoDispatch }),
@@ -1132,15 +1133,23 @@ export class InvoiceService {
    * would race for the same batches — the second discovering an empty bin the
    * first had already claimed.
    */
-  private async autoDispatchBatch(invoiceIds: string[]): Promise<AutoDispatchOutcome[]> {
-    const service = this.autoDispatch();
+  private async autoDispatchBatch(
+    invoiceIds: string[],
+    userId?: string,
+  ): Promise<AutoDispatchOutcome[]> {
+    const service = this.autoDispatch(userId);
     const out: AutoDispatchOutcome[] = [];
     for (const id of invoiceIds) out.push(await service.runForInvoice(id));
     return out;
   }
 
-  private autoDispatch(): AutoDispatchService {
-    return new AutoDispatchService({ db: this.db, tenantId: this.tenantId });
+  /**
+   * `userId` is not optional bookkeeping: it lands on `stock_ledger.posted_by`
+   * and is the only thing that tells the item's movement trail who shipped the
+   * goods. Dropping it leaves an unattributed stock deduction.
+   */
+  private autoDispatch(userId?: string): AutoDispatchService {
+    return new AutoDispatchService({ db: this.db, tenantId: this.tenantId, userId });
   }
 
   private async sendInvoiceWhatsApp(

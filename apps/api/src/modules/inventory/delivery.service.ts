@@ -12,6 +12,7 @@ import { StockLedgerService } from './stock-ledger.service';
 import { InventoryGlPoster } from './gl-poster';
 import { DispatchRepackService } from './dispatch-repack.service';
 import { nextDocNo } from './sequence';
+import { AuditService } from '../../utils/audit';
 
 interface Ctx { db: Db; tenantId: string; userId?: string }
 
@@ -305,11 +306,40 @@ export class DeliveryNoteService {
   async dispatch(id: string) {
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.ctx.db.transaction((tx) => this.postDispatch(tx, id));
+        const dn = await this.ctx.db.transaction((tx) => this.postDispatch(tx, id));
+        // Logged after the commit, never inside it: an audit row for a
+        // dispatch that rolled back would claim stock moved when it didn't.
+        await this.logAudit('dispatched', dn, {
+          invoiceId: dn.invoiceId,
+          cogsValue: dn.totalValue,
+          journalEntryId: dn.journalEntryId,
+        });
+        return dn;
       } catch (err) {
         if (attempt >= MAX_DISPATCH_ATTEMPTS || !isDuplicateKey(err)) throw err;
       }
     }
+  }
+
+  /**
+   * Who moved this stock, and against which invoice.
+   *
+   * The stock ledger records the movement and `posted_by` records the hand,
+   * but neither survives a cancellation — so without this row a dispatch that
+   * was later unwound leaves no trace of having happened at all.
+   */
+  private logAudit(
+    action: string,
+    dn: typeof deliveryNotes.$inferSelect,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    return new AuditService(this.ctx.db, this.ctx.tenantId).log({
+      userId: this.ctx.userId,
+      action,
+      entityType: 'delivery_note',
+      entityId: dn.id,
+      metadata: { dnNo: dn.dnNo, ...metadata },
+    });
   }
 
   private async postDispatch(tx: Tx, id: string) {
@@ -406,6 +436,17 @@ export class DeliveryNoteService {
   }
 
   async cancel(id: string, input: CancelDeliveryNoteInput) {
+    const { dn, hadMoved } = await this.postCancel(id, input);
+    await this.logAudit('cancelled', dn, {
+      reason: input.reason,
+      // A draft cancel reverses nothing; a dispatched one unwinds real stock.
+      reversedStock: hadMoved,
+      invoiceId: dn.invoiceId,
+    });
+    return dn;
+  }
+
+  private async postCancel(id: string, input: CancelDeliveryNoteInput) {
     return this.ctx.db.transaction(async (tx) => {
       const [dn] = await tx
         .select()
@@ -421,7 +462,7 @@ export class DeliveryNoteService {
           .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
           .where(eq(deliveryNotes.id, id))
           .returning();
-        return u!;
+        return { dn: u!, hadMoved: false };
       }
 
       const lines = await tx
@@ -483,7 +524,7 @@ export class DeliveryNoteService {
         })
         .where(eq(deliveryNotes.id, id))
         .returning();
-      return u!;
+      return { dn: u!, hadMoved: true };
     });
   }
 

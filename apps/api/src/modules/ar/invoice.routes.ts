@@ -182,7 +182,11 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
         })
         .parse(request.body);
       const service = new InvoiceService(request.server.db, request.tenantId);
-      const result = await service.batchUpdateStatus(body.invoiceIds, body.status);
+      const result = await service.batchUpdateStatus(
+        body.invoiceIds,
+        body.status,
+        request.user?.userId,
+      );
 
       // Post revenue JEs for newly sent invoices (isAlreadyPosted prevents duplicates)
       if (body.status === 'sent' && result.updated > 0) {
