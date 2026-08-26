@@ -84,3 +84,19 @@ export const inventoryItemTrackingSchema = z.object({
 });
 
 export type InventoryItemTrackingInput = z.infer<typeof inventoryItemTrackingSchema>;
+
+/**
+ * Per-item stock audit trail (item master → Stock movements).
+ * `direction` filters in/out rather than exposing the raw movement-type enum,
+ * which the UI presents as a label anyway.
+ */
+export const itemMovementFilterSchema = z.object({
+  warehouseId: z.string().uuid().optional(),
+  direction: z.enum(['in', 'out']).optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
+export type ItemMovementFilter = z.infer<typeof itemMovementFilterSchema>;

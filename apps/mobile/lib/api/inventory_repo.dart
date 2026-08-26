@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'api_client.dart';
 import 'inventory_models.dart';
+import 'inventory_movement_models.dart';
 
 Map<String, dynamic> _data(dynamic res) {
   if (res is Map && res['data'] is Map) return (res['data'] as Map).cast<String, dynamic>();
@@ -92,6 +93,18 @@ class InventoryRepo {
     final body = _data(res);
     final onHand = (body['onHand'] as List?) ?? const [];
     return onHand.cast<Map<String, dynamic>>().map(InvItemStockRow.fromJson).toList();
+  }
+
+  // Audit trail for one item — every stock movement with the document that
+  // caused it (GRN/vendor, DN/customer/invoice, WO/BOM).
+  Future<InvMovementPage> itemMovements(InvMovementQuery q) async {
+    final qp = <String, String>{'page': '${q.page}', 'limit': '50'};
+    if (q.warehouseId != null) qp['warehouseId'] = q.warehouseId!;
+    if (q.direction != null) qp['direction'] = q.direction!;
+    if (q.from != null) qp['from'] = q.from!;
+    if (q.to != null) qp['to'] = q.to!;
+    final res = await apiClient.get('/inventory/items/${q.itemId}/movements${_qs(qp)}');
+    return InvMovementPage.fromJson(_data(res));
   }
 
   Future<InvItem?> findByBarcode(String code) async {

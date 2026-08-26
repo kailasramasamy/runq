@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
-import { ArrowLeft, Calculator, Copy } from 'lucide-react';
+import { ArrowLeft, Calculator, Copy, History } from 'lucide-react';
 import {
   PageHeader,
   Card,
@@ -123,6 +123,15 @@ export function ItemEditPage({
         description={headerDescription}
         actions={
           <div className="flex flex-wrap gap-2">
+            {!isCreate && item!.trackInventory && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ to: `${listPath}/${item!.id}/movements` as never })}
+              >
+                <History size={14} /> Stock Movements
+              </Button>
+            )}
             {!isCreate && (
               <Button
                 variant="outline"

@@ -708,7 +708,13 @@ class InvActionTile extends StatelessWidget {
 
 // ── Stock level bar ────────────────────────────────────────────────────────
 
-/// Thin progress bar showing the on-hand qty relative to (3 × reorder level).
+/// Thin progress bar showing the on-hand qty relative to (3 × reorder level),
+/// with a tick marking the reorder point itself. The headroom in the scale is
+/// deliberate — an item sitting at 3× its threshold has to look different from
+/// one sitting exactly on it — and the tick is what makes a near-miss legible:
+/// "short by 2" shows as a fill stopping just before the mark rather than as
+/// an unanchored third of a bar.
+///
 /// Renders red-orange when [isLow] is true, green otherwise. Multi-purpose:
 /// the same widget is used on stock tiles, item-detail cards, and reorder
 /// alerts (with a thicker [height]).
@@ -728,21 +734,78 @@ class InvStockBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final cap = (reorderLevel ?? 0) > 0 ? (reorderLevel! * 3) : qty;
-    final pct = cap <= 0 ? 1.0 : (qty / cap).clamp(0.0, 1.0);
+    // Without a reorder level there is no scale to plot against — measuring
+    // qty against itself would paint every item 100% full, which reads as
+    // "well stocked" for a shelf that's actually empty. Show the bare track.
+    final cap = (reorderLevel ?? 0) > 0 ? reorderLevel! * 3 : 0.0;
+    final pct = cap <= 0 || qty <= 0 ? 0.0 : (qty / cap).clamp(0.0, 1.0);
     final fill = isLow ? InvColors.orangeAlert : InvColors.success;
+    // cap is always 3× the level, so the reorder point sits at a third of the
+    // track. Constant by construction — read it off `cap` anyway so the two
+    // can't drift if the multiplier is ever retuned.
+    final markerPct = cap <= 0 ? null : (reorderLevel! / cap);
     return LayoutBuilder(
       builder: (_, c) => Container(
         height: height,
         decoration: BoxDecoration(color: t.hairlineSoft, borderRadius: BorderRadius.circular(99)),
         clipBehavior: Clip.antiAlias,
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            width: c.maxWidth * pct,
-            decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(99)),
-          ),
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: c.maxWidth * pct,
+                decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(99)),
+              ),
+            ),
+            if (markerPct != null)
+              Positioned(
+                left: (c.maxWidth * markerPct).clamp(0.0, c.maxWidth - 2),
+                top: 0,
+                bottom: 0,
+                width: 2,
+                child: ColoredBox(color: t.ink.withValues(alpha: 0.55)),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Quantity + unit ────────────────────────────────────────────────────────
+
+/// A quantity with its unit of measure held one step back — the number keeps
+/// the caller's [style], the UoM drops to caption size in the muted ink. The
+/// figure is what the eye is hunting for; "200ml" is a constant of the item
+/// and shouldn't compete with it at every row.
+class InvQtyText extends StatelessWidget {
+  const InvQtyText({
+    super.key,
+    required this.qty,
+    required this.unit,
+    required this.style,
+  });
+
+  /// Pre-formatted number, including any sign or prefix.
+  final String qty;
+  final String? unit;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final u = unit?.trim();
+    if (u == null || u.isEmpty) return Text(qty, style: style);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: qty, style: style),
+          TextSpan(
+            text: ' $u',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+        ],
       ),
     );
   }

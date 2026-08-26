@@ -21,6 +21,7 @@ import 'inventory_items_list_screen.dart' show classLabel;
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/item_detail_cards.dart';
+import 'widgets/item_movements_card.dart';
 import 'widgets/item_price_lists_card.dart';
 import 'widgets/reorder_level_sheet.dart';
 
@@ -65,6 +66,15 @@ class InventoryItemDetailScreen extends ConsumerWidget {
             item: item,
             stockAsync: stockAsync,
             priceLines: priceListsAsync.valueOrNull ?? const [],
+            onViewMovements: () => context.push(
+              Uri(
+                path: '/inventory/items/$itemId/movements',
+                queryParameters: {
+                  'name': item.name,
+                  if (item.unit != null) 'unit': item.unit!,
+                },
+              ).toString(),
+            ),
             onEditPricing: () async {
               await context.push('/inventory/items/$itemId/pricing');
               ref.invalidate(invItemDetailProvider(itemId));
@@ -92,12 +102,14 @@ class _Body extends StatelessWidget {
     required this.priceLines,
     required this.onEditPricing,
     required this.onEditThreshold,
+    required this.onViewMovements,
   });
   final InvItemDetail item;
   final AsyncValue<List<InvItemStockRow>> stockAsync;
   final List<InvItemPriceLine> priceLines;
   final VoidCallback onEditPricing;
   final VoidCallback onEditThreshold;
+  final VoidCallback onViewMovements;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +192,18 @@ class _Body extends StatelessWidget {
                 ],
               ),
             ),
+          InvSectionHeader(
+            title: 'Recent Movements',
+            action: 'View all',
+            onAction: onViewMovements,
+          ),
+          _Pad(
+            child: ItemMovementsCard(
+              itemId: item.id,
+              unit: item.unit,
+              onViewAll: onViewMovements,
+            ),
+          ),
         ],
         InvSectionHeader(
           title: 'Pricing',
@@ -345,9 +369,10 @@ class _WarehouseRow extends StatelessWidget {
                         style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
                       ),
                     ),
-                    Text(
-                      '${fmtQty(alloc.qty)} ${unit ?? ''}'.trim(),
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                    InvQtyText(
+                      qty: fmtQty(alloc.qty),
+                      unit: unit,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
                     ),
                   ],
                 ),

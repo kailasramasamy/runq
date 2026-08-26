@@ -228,6 +228,8 @@ export const INV_KEYS = {
   warehouse: (id: string) => ['inv', 'warehouses', id] as const,
   onHand: (filter?: Record<string, unknown>) => ['inv', 'on-hand', filter] as const,
   ledger: (filter?: Record<string, unknown>) => ['inv', 'ledger', filter] as const,
+  itemMovements: (itemId: string, filter?: Record<string, unknown>) =>
+    ['inv', 'item-movements', itemId, filter] as const,
   grnList: (filter?: Record<string, unknown>) => ['inv', 'grn', 'list', filter] as const,
   grn: (id: string) => ['inv', 'grn', id] as const,
   dnList: (filter?: Record<string, unknown>) => ['inv', 'dn', 'list', filter] as const,
@@ -327,6 +329,69 @@ export function useLedger(filter: Record<string, unknown> = {}) {
     queryKey: INV_KEYS.ledger(filter),
     queryFn: () =>
       api.get<{ data: LedgerRow[] }>(`/inventory/stock/ledger${qs(filter)}`).then(get),
+  });
+}
+
+// ─── Item audit trail ──────────────────────────────────────────────────
+// Ledger rows with each source resolved to its document, so the item master
+// can show "dispatched on invoice INV-204" instead of a bare UUID.
+
+export type MovementDocKind =
+  | 'grn' | 'delivery_note' | 'work_order' | 'transfer' | 'adjustment'
+  | 'stock_take' | 'reclaim' | 'consignment' | 'invoice' | 'purchase_order'
+  | 'bill' | 'bom';
+
+export interface MovementDocRef {
+  kind: MovementDocKind;
+  id: string;
+  no: string;
+  label?: string;
+}
+
+export interface MovementDoc extends MovementDocRef {
+  date: string | null;
+  status: string | null;
+  party: string | null;
+  note: string | null;
+  ref: MovementDocRef | null;
+}
+
+export interface ItemMovementRow {
+  id: string;
+  movedAt: string;
+  movementType: string;
+  direction: 'in' | 'out';
+  batchNo: string | null;
+  warehouseId: string;
+  warehouseName: string;
+  qtyIn: number;
+  qtyOut: number;
+  unitCost: number;
+  value: number;
+  runningQty: number;
+  postedByName: string | null;
+  sourceType: string;
+  sourceId: string;
+  journalEntryId: string | null;
+  doc: MovementDoc | null;
+}
+
+export interface ItemMovementPage {
+  rows: ItemMovementRow[];
+  hasMore: boolean;
+}
+
+export function useItemMovements(
+  itemId: string | undefined,
+  filter: Record<string, unknown> = {},
+) {
+  return useQuery({
+    queryKey: INV_KEYS.itemMovements(itemId ?? '', filter),
+    enabled: !!itemId,
+    queryFn: () =>
+      api
+        .get<{ data: ItemMovementPage }>(`/inventory/items/${itemId}/movements${qs(filter)}`)
+        .then(get),
   });
 }
 

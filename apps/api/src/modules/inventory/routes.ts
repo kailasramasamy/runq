@@ -6,6 +6,7 @@ import {
   deliveryNoteFilterSchema, dispatchFromInvoiceSchema, pendingDispatchFilterSchema,
   bulkDispatchSchema, waiveDispatchSchema, salesReturnSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
+  itemMovementFilterSchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
   receiveTransferSchema, transferFilterSchema,
@@ -31,6 +32,7 @@ import { SalesDispatchService } from './sales-dispatch.service';
 import { SalesReturnService } from './sales-return.service';
 import { AutoDispatchService } from './auto-dispatch.service';
 import { StockQueryService } from './stock-query.service';
+import { ItemMovementAuditService } from './movement-audit.service';
 import { InventoryDashboardService } from './dashboard.service';
 import { TransferService } from './transfer.service';
 import { AdjustmentService } from './adjustment.service';
@@ -117,6 +119,16 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const filter = stockLedgerFilterSchema.parse({ ...(req.query as object), itemId: id });
     const svc = new StockQueryService(req.server.db, req.tenantId);
     return { data: await svc.ledger(filter) };
+  });
+
+  // Audit trail — the ledger with each source resolved to its document
+  // (GRN/vendor, DN/customer/invoice, WO/BOM). Powers the item master's
+  // "Stock movements" view on web and mobile.
+  app.get('/items/:id/movements', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const filter = itemMovementFilterSchema.parse(req.query);
+    const svc = new ItemMovementAuditService(req.server.db, req.tenantId);
+    return { data: await svc.itemMovements(id, filter) };
   });
 
   app.get<{ Params: { code: string } }>(

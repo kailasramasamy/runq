@@ -82,6 +82,7 @@ import 'screens/inventory/inventory_delivery_screen.dart';
 import 'screens/inventory/inventory_pending_dispatch_screen.dart';
 import 'screens/inventory/inventory_dispatch_invoice_screen.dart';
 import 'screens/inventory/inventory_item_detail_screen.dart';
+import 'screens/inventory/inventory_item_movements_screen.dart';
 import 'screens/inventory/inventory_items_list_screen.dart';
 import 'screens/inventory/inventory_item_new_screen.dart';
 import 'screens/inventory/item_pricing_edit_screen.dart';
@@ -133,6 +134,7 @@ import 'screens/hr/hr_rewards_screen.dart';
 import 'screens/manufacturing/manufacturing_home_screen.dart';
 import 'screens/manufacturing/manufacturing_more_screen.dart';
 import 'screens/manufacturing/bom_list_screen.dart';
+import 'screens/manufacturing/input_pool_screen.dart';
 import 'screens/manufacturing/mfg_raw_materials_screen.dart';
 import 'screens/manufacturing/bom_detail_screen.dart';
 import 'screens/manufacturing/bom_create_screen.dart';
@@ -386,6 +388,9 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // run never bounces the operator into the Inventory module.
             GoRoute(path: '/manufacturing/raw-materials',
                 pageBuilder: _fadePage((_) => const MfgRawMaterialsScreen())),
+            // What a run would draw on, in draw order — the milk pool.
+            GoRoute(path: '/manufacturing/input-pool',
+                pageBuilder: _fadePage((_) => const InputPoolScreen())),
             GoRoute(path: '/manufacturing/wos', pageBuilder: (_, state) => CustomTransitionPage(
               key: state.pageKey,
               child: WoListScreen(
@@ -496,6 +501,18 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
             ItemPricingEditScreen(itemId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          path: '/inventory/items/:id/movements',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryItemMovementsScreen(
+              itemId: state.pathParameters['id']!,
+              itemName: state.uri.queryParameters['name'],
+              unit: state.uri.queryParameters['unit'],
+            ),
             key: state.pageKey,
           ),
         ),

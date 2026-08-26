@@ -38,6 +38,7 @@ class ItemIdentityCard extends StatelessWidget {
     final pack = item.packSizeValue != null
         ? '${fmtQty(item.packSizeValue!)} ${item.packSizeUqc ?? item.unit ?? ''}'.trim()
         : null;
+    final uom = (pack != null && pack.isNotEmpty) ? pack : item.unit?.trim();
     return InvCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -66,10 +67,14 @@ class ItemIdentityCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.name, style: RunqText.h3.copyWith(color: t.ink)),
-                    if (classLabel != null) ...[
+                    // Pack size (falling back to the stock UoM) sits under the
+                    // name — how the item is sold is part of what it is, and it
+                    // reads better as a subtitle than as one more grey chip. The
+                    // class ("Finished good") takes the freed chip slot.
+                    if (uom != null && uom.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
-                        classLabel!,
+                        uom,
                         style: RunqText.caption.copyWith(color: t.muted),
                       ),
                     ],
@@ -97,10 +102,8 @@ class ItemIdentityCard extends StatelessWidget {
                   bg: InvColors.amberSubtle,
                   fg: InvColors.amberDeep,
                 ),
-              if (pack != null && pack.isNotEmpty)
-                ItemBadge(label: pack, bg: t.bgWarmer, fg: t.muted)
-              else if ((item.unit ?? '').isNotEmpty)
-                ItemBadge(label: item.unit!, bg: t.bgWarmer, fg: t.muted),
+              if (classLabel != null && classLabel!.isNotEmpty)
+                ItemBadge(label: classLabel!, bg: t.bgWarmer, fg: t.ink),
               if ((item.ean ?? '').isNotEmpty)
                 ItemBadge(label: 'EAN ${item.ean}', bg: t.bgWarmer, fg: t.muted),
             ],
@@ -136,7 +139,11 @@ class ItemStockLevelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final level = (reorderLevel ?? 0) > 0 ? reorderLevel : null;
-    final isLow = level != null && qty <= level;
+    final isOut = qty <= 0;
+    // Out of stock reads as low whether or not a threshold exists — an empty
+    // shelf must never render in the healthy colour just because nobody set
+    // a reorder level.
+    final isLow = isOut || (level != null && qty <= level);
     final shortfall = level == null ? 0.0 : (level - qty);
     return InvCard(
       child: Column(
@@ -150,10 +157,15 @@ class ItemStockLevelCard extends StatelessWidget {
                   style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
                 ),
               ),
-              Text(
-                '${fmtQty(qty)} ${unit ?? ''}'.trim(),
+              InvQtyText(
+                qty: fmtQty(qty),
+                unit: unit,
                 style: RunqText.h4.copyWith(
-                  color: isLow ? InvColors.orangeAlert : InvColors.success,
+                  color: isOut
+                      ? InvColors.error
+                      : isLow
+                          ? InvColors.orangeAlert
+                          : InvColors.success,
                 ),
               ),
               if (onEditThreshold != null)

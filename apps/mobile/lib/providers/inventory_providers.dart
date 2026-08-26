@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/inventory_models.dart';
+import '../api/inventory_movement_models.dart';
 import '../api/inventory_repo.dart';
 import '../api/sales_dispatch_models.dart';
 import '../api/sales_dispatch_repo.dart';
@@ -158,6 +159,13 @@ final invItemDetailProvider = FutureProvider.autoDispose
 final invItemStockProvider = FutureProvider.autoDispose
     .family<List<InvItemStockRow>, String>((ref, id) async {
   return inventoryRepo.itemStock(id);
+});
+
+/// Item audit trail, keyed by the full filter so paging and the in/out
+/// toggle each get their own cache entry.
+final invItemMovementsProvider = FutureProvider.autoDispose
+    .family<InvMovementPage, InvMovementQuery>((ref, q) async {
+  return inventoryRepo.itemMovements(q);
 });
 
 /// Negotiated prices covering this item. Separate from the masters record

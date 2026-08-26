@@ -142,6 +142,7 @@ import { ImportItemsPage } from './masters/items/import';
 import { ItemAnalysisPage } from './masters/items/analysis';
 import { ItemEditPage } from './masters/items/edit';
 import { ItemProfitabilityPage } from './masters/items/profitability';
+import { ItemMovementsPage } from './masters/items/movements';
 import { PriceListsPage } from './masters/price-lists';
 import { PriceListDetailPage } from './masters/price-lists/detail';
 import { PriceListEditPage } from './masters/price-lists/edit';
@@ -248,6 +249,7 @@ import { EditWorkOrderPage } from './manufacturing/wos/edit';
 import { WorkOrderDetailPage } from './manufacturing/wos/detail';
 import { WorkOrderRunPage } from './manufacturing/wos/run';
 import { RecordProductionPage } from './manufacturing/production/new';
+import { InputPoolPage } from './manufacturing/production/pool';
 import { ReclaimListPage } from './manufacturing/reclaims/index';
 import { NewReclaimPage } from './manufacturing/reclaims/new';
 import { ReclaimDetailPage } from './manufacturing/reclaims/detail';
@@ -782,6 +784,15 @@ const purchaseItemsEditRoute = createRoute({
   component: () => {
     const { itemId } = purchaseItemsEditRoute.useParams();
     return <ItemEditPage itemId={itemId} />;
+  },
+});
+
+const purchaseItemsMovementsRoute = createRoute({
+  getParentRoute: () => purchaseRoute,
+  path: '/items/$itemId/movements',
+  component: () => {
+    const { itemId } = purchaseItemsMovementsRoute.useParams();
+    return <ItemMovementsPage itemId={itemId} />;
   },
 });
 
@@ -1860,6 +1871,15 @@ const mastersItemsEditRoute = createRoute({
   },
 });
 
+const mastersItemsMovementsRoute = createRoute({
+  getParentRoute: () => mastersRoute,
+  path: '/items/$itemId/movements',
+  component: () => {
+    const { itemId } = mastersItemsMovementsRoute.useParams();
+    return <ItemMovementsPage itemId={itemId} />;
+  },
+});
+
 const mastersCategoriesRoute = createRoute({
   getParentRoute: () => mastersRoute,
   path: '/categories',
@@ -2360,6 +2380,15 @@ const invItemsAnalysisRoute = createRoute({
   },
 });
 
+const invItemsMovementsRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/items/$itemId/movements',
+  component: () => {
+    const { itemId } = invItemsMovementsRoute.useParams();
+    return <ItemMovementsPage itemId={itemId} />;
+  },
+});
+
 // Categories mirror — same CategoriesPage mounted under /inventory so the
 // inventory sidebar can manage product categories without bouncing the
 // user back to /finance. CategoriesPage is module-agnostic (no internal
@@ -2455,6 +2484,12 @@ const mfgWoRunRoute = createRoute({
     const { woId } = mfgWoRunRoute.useParams();
     return <WorkOrderRunPage woId={woId} />;
   },
+});
+
+const mfgProductionPoolRoute = createRoute({
+  getParentRoute: () => manufacturingRoute,
+  path: '/production/pool',
+  component: InputPoolPage,
 });
 
 const mfgProductionNewRoute = createRoute({
@@ -2934,6 +2969,7 @@ export const routeTree = rootRoute.addChildren([
         mastersItemsProfitabilityRoute,
         mastersItemsNewRoute,
         mastersItemsEditRoute,
+        mastersItemsMovementsRoute,
         mastersItemsAnalysisRoute,
         mastersCategoriesRoute,
         mastersPriceListsRoute,
@@ -2985,6 +3021,7 @@ export const routeTree = rootRoute.addChildren([
       purchaseItemsRoute,
       purchaseItemsNewRoute,
       purchaseItemsEditRoute,
+      purchaseItemsMovementsRoute,
       purchaseVendorListRoute,
       purchaseVendorNewRoute,
       purchaseVendorImportRoute,
@@ -3002,6 +3039,7 @@ export const routeTree = rootRoute.addChildren([
       mfgWoEditRoute,
       mfgWoRunRoute,
       mfgProductionNewRoute,
+      mfgProductionPoolRoute,
       mfgReclaimListRoute,
       mfgReclaimNewRoute,
       mfgReclaimDetailRoute,
@@ -3078,6 +3116,7 @@ export const routeTree = rootRoute.addChildren([
       invItemsProfitabilityRoute,
       invItemsNewRoute,
       invItemsEditRoute,
+      invItemsMovementsRoute,
       invItemsAnalysisRoute,
       invCategoriesRoute,
     ]),
