@@ -27,12 +27,14 @@ const Set<String> invOutboundReasons = {'damage', 'expiry', 'theft', 'free_issue
 
 // Reasons split by direction. "correction" / "revaluation" appear on both
 // sides because either intent is valid (system over-counted or under-counted).
+// 'correction' leads because it is the outbound default — the highlighted chip
+// should be the one the eye lands on first.
 const List<String> invOutboundReasonOrder = [
+  'correction',
   'damage',
   'free_issue',
   'expiry',
   'theft',
-  'correction',
   'revaluation',
 ];
 const List<String> invInboundReasonOrder = [
@@ -42,7 +44,10 @@ const List<String> invInboundReasonOrder = [
   'revaluation',
 ];
 
-String invDefaultReason(bool isOutbound) => isOutbound ? 'damage' : 'found';
+// Outbound defaults to 'correction', not 'damage': most downward edits are
+// fixing a mis-typed count, and a real loss should be a deliberate pick rather
+// than something a user posts by accepting a default.
+String invDefaultReason(bool isOutbound) => isOutbound ? 'correction' : 'found';
 
 class InvDirectionToggle extends StatelessWidget {
   const InvDirectionToggle({super.key, required this.isOutbound, required this.onChanged});

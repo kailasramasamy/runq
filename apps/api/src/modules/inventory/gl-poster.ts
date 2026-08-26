@@ -30,14 +30,19 @@ export const INV_ACCOUNTS = {
 } as const;
 
 /**
- * Which expense account an outbound adjustment lands in.
+ * Which account an outbound adjustment lands in.
  *
  * `free_issue` is stock given away intact — that's a distribution cost, not a
- * loss. Everything else genuinely leaves the business short, so it stays in
- * write-off and keeps 5104 meaningful as "goods we lost".
+ * loss. `correction` / `revaluation` aren't losses either: they undo a count
+ * the books never should have carried, so they debit Inventory Gain and net
+ * off against the inbound leg of the same mistake. Everything else genuinely
+ * leaves the business short and keeps 5104 meaning "goods we lost" — the same
+ * set /reports/write-offs counts, so ledger and report never disagree.
  */
 function outboundAccountFor(reason: string): string {
-  return reason === 'free_issue' ? INV_ACCOUNTS.FREE_ISSUE : INV_ACCOUNTS.WRITE_OFF;
+  if (reason === 'free_issue') return INV_ACCOUNTS.FREE_ISSUE;
+  if (reason === 'correction' || reason === 'revaluation') return INV_ACCOUNTS.GAIN;
+  return INV_ACCOUNTS.WRITE_OFF;
 }
 
 export class InventoryGlPoster {

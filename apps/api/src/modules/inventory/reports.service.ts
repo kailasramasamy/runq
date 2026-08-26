@@ -6,6 +6,7 @@
 
 import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
+import { writeOffReasonSchema } from '@runq/validators';
 import type {
   StockSummaryFilter, ValuationFilter, AgeingFilter,
   MovementSummaryFilter, DeadStockFilter, WriteOffFilter,
@@ -308,7 +309,9 @@ export class ReportsService {
       WHERE a.tenant_id = ${this.tenantId}
         AND a.status = 'posted'
         AND l.qty_delta < 0
-        AND a.reason IN ('production_loss', 'damage', 'expiry', 'theft', 'free_issue')
+        AND a.reason IN (${sql.join(
+          writeOffReasonSchema.options.map((r) => sql`${r}`), sql`, `,
+        )})
         AND a.adjustment_date >= ${from}::date
         AND a.adjustment_date <= ${to}::date
         ${filter.reason ? sql`AND a.reason = ${filter.reason}` : sql``}
