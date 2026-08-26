@@ -164,29 +164,40 @@ class VmccShiftHero extends ConsumerWidget {
     );
   }
 
+  /// The day total, with the farmer count beside it and quality on its own
+  /// line. The quality chip is as wide as the total itself — sharing one row
+  /// with it clipped the litres to "218...." — and the total is the one number
+  /// on this card that must never be half-read.
   Widget _total(AppLocalizations l) {
     final s = summary;
     final total = s?.totalQty ?? 0;
-    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(l.homeHeroTotalToday.toUpperCase(),
-              style: DhenuText.caption.copyWith(color: _soft, letterSpacing: 1.1)),
-          const SizedBox(height: 2),
-          Text(litres(total, unit: true),
-              style: DhenuText.hero.copyWith(color: Colors.white),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-        ]),
-      ),
-      if (s != null && total > 0.05)
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(l.homeFarmerCount(s.farmerCount),
-              style: DhenuText.body.copyWith(color: _soft)),
-          if (s.avgFat > 0) ...[
-            const SizedBox(height: DhenuSpacing.xs),
-            _quality(s),
-          ],
-        ]),
+    final show = s != null && total > 0.05;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(l.homeHeroTotalToday.toUpperCase(),
+          style: DhenuText.caption.copyWith(color: _soft, letterSpacing: 1.1)),
+      const SizedBox(height: 2),
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(litres(total, unit: true),
+                style: DhenuText.hero.copyWith(color: Colors.white), maxLines: 1),
+          ),
+        ),
+        if (show) ...[
+          const SizedBox(width: DhenuSpacing.md),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(l.homeFarmerCount(s.farmerCount),
+                style: DhenuText.body.copyWith(color: _soft)),
+          ),
+        ],
+      ]),
+      if (show && s.avgFat > 0) ...[
+        const SizedBox(height: DhenuSpacing.sm),
+        Align(alignment: Alignment.centerLeft, child: _quality(s)),
+      ],
     ]);
   }
 

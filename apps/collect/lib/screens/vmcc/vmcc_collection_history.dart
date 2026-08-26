@@ -346,18 +346,17 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
       (groups[p.collectionDate] ??= []).add(p);
     }
     final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
-    final mixedTypes = hasMixedMilkTypes(pours.map((p) => p.milkType));
     return [
       const SizedBox(height: DhenuSpacing.sm),
       for (final d in dates) ...[
-        _farmerDayCard(t, l, farmer, d, groups[d]!, mixedTypes),
+        _farmerDayCard(t, l, farmer, d, groups[d]!),
         const SizedBox(height: DhenuSpacing.sm),
       ],
     ];
   }
 
   Widget _farmerDayCard(DhenuTokens t, AppLocalizations l, MpFarmer farmer, String date,
-      List<MpPour> dayPours, bool mixedTypes) {
+      List<MpPour> dayPours) {
     final qty = dayPours.fold<double>(0, (a, p) => a + p.qtyLitres);
     final amt = dayPours.fold<double>(0, (a, p) => a + p.lineAmount);
     // PM leads the day, matching every other pour list in the app.
@@ -380,17 +379,20 @@ class _VmccCollectionHistoryState extends ConsumerState<VmccCollectionHistory> {
         ),
         for (final p in rows) ...[
           Divider(height: 1, color: t.hairline),
-          _shiftRow(t, l, farmer, p, mixedTypes),
+          _shiftRow(t, l, farmer, p),
         ],
       ]),
     );
   }
 
-  Widget _shiftRow(DhenuTokens t, AppLocalizations l, MpFarmer farmer, MpPour p, bool mixedTypes) {
+  /// The milk type is always named, not only when the day mixes types: the rate
+  /// beneath it is type-specific, so an unlabelled row leaves the operator to
+  /// guess which chart priced it.
+  Widget _shiftRow(DhenuTokens t, AppLocalizations l, MpFarmer farmer, MpPour p) {
     final label = p.shift == Shift.am ? l.shiftAm : l.shiftPm;
     return SourceRow(
       titleIcon: p.shift == Shift.am ? DhenuIcons.sun : DhenuIcons.moon,
-      title: mixedTypes ? '$label  ·  ${milkTypeL10n(l, p.milkType)}' : label,
+      title: '$label  ·  ${milkTypeL10n(l, p.milkType)}',
       subtitle: '${rupees(p.ratePerLitre, paise: true)}/L',
       hideLeading: true,
       litres: litres(p.qtyLitres, unit: true),

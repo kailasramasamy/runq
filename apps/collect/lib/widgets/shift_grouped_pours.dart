@@ -100,18 +100,17 @@ class ShiftGroupedPours extends StatelessWidget {
 
   Widget _row(BuildContext context, DhenuTokens t, AppLocalizations l, MpPour p) {
     final farmer = farmersById[p.farmerId];
-    final milkType = milkTypeL10n(l, p.milkType);
     // The row leads with the farmer's name, which leaves two pours from the
-    // same farmer in the same shift looking identical at different rates — so
-    // when the list mixes types, the type goes on the subtitle. Single-type
-    // nodes, which are most of them, see no extra line.
-    final labelType = _mixedTypes;
+    // same farmer in the same shift looking identical at different rates, so
+    // the type is always named — an operator reading a rate needs to know which
+    // milk it priced, even at a centre that only takes one type today.
+    final milkType = milkTypeL10n(l, p.milkType);
     // The effective ₹/L sits on the subtitle so the trailing column stays a
     // two-number stack (litres over amount) and the quality line stays short.
     final rate = '${rupees(p.ratePerLitre, paise: true)}/L';
     return SourceRow(
       title: farmer != null ? farmerName(context, farmer) : l.shiftFarmerFallback,
-      subtitle: labelType ? '$milkType  ·  $rate' : rate,
+      subtitle: '$milkType  ·  $rate',
       hideLeading: !showAvatar,
       farmer: showAvatar ? farmer : null,
       litres: litres(p.qtyLitres, unit: true),
@@ -120,10 +119,6 @@ class ShiftGroupedPours extends StatelessWidget {
       onTap: () => onTapPour(p, farmer),
     );
   }
-
-  /// Judged over every pour handed to this widget, not per shift, so a farmer's
-  /// AM and PM rows label consistently.
-  bool get _mixedTypes => hasMixedMilkTypes(pours.map((p) => p.milkType));
 }
 
 /// Low-emphasis quality read for list rows: muted "FAT · SNF · W" with only the
