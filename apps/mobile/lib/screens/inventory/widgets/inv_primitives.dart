@@ -744,23 +744,16 @@ class InvStockBar extends StatelessWidget {
   final bool isLow;
   final double height;
 
-  /// The threshold figure itself, printed inside the badge that marks its
-  /// place on the track. Null when the item has no reorder level — there is
+  /// The threshold figure. Null when the item has no reorder level — there is
   /// nothing to mark. Required rather than optional so a caller can't
   /// accidentally ship a bar whose mark is a number-less blip.
   final String? markerLabel;
 
-  /// Badge geometry. The badge is a circle for a one- or two-digit threshold
-  /// and stretches to a pill beyond that, so "12" and "1,200" both sit on the
-  /// line without one of them looking like a different control.
-  static const double _badgeH = 16;
-  static const double _badgePadX = 5;
-  // Advance width of RunqText.micro, near enough to place the badge before it
+  /// Label strip under the track. Sized for one line of micro type.
+  static const double _labelH = 14;
+  // Advance width of RunqText.micro, near enough to place the label before it
   // is laid out. Only used for the edge clamp, so a pixel of drift is free.
   static const double _digitW = 6;
-
-  double _badgeWidth(String label) =>
-      math.max(_badgeH, label.length * _digitW + _badgePadX * 2);
 
   @override
   Widget build(BuildContext context) {
@@ -776,68 +769,73 @@ class InvStockBar extends StatelessWidget {
     // can't drift if the multiplier is ever retuned.
     final markerPct = cap <= 0 ? null : (reorderLevel! / cap);
     final label = markerPct == null ? null : markerLabel;
-    // The badge sits ON the line, carrying the number it marks: one object to
-    // read instead of a tick plus a caption hunting for its own notch. It is
-    // taller than the bar, so the row is sized to the badge and the track is
-    // centred behind it.
-    final rowH = math.max(height, _badgeH);
+    // The threshold is a region, not a handle: the stretch of track below it
+    // is tinted, so the boundary where the tint stops IS the mark. A fill that
+    // ends inside the tinted stretch is visibly short; one that clears it is
+    // visibly covered — no tick to decode, and nothing on the line that could
+    // be mistaken for something to drag.
+    final zone = InvColors.orangeAlert.withValues(alpha: isLow ? 0.28 : 0.16);
     return LayoutBuilder(
-      builder: (_, c) => SizedBox(
-        height: rowH,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
+      builder: (_, c) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: SizedBox(
               height: height,
-              decoration: BoxDecoration(
-                color: t.hairlineSoft,
-                borderRadius: BorderRadius.circular(99),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  width: c.maxWidth * pct,
-                  decoration: BoxDecoration(
-                    color: fill,
-                    borderRadius: BorderRadius.circular(99),
+              child: Stack(
+                children: [
+                  Positioned.fill(child: ColoredBox(color: t.hairlineSoft)),
+                  if (markerPct != null)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: c.maxWidth * markerPct,
+                      child: ColoredBox(color: zone),
+                    ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: c.maxWidth * pct,
+                    child: ColoredBox(color: fill),
                   ),
-                ),
+                ],
               ),
             ),
-            if (label != null)
-              Positioned(
-                // Keep the whole badge on the track — a level at either edge
-                // would otherwise hang half of itself off the end.
-                left: (c.maxWidth * markerPct! - _badgeWidth(label) / 2)
-                    .clamp(0.0, math.max(0.0, c.maxWidth - _badgeWidth(label))),
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  alignment: Alignment.center,
-                  constraints: const BoxConstraints(minWidth: _badgeH),
-                  padding: const EdgeInsets.symmetric(horizontal: _badgePadX),
-                  decoration: BoxDecoration(
-                    // Card-coloured body with an ink ring: the badge has to
-                    // read against the fill it sits under on a healthy item
-                    // and against the bare track on a low one.
-                    color: t.surface,
-                    border: Border.all(color: t.ink.withValues(alpha: 0.55)),
-                    borderRadius: BorderRadius.circular(99),
+          ),
+          if (label != null)
+            SizedBox(
+              height: _labelH,
+              child: Stack(
+                children: [
+                  Positioned(
+                    // Right-aligned on the boundary the tint ends at, so the
+                    // figure reads as "the tinted stretch is this deep" rather
+                    // than as a caption for the whole row.
+                    left: (c.maxWidth * markerPct! - _labelWidth(label))
+                        .clamp(0.0, math.max(0.0, c.maxWidth - _labelWidth(label))),
+                    top: 2,
+                    child: Text(
+                      'min $label',
+                      maxLines: 1,
+                      style: RunqText.micro.copyWith(
+                        color: isLow ? InvColors.orangeAlert : t.muted2,
+                        letterSpacing: 0,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.micro.copyWith(color: t.ink, height: 1.0),
-                  ),
-                ),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
+
+  // 'min ' is four characters wide on top of the figure itself.
+  double _labelWidth(String label) => (label.length + 4) * _digitW;
 }
 
 // ── Quantity + unit ────────────────────────────────────────────────────────
