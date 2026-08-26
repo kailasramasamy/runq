@@ -17,6 +17,7 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'inventory_adjust_stock_screen.dart';
 import 'inventory_items_list_screen.dart' show classLabel;
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
@@ -79,6 +80,11 @@ class InventoryItemDetailScreen extends ConsumerWidget {
               await context.push('/inventory/items/$itemId/pricing');
               ref.invalidate(invItemDetailProvider(itemId));
             },
+            onAdjustStock: () => openAdjustStock(
+              context,
+              item: item,
+              stock: stockAsync.valueOrNull ?? const [],
+            ),
             onEditThreshold: () => showReorderLevelSheet(
               context,
               itemId: itemId,
@@ -102,6 +108,7 @@ class _Body extends StatelessWidget {
     required this.priceLines,
     required this.onEditPricing,
     required this.onEditThreshold,
+    required this.onAdjustStock,
     required this.onViewMovements,
   });
   final InvItemDetail item;
@@ -109,6 +116,7 @@ class _Body extends StatelessWidget {
   final List<InvItemPriceLine> priceLines;
   final VoidCallback onEditPricing;
   final VoidCallback onEditThreshold;
+  final VoidCallback onAdjustStock;
   final VoidCallback onViewMovements;
 
   @override
@@ -152,7 +160,11 @@ class _Body extends StatelessWidget {
           classLabel: classLabel(item.itemClass, item.type),
         )),
         if (showsStock) ...[
-          const InvSectionHeader(title: 'Stock Position'),
+          InvSectionHeader(
+            title: 'Stock Position',
+            action: 'Adjust',
+            onAction: onAdjustStock,
+          ),
           _Pad(
             child: _TotalsStrip(
               qty: totalQty,

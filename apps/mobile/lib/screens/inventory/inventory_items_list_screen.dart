@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
+import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
@@ -211,6 +212,14 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // The rows live in local state, so a movement posted on a screen pushed
+    // over this one (item detail → adjust stock, threshold edit) can't reach
+    // them by provider invalidation. Reload on the revision instead, while
+    // this screen is still mounted underneath, so the balance is already
+    // right when the user walks back.
+    ref.listen(invStockRevisionProvider, (_, _) {
+      if (mounted) _load(reset: true);
+    });
     return Scaffold(
       backgroundColor: t.bgWarm,
       appBar: InvPlainAppBar(
