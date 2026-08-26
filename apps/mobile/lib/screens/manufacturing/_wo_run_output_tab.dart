@@ -130,10 +130,13 @@ class _OutputEntrySheetState extends ConsumerState<_OutputEntrySheet> {
   }
 
   Future<void> _pickExpiry() async {
+    // One `now` for both bounds — see the note on RecordProductionScreen's
+    // picker. Opens on the current month rather than three months out.
+    final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expiryDate ?? DateTime.now().add(const Duration(days: 90)),
-      firstDate: DateTime.now(),
+      initialDate: _expiryDate ?? today,
+      firstDate: today,
       lastDate: DateTime(2100),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(

@@ -248,10 +248,17 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   }
 
   Future<void> _pickExpiry() async {
+    // One `now` for both bounds: two DateTime.now() calls differ by
+    // microseconds, and an initialDate a hair before firstDate trips an
+    // assertion inside showDatePicker.
+    final today = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expiryDate ?? DateTime.now().add(const Duration(days: 90)),
-      firstDate: DateTime.now(),
+      // Opens on the current month. Defaulting three months out put the
+      // calendar in November for an August run — fresh dairy expires in days,
+      // and no shelf life is configured to guess a better date from.
+      initialDate: _expiryDate ?? today,
+      firstDate: today,
       lastDate: DateTime(2100),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
