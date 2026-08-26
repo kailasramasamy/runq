@@ -103,18 +103,48 @@ class WarehousePicker extends ConsumerWidget {
     );
   }
 
-  Future<_PickerResult?> _openSheet(BuildContext context, List<InvWarehouse> all) {
-    return showModalBottomSheet<_PickerResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _PickerSheet(
-        warehouses: all,
-        currentValue: value,
-        allowAll: allowAll,
-      ),
-    );
-  }
+  Future<_PickerResult?> _openSheet(BuildContext context, List<InvWarehouse> all) =>
+      _sheet(context, warehouses: all, value: value, allowAll: allowAll);
+}
+
+/// What [showWarehousePicker] hands back. Returning null from the future means
+/// the sheet was dismissed; returning a pick whose [id] is null means the user
+/// chose "All warehouses" — two different answers a bare `String?` can't tell
+/// apart.
+class WarehousePick {
+  const WarehousePick(this.id);
+  final String? id;
+}
+
+/// The picker sheet without the pill trigger, for callers that draw their own
+/// (the movement filter row, whose controls are all chips).
+Future<WarehousePick?> showWarehousePicker(
+  BuildContext context, {
+  required List<InvWarehouse> warehouses,
+  String? value,
+  bool allowAll = true,
+}) async {
+  final r = await _sheet(context,
+      warehouses: warehouses, value: value, allowAll: allowAll);
+  return r == null ? null : WarehousePick(r.isAll ? null : r.id);
+}
+
+Future<_PickerResult?> _sheet(
+  BuildContext context, {
+  required List<InvWarehouse> warehouses,
+  required String? value,
+  required bool allowAll,
+}) {
+  return showModalBottomSheet<_PickerResult>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _PickerSheet(
+      warehouses: warehouses,
+      currentValue: value,
+      allowAll: allowAll,
+    ),
+  );
 }
 
 /// Internal — what the sheet returns. null id + isAll=true means "All".

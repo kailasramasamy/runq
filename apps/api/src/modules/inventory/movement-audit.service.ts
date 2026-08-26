@@ -22,6 +22,7 @@ import {
   workOrders, boms, woConsumption, woOutput, mfgReclaims,
   mpConsignments,
 } from '@runq/db';
+import { movementGroupMembers } from '@runq/validators';
 import type { ItemMovementFilter } from '@runq/validators';
 
 /** Document kinds the UI knows how to deep-link. */
@@ -74,6 +75,13 @@ export class ItemMovementAuditService {
     if (filter.to) conds.push(lte(stockLedger.movedAt, new Date(`${filter.to}T23:59:59.999Z`)));
     if (filter.direction === 'in') conds.push(sql`${stockLedger.qtyIn} > 0`);
     if (filter.direction === 'out') conds.push(sql`${stockLedger.qtyOut} > 0`);
+    // Group is the coarse cut ("Adjustments"), type the exact one
+    // ("Adjustment out"). A type alone is a complete filter, so the two are
+    // independent clauses rather than nested.
+    if (filter.group) {
+      conds.push(inArray(stockLedger.movementType, [...movementGroupMembers[filter.group]]));
+    }
+    if (filter.type) conds.push(eq(stockLedger.movementType, filter.type));
 
     // Over-fetch by one so the client knows whether another page exists
     // without paying for a COUNT(*) over the whole ledger.

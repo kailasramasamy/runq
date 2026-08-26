@@ -18,6 +18,9 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/movement_filter_sheets.dart';
+import 'widgets/movement_filters.dart';
+import 'widgets/warehouse_picker.dart';
 
 class InventoryItemMovementsScreen extends ConsumerStatefulWidget {
   const InventoryItemMovementsScreen({
@@ -46,12 +49,9 @@ class _ItemMovementsState extends ConsumerState<InventoryItemMovementsScreen> {
       .toIso8601String()
       .substring(0, 10);
 
-  void _setDirection(String? d) =>
-      setState(() => _q = _q.copyWith(direction: d, page: 1));
-
-  void _setWindow(int? days) => setState(
-        () => _q = _q.copyWith(from: days == null ? null : _isoDaysAgo(days), page: 1),
-      );
+  /// Every filter change resets to page 1 — staying on page 4 of a trail you
+  /// just narrowed lands the user on an empty screen that reads as "no data".
+  void _apply(InvMovementQuery q) => setState(() => _q = q);
 
   @override
   Widget build(BuildContext context) {
@@ -66,12 +66,7 @@ class _ItemMovementsState extends ConsumerState<InventoryItemMovementsScreen> {
       ),
       body: Column(
         children: [
-          _Filters(
-            direction: _q.direction,
-            from: _q.from,
-            onDirection: _setDirection,
-            onWindow: _setWindow,
-          ),
+          _Filters(q: _q, onChanged: _apply, isoDaysAgo: _isoDaysAgo),
           Expanded(
             child: RefreshIndicator(
               color: InvColors.brand(context),
@@ -123,73 +118,140 @@ class _Message extends StatelessWidget {
   }
 }
 
-class _Filters extends StatelessWidget {
+/// Direction on the surface, everything else one layer down.
+///
+/// The row used to be six chips of two different kinds — three directions and
+/// three windows — scrolling off the right edge with two of them lit at once,
+/// which read as one broken multi-select. Direction is now a segment (it is
+/// the axis, and it is always set), and window / type / warehouse are pills
+/// that state their own value and open a sheet.
+class _Filters extends ConsumerWidget {
   const _Filters({
-    required this.direction,
-    required this.from,
-    required this.onDirection,
-    required this.onWindow,
+    required this.q,
+    required this.onChanged,
+    required this.isoDaysAgo,
   });
-  final String? direction;
-  final String? from;
-  final ValueChanged<String?> onDirection;
-  final ValueChanged<int?> onWindow;
+  final InvMovementQuery q;
+  final ValueChanged<InvMovementQuery> onChanged;
+  final String Function(int days) isoDaysAgo;
 
   @override
-  Widget build(BuildContext context) {
-    // The window pills compare against `from` rather than tracking their own
+  Widget build(BuildContext context, WidgetRef ref) {
+    // The window pill reads back off `from` rather than tracking its own
     // selection, so a rebuild can never drift from the query actually in use.
-    final days = from == null
+    final days = q.from == null
         ? null
-        : DateTime.now()
-            .difference(DateTime.parse(from!))
-            .inDays;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Row(
+        : DateTime.now().difference(DateTime.parse(q.from!)).inDays;
+    final warehouses = ref.watch(invWarehousesProvider).valueOrNull ?? const [];
+    final wh = q.warehouseId == null
+        ? null
+        : warehouses.where((w) => w.id == q.warehouseId).firstOrNull;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InvFilterPill(
-            label: 'All',
-            active: direction == null,
-            onTap: () => onDirection(null),
+          InvDirectionSegment(
+            value: q.direction,
+            inLabel: 'Added',
+            outLabel: 'Removed',
+            outColor: InvColors.error,
+            onChanged: (d) =>
+                onChanged(q.copyWith(direction: d, page: 1)),
           ),
-          const SizedBox(width: 8),
-          InvFilterPill(
-            label: 'Added',
-            active: direction == 'in',
-            activeColor: InvColors.success,
-            onTap: () => onDirection('in'),
-          ),
-          const SizedBox(width: 8),
-          InvFilterPill(
-            label: 'Removed',
-            active: direction == 'out',
-            activeColor: InvColors.error,
-            onTap: () => onDirection('out'),
-          ),
-          const SizedBox(width: 16),
-          InvFilterPill(
-            label: '30d',
-            active: days != null && days <= 31,
-            onTap: () => onWindow(30),
-          ),
-          const SizedBox(width: 8),
-          InvFilterPill(
-            label: '90d',
-            active: days != null && days > 31 && days <= 91,
-            onTap: () => onWindow(90),
-          ),
-          const SizedBox(width: 8),
-          InvFilterPill(
-            label: 'All time',
-            active: days == null,
-            onTap: () => onWindow(null),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                InvDropPill(
+                  icon: Icons.event_rounded,
+                  label: invItemWindowLabel(days),
+                  // 90 days is the screen's own default, not a narrowing.
+                  active: invItemWindowLabel(days) != 'Last 90 days',
+                  onTap: () async {
+                    final pick = await showInvItemWindowSheet(context, days: days);
+                    if (pick != null) {
+                      onChanged(q.copyWith(
+                        from: pick.days == null ? null : isoDaysAgo(pick.days!),
+                        page: 1,
+                      ));
+                    }
+                  },
+                ),
+                const SizedBox(width: 6),
+                InvDropPill(
+                  icon: _typeIcon(q.group),
+                  label: _typeLabel(q),
+                  active: q.group != null || q.type != null,
+                  onTap: () async {
+                    final pick = await showInvMovementTypeSheet(
+                      context,
+                      group: q.group,
+                      type: q.type,
+                    );
+                    if (pick != null) {
+                      onChanged(q.copyWith(
+                        group: pick.group,
+                        type: pick.type,
+                        page: 1,
+                      ));
+                    }
+                  },
+                ),
+                const SizedBox(width: 6),
+                InvDropPill(
+                  icon: Icons.warehouse_outlined,
+                  label: wh?.name ?? 'All warehouses',
+                  active: q.warehouseId != null,
+                  onTap: () async {
+                    final picked = await showWarehousePicker(
+                      context,
+                      warehouses: warehouses,
+                      value: q.warehouseId,
+                    );
+                    if (picked != null) {
+                      onChanged(q.copyWith(warehouseId: picked.id, page: 1));
+                    }
+                  },
+                ),
+                if (q.hasNarrowing) ...[
+                  const SizedBox(width: 6),
+                  InvDropPill(
+                    icon: Icons.close_rounded,
+                    label: 'Clear',
+                    active: false,
+                    showChevron: false,
+                    // The window survives a clear: it is how far back you are
+                    // reading, not a narrowing of what you are reading.
+                    onTap: () => onChanged(InvMovementQuery(
+                      itemId: q.itemId,
+                      from: q.from,
+                    )),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  static String _typeLabel(InvMovementQuery q) {
+    if (q.type != null) return invMovementLabel(q.type!);
+    if (q.group != null) {
+      return invMovementGroups.firstWhere((g) => g.value == q.group).label;
+    }
+    return 'All types';
+  }
+
+  static IconData _typeIcon(String? group) => group == null
+      ? Icons.category_outlined
+      : invMovementGroups.firstWhere((g) => g.value == group).icon;
 }
 
 class _MovementList extends StatelessWidget {

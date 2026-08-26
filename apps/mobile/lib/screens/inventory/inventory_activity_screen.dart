@@ -97,16 +97,20 @@ class _InventoryActivityScreenState
               ),
               const SizedBox(height: 12),
             ],
+            // Controls first, then what they add up to. The money header is a
+            // reading of the current filter, so it belongs under the controls
+            // that set it — and putting the filters at the top means the
+            // active cut is visible without scrolling back up.
+            InvMovementFilterBar(filter: _filter, onChanged: _apply),
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: InvMovementMoneyHeader(
                 summary: async.valueOrNull?.summary,
-                periodLabel: _periodLabel(_filter.period),
+                periodLabel: _headerLabel(),
                 direction: _filter.direction,
               ),
             ),
-            const SizedBox(height: 12),
-            InvMovementFilterBar(filter: _filter, onChanged: _apply),
             const SizedBox(height: 14),
             async.when(
               loading: () => const Padding(
@@ -123,8 +127,20 @@ class _InventoryActivityScreenState
     );
   }
 
-  static String _periodLabel(String period) =>
-      invMovementPeriods.firstWhere((p) => p.value == period).label;
+  /// The header's eyebrow now has to carry the type too — with the chip rows
+  /// gone, "TODAY" alone wouldn't say that the figures under it are only
+  /// adjustments.
+  String _headerLabel() {
+    final period = invMovementPeriodLabel(_filter.period);
+    if (_filter.type != null) {
+      return '$period · ${invMovementLabel(_filter.type!)}';
+    }
+    if (_filter.group != null) {
+      final g = invMovementGroups.firstWhere((g) => g.value == _filter.group);
+      return '$period · ${g.label}';
+    }
+    return period;
+  }
 
   Widget _empty() => InvEmptyState(
         icon: Icons.history_rounded,

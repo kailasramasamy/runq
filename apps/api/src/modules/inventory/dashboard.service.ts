@@ -390,6 +390,9 @@ export class InventoryDashboardService {
             movementGroupMembers[q.group].map((m) => sql`${m}`), sql`, `,
           )})`
         : sql`TRUE`,
+      // Independent of `group` on purpose: the sheet always sends both, but a
+      // type alone is a complete filter and must behave like one.
+      q.type ? sql`sl.movement_type = ${q.type}` : sql`TRUE`,
       q.search
         ? sql`(i.name ILIKE ${`%${q.search}%`} OR i.sku ILIKE ${`%${q.search}%`}
                OR sl.batch_no ILIKE ${`%${q.search}%`})`

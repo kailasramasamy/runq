@@ -85,21 +85,6 @@ export const inventoryItemTrackingSchema = z.object({
 
 export type InventoryItemTrackingInput = z.infer<typeof inventoryItemTrackingSchema>;
 
-/**
- * Per-item stock audit trail (item master → Stock movements).
- * `direction` filters in/out rather than exposing the raw movement-type enum,
- * which the UI presents as a label anyway.
- */
-export const itemMovementFilterSchema = z.object({
-  warehouseId: z.string().uuid().optional(),
-  direction: z.enum(['in', 'out']).optional(),
-  from: dateString.optional(),
-  to: dateString.optional(),
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-});
-
-export type ItemMovementFilter = z.infer<typeof itemMovementFilterSchema>;
 
 // ── Movement feed (mobile "Stock Movement" screen) ────────────────────────
 // The ledger has 17 movement types; an owner thinks in about seven. These
@@ -124,9 +109,47 @@ export type MovementGroup = z.infer<typeof movementGroupSchema>;
 export const movementPeriodSchema = z.enum(['today', '7d', '30d', 'month', 'all']);
 export type MovementPeriod = z.infer<typeof movementPeriodSchema>;
 
+/**
+ * The concrete ledger types, flattened out of the groups above so the two
+ * can't drift. A group is the coarse cut ("Adjustments"); a type is the exact
+ * fact on the row ("Adjustment out"), which is what the feed prints and what
+ * the filter sheet drills into.
+ */
+type MovementTypeValue =
+  (typeof movementGroupMembers)[keyof typeof movementGroupMembers][number];
+export const movementTypeSchema = z.enum(
+  Object.values(movementGroupMembers).flat() as unknown as
+    [MovementTypeValue, ...MovementTypeValue[]],
+);
+export type MovementType = z.infer<typeof movementTypeSchema>;
+
+/**
+ * Per-item stock audit trail (item master → Stock movements).
+ *
+ * `direction` is the coarse in/out cut. `group` and `type` narrow to what
+ * moved the stock — the trail already prints that label on every row ("Produced",
+ * "Adjustment −"), so a user reading it can ask for one kind of movement
+ * instead of scrolling past the rest. Both are declared below the feed's own
+ * vocabulary so the two screens filter on identical values.
+ */
+export const itemMovementFilterSchema = z.object({
+  warehouseId: z.string().uuid().optional(),
+  direction: z.enum(['in', 'out']).optional(),
+  group: movementGroupSchema.optional(),
+  type: movementTypeSchema.optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
+export type ItemMovementFilter = z.infer<typeof itemMovementFilterSchema>;
+
 export const movementFeedQuerySchema = z.object({
   direction: z.enum(['in', 'out']).optional(),
   group: movementGroupSchema.optional(),
+  /** Narrows within `group` — sent alone it still stands on its own. */
+  type: movementTypeSchema.optional(),
   warehouseId: z.string().uuid().optional(),
   period: movementPeriodSchema.default('today'),
   search: z.string().trim().max(80).optional(),

@@ -148,6 +148,14 @@ class InvMovementQuery {
   final String itemId;
   final String? warehouseId;
   final String? direction;
+
+  /// Coarse movement bucket — receipt | dispatch | production | … Null means
+  /// every kind of movement.
+  final String? group;
+
+  /// Exact ledger type inside [group] ('adjustment_out'). Cleared whenever
+  /// the group changes, so the pair can't describe an empty intersection.
+  final String? type;
   final String? from;
   final String? to;
   final int page;
@@ -156,6 +164,8 @@ class InvMovementQuery {
     required this.itemId,
     this.warehouseId,
     this.direction,
+    this.group,
+    this.type,
     this.from,
     this.to,
     this.page = 1,
@@ -164,6 +174,8 @@ class InvMovementQuery {
   InvMovementQuery copyWith({
     Object? warehouseId = _unset,
     Object? direction = _unset,
+    Object? group = _unset,
+    Object? type = _unset,
     Object? from = _unset,
     Object? to = _unset,
     int? page,
@@ -173,6 +185,8 @@ class InvMovementQuery {
         warehouseId:
             warehouseId == _unset ? this.warehouseId : warehouseId as String?,
         direction: direction == _unset ? this.direction : direction as String?,
+        group: group == _unset ? this.group : group as String?,
+        type: type == _unset ? this.type : type as String?,
         from: from == _unset ? this.from : from as String?,
         to: to == _unset ? this.to : to as String?,
         page: page ?? this.page,
@@ -186,12 +200,20 @@ class InvMovementQuery {
       other.itemId == itemId &&
       other.warehouseId == warehouseId &&
       other.direction == direction &&
+      other.group == group &&
+      other.type == type &&
       other.from == from &&
       other.to == to &&
       other.page == page;
 
+  /// True when anything beyond the window narrows the trail — drives the
+  /// Clear pill.
+  bool get hasNarrowing =>
+      direction != null || group != null || type != null || warehouseId != null;
+
   @override
-  int get hashCode => Object.hash(itemId, warehouseId, direction, from, to, page);
+  int get hashCode =>
+      Object.hash(itemId, warehouseId, direction, group, type, from, to, page);
 }
 
 const invMovementLabels = <String, String>{

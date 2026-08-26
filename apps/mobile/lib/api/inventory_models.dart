@@ -1822,6 +1822,11 @@ class InvMovementFilter {
   /// Movement group — receipt | dispatch | production | transfer |
   /// adjustment | stock_take | return | other. Null means every group.
   final String? group;
+
+  /// Concrete ledger type inside [group] — 'adjustment_out', 'production_in'
+  /// and so on. Null means every type in the group. Setting a group clears
+  /// this, so the pair can never describe an empty intersection.
+  final String? type;
   final String? warehouseId;
 
   /// today | 7d | 30d | month | all.
@@ -1830,6 +1835,7 @@ class InvMovementFilter {
   const InvMovementFilter({
     this.direction,
     this.group,
+    this.type,
     this.warehouseId,
     this.period = 'today',
     this.search = '',
@@ -1838,6 +1844,7 @@ class InvMovementFilter {
   InvMovementFilter copyWith({
     String? Function()? direction,
     String? Function()? group,
+    String? Function()? type,
     String? Function()? warehouseId,
     String? period,
     String? search,
@@ -1845,6 +1852,7 @@ class InvMovementFilter {
       InvMovementFilter(
         direction: direction == null ? this.direction : direction(),
         group: group == null ? this.group : group(),
+        type: type == null ? this.type : type(),
         warehouseId: warehouseId == null ? this.warehouseId : warehouseId(),
         period: period ?? this.period,
         search: search ?? this.search,
@@ -1855,6 +1863,7 @@ class InvMovementFilter {
   bool get hasNarrowing =>
       direction != null ||
       group != null ||
+      type != null ||
       warehouseId != null ||
       search.isNotEmpty;
 
@@ -1863,12 +1872,14 @@ class InvMovementFilter {
       other is InvMovementFilter &&
       other.direction == direction &&
       other.group == group &&
+      other.type == type &&
       other.warehouseId == warehouseId &&
       other.period == period &&
       other.search == search;
 
   @override
-  int get hashCode => Object.hash(direction, group, warehouseId, period, search);
+  int get hashCode =>
+      Object.hash(direction, group, type, warehouseId, period, search);
 }
 
 /// In / out money and document counts across the whole filtered set — not

@@ -46,6 +46,7 @@ class InventoryRepo {
       'period': f.period,
       if (f.direction != null) 'direction': f.direction!,
       if (f.group != null) 'group': f.group!,
+      if (f.type != null) 'type': f.type!,
       if (f.warehouseId != null) 'warehouseId': f.warehouseId!,
       if (f.search.trim().isNotEmpty) 'search': f.search.trim(),
       'limit': '$limit',
@@ -118,6 +119,8 @@ class InventoryRepo {
     final qp = <String, String>{'page': '${q.page}', 'limit': '50'};
     if (q.warehouseId != null) qp['warehouseId'] = q.warehouseId!;
     if (q.direction != null) qp['direction'] = q.direction!;
+    if (q.group != null) qp['group'] = q.group!;
+    if (q.type != null) qp['type'] = q.type!;
     if (q.from != null) qp['from'] = q.from!;
     if (q.to != null) qp['to'] = q.to!;
     final res = await apiClient.get('/inventory/items/${q.itemId}/movements${_qs(qp)}');

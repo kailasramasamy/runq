@@ -5,12 +5,15 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../api/inventory_models.dart';
+import '../../../providers/inventory_providers.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'inv_colors.dart';
 import 'inv_primitives.dart';
+import 'movement_filter_sheets.dart';
 import 'warehouse_picker.dart';
 
 // ── Vocabulary ────────────────────────────────────────────────────────────
@@ -23,6 +26,11 @@ const invMovementPeriods = <({String value, String label})>[
   (value: 'month', label: 'This month'),
   (value: 'all', label: 'All time'),
 ];
+
+/// Label for a period value — the pill prints it, and so does the money
+/// header above the list.
+String invMovementPeriodLabel(String period) =>
+    invMovementPeriods.firstWhere((p) => p.value == period).label;
 
 /// Movement groups, in the order an owner cares about them. Mirrors
 /// `movementGroupMembers` on the API — the ledger's 17 types collapse to 8.
@@ -233,13 +241,15 @@ class _Figure extends StatelessWidget {
 
 // ── Filter bar ────────────────────────────────────────────────────────────
 
-/// Direction segment + period chips + group chips + warehouse.
+/// Direction segment + one row of value-carrying pills.
 ///
-/// Direction is a three-way segment rather than another chip row because it
-/// is the axis the user arrives on: Home's "Today in" and "Today out" both
-/// land here, and they have to be able to see which one they are looking at
-/// without reading a row of pills.
-class InvMovementFilterBar extends StatelessWidget {
+/// Direction stays a three-way segment because it is the axis the user
+/// arrives on: Home's "Today in" and "Today out" both land here, and they
+/// have to see which one they are looking at without reading a row of pills.
+/// Everything else collapsed into pills that state their own current value
+/// and open a sheet — a period row plus an eight-chip type row cost three
+/// bands of screen to say what "Today · Adjustment out" says in one.
+class InvMovementFilterBar extends ConsumerWidget {
   const InvMovementFilterBar({
     super.key,
     required this.filter,
@@ -249,78 +259,202 @@ class InvMovementFilterBar extends StatelessWidget {
   final ValueChanged<InvMovementFilter> onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final warehouses = ref.watch(invWarehousesProvider).valueOrNull ?? const [];
+    final wh = filter.warehouseId == null
+        ? null
+        : warehouses.where((w) => w.id == filter.warehouseId).firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DirectionSegment(
+        InvDirectionSegment(
           value: filter.direction,
           onChanged: (d) => onChanged(filter.copyWith(direction: () => d)),
         ),
         const SizedBox(height: 10),
-        _chipRow([
-          for (final p in invMovementPeriods)
-            InvFilterPill(
-              label: p.label,
-              active: filter.period == p.value,
-              onTap: () => onChanged(filter.copyWith(period: p.value)),
-            ),
-        ]),
-        const SizedBox(height: 8),
-        _chipRow([
-          InvFilterPill(
-            label: 'All types',
-            active: filter.group == null,
-            onTap: () => onChanged(filter.copyWith(group: () => null)),
-          ),
-          for (final g in invMovementGroups)
-            InvFilterPill(
-              label: g.label,
-              icon: g.icon,
-              active: filter.group == g.value,
-              onTap: () => onChanged(filter.copyWith(
-                group: () => filter.group == g.value ? null : g.value,
-              )),
-            ),
-        ]),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: WarehousePicker(
-            value: filter.warehouseId,
-            dense: true,
-            onChanged: (id) => onChanged(filter.copyWith(warehouseId: () => id)),
+        SizedBox(
+          height: 34,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              InvDropPill(
+                icon: Icons.event_rounded,
+                label: invMovementPeriodLabel(filter.period),
+                // Every window is a real answer, so only a non-default one
+                // counts as narrowing — 'Today' lit up would mean nothing.
+                active: filter.period != 'today',
+                onTap: () async {
+                  final p = await showInvMovementPeriodSheet(
+                    context,
+                    period: filter.period,
+                  );
+                  if (p != null) onChanged(filter.copyWith(period: p));
+                },
+              ),
+              const SizedBox(width: 6),
+              InvDropPill(
+                icon: _typeIcon(filter),
+                label: _typeLabel(filter),
+                active: filter.group != null || filter.type != null,
+                onTap: () async {
+                  final pick = await showInvMovementTypeSheet(
+                    context,
+                    group: filter.group,
+                    type: filter.type,
+                  );
+                  if (pick != null) {
+                    onChanged(filter.copyWith(
+                      group: () => pick.group,
+                      type: () => pick.type,
+                    ));
+                  }
+                },
+              ),
+              const SizedBox(width: 6),
+              InvDropPill(
+                icon: Icons.warehouse_outlined,
+                label: wh?.name ?? 'All warehouses',
+                active: filter.warehouseId != null,
+                onTap: () async {
+                  final picked = await showWarehousePicker(
+                    context,
+                    warehouses: warehouses,
+                    value: filter.warehouseId,
+                  );
+                  if (picked != null) {
+                    onChanged(filter.copyWith(warehouseId: () => picked.id));
+                  }
+                },
+              ),
+              if (filter.hasNarrowing) ...[
+                const SizedBox(width: 6),
+                InvDropPill(
+                  icon: Icons.close_rounded,
+                  label: 'Clear',
+                  active: false,
+                  showChevron: false,
+                  // Period survives a clear: it is the window you are reading,
+                  // not a narrowing, and dropping it back to today would hide
+                  // rows the user never filtered out.
+                  onTap: () => onChanged(InvMovementFilter(period: filter.period)),
+                ),
+              ],
+            ],
           ),
         ),
       ],
     );
   }
 
-  /// Edge-to-edge scroller with the list's own 16pt gutter re-applied as
-  /// padding, so the first chip lines up with the cards above it and the
-  /// last one can still scroll clear of the screen edge.
-  Widget _chipRow(List<Widget> chips) => SizedBox(
-        height: 32,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: chips.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 6),
-          itemBuilder: (_, i) => Center(child: chips[i]),
-        ),
-      );
+  static String _typeLabel(InvMovementFilter f) {
+    if (f.type != null) return invMovementLabel(f.type!);
+    if (f.group != null) {
+      return invMovementGroups.firstWhere((g) => g.value == f.group).label;
+    }
+    return 'All types';
+  }
+
+  static IconData _typeIcon(InvMovementFilter f) {
+    final g = f.group;
+    if (g == null) return Icons.category_outlined;
+    return invMovementGroups.firstWhere((x) => x.value == g).icon;
+  }
 }
 
-class _DirectionSegment extends StatelessWidget {
-  const _DirectionSegment({required this.value, required this.onChanged});
+/// A pill that shows its own current value and opens a sheet. Distinct from
+/// [InvFilterPill], which is a binary on/off chip — these always carry a
+/// value, so a solid brand fill would leave the row permanently shouting.
+///
+/// Shared by both movement screens: the feed's filter row and the per-item
+/// audit trail's.
+class InvDropPill extends StatelessWidget {
+  const InvDropPill({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.showChevron = true,
+  });
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final bool showChevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = InvColors.brand(context);
+    final fg = active ? brand : t.ink;
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 7, 8, 7),
+            decoration: BoxDecoration(
+              color: active ? brand.withValues(alpha: 0.10) : t.surface,
+              border: Border.all(color: active ? brand : t.hairline),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: fg),
+                const SizedBox(width: 5),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: RunqText.caption.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (showChevron) ...[
+                  const SizedBox(width: 2),
+                  Icon(Icons.expand_more_rounded, size: 16, color: fg),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Three-way in/out segment. Public because both movement screens arrive on
+/// this axis; the labels differ because the feed talks about the stock ("In" /
+/// "Out") while the item trail talks about the item ("Added" / "Removed").
+class InvDirectionSegment extends StatelessWidget {
+  const InvDirectionSegment({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.inLabel = 'In',
+    this.outLabel = 'Out',
+    this.outColor = InvColors.amberDeep,
+  });
   final String? value;
   final ValueChanged<String?> onChanged;
+  final String inLabel;
+  final String outLabel;
+  final Color outColor;
 
-  static const _options = <({String? value, String label, Color? color})>[
-    (value: null, label: 'All', color: null),
-    (value: 'in', label: 'In', color: InvColors.success),
-    (value: 'out', label: 'Out', color: InvColors.amberDeep),
-  ];
+  List<({String? value, String label, Color? color})> get _options => [
+        (value: null, label: 'All', color: null),
+        (value: 'in', label: inLabel, color: InvColors.success),
+        (value: 'out', label: outLabel, color: outColor),
+      ];
 
   @override
   Widget build(BuildContext context) {
