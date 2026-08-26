@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/app_module_provider.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
+import '../screens/manufacturing/mfg_menu_sheet.dart';
 import 'fab_sheet.dart';
 
 const _inventoryAmber = Color(0xFFD97706);
@@ -108,8 +109,12 @@ const _purchaseTabs = <_Tab>[
   _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
 
+/// Non-route path marking a tab that opens a sheet rather than navigating.
+const _menuTabPath = '#menu';
+
 // Manufacturing module tabs. Home is the dashboard; BOMs is the recipe
-// list; WOs is the work order list.
+// list; WOs is the work order list; Menu is the hub for everything that
+// doesn't earn a tab (input pool, reclaims, write-offs, reports).
 const _manufacturingTabs = <_Tab>[
   _Tab('/manufacturing', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab(
@@ -124,6 +129,9 @@ const _manufacturingTabs = <_Tab>[
     Icons.precision_manufacturing_outlined,
     Icons.precision_manufacturing_rounded,
   ),
+  // Sentinel path: Menu opens a bottom sheet instead of navigating, so it
+  // must never match a location in `_activeIndex`.
+  _Tab(_menuTabPath, 'Menu', Icons.menu_rounded, Icons.menu_rounded),
 ];
 
 class RootShell extends ConsumerStatefulWidget {
@@ -320,7 +328,9 @@ class _RootShellState extends ConsumerState<RootShell>
           // tabs flow.
           onTap: (i) {
             final target = tabs[i].path;
-            if (module == AppModule.hr && i != 0) {
+            if (target == _menuTabPath) {
+              showMfgMenuSheet(context);
+            } else if (module == AppModule.hr && i != 0) {
               context.push(target);
             } else {
               context.go(target);
@@ -328,15 +338,15 @@ class _RootShellState extends ConsumerState<RootShell>
           },
           onFab: _toggleSheet,
           fabCtrl: _fabCtrl,
-          // Manufacturing puts the action button after its tabs rather than
-          // between them: with only three destinations, a centre FAB splits
-          // "BOMs" off from "WOs", which read as a pair.
-          fabSlot: module == AppModule.manufacturing ? tabs.length : 2,
         ),
       ),
     );
   }
 }
+
+/// How many tabs sit before the centre action button — every module now
+/// runs a 4-tab nav with the FAB splitting it down the middle.
+const int _fabSlot = 2;
 
 class _BottomNavPill extends StatelessWidget {
   final List<_Tab> tabs;
@@ -346,9 +356,6 @@ class _BottomNavPill extends StatelessWidget {
   final VoidCallback onFab;
   final AnimationController fabCtrl;
 
-  /// How many tabs sit before the action button. 2 centres it (the default
-  /// across modules); `tabs.length` parks it at the end.
-  final int fabSlot;
   const _BottomNavPill({
     required this.tabs,
     required this.activeIndex,
@@ -356,7 +363,6 @@ class _BottomNavPill extends StatelessWidget {
     required this.onTap,
     required this.onFab,
     required this.fabCtrl,
-    this.fabSlot = 2,
   });
 
   @override
@@ -384,7 +390,7 @@ class _BottomNavPill extends StatelessWidget {
             ),
             child: Row(
               children: [
-                for (var i = 0; i < fabSlot && i < tabs.length; i++)
+                for (var i = 0; i < _fabSlot && i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
                       tab: tabs[i],
@@ -394,7 +400,7 @@ class _BottomNavPill extends StatelessWidget {
                     ),
                   ),
                 _FabButton(onTap: onFab, fabCtrl: fabCtrl, accent: accent),
-                for (var i = fabSlot; i < tabs.length; i++)
+                for (var i = _fabSlot; i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
                       tab: tabs[i],

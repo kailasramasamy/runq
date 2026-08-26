@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,8 +21,9 @@ part '_mfg_home_hero.dart';
 ///
 /// Visual rhythm matches `purchase_home_screen.dart` (per /module-ui skill
 /// §Step 3 "Home" archetype): top bar with switcher + bell, greeting with
-/// date + first name, gradient hero KPI strip, 2×3 quick-action grid,
-/// recent work orders card.
+/// date + first name, gradient hero KPI strip, perishables + raw-material
+/// sections, recent work orders card. Actions live on the centre FAB and the
+/// Menu sheet, not in a grid the bottom nav already duplicates.
 
 /// The home card is a glance, not a list — anything past this many rows is
 /// reached through "See all" rather than scrolled past on the way to the rest
@@ -99,9 +98,6 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               // non-perishable tenants don't see noise. Driven by the same
               // /inventory/stock/expiring endpoint as the web Mfg tile.
               const _PerishablesSection(),
-              MfgSectionHeader(label: 'Quick actions'),
-              const _QuickActionsGrid(),
-              const SizedBox(height: 16),
               // What a run can actually consume. Previously this was only
               // answerable by leaving for the Inventory module, which is the
               // wrong place to be standing when writing a BOM.
@@ -314,89 +310,6 @@ class _Greeting extends ConsumerWidget {
   }
 }
 
-// ── Quick actions grid (2×3) ──────────────────────────────────────────────
-
-class _QuickActionsGrid extends ConsumerWidget {
-  const _QuickActionsGrid();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final draftAsync = ref.watch(
-      workOrderListProvider(const WoListParams(status: 'draft')),
-    );
-    final draftCount = draftAsync.maybeWhen(data: (r) => r.total, orElse: () => 0);
-    // Counts come from the same dashboard the hero uses, so the grid can't
-    // disagree with the numbers above it.
-    final dash = ref.watch(mfgDashboardProvider).asData?.value;
-    final bomCount = dash?.activeBomCount ?? 0;
-    final inProgress = dash?.inProgressCount ?? 0;
-
-    final tiles = <MfgQuickActionTile>[
-      MfgQuickActionTile(
-        icon: Icons.bolt_rounded,
-        title: 'Record Production',
-        subtitle: 'No WO yet? Log what was made',
-        onTap: () => context.push('/manufacturing/production/new'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.layers_outlined,
-        title: 'Input pool',
-        subtitle: 'What a run would draw on',
-        onTap: () => context.push('/manufacturing/input-pool'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.recycling_rounded,
-        title: 'Reclaim stock',
-        subtitle: 'Unsold goods back to raw material',
-        onTap: () => context.push('/manufacturing/reclaims/new'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.view_list_outlined,
-        title: 'BOMs',
-        subtitle: '$bomCount active',
-        onTap: () => context.push('/manufacturing/boms'),
-      ),
-      MfgQuickActionTile(
-        icon: Icons.assignment_outlined,
-        title: 'Work orders',
-        subtitle: inProgress > 0 ? '$inProgress running' : 'Browse history',
-        badge: draftCount > 0 ? '$draftCount' : null,
-        onTap: () => context.push('/manufacturing/wos'),
-      ),
-    ];
-    // Every tile gets the same box. Row-wise IntrinsicHeight only matched the
-    // two tiles beside each other, so a title that wrapped to two lines made
-    // its whole row taller than the other. Size for the worst case — a
-    // two-line title — measuring real font metrics rather than deriving them
-    // from fontSize * height, which lands ~2px short and overflows.
-    final scaler = MediaQuery.textScalerOf(context);
-    final titleTwoLines = _lineBoxHeight(RunqText.bodyStrong, 2, scaler);
-    final subtitleLine = _lineBoxHeight(RunqText.caption, 1, scaler);
-    const tilePadding = 10.0 + 10.0; // MfgQuickActionTile's vertical padding
-    const tileBorder = 1.0 + 1.0; // its 1px border insets the content box
-    final tileHeight = tilePadding +
-        tileBorder +
-        // 36 is the icon square — the floor when the text stack is shorter.
-        math.max(36.0, titleTwoLines + 2 + subtitleLine);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          mainAxisExtent: tileHeight,
-        ),
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        children: tiles,
-      ),
-    );
-  }
-}
-
 /// Completes when [f] does, whether it succeeded or failed.
 ///
 /// Pull-to-refresh awaits every card's fetch at once. A card that fails already
@@ -404,18 +317,6 @@ class _QuickActionsGrid extends ConsumerWidget {
 /// propagate out of `Future.wait` and leave the gesture hanging on an
 /// unhandled error — the await here is only about spinner timing.
 Future<void> _settled(Future<Object?> f) => f.then((_) {}, onError: (Object _) {});
-
-/// Height a `Text` of [lines] lines occupies in [style] at the active text
-/// scale. Uses the real font metrics — `fontSize * height * lines` disagrees
-/// with what the engine lays out and leaves the box a couple of pixels short.
-double _lineBoxHeight(TextStyle style, int lines, TextScaler scaler) {
-  final painter = TextPainter(
-    text: TextSpan(text: List.filled(lines, 'Ag').join('\n'), style: style),
-    textDirection: TextDirection.ltr,
-    textScaler: scaler,
-  )..layout();
-  return painter.height;
-}
 
 // ── Perishables section ───────────────────────────────────────────────────
 //
