@@ -227,6 +227,12 @@ class WorkOrderListRow {
   final String? shift;
   final String scheduledFor;
   final String status;
+  /// When the run was actually worked. `scheduledFor` says when it was meant
+  /// to happen, which can be days earlier — list screens that group by "today"
+  /// filter on these, so they have to be able to show them too.
+  final String? startedAt;
+  final String? completedAt;
+  final String? closedAt;
   final double outputQty;
   final double consumedValue;
   final double outputValue;
@@ -252,6 +258,9 @@ class WorkOrderListRow {
     required this.outputValue,
     required this.createdAt,
     this.shift,
+    this.startedAt,
+    this.completedAt,
+    this.closedAt,
     this.qcStatus,
   });
 
@@ -270,6 +279,9 @@ class WorkOrderListRow {
         shift: j['shift'] as String?,
         scheduledFor: (j['scheduledFor'] as String?) ?? '',
         status: j['status'] as String,
+        startedAt: j['startedAt'] as String?,
+        completedAt: j['completedAt'] as String?,
+        closedAt: j['closedAt'] as String?,
         outputQty: _num(j['outputQty']),
         consumedValue: _num(j['consumedValue']),
         outputValue: _num(j['outputValue']),

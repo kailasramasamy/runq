@@ -5,6 +5,7 @@ import '../../api/notifications_repo.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
+import '../../api/manufacturing_models.dart' show WorkOrderListRow;
 import '../inventory/widgets/inv_primitives.dart' show compactINR;
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
@@ -149,11 +150,11 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                           MfgDocListTile(
                             flat: true,
                             icon: Icons.precision_manufacturing_outlined,
-                            // Every row here is today, so the date block would
-                            // repeat identically down the card. Shift is what
+                            // The day the run was worked, not the day it was
+                            // planned — see _activeDate. Shift is what
                             // separates one run from the next; the date falls
                             // back in only when a run carries no shift.
-                            leadingDate: wo.scheduledFor,
+                            leadingDate: _activeDate(wo),
                             leadingShift: showingFallback ? null : wo.shift,
                             title: wo.woNumber,
                             subtitle: wo.bomName,
@@ -713,6 +714,26 @@ class _RawMaterialsSectionState extends ConsumerState<_RawMaterialsSection> {
       v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(3);
 }
 
+
+/// The day a run was actually worked, falling back to the day it was planned.
+///
+/// "Today's work orders" filters on `activeOn`, which deliberately matches a
+/// run scheduled earlier that was started, finished or closed today — a run
+/// planned on the 24th and made this morning belongs to today. Showing
+/// `scheduledFor` for those put a days-old date under a "Today's" heading.
+///
+/// Converted to local time first: the timestamps arrive in UTC and the server
+/// buckets them by IST, so a late-evening run would otherwise read as
+/// yesterday. A run that has not started yet has no activity date and keeps
+/// its schedule.
+String _activeDate(WorkOrderListRow wo) {
+  final iso = wo.closedAt ?? wo.completedAt ?? wo.startedAt;
+  final at = iso == null ? null : DateTime.tryParse(iso)?.toLocal();
+  if (at == null) return wo.scheduledFor;
+  final mm = at.month.toString().padLeft(2, '0');
+  final dd = at.day.toString().padLeft(2, '0');
+  return '${at.year}-$mm-$dd';
+}
 
 /// Date and shift, on their own line beneath the WO number so neither truncates.
 String _fmtQty(double v) =>
