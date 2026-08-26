@@ -213,16 +213,13 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     final t = RT(context);
     return Scaffold(
       backgroundColor: t.bgWarm,
-      appBar: InvPlainAppBar(title: 'Items', onBack: () => context.pop()),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openNew,
-        backgroundColor: InvColors.brand(context),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: Text(
-          'New item',
-          style: RunqText.bodyStrong.copyWith(color: Colors.white),
-        ),
+      appBar: InvPlainAppBar(
+        title: 'Items',
+        onBack: () => context.pop(),
+        // Matches the add button on GRNs, deliveries, transfers and
+        // adjustments — an extended FAB here covered the last row and read as
+        // a different affordance to the same action on its sibling screens.
+        trailing: _AddBtn(onTap: _openNew),
       ),
       body: Column(
         children: [
@@ -282,7 +279,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         itemCount: entries.length + (_page < _totalPages ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
@@ -654,5 +651,34 @@ String? classLabel(String? itemClass, String? type) {
       return 'Spare part';
     default:
       return null;
+  }
+}
+
+/// Brand square with a plus — the module's standard app-bar add button.
+class _AddBtn extends StatelessWidget {
+  const _AddBtn({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: 'New item',
+        child: Material(
+          color: InvColors.brand(context),
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onTap,
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(Icons.add, color: Colors.white, size: 18),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
