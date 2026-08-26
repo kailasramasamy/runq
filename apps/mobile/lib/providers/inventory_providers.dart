@@ -195,6 +195,22 @@ void invalidateStockViews(WidgetRef ref) {
   ref.invalidate(invReorderAlertsProvider);
 }
 
+/// Invalidate every view derived from an item's reorder level.
+///
+/// A threshold edit moves no stock, but every low-stock judgement is computed
+/// from it: the on-hand list paints its level bar and its Low chip straight
+/// off `reorderLevel`, and the alert lists and KPI counts are derived live.
+/// The edit sheet used to hand-pick four providers and miss the on-hand list,
+/// so the screen the user came from kept the old mark until a manual pull.
+void invalidateThresholdViews(WidgetRef ref, String itemId) {
+  ref.invalidate(invItemDetailProvider(itemId));
+  ref.invalidate(invOnHandProvider);
+  ref.invalidate(invStockAlertsProvider);
+  ref.invalidate(invStockAlertCountsProvider);
+  ref.invalidate(invReorderAlertsProvider);
+  ref.invalidate(invKpisProvider);
+}
+
 // ── Analytics ────────────────────────────────────────────────────────────
 // Every provider is keyed on the same window so the whole screen moves
 // together when the period chip changes.

@@ -54,7 +54,7 @@ export function InventoryDashboardPage() {
           icon={ArrowDownToLine}
           label="MTD receipts"
           value={formatInrShort(k?.monthInValue ?? 0)}
-          sub={`${k?.todayGrns ?? 0} today`}
+          sub={`${k?.todayInCount ?? 0} today`}
           tone="success"
           loading={isLoading}
         />
@@ -62,7 +62,7 @@ export function InventoryDashboardPage() {
           icon={ArrowUpFromLine}
           label="MTD dispatches"
           value={formatInrShort(k?.monthOutValue ?? 0)}
-          sub={`${k?.todayDeliveries ?? 0} today`}
+          sub={`${k?.todayOutCount ?? 0} today`}
           tone="danger"
           loading={isLoading}
         />

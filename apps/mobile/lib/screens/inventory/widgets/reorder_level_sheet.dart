@@ -108,10 +108,7 @@ class _ReorderLevelSheetState extends ConsumerState<_ReorderLevelSheet> {
       });
       // The alert lists are computed live from stock, so invalidating is
       // enough for the new threshold to take effect immediately.
-      ref.invalidate(invItemDetailProvider(widget.itemId));
-      ref.invalidate(invStockAlertsProvider);
-      ref.invalidate(invStockAlertCountsProvider);
-      ref.invalidate(invKpisProvider);
+      invalidateThresholdViews(ref, widget.itemId);
       if (!mounted) return;
       showRunqSnack(
         context,

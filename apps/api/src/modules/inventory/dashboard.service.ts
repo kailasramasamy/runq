@@ -2,12 +2,17 @@ import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import { ITEM_CLASS_GROUP_MEMBERS, type ItemClassGroup } from '@runq/validators';
 import { alertBaseCte } from './stock-alert.sql';
+import { IST } from '../manufacturing/mfg-day.js';
 
 export class InventoryDashboardService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
 
   async kpis() {
-    const today = new Date().toISOString().slice(0, 10);
+    // Every "today"/"this month" window below is an IST calendar window, not a
+    // server-clock one. See mfg-day.ts: a bare CURRENT_DATE is Asia/Kolkata
+    // locally but UTC on Railway, where a 4am dispatch files under yesterday.
+    const istToday = sql`(now() AT TIME ZONE ${IST})::date`;
+    const istDay = sql`(sl.moved_at AT TIME ZONE ${IST})::date`;
     const result = await this.db.execute(sql`
       WITH on_hand AS (
         SELECT SUM(value) AS total_value,
@@ -62,42 +67,38 @@ export class InventoryDashboardService {
              OR (CURRENT_DATE - MAX(sl.moved_at)::date) >= 90
         ) x
       ),
-      today_grns AS (
-        SELECT COUNT(*)::int AS cnt FROM inventory_grns
-        WHERE tenant_id = ${this.tenantId}
-          AND received_date = ${today} AND status = 'posted'
+      -- Today's movement, read off the ledger rather than off GRN and DN
+      -- documents. Stock arrives from milk receipts, production output and
+      -- adjustments too — a plant that never raises a GRN was reading a
+      -- permanent "0 in" while the ledger showed lakhs moving. The count is
+      -- distinct source documents, so one GRN of 20 lines counts once.
+      today_in AS (
+        SELECT COUNT(DISTINCT (sl.source_type, sl.source_id))::int AS cnt,
+               COALESCE(SUM(sl.qty_in * sl.unit_cost), 0) AS v
+        FROM stock_ledger sl
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND sl.qty_in > 0 AND ${istDay} = ${istToday}
       ),
-      today_dns AS (
-        SELECT COUNT(*)::int AS cnt FROM delivery_notes
-        WHERE tenant_id = ${this.tenantId}
-          AND dispatch_date = ${today} AND status = 'dispatched'
+      today_out AS (
+        SELECT COUNT(DISTINCT (sl.source_type, sl.source_id))::int AS cnt,
+               COALESCE(SUM(sl.qty_out * sl.unit_cost), 0) AS v
+        FROM stock_ledger sl
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND sl.qty_out > 0 AND ${istDay} = ${istToday}
       ),
       month_in AS (
-        SELECT COALESCE(SUM(qty_in * unit_cost), 0) AS v FROM stock_ledger
-        WHERE tenant_id = ${this.tenantId}
-          AND moved_at >= date_trunc('month', CURRENT_DATE)
+        SELECT COALESCE(SUM(sl.qty_in * sl.unit_cost), 0) AS v FROM stock_ledger sl
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND ${istDay} >= date_trunc('month', ${istToday})
       ),
       month_out AS (
-        SELECT COALESCE(SUM(qty_out * unit_cost), 0) AS v FROM stock_ledger
-        WHERE tenant_id = ${this.tenantId}
-          AND moved_at >= date_trunc('month', CURRENT_DATE)
+        SELECT COALESCE(SUM(sl.qty_out * sl.unit_cost), 0) AS v FROM stock_ledger sl
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND ${istDay} >= date_trunc('month', ${istToday})
       ),
       in_transit AS (
         SELECT COUNT(*)::int AS cnt FROM inventory_transfers
         WHERE tenant_id = ${this.tenantId} AND status = 'in_transit'
-      ),
-      -- Total receipt value posted today. Used on the mobile redesign's
-      -- Home + Moves hub "Today In" tile alongside the count above.
-      today_grns_value AS (
-        SELECT COALESCE(SUM(total_value), 0) AS v FROM inventory_grns
-        WHERE tenant_id = ${this.tenantId}
-          AND received_date = ${today} AND status = 'posted'
-      ),
-      -- Total dispatched value posted today (DN status 'dispatched').
-      today_dns_value AS (
-        SELECT COALESCE(SUM(total_value), 0) AS v FROM delivery_notes
-        WHERE tenant_id = ${this.tenantId}
-          AND dispatch_date = ${today} AND status = 'dispatched'
       ),
       -- Adjustments awaiting approval. Drives the "Pending" badge on the
       -- Moves hub and the warning chip on Home.
@@ -114,13 +115,13 @@ export class InventoryDashboardService {
         (SELECT cnt FROM out_of_stock) AS out_of_stock,
         (SELECT cnt FROM expiring_soon) AS expiring_soon,
         (SELECT cnt FROM dead_stock) AS dead_stock,
-        (SELECT cnt FROM today_grns) AS today_grns,
-        (SELECT cnt FROM today_dns) AS today_dns,
+        (SELECT cnt FROM today_in) AS today_in_count,
+        (SELECT cnt FROM today_out) AS today_out_count,
         (SELECT v FROM month_in)::text AS month_in_value,
         (SELECT v FROM month_out)::text AS month_out_value,
         (SELECT cnt FROM in_transit) AS in_transit_transfers,
-        (SELECT v FROM today_grns_value)::text AS today_grns_value,
-        (SELECT v FROM today_dns_value)::text AS today_dns_value,
+        (SELECT v FROM today_in)::text AS today_in_value,
+        (SELECT v FROM today_out)::text AS today_out_value,
         (SELECT cnt FROM pending_adj) AS pending_adj
     `);
     const row = (result as unknown as {
@@ -128,9 +129,9 @@ export class InventoryDashboardService {
         total_value: string; active_rows: number; active_items: number;
         warehouse_count: number; low_stock: number; out_of_stock: number;
         expiring_soon: number;
-        dead_stock: number; today_grns: number; today_dns: number;
+        dead_stock: number; today_in_count: number; today_out_count: number;
         month_in_value: string; month_out_value: string; in_transit_transfers: number;
-        today_grns_value: string; today_dns_value: string; pending_adj: number;
+        today_in_value: string; today_out_value: string; pending_adj: number;
       }>;
     }).rows[0]!;
     return {
@@ -142,13 +143,13 @@ export class InventoryDashboardService {
       outOfStockCount: row.out_of_stock ?? 0,
       expiringSoonCount: row.expiring_soon ?? 0,
       deadStockCount: row.dead_stock ?? 0,
-      todayGrns: row.today_grns ?? 0,
-      todayDeliveries: row.today_dns ?? 0,
+      todayInCount: row.today_in_count ?? 0,
+      todayOutCount: row.today_out_count ?? 0,
       monthInValue: Number(row.month_in_value ?? 0),
       monthOutValue: Number(row.month_out_value ?? 0),
       inTransitTransfers: row.in_transit_transfers ?? 0,
-      todayGrnsValue: Number(row.today_grns_value ?? 0),
-      todayDnsValue: Number(row.today_dns_value ?? 0),
+      todayInValue: Number(row.today_in_value ?? 0),
+      todayOutValue: Number(row.today_out_value ?? 0),
       pendingAdjustments: row.pending_adj ?? 0,
     };
   }

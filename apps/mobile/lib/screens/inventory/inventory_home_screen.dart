@@ -49,7 +49,6 @@ class InventoryHomeScreen extends ConsumerWidget {
             await Future.wait<Object?>([
               ref.refresh(invKpisProvider.future),
               ref.refresh(invRecentActivityProvider.future),
-              ref.refresh(invWarehouseValuesProvider.future),
             ]).catchError((Object _) => const <Object?>[]);
           },
           child: kpisAsync.when(
@@ -81,19 +80,8 @@ class _HomeBody extends StatelessWidget {
         const SliverToBoxAdapter(child: _TopBar()),
         const SliverToBoxAdapter(child: _Greeting()),
         SliverToBoxAdapter(child: _HeroCard(k: k)),
-        // Today's throughput — the two numbers that change hourly.
-        SliverToBoxAdapter(child: _TodayStrip(k: k)),
-        // Only the exceptions that actually exist, so an empty list means
-        // "nothing needs you" rather than five zeroes to read past.
+        // The dispatch queue and every open exception, as one tile grid.
         SliverToBoxAdapter(child: _NeedsAttention(k: k)),
-        const SliverToBoxAdapter(child: _WarehouseValues()),
-        const SliverToBoxAdapter(child: InvSectionHeader(title: 'Quick Actions')),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _QuickActions(k: k),
-          ),
-        ),
         // What's actually on the floor right now — goods that just came off
         // production, then the inputs left to run the next batch.
         const SliverToBoxAdapter(
@@ -378,16 +366,16 @@ class _HeroCard extends StatelessWidget {
                   Expanded(
                     child: _HeroMiniKpi(
                       label: 'Today In',
-                      value: k.todayGrns.toString(),
-                      sub: compactINR(k.todayGrnsValue),
+                      value: k.todayInCount.toString(),
+                      sub: compactINR(k.todayInValue),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _HeroMiniKpi(
                       label: 'Today Out',
-                      value: k.todayDeliveries.toString(),
-                      sub: compactINR(k.todayDnsValue),
+                      value: k.todayOutCount.toString(),
+                      sub: compactINR(k.todayOutValue),
                     ),
                   ),
                 ],
@@ -552,67 +540,6 @@ class _HeroMiniKpi extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Quick actions grid (2x4) ──────────────────────────────────────────────
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.k});
-  final InvKpis k;
-  @override
-  Widget build(BuildContext context) {
-    // Read-only views only — creating things happens on the FAB. Each tile
-    // carries its live count so the grid states facts instead of listing menus.
-    final tiles = <Widget>[
-      InvActionTile(
-        icon: Icons.visibility_outlined,
-        title: 'On Hand',
-        subtitle: '${k.activeRows} batches',
-        onTap: () => context.push('/inventory/on-hand'),
-      ),
-      InvActionTile(
-        icon: Icons.category_outlined,
-        title: 'Items',
-        subtitle: '${k.activeItems} in stock',
-        onTap: () => context.push('/inventory/items'),
-      ),
-      InvActionTile(
-        icon: Icons.swap_vert_rounded,
-        title: 'Movements',
-        subtitle: 'In ${_money(k.monthInValue)} · Out ${_money(k.monthOutValue)}',
-        onTap: () => context.push('/inventory/moves'),
-      ),
-      // Replaced the Warehouses tile, which only re-opened On Hand — the same
-      // screen the first tile already goes to. Adjustments are also on the FAB
-      // sheet and the Moves tab; surfacing them on Home too because damage and
-      // free-issue write-offs are daily floor work, not a create-time action.
-      InvActionTile(
-        icon: Icons.tune_rounded,
-        title: 'Adjustments',
-        subtitle: k.pendingAdjustments > 0
-            ? '${k.pendingAdjustments} awaiting approval'
-            : 'Damage, free issue, found',
-        onTap: () => context.push('/inventory/adjustments'),
-      ),
-    ];
-    final rows = <Widget>[];
-    for (var i = 0; i < tiles.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 12));
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: tiles[i]),
-              const SizedBox(width: 12),
-              Expanded(child: tiles[i + 1]),
-            ],
-          ),
-        ),
-      );
-    }
-    return Column(children: rows);
   }
 }
 
@@ -793,215 +720,131 @@ class _HomeError extends StatelessWidget {
 
 // ── Today's throughput ────────────────────────────────────────────────────
 
-/// The one outstanding-work number on this screen: invoices whose goods
-/// haven't shipped.
-///
-/// This slot used to hold a Received-today / Dispatched-today pair, but the
-/// hero card above already carries both as "Today In" / "Today Out" — the
-/// tiles restated them, and neither is actionable anyway. A full-width card
-/// also sidesteps the ragged heights two tiles get when one label wraps.
-class _TodayStrip extends ConsumerWidget {
-  const _TodayStrip({required this.k});
-  final InvKpis k;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // `total`, not `rows.length` — the queue request is capped at 100 rows.
-    final pending = ref.watch(invPendingDispatchProvider).valueOrNull?.total;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: InvMiniStat(
-        icon: Icons.pending_actions_outlined,
-        // Amber while work is outstanding, green once the queue is clear —
-        // the tile should read as "nothing to do", not as a bare zero.
-        iconColor: (pending ?? 0) > 0 ? InvColors.brand(context) : InvColors.success,
-        value: pending == null ? '—' : '$pending',
-        label: switch (pending) {
-          null => 'Pending dispatch',
-          0 => 'All dispatched · nothing waiting',
-          1 => 'Invoice pending dispatch',
-          _ => 'Invoices pending dispatch',
-        },
-        onTap: () => context.push('/inventory/pending-dispatch'),
-      ),
-    );
-  }
-}
-
 // ── Needs attention ───────────────────────────────────────────────────────
 
-/// Exceptions worth acting on, and only the ones that exist. A list of zeroes
-/// trains the eye to skip the section, so an all-clear collapses to one line.
-class _NeedsAttention extends StatelessWidget {
+/// The dispatch queue plus every open exception, in one 2-column grid.
+///
+/// Pending dispatch used to sit in its own full-width strip above this
+/// section, which split one question — "what needs me?" — across two blocks.
+/// Exceptions still appear only when they exist: a grid of zeroes trains the
+/// eye to skip the section, so an all-clear collapses to a single tile.
+class _NeedsAttention extends ConsumerWidget {
   const _NeedsAttention({required this.k});
   final InvKpis k;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final rows = <Widget>[
+    // `total`, not `rows.length` — the queue request is capped at 100 rows.
+    final pending = ref.watch(invPendingDispatchProvider).valueOrNull?.total;
+    final exceptions = <Widget>[
       if (k.outOfStockCount > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.remove_shopping_cart_outlined,
-          color: InvColors.error,
+          iconColor: InvColors.error,
           label: 'Out of stock',
-          count: k.outOfStockCount,
-          route: '/inventory/alerts',
+          value: '${k.outOfStockCount}',
+          onTap: () => context.push('/inventory/alerts'),
         ),
       if (k.lowStockCount > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.warning_amber_rounded,
-          color: InvColors.amberDeep,
+          iconColor: InvColors.amberDeep,
           label: 'Below reorder level',
-          count: k.lowStockCount,
-          route: '/inventory/alerts',
+          value: '${k.lowStockCount}',
+          onTap: () => context.push('/inventory/alerts'),
         ),
       if (k.expiringSoon > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.schedule_rounded,
-          color: InvColors.error,
-          label: 'Expiring within 30 days',
-          count: k.expiringSoon,
-          route: '/inventory/reports/expiry',
+          iconColor: InvColors.error,
+          label: 'Expiring in 30 days',
+          value: '${k.expiringSoon}',
+          onTap: () => context.push('/inventory/reports/expiry'),
         ),
       if (k.inTransitTransfers > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.alt_route_outlined,
-          color: InvColors.info,
+          iconColor: InvColors.info,
           label: 'Transfers in transit',
-          count: k.inTransitTransfers,
-          route: '/inventory/transfers',
+          value: '${k.inTransitTransfers}',
+          onTap: () => context.push('/inventory/transfers'),
         ),
       if (k.pendingAdjustments > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.tune_rounded,
-          color: InvColors.amberDeep,
-          label: 'Adjustments awaiting approval',
-          count: k.pendingAdjustments,
-          route: '/inventory/adjustments',
+          iconColor: InvColors.amberDeep,
+          label: 'Adjustments to approve',
+          value: '${k.pendingAdjustments}',
+          onTap: () => context.push('/inventory/adjustments'),
         ),
       if (k.deadStock > 0)
-        _AttentionRow(
+        InvMiniStat(
           icon: Icons.hourglass_bottom_rounded,
-          color: t.muted,
+          iconColor: t.muted,
           label: 'Unmoved for 90+ days',
-          count: k.deadStock,
-          route: '/inventory/on-hand',
+          value: '${k.deadStock}',
+          onTap: () => context.push('/inventory/on-hand'),
         ),
     ];
+    final tiles = <Widget>[
+      InvMiniStat(
+        icon: Icons.pending_actions_outlined,
+        // Amber while work is outstanding, green once the queue is clear —
+        // the tile should read as "nothing to do", not as a bare zero.
+        iconColor:
+            (pending ?? 0) > 0 ? InvColors.brand(context) : InvColors.success,
+        value: pending == null ? '—' : '$pending',
+        label: switch (pending) {
+          null => 'Pending dispatch',
+          0 => 'All dispatched',
+          1 => 'Invoice to dispatch',
+          _ => 'Invoices to dispatch',
+        },
+        onTap: () => context.push('/inventory/pending-dispatch'),
+      ),
+      ...exceptions,
+      // Never leave a lone tile beside an empty half — say the all-clear.
+      if (exceptions.isEmpty)
+        InvMiniStat(
+          icon: Icons.check_circle_outline,
+          iconColor: InvColors.success,
+          value: 'Clear',
+          label: 'Nothing else pending',
+          onTap: () => context.push('/inventory/alerts'),
+        ),
+    ];
+
+    final rows = <Widget>[];
+    for (var i = 0; i < tiles.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: 10));
+      rows.add(
+        // Stretch both tiles to the taller of the pair, so a label that wraps
+        // doesn't leave its neighbour floating in a short box.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: tiles[i]),
+              const SizedBox(width: 10),
+              // An odd tile count keeps its half-width column rather than
+              // stretching across and breaking the grid rhythm.
+              Expanded(
+                child: i + 1 < tiles.length
+                    ? tiles[i + 1]
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Column(children: [
       const InvSectionHeader(title: 'Needs attention'),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: InvCard(
-          child: rows.isEmpty
-              ? Row(children: [
-                  Icon(Icons.check_circle_outline, size: 18, color: InvColors.success),
-                  const SizedBox(width: 10),
-                  Text('Nothing needs attention',
-                      style: RunqText.body.copyWith(color: t.muted)),
-                ])
-              : Column(children: rows),
-        ),
+        child: Column(children: rows),
       ),
     ]);
   }
-}
-
-class _AttentionRow extends StatelessWidget {
-  const _AttentionRow({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.count,
-    required this.route,
-  });
-  final IconData icon;
-  final Color color;
-  final String label;
-  final int count;
-  final String route;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return InkWell(
-      onTap: () => context.push(route),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: RunqText.body.copyWith(color: t.ink))),
-          Text('$count', style: RunqText.body.copyWith(color: color, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
-        ]),
-      ),
-    );
-  }
-}
-
-// ── Stock value by warehouse ──────────────────────────────────────────────
-
-/// Splits the hero's single stock-value figure across sites, with a share bar
-/// so the dominant warehouse is obvious at a glance.
-class _WarehouseValues extends ConsumerWidget {
-  const _WarehouseValues();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = RT(context);
-    final rows = ref.watch(invWarehouseValuesProvider).asData?.value ?? const [];
-    final withStock = rows.where((r) => r.totalValue > 0).toList();
-    if (withStock.isEmpty) return const SizedBox.shrink();
-    final top = withStock.first.totalValue;
-    return Column(children: [
-      const InvSectionHeader(title: 'Stock by warehouse'),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: InvCard(
-          child: Column(children: [
-            for (final w in withStock.take(5))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(w.name,
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: RunqText.body.copyWith(color: t.ink)),
-                    ),
-                    Text('${w.itemCount} items',
-                        style: RunqText.micro.copyWith(color: t.muted)),
-                    const SizedBox(width: 8),
-                    Text(_money(w.totalValue),
-                        style: RunqText.body.copyWith(
-                            color: t.ink, fontWeight: FontWeight.w700)),
-                  ]),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: LinearProgressIndicator(
-                      value: top > 0 ? (w.totalValue / top).clamp(0.0, 1.0) : 0,
-                      minHeight: 4,
-                      backgroundColor: t.hairline,
-                      valueColor: AlwaysStoppedAnimation(InvColors.brand(context)),
-                    ),
-                  ),
-                ]),
-              ),
-          ]),
-        ),
-      ),
-    ]);
-  }
-}
-
-/// Compact money for dashboard chrome — full precision belongs on the reports.
-String _money(double v) {
-  if (v >= 10000000) return '₹${(v / 10000000).toStringAsFixed(2)}Cr';
-  if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(2)}L';
-  if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
-  return '₹${v.toStringAsFixed(0)}';
 }

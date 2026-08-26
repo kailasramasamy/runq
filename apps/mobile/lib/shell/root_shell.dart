@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/app_module_provider.dart';
 import '../theme/runq_tokens.dart';
 import '../theme/runq_theme.dart';
+import '../screens/inventory/inv_menu_sheet.dart';
 import '../screens/manufacturing/mfg_menu_sheet.dart';
 import 'fab_sheet.dart';
 
@@ -60,11 +61,15 @@ const _hrTabs = <_Tab>[
   _Tab('/hr/more', 'More', Icons.apps_outlined, Icons.apps_rounded),
 ];
 
+/// Non-route path marking a tab that opens a sheet rather than navigating.
+const _menuTabPath = '#menu';
+
 // Inventory tabs cover the godown-floor day at a glance: a dashboard
 // (Home), the live stock list (Stock), every transaction type behind one
-// hub (Moves), and reorder/low-stock alerts (Alerts). Receive + Dispatch
-// + Transfer + Adjustment + Stock Take all live under Moves now so the
-// nav doesn't have to grow to 8 tabs as the module fills out.
+// hub (Moves), and everything else — alerts, reports, items, warehouses —
+// behind the Menu sheet. Receive + Dispatch + Transfer + Adjustment +
+// Stock Take all live under Moves, so the nav doesn't have to grow a tab
+// per document type as the module fills out.
 const _inventoryTabs = <_Tab>[
   _Tab('/inventory', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab(
@@ -79,12 +84,7 @@ const _inventoryTabs = <_Tab>[
     Icons.swap_horiz_outlined,
     Icons.swap_horiz_rounded,
   ),
-  _Tab(
-    '/inventory/alerts',
-    'Alerts',
-    Icons.notifications_none_rounded,
-    Icons.notifications_rounded,
-  ),
+  _Tab(_menuTabPath, 'Menu', Icons.menu_rounded, Icons.menu_rounded),
 ];
 
 // Purchase & Procurement module tabs. Home is the dashboard with KPIs +
@@ -108,9 +108,6 @@ const _purchaseTabs = <_Tab>[
   ),
   _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
-
-/// Non-route path marking a tab that opens a sheet rather than navigating.
-const _menuTabPath = '#menu';
 
 // Manufacturing module tabs. Home is the dashboard; BOMs is the recipe
 // list; WOs is the work order list; Menu is the hub for everything that
@@ -177,7 +174,9 @@ class _RootShellState extends ConsumerState<RootShell>
         bestLen = p.length;
       }
     }
-    return best == -1 ? 0 : best;
+    // -1 when nothing matches: reachable shell routes that are no longer tabs
+    // (alerts, expiry, analytics) would otherwise light up Home.
+    return best;
   }
 
   void _toggleSheet() {
@@ -329,7 +328,11 @@ class _RootShellState extends ConsumerState<RootShell>
           onTap: (i) {
             final target = tabs[i].path;
             if (target == _menuTabPath) {
-              showMfgMenuSheet(context);
+              if (module == AppModule.inventory) {
+                showInvMenuSheet(context);
+              } else {
+                showMfgMenuSheet(context);
+              }
             } else if (module == AppModule.hr && i != 0) {
               context.push(target);
             } else {

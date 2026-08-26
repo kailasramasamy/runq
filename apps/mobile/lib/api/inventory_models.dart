@@ -8,15 +8,13 @@ class InvKpis {
   final int activeRows;
   final int lowStockCount;
   final int outOfStockCount;
-  final int todayGrns;
-  final int todayDeliveries;
+  /// Distinct documents that moved stock in / out today, IST. Counted off the
+  /// stock ledger, so milk receipts and production output count alongside
+  /// GRNs — a plant that never raises a GRN used to read a permanent zero.
+  final int todayInCount, todayOutCount;
 
-  /// Total value of receipts posted today — drives the "Today In" mini-card
-  /// on the redesigned Home + Moves hub. 0 when no GRN has been posted yet.
-  final double todayGrnsValue;
-
-  /// Total value dispatched today (posted DNs).
-  final double todayDnsValue;
+  /// Value moved in / out today, from the same ledger rows as the counts.
+  final double todayInValue, todayOutValue;
 
   /// Transfers currently in_transit (between dispatch and receive).
   final int inTransitTransfers;
@@ -39,10 +37,10 @@ class InvKpis {
     required this.activeRows,
     required this.lowStockCount,
     this.outOfStockCount = 0,
-    required this.todayGrns,
-    required this.todayDeliveries,
-    this.todayGrnsValue = 0,
-    this.todayDnsValue = 0,
+    this.todayInCount = 0,
+    this.todayOutCount = 0,
+    this.todayInValue = 0,
+    this.todayOutValue = 0,
     this.inTransitTransfers = 0,
     this.pendingAdjustments = 0,
     this.activeItems = 0,
@@ -57,10 +55,10 @@ class InvKpis {
     activeRows: (j['activeRows'] as num?)?.toInt() ?? 0,
     lowStockCount: (j['lowStockCount'] as num?)?.toInt() ?? 0,
     outOfStockCount: (j['outOfStockCount'] as num?)?.toInt() ?? 0,
-    todayGrns: (j['todayGrns'] as num?)?.toInt() ?? 0,
-    todayDeliveries: (j['todayDeliveries'] as num?)?.toInt() ?? 0,
-    todayGrnsValue: (j['todayGrnsValue'] as num?)?.toDouble() ?? 0,
-    todayDnsValue: (j['todayDnsValue'] as num?)?.toDouble() ?? 0,
+    todayInCount: (j['todayInCount'] as num?)?.toInt() ?? 0,
+    todayOutCount: (j['todayOutCount'] as num?)?.toInt() ?? 0,
+    todayInValue: (j['todayInValue'] as num?)?.toDouble() ?? 0,
+    todayOutValue: (j['todayOutValue'] as num?)?.toDouble() ?? 0,
     inTransitTransfers: (j['inTransitTransfers'] as num?)?.toInt() ?? 0,
     pendingAdjustments: (j['pendingAdjustments'] as num?)?.toInt() ?? 0,
     activeItems: (j['activeItems'] as num?)?.toInt() ?? 0,

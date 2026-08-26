@@ -71,6 +71,7 @@ import 'screens/splash_screen.dart';
 import 'screens/hr/hr_home_screen.dart';
 import 'screens/inventory/inventory_home_screen.dart';
 import 'screens/inventory/inventory_more_screen.dart';
+import 'screens/inventory/warehouse_values_screen.dart';
 import 'screens/inventory/inventory_on_hand_screen.dart';
 import 'screens/inventory/inventory_moves_screen.dart';
 import 'screens/inventory/inventory_grn_screen.dart';
@@ -548,6 +549,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/inventory/activity',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const InventoryActivityScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/warehouses',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const WarehouseValuesScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/inventory/more',

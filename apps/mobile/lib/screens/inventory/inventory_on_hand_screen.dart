@@ -115,11 +115,13 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           data: (rows) {
             final counts = _bucketCounts(rows);
             final filtered = collapseOnHandRows(_apply(rows));
-            // On "All", split into class-group sections; a single-bucket
-            // pill renders one flat list, where a lone header would be noise.
-            final sections = classGroup == classGroupAll
-                ? groupOnHandRows(filtered)
-                : const <OnHandSection>[];
+            // Category → subcategory sections. A tenant that files nothing
+            // gets one "Uncategorised" section, where the header says
+            // nothing the list doesn't — drop it and render flat.
+            var sections = groupOnHandRows(filtered);
+            if (sections.length == 1 && sections.first.subs.length <= 1) {
+              sections = const [];
+            }
             return CustomScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const AlwaysScrollableScrollPhysics(),
@@ -180,28 +182,50 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
                     ),
                   )
                 else
-                  for (final s in sections)
+                  for (var si = 0; si < sections.length; si++)
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
                         16,
                         0,
                         16,
-                        s.key == sections.last.key ? 120 : 0,
+                        si == sections.length - 1 ? 120 : 0,
                       ),
-                      sliver: SliverList.separated(
-                        // +1 for the section header at index 0.
-                        itemCount: s.rows.length + 1,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => i == 0
-                            ? InvGroupHeader(label: s.label, rows: s.rows)
-                            : _StockTile(row: s.rows[i - 1]),
-                      ),
+                      // Flattened to one list per section so the header, the
+                      // leaf headings and the tiles share one separator
+                      // rhythm — built once, not per itemBuilder call.
+                      sliver: _SectionSliver(section: sections[si]),
                     ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+// ── Section list ──────────────────────────────────────────────────────────
+
+/// One category section: its header, then each leaf band's heading and rows,
+/// flattened into a single list so every gap in the section is the same.
+class _SectionSliver extends StatelessWidget {
+  const _SectionSliver({required this.section});
+  final OnHandSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <Widget>[
+      InvGroupHeader(label: section.label, rows: section.rows),
+      for (final sub in section.subs) ...[
+        if (sub.label != null)
+          InvSubGroupHeader(label: sub.label!, rows: sub.rows),
+        for (final row in sub.rows) _StockTile(row: row),
+      ],
+    ];
+    return SliverList.separated(
+      itemCount: entries.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (_, i) => entries[i],
     );
   }
 }

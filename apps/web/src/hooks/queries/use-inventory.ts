@@ -151,8 +151,8 @@ export interface InventoryKpis {
   outOfStockCount: number;
   expiringSoonCount: number;
   deadStockCount: number;
-  todayGrns: number;
-  todayDeliveries: number;
+  todayInCount: number;
+  todayOutCount: number;
   monthInValue: number;
   monthOutValue: number;
   inTransitTransfers: number;

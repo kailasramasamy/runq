@@ -1,10 +1,10 @@
-// Class-group sectioning for the Stock on Hand list.
+// Category sectioning for the Stock on Hand list.
 //
-// The on-hand screen defaults to "All" so the floor sees one complete
-// picture of the godown. Unsectioned, that list interleaves finished goods
-// with the raw material they were made from, which reads as noise — so when
-// no single bucket is selected we split the rows into labelled sections in
-// the same order as the class-tab strip.
+// Unsectioned, the list interleaves everything the godown holds, which reads
+// as noise — so rows are split by their category tree: the parent category
+// heads a section, the leaf sub-heads a band inside it. Item class is the
+// filter strip above the list rather than a second nesting level, so a
+// section never nests more than two headings deep.
 
 library;
 
@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import '../../../api/inventory_models.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
-import 'inv_class_tabs.dart';
 import 'inv_primitives.dart';
 
 /// One item at one warehouse, with every batch of it rolled up. Batch-per-
@@ -71,32 +70,85 @@ List<OnHandGroup> collapseOnHandRows(List<InvOnHandRow> rows) {
   return byKey.values.toList();
 }
 
-/// One rendered section — a bucket with at least one group.
-typedef OnHandSection = ({String key, String label, List<OnHandGroup> rows});
+/// A leaf band inside a category section. [label] is null for items filed
+/// directly on the parent category — they render straight under the section
+/// header rather than under a sub-heading that repeats it.
+typedef OnHandSubSection = ({String? label, List<OnHandGroup> rows});
 
-const List<({String key, String label})> _sectionOrder = [
-  (key: classGroupFinished, label: 'Finished Goods'),
-  (key: classGroupInputs, label: 'Raw Materials & Inputs'),
-  (key: classGroupTrading, label: 'Trading Goods'),
-  (key: classGroupOther, label: 'Consumables & Spares'),
-];
+/// One rendered section: a parent category, every row under it (for the
+/// header subtotal), and its leaf bands.
+typedef OnHandSection = ({
+  String key,
+  String label,
+  List<OnHandGroup> rows,
+  List<OnHandSubSection> subs,
+});
 
-/// Split groups into class-group sections, preserving the incoming order
-/// within each. Empty buckets are dropped so a tenant that only stocks
-/// finished goods sees one section rather than three empty headers.
+/// Bucket for rows with no category at all. Sorted last — an unfiled tail
+/// shouldn't head the list.
+const String _uncategorised = 'Uncategorised';
+
+/// Parent category an item is filed under. `categoryGroup` is null when the
+/// item sits directly on a top-level category, in which case the leaf *is*
+/// the parent.
+String _parentOf(InvOnHandRow r) =>
+    r.categoryGroup ?? r.categoryName ?? _uncategorised;
+
+/// Leaf label, or null when the item sits directly on its parent — repeating
+/// the parent as its own sub-heading says nothing.
+String? _leafOf(InvOnHandRow r) {
+  final leaf = r.categoryName;
+  if (leaf == null || leaf == _parentOf(r)) return null;
+  return leaf;
+}
+
+/// Split groups into category sections, each with its leaf bands.
+///
+/// Categories sort alphabetically with the unfiled tail last; inside a
+/// section, rows filed directly on the parent come first, then leaves
+/// alphabetically. Row order within a band is the incoming order.
 List<OnHandSection> groupOnHandRows(List<OnHandGroup> rows) {
-  final byGroup = <String, List<OnHandGroup>>{};
+  final byParent = <String, List<OnHandGroup>>{};
   for (final r in rows) {
-    byGroup.putIfAbsent(classGroupForItemClass(r.lead.itemClass), () => []).add(r);
+    byParent.putIfAbsent(_parentOf(r.lead), () => []).add(r);
   }
+  final parents = byParent.keys.toList()
+    ..sort((a, b) {
+      if (a == _uncategorised) return 1;
+      if (b == _uncategorised) return -1;
+      return a.toLowerCase().compareTo(b.toLowerCase());
+    });
   return [
-    for (final s in _sectionOrder)
-      if ((byGroup[s.key] ?? const []).isNotEmpty)
-        (key: s.key, label: s.label, rows: byGroup[s.key]!),
+    for (final parent in parents)
+      (
+        key: parent,
+        label: parent,
+        rows: byParent[parent]!,
+        subs: _leafBands(byParent[parent]!),
+      ),
   ];
 }
 
-/// Section header — bucket name on the left, row count and total value on
+List<OnHandSubSection> _leafBands(List<OnHandGroup> rows) {
+  final direct = <OnHandGroup>[];
+  final byLeaf = <String, List<OnHandGroup>>{};
+  for (final r in rows) {
+    final leaf = _leafOf(r.lead);
+    if (leaf == null) {
+      direct.add(r);
+    } else {
+      byLeaf.putIfAbsent(leaf, () => []).add(r);
+    }
+  }
+  final leaves = byLeaf.keys.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return [
+    if (direct.isNotEmpty) (label: null, rows: direct),
+    for (final leaf in leaves) (label: leaf, rows: byLeaf[leaf]!),
+  ];
+}
+
+/// Section header — category name on the left, row count and total value on
 /// the right, so each section states its own subtotal instead of forcing a
 /// mental tally down the list.
 class InvGroupHeader extends StatelessWidget {
@@ -121,6 +173,36 @@ class InvGroupHeader extends StatelessWidget {
           Text(
             '${rows.length} · ${compactINR(value)}',
             style: RunqText.caption.copyWith(color: t.muted2),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Leaf band heading — one step down from [InvGroupHeader]: sentence case,
+/// lighter ink, and a rule running out from the label so a band reads as
+/// part of the section above it rather than as a section of its own.
+class InvSubGroupHeader extends StatelessWidget {
+  const InvSubGroupHeader({super.key, required this.label, required this.rows});
+  final String label;
+  final List<OnHandGroup> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final value = rows.fold<double>(0, (a, r) => a + r.value);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 10, 2, 2),
+      child: Row(
+        children: [
+          Text(label, style: RunqText.caption.copyWith(color: t.ink2)),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(height: 1, thickness: 0.5, color: t.hairline)),
+          const SizedBox(width: 8),
+          Text(
+            '${rows.length} · ${compactINR(value)}',
+            style: RunqText.micro.copyWith(color: t.muted2),
           ),
         ],
       ),

@@ -724,7 +724,7 @@ class InvStockBar extends StatelessWidget {
     required this.qty,
     required this.reorderLevel,
     required this.isLow,
-    this.height = 3,
+    this.height = 5,
   });
   final double qty;
   final double? reorderLevel;
@@ -744,27 +744,66 @@ class InvStockBar extends StatelessWidget {
     // track. Constant by construction — read it off `cap` anyway so the two
     // can't drift if the multiplier is ever retuned.
     final markerPct = cap <= 0 ? null : (reorderLevel! / cap);
+    // The tick has to read against both the fill it sits under (any healthy
+    // item covers the mark) and the bare track behind it. A single ink line
+    // did neither: it disappeared into green at 55% alpha, and the bar was
+    // 3px tall. It's now a notch — surface-coloured shoulders cutting the bar
+    // clean through, with a solid ink blade between them — and it overhangs
+    // the track top and bottom so the mark is visible even on a full bar.
+    const overhang = 2.0;
+    const bladeWidth = 2.0;
+    const notchWidth = bladeWidth + 2; // 1px shoulder either side
     return LayoutBuilder(
-      builder: (_, c) => Container(
-        height: height,
-        decoration: BoxDecoration(color: t.hairlineSoft, borderRadius: BorderRadius.circular(99)),
-        clipBehavior: Clip.antiAlias,
+      builder: (_, c) => SizedBox(
+        height: height + overhang * 2,
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: c.maxWidth * pct,
-                decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(99)),
+            Container(
+              height: height,
+              decoration: BoxDecoration(
+                color: t.hairlineSoft,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: c.maxWidth * pct,
+                  decoration: BoxDecoration(
+                    color: fill,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
               ),
             ),
             if (markerPct != null)
               Positioned(
-                left: (c.maxWidth * markerPct).clamp(0.0, c.maxWidth - 2),
+                // Keep the whole notch on the track — a level at the far edge
+                // would otherwise hang half of it off the end.
+                left: (c.maxWidth * markerPct - notchWidth / 2)
+                    .clamp(0.0, c.maxWidth - notchWidth),
                 top: 0,
                 bottom: 0,
-                width: 2,
-                child: ColoredBox(color: t.ink.withValues(alpha: 0.55)),
+                width: notchWidth,
+                // Shoulders in the card's own colour, so the notch reads as a
+                // gap cut in the bar rather than a third stripe of paint.
+                // Padding, not Center — Center loosens the height constraint
+                // and the blade would collapse to nothing.
+                child: ColoredBox(
+                  color: t.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: (notchWidth - bladeWidth) / 2,
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: t.ink.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),

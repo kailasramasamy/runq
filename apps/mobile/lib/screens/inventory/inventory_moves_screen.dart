@@ -65,9 +65,9 @@ class _MovesBody extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _TodayInCard(count: k.todayGrns, value: k.todayGrnsValue)),
+                Expanded(child: _TodayInCard(count: k.todayInCount, value: k.todayInValue)),
                 const SizedBox(width: 8),
-                Expanded(child: _TodayOutCard(count: k.todayDeliveries, value: k.todayDnsValue)),
+                Expanded(child: _TodayOutCard(count: k.todayOutCount, value: k.todayOutValue)),
               ],
             ),
           ),

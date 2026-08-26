@@ -287,8 +287,8 @@ section("Dashboard KPIs")
 dash = req("GET", "/inventory/dashboard", token=tok())
 data = dash.get("data") or {}
 check("totalValue" in data and "lowStockCount" in data, "Dashboard returns KPI shape", data)
-check(int(data.get("todayGrns", 0)) >= 2, f"todayGrns >= 2 (got {data.get('todayGrns')})")
-check(int(data.get("todayDeliveries", 0)) >= 2, f"todayDeliveries >= 2 (got {data.get('todayDeliveries')})")
+check(int(data.get("todayInCount", 0)) >= 2, f"todayInCount >= 2 (got {data.get('todayInCount')})")
+check(int(data.get("todayOutCount", 0)) >= 2, f"todayOutCount >= 2 (got {data.get('todayOutCount')})")
 
 # ═══════════════════════════════════════════════════════════════════════
 #  PHASE 2: transfers, adjustments, stock-take, reorder rules, expiry
