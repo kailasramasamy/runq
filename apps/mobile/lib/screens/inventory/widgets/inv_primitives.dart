@@ -12,6 +12,7 @@
 
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
@@ -455,15 +456,35 @@ class InvKpiCard extends StatelessWidget {
 
 /// Hero KPI rendered inside the gradient header — translucent dark fill +
 /// white type. Supports an optional trend tag ("↑ 3.2% vs last week").
+/// Tone for an [InvHeroKpi] footnote. `neutral` is the default and the right
+/// choice for figures where a direction is not automatically good or bad —
+/// stock value climbing means either a strong order book or dead capital, and
+/// painting it green picks a side the data does not support.
+enum InvKpiTone { good, bad, neutral }
+
 class InvHeroKpi extends StatelessWidget {
-  const InvHeroKpi({super.key, required this.label, required this.value, this.trendPct});
+  const InvHeroKpi({
+    super.key,
+    required this.label,
+    required this.value,
+    this.footnote,
+    this.tone = InvKpiTone.neutral,
+  });
   final String label;
   final String value;
-  final double? trendPct;
+
+  /// Small line under the figure. Include any arrow glyph in the string —
+  /// direction and tone are separate judgements and only the caller knows both.
+  final String? footnote;
+  final InvKpiTone tone;
 
   @override
   Widget build(BuildContext context) {
-    final up = (trendPct ?? 0) >= 0;
+    final footColor = switch (tone) {
+      InvKpiTone.good => const Color(0xFF86EFAC),
+      InvKpiTone.bad => const Color(0xFFFCA5A5),
+      InvKpiTone.neutral => Colors.white.withValues(alpha: 0.66),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -486,24 +507,17 @@ class InvHeroKpi extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          if (trendPct != null) ...[
+          if (footnote != null) ...[
             const SizedBox(height: 4),
-            Row(
-              children: [
-                Text(
-                  '${up ? '↑' : '↓'} ${trendPct!.abs().toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: up ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'vs last week',
-                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.55)),
-                ),
-              ],
+            Text(
+              footnote!,
+              style: RunqText.micro.copyWith(
+                color: footColor,
+                fontWeight:
+                    tone == InvKpiTone.neutral ? FontWeight.w500 : FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ],
@@ -512,8 +526,6 @@ class InvHeroKpi extends StatelessWidget {
   }
 }
 
-/// Mini stat card with a coloured icon container — used in the Home screen's
-/// 2-col row (In transit / Pending adj) and the Moves hub status strip.
 class InvMiniStat extends StatelessWidget {
   const InvMiniStat({
     super.key,
@@ -724,12 +736,31 @@ class InvStockBar extends StatelessWidget {
     required this.qty,
     required this.reorderLevel,
     required this.isLow,
+    required this.markerLabel,
     this.height = 5,
   });
   final double qty;
   final double? reorderLevel;
   final bool isLow;
   final double height;
+
+  /// The threshold figure itself, printed inside the badge that marks its
+  /// place on the track. Null when the item has no reorder level — there is
+  /// nothing to mark. Required rather than optional so a caller can't
+  /// accidentally ship a bar whose mark is a number-less blip.
+  final String? markerLabel;
+
+  /// Badge geometry. The badge is a circle for a one- or two-digit threshold
+  /// and stretches to a pill beyond that, so "12" and "1,200" both sit on the
+  /// line without one of them looking like a different control.
+  static const double _badgeH = 16;
+  static const double _badgePadX = 5;
+  // Advance width of RunqText.micro, near enough to place the badge before it
+  // is laid out. Only used for the edge clamp, so a pixel of drift is free.
+  static const double _digitW = 6;
+
+  double _badgeWidth(String label) =>
+      math.max(_badgeH, label.length * _digitW + _badgePadX * 2);
 
   @override
   Widget build(BuildContext context) {
@@ -744,18 +775,15 @@ class InvStockBar extends StatelessWidget {
     // track. Constant by construction — read it off `cap` anyway so the two
     // can't drift if the multiplier is ever retuned.
     final markerPct = cap <= 0 ? null : (reorderLevel! / cap);
-    // The tick has to read against both the fill it sits under (any healthy
-    // item covers the mark) and the bare track behind it. A single ink line
-    // did neither: it disappeared into green at 55% alpha, and the bar was
-    // 3px tall. It's now a notch — surface-coloured shoulders cutting the bar
-    // clean through, with a solid ink blade between them — and it overhangs
-    // the track top and bottom so the mark is visible even on a full bar.
-    const overhang = 2.0;
-    const bladeWidth = 2.0;
-    const notchWidth = bladeWidth + 2; // 1px shoulder either side
+    final label = markerPct == null ? null : markerLabel;
+    // The badge sits ON the line, carrying the number it marks: one object to
+    // read instead of a tick plus a caption hunting for its own notch. It is
+    // taller than the bar, so the row is sized to the badge and the track is
+    // centred behind it.
+    final rowH = math.max(height, _badgeH);
     return LayoutBuilder(
       builder: (_, c) => SizedBox(
-        height: height + overhang * 2,
+        height: rowH,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -777,31 +805,31 @@ class InvStockBar extends StatelessWidget {
                 ),
               ),
             ),
-            if (markerPct != null)
+            if (label != null)
               Positioned(
-                // Keep the whole notch on the track — a level at the far edge
-                // would otherwise hang half of it off the end.
-                left: (c.maxWidth * markerPct - notchWidth / 2)
-                    .clamp(0.0, c.maxWidth - notchWidth),
+                // Keep the whole badge on the track — a level at either edge
+                // would otherwise hang half of itself off the end.
+                left: (c.maxWidth * markerPct! - _badgeWidth(label) / 2)
+                    .clamp(0.0, math.max(0.0, c.maxWidth - _badgeWidth(label))),
                 top: 0,
                 bottom: 0,
-                width: notchWidth,
-                // Shoulders in the card's own colour, so the notch reads as a
-                // gap cut in the bar rather than a third stripe of paint.
-                // Padding, not Center — Center loosens the height constraint
-                // and the blade would collapse to nothing.
-                child: ColoredBox(
-                  color: t.surface,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: (notchWidth - bladeWidth) / 2,
-                    ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: t.ink.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
+                child: Container(
+                  alignment: Alignment.center,
+                  constraints: const BoxConstraints(minWidth: _badgeH),
+                  padding: const EdgeInsets.symmetric(horizontal: _badgePadX),
+                  decoration: BoxDecoration(
+                    // Card-coloured body with an ink ring: the badge has to
+                    // read against the fill it sits under on a healthy item
+                    // and against the bare track on a low one.
+                    color: t.surface,
+                    border: Border.all(color: t.ink.withValues(alpha: 0.55)),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: RunqText.micro.copyWith(color: t.ink, height: 1.0),
                   ),
                 ),
               ),

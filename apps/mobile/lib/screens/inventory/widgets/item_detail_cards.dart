@@ -185,8 +185,11 @@ class ItemStockLevelCard extends StatelessWidget {
             reorderLevel: level,
             isLow: isLow,
             height: 6,
+            // The threshold rides the bar in its own badge, so the row below
+            // carries only what the mark can't say (shortfall, order qty).
+            markerLabel: level == null ? null : fmtQty(level),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           if (level == null)
             Row(
               children: [
@@ -212,17 +215,15 @@ class ItemStockLevelCard extends StatelessWidget {
                   ),
               ],
             )
-          else
+          else if (isLow || (reorderQty ?? 0) > 0)
             Row(
               children: [
                 Expanded(
                   child: Text(
                     isLow
                         ? 'Below reorder point — short by ${fmtQty(shortfall)} ${unit ?? ''}'.trim()
-                        : 'Reorder at ${fmtQty(level)} ${unit ?? ''}'.trim(),
-                    style: RunqText.caption.copyWith(
-                      color: isLow ? InvColors.orangeAlert : t.muted,
-                    ),
+                        : '',
+                    style: RunqText.caption.copyWith(color: InvColors.orangeAlert),
                   ),
                 ),
                 if ((reorderQty ?? 0) > 0)

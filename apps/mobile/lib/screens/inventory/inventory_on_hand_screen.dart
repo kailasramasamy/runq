@@ -440,6 +440,11 @@ class _StockTile extends StatelessWidget {
                   qty: row.qty,
                   reorderLevel: row.reorderLevel,
                   isLow: row.isLow,
+                  // The threshold rides the bar as a badge — the row no longer
+                  // needs a legend to say what the mark stands for.
+                  markerLabel: row.reorderLevel == null
+                      ? null
+                      : _fmtQty(row.reorderLevel!),
                 ),
               ],
             ),
