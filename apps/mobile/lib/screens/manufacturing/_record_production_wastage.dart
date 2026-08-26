@@ -18,34 +18,95 @@ import 'package:flutter/services.dart';
 import '../../api/manufacturing_models.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
-import '_record_production_alloc_list.dart' show drawnQty;
+import '_record_production_alloc_list.dart' show drawKey, drawnQty;
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
-/// What the books say should be left once the run draws its share.
+/// One item the run actually drew from, and what should be left of it.
 ///
-/// Measured against the typed draw, not the server's own allocation — the
-/// expected balance has to describe the run being posted, or the count below
-/// writes off a difference that was never a loss.
-double expectedLeftOf(
-  ProductionAllocation a,
+/// Built per *item*, never per BOM line. A line that accepts substitutes pools
+/// its stand-ins for the shortage check — "140 L of milk, A2 or A1 or buffalo"
+/// — so `allocation.availableQty` is the whole pool. Counting the leftover of
+/// one named milk against a three-milk balance wrote the untouched substitutes
+/// off as production loss.
+class ClosingStockRow {
+  final String itemId;
+  final String itemName;
+  final String uom;
+
+  /// On hand before the run, across this item's batches.
+  final double onHand;
+
+  /// What the operator typed against this item's batches.
+  final double drawn;
+
+  const ClosingStockRow({
+    required this.itemId,
+    required this.itemName,
+    required this.uom,
+    required this.onHand,
+    required this.drawn,
+  });
+
+  /// What the books say should be left once the run takes its share.
+  double get expectedLeft => onHand - drawn;
+}
+
+/// The items this run touched, in pool order.
+///
+/// Only items with a typed draw get a row: an untouched substitute cannot have
+/// been wasted, and offering a count for it is what invited the bad write-off.
+/// Batches are de-duplicated across lines, so an item feeding two lines is
+/// counted once and nets both draws.
+List<ClosingStockRow> closingStockRows(
+  ProductionPreview preview,
   Map<String, TextEditingController> drawCtls,
-) =>
-    a.availableQty - a.pool.fold<double>(0, (s, b) => s + drawnQty(drawCtls, b));
+) {
+  final onHand = <String, double>{};
+  final drawn = <String, double>{};
+  final names = <String, String>{};
+  final uoms = <String, String>{};
+  final order = <String>[];
+  final seenBatches = <String>{};
+
+  for (final a in preview.allocations) {
+    for (final b in a.pool) {
+      // One physical batch, however many lines can reach it.
+      if (!seenBatches.add(drawKey(b.itemId, b.batchNo))) continue;
+      if (!names.containsKey(b.itemId)) {
+        names[b.itemId] = b.itemName.isNotEmpty ? b.itemName : a.inputItemName;
+        uoms[b.itemId] = a.uom;
+        order.add(b.itemId);
+      }
+      onHand[b.itemId] = (onHand[b.itemId] ?? 0) + b.qty;
+      drawn[b.itemId] = (drawn[b.itemId] ?? 0) + drawnQty(drawCtls, b);
+    }
+  }
+
+  return [
+    for (final id in order)
+      if ((drawn[id] ?? 0) > 0)
+        ClosingStockRow(
+          itemId: id,
+          itemName: names[id]!,
+          uom: uoms[id] ?? '',
+          onHand: _round3(onHand[id] ?? 0),
+          drawn: _round3(drawn[id] ?? 0),
+        ),
+  ];
+}
 
 /// Loss implied by a counted leftover. Blank means "not counted" — silence is
 /// not a claim of zero wastage. More left than expected is not wastage but a
 /// wrong consumed qty, so it never becomes a write-off.
-double wastageFromLeft(
-  ProductionAllocation a,
-  String left,
-  Map<String, TextEditingController> drawCtls,
-) {
+double wastageFromLeft(ClosingStockRow row, String left) {
   final counted = double.tryParse(left.trim());
   if (counted == null) return 0;
-  final diff = expectedLeftOf(a, drawCtls) - counted;
-  return diff > 0 ? diff : 0;
+  final diff = row.expectedLeft - counted;
+  return diff > 0 ? _round3(diff) : 0;
 }
+
+double _round3(double v) => (v * 1000).roundToDouble() / 1000;
 
 class RecordProductionWastage extends StatelessWidget {
   final ProductionPreview preview;
@@ -71,7 +132,10 @@ class RecordProductionWastage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    if (preview.allocations.isEmpty) return const SizedBox.shrink();
+    final rows = closingStockRows(preview, drawControllers);
+    // Nothing drawn yet, nothing to count. The section appears as the operator
+    // fills the draw boxes above.
+    if (rows.isEmpty) return const SizedBox.shrink();
 
     return MfgCard(
       child: Column(
@@ -90,12 +154,11 @@ class RecordProductionWastage extends StatelessWidget {
             style: RunqText.caption.copyWith(color: t.muted),
           ),
           const SizedBox(height: 12),
-          for (final a in preview.allocations) ...[
+          for (final r in rows) ...[
             _WastageRow(
-              allocation: a,
-              drawControllers: drawControllers,
+              row: r,
               controller: leftControllers.putIfAbsent(
-                a.inputItemId,
+                r.itemId,
                 () => TextEditingController(),
               ),
               onChanged: onChanged,
@@ -124,14 +187,12 @@ class RecordProductionWastage extends StatelessWidget {
 }
 
 class _WastageRow extends StatelessWidget {
-  final ProductionAllocation allocation;
-  final Map<String, TextEditingController> drawControllers;
+  final ClosingStockRow row;
   final TextEditingController controller;
   final VoidCallback onChanged;
 
   const _WastageRow({
-    required this.allocation,
-    required this.drawControllers,
+    required this.row,
     required this.controller,
     required this.onChanged,
   });
@@ -139,9 +200,9 @@ class _WastageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final expected = expectedLeftOf(allocation, drawControllers);
+    final expected = row.expectedLeft;
     final counted = double.tryParse(controller.text.trim());
-    final wasted = wastageFromLeft(allocation, controller.text, drawControllers);
+    final wasted = wastageFromLeft(row, controller.text);
     final surplus = counted != null && counted - expected > 0.0001;
 
     return Column(
@@ -155,7 +216,7 @@ class _WastageRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(allocation.inputItemName,
+                Text(row.itemName,
                     style: RunqText.body.copyWith(color: t.ink), maxLines: 2),
                 const SizedBox(height: 2),
                 Text('Left after run',
@@ -179,7 +240,7 @@ class _WastageRow extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 hintText: '0',
                 hintStyle: RunqText.body.copyWith(color: t.muted),
-                suffixText: allocation.uom,
+                suffixText: row.uom,
                 suffixStyle: RunqText.caption.copyWith(color: t.muted),
                 filled: true,
                 fillColor: t.bgWarm,
@@ -194,12 +255,13 @@ class _WastageRow extends StatelessWidget {
         ]),
         const SizedBox(height: 4),
         Text(
-          'Expected balance ${_trim(expected)} ${allocation.uom} after this run.',
+          'Drew ${_trim(row.drawn)} of ${_trim(row.onHand)} ${row.uom} — '
+          'expected balance ${_trim(expected)} ${row.uom}.',
           style: RunqText.caption.copyWith(color: t.muted),
         ),
         if (wasted > 0)
           Text(
-            'Wastage ${_trim(wasted)} ${allocation.uom} — written off on top of '
+            'Wastage ${_trim(wasted)} ${row.uom} — written off on top of '
             'what the run consumes.',
             style: RunqText.caption.copyWith(color: MfgColors.orangeAlert),
           ),

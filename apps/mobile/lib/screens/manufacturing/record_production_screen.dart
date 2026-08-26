@@ -278,19 +278,12 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     final preview = _preview;
     if (preview == null) return null;
     final lines = <Map<String, dynamic>>[];
-    for (final a in preview.allocations) {
-      final qty = wastageFromLeft(
-        a,
-        _wastageLeftCtls[a.inputItemId]?.text ?? '',
-        _drawCtls,
-      );
+    // Rows are per drawn item, so the loss goes against the very stock it was
+    // counted from — no guessing which of a line's substitutes it belonged to.
+    for (final r in closingStockRows(preview, _drawCtls)) {
+      final qty = wastageFromLeft(r, _wastageLeftCtls[r.itemId]?.text ?? '');
       if (qty <= 0) continue;
-      // Write the loss off against the stock the run actually drew: a line that
-      // took buffalo milk cannot waste A2 it never touched.
-      final drawnItem = a.batches.isNotEmpty && a.batches.first.itemId.isNotEmpty
-          ? a.batches.first.itemId
-          : a.inputItemId;
-      lines.add({'itemId': drawnItem, 'qty': qty});
+      lines.add({'itemId': r.itemId, 'qty': qty});
     }
     if (lines.isEmpty) return null;
     final notes = _wastageNotesCtl.text.trim();
