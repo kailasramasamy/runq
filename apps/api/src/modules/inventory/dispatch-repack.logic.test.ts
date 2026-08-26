@@ -49,7 +49,12 @@ function alloc(...expiries: Array<string | null>): ProductionAllocation {
     requiredQty: 20,
     availableQty: 50,
     isOptional: false,
+    substitutes: [],
+    pool: [],
+    suggestion: [],
     batches: expiries.map((expiryDate, i) => ({
+      itemId: 'pool',
+      itemName: 'A2 Paneer — Unlabelled',
       batchNo: `B${i}`,
       qty: 10,
       unitCost: 300,

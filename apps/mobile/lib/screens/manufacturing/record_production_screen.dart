@@ -29,7 +29,6 @@ import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import '_record_production_alloc_list.dart';
 import '_record_production_form_cards.dart';
-import '_record_production_line_sheet.dart';
 import '_record_production_wastage.dart';
 import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
@@ -79,14 +78,16 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
 
   /// Wasted qty per input item, plus one shared reason for the write-off.
   /// Held here so the values survive the preview refreshing underneath.
-  final _wastageCtls = <String, TextEditingController>{};
+  final _wastageLeftCtls = <String, TextEditingController>{};
   final _wastageNotesCtl = TextEditingController();
 
   /// Per-input-item batch/qty overrides the technician has made on top of
   /// the server's FEFO default. Rebuilt into the `lines` request param on
   /// every preview/submit call so an edit to one line survives further
   /// qty/warehouse changes that re-trigger the preview.
-  final Map<String, ProductionAllocationBatch> _overrides = {};
+  /// Qty typed against each pool batch, keyed by [drawKey]. This — not the
+  /// server's own allocation — is what the run consumes.
+  final _drawCtls = <String, TextEditingController>{};
 
   ProductionPreview? _preview;
   bool _previewLoading = false;
@@ -137,7 +138,10 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     _batchNoCtl.dispose();
     _notesCtl.dispose();
     _wastageNotesCtl.dispose();
-    for (final c in _wastageCtls.values) {
+    for (final c in _drawCtls.values) {
+      c.dispose();
+    }
+    for (final c in _wastageLeftCtls.values) {
       c.dispose();
     }
     super.dispose();
@@ -151,6 +155,8 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
       _warehouseId != null &&
       _preview != null &&
       _preview!.shortages.isEmpty &&
+      // Every required line must add up before anything posts.
+      _preview!.allocations.every((a) => lineBalanced(_drawCtls, a)) &&
       (!_preview!.outputTracksBatches || _expiryDate != null);
 
   void _schedulePreview() {
@@ -158,16 +164,38 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     _debounce = Timer(const Duration(milliseconds: 400), _runPreview);
   }
 
-  List<Map<String, dynamic>>? _overrideLines() {
-    if (_overrides.isEmpty) return null;
+  /// The typed split, as the API's line overrides. An override set describes
+  /// the whole line, so every batch with a qty goes in and anything left blank
+  /// is simply not drawn.
+  List<Map<String, dynamic>> _drawLines() {
+    final preview = _preview;
+    if (preview == null) return const [];
     return [
-      for (final e in _overrides.entries)
-        {
-          'inputItemId': e.key,
-          if (e.value.batchNo != null && e.value.batchNo!.isNotEmpty) 'batchNo': e.value.batchNo,
-          'qty': e.value.qty,
-        },
+      for (final a in preview.allocations)
+        for (final b in a.pool)
+          if (drawnQty(_drawCtls, b) > 0)
+            {
+              'inputItemId': b.itemId,
+              if (b.batchNo != null && b.batchNo!.isNotEmpty) 'batchNo': b.batchNo,
+              'qty': drawnQty(_drawCtls, b),
+            },
     ];
+  }
+
+  /// Fill one line from the server's suggestion — whole cans first, the
+  /// shortfall from one bigger batch. Clears the line first so a half-typed
+  /// split is replaced rather than added to.
+  void _suggestLine(ProductionAllocation a) {
+    setState(() {
+      for (final b in a.pool) {
+        _drawCtls[drawKey(b.itemId, b.batchNo)]?.clear();
+      }
+      for (final s in a.suggestion) {
+        _drawCtls
+            .putIfAbsent(drawKey(s.itemId, s.batchNo), () => TextEditingController())
+            .text = _trimQty(s.qty);
+      }
+    });
   }
 
   Future<void> _runPreview() async {
@@ -184,7 +212,6 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         bomId: _bomId,
         producedQty: _producedQty,
         warehouseId: _warehouseId!,
-        lines: _overrideLines(),
       );
       if (!mounted) return;
       setState(() => _preview = preview);
@@ -203,7 +230,17 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         _bomId = picked.id;
         _bomCode = picked.bomCode;
         _bomName = picked.name;
-        _overrides.clear();
+        // A typed draw and a counted leftover both belong to the BOM they were
+        // entered against.
+        for (final c in _drawCtls.values) {
+          c.clear();
+        }
+        for (final c in _drawCtls.values) {
+      c.dispose();
+    }
+    for (final c in _wastageLeftCtls.values) {
+          c.clear();
+        }
       });
       _schedulePreview();
     }
@@ -225,21 +262,6 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     if (picked != null && mounted) setState(() => _expiryDate = picked);
   }
 
-  Future<void> _editLine(ProductionAllocation alloc) async {
-    final result = await showRecordProductionLineSheet(context, allocation: alloc);
-    if (result == null || !mounted) return;
-    setState(() {
-      // Overrides are keyed by item. Switching the draw to a substitute must
-      // clear the one it replaces, or the line posts against both.
-      _overrides.remove(alloc.inputItemId);
-      for (final sub in alloc.substitutes) {
-        _overrides.remove(sub.itemId);
-      }
-      _overrides[result.itemId.isEmpty ? alloc.inputItemId : result.itemId] = result;
-    });
-    _schedulePreview();
-  }
-
   /// No batch is sent: the server FEFO-allocates the write-off across what the
   /// run actually left behind. Naming a batch here gets it wrong — the run
   /// usually drains the oldest batch outright, so the leftover sits in whichever
@@ -249,7 +271,11 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     if (preview == null) return null;
     final lines = <Map<String, dynamic>>[];
     for (final a in preview.allocations) {
-      final qty = double.tryParse(_wastageCtls[a.inputItemId]?.text.trim() ?? '') ?? 0;
+      final qty = wastageFromLeft(
+        a,
+        _wastageLeftCtls[a.inputItemId]?.text ?? '',
+        _drawCtls,
+      );
       if (qty <= 0) continue;
       // Write the loss off against the stock the run actually drew: a line that
       // took buffalo milk cannot waste A2 it never touched.
@@ -275,7 +301,7 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         bomId: _bomId,
         producedQty: _producedQty,
         warehouseId: _warehouseId!,
-        lines: _overrideLines(),
+        lines: _drawLines(),
         batchNo: _batchNoCtl.text.trim().isEmpty ? null : _batchNoCtl.text.trim(),
         expiryDate: _expiryDate == null ? null : _isoDate(_expiryDate!),
         shift: _shift,
@@ -415,11 +441,17 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
                   else if (_previewError != null)
                     _previewErrorCard(t)
                   else if (_preview != null) ...[
-                    RecordProductionAllocList(preview: _preview!, onEditLine: _editLine),
+                    RecordProductionAllocList(
+                      preview: _preview!,
+                      drawControllers: _drawCtls,
+                      onChanged: () => setState(() {}),
+                      onSuggest: _suggestLine,
+                    ),
                     const SizedBox(height: 12),
                     RecordProductionWastage(
                       preview: _preview!,
-                      qtyControllers: _wastageCtls,
+                      leftControllers: _wastageLeftCtls,
+                      drawControllers: _drawCtls,
                       notesCtl: _wastageNotesCtl,
                       onChanged: () => setState(() {}),
                     ),

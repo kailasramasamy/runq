@@ -362,6 +362,7 @@ export function BomForm({ initial, onSubmit, isLoading }: BomFormProps) {
               </span>
             </span>
           </label>
+
         </CardContent>
       </Card>
 

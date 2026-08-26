@@ -64,17 +64,23 @@ class WoMaterialsCard extends ConsumerWidget {
             name: wo.expectedLines[i].inputItemName,
             expected: wo.expectedLines[i].expectedQty(wo.plannedQty),
             uom: wo.expectedLines[i].inputUom,
-            actual: byItem.remove(wo.expectedLines[i].inputItemId),
+            ownItemId: wo.expectedLines[i].inputItemId,
+            // A line that accepts stand-ins asks for its qty ONCE, so the
+            // whole pool answers to one expectation. Matching by item alone
+            // read a legitimate substitute as "not in BOM" and reported the
+            // line short by everything the stand-ins covered.
+            actual: _poolFor(wo.expectedLines[i], byItem),
           ),
         ],
-        // Anything consumed that the BOM didn't call for — a substitution the
-        // operator made at the line. Never silently dropped.
+        // Anything consumed that the BOM did not call for at all — not its
+        // item, not any stand-in it accepts. Never silently dropped.
         for (final extra in byItem.values) ...[
           Divider(color: t.hairline, height: 20),
           _ConsumedRow(
             name: extra.first.inputItemName,
             expected: null,
             uom: extra.first.uom,
+            ownItemId: extra.first.inputItemId,
             actual: extra,
           ),
         ],
@@ -136,16 +142,45 @@ class WoMaterialsCard extends ConsumerWidget {
 }
 
 /// One input on a posted run: what went in, from which batches, against plan.
+typedef _DrawEntry = MapEntry<String, ({String itemId, String itemName, double qty})>;
+
+String _batchOf(_DrawEntry e) => e.key.split('::').last;
+
+/// Only batches worth a line of their own. An item that tracks none produces
+/// one entry with an empty batch, and a line for it would just repeat the
+/// row's own total.
+List<_DrawEntry> _batched(List<_DrawEntry> entries) =>
+    entries.where((e) => _batchOf(e).isNotEmpty).toList();
+
+double _sum(List<_DrawEntry> entries) =>
+    entries.fold<double>(0, (s, e) => s + e.value.qty);
+
+/// Everything consumed against one BOM line: its own item plus every stand-in
+/// it accepts, lifted out of [byItem] so the leftovers really are off-recipe.
+List<WoConsumptionRow> _poolFor(
+  WorkOrderExpectedLine line,
+  Map<String, List<WoConsumptionRow>> byItem,
+) =>
+    [
+      ...?byItem.remove(line.inputItemId),
+      for (final sub in line.substitutes) ...?byItem.remove(sub.itemId),
+    ];
+
 class _ConsumedRow extends StatelessWidget {
   const _ConsumedRow({
     required this.name,
     required this.expected,
     required this.uom,
+    required this.ownItemId,
     required this.actual,
   });
   final String name;
   final double? expected;
   final String uom;
+
+  /// The line's own item — anything else in [actual] came from a stand-in and
+  /// is labelled with the item it actually came off.
+  final String ownItemId;
   final List<WoConsumptionRow>? actual;
 
   @override
@@ -156,47 +191,115 @@ class _ConsumedRow extends StatelessWidget {
     final delta = expected == null ? 0.0 : took - expected!;
     final off = delta.abs() > 0.0005;
 
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name,
+    // One batch can be drawn on more than one row (a correction, a second
+    // draw) — the floor thinks in batches, so collapse to one line per batch.
+    final byBatch = <String, ({String itemId, String itemName, double qty})>{};
+    for (final r in rows) {
+      final key = '${r.inputItemId}::${r.batchNo ?? ''}';
+      final prev = byBatch[key];
+      byBatch[key] = (
+        itemId: r.inputItemId,
+        itemName: r.inputItemName,
+        qty: (prev?.qty ?? 0) + r.qty,
+      );
+    }
+    final own = byBatch.entries.where((e) => e.value.itemId == ownItemId).toList();
+    final subs = <String, List<_DrawEntry>>{};
+    for (final e in byBatch.entries.where((e) => e.value.itemId != ownItemId)) {
+      subs.putIfAbsent(e.value.itemName, () => []).add(e);
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Item and its total, then the batches that made it up — every figure
+      // on the same right edge, so the parts visibly sum to the whole.
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: Text(name,
               style: RunqText.bodyStrong.copyWith(color: t.ink),
               maxLines: 2,
               overflow: TextOverflow.ellipsis),
-          if (rows.any((r) => r.batchNo != null)) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final r in rows.where((r) => r.batchNo != null))
-                  _Tag(label: r.batchNo!),
-              ],
-            ),
-          ],
-        ]),
-      ),
-      const SizedBox(width: 12),
-      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text('${woQty(took)} $uom',
-            style: RunqText.bodyStrong.copyWith(color: t.ink)),
-        const SizedBox(height: 2),
-        Text(
-          expected == null
-              ? 'not in BOM'
-              : off
-                  ? '${delta > 0 ? '+' : '−'}${woQty(delta.abs())} vs plan'
-                  : 'as planned',
-          style: RunqText.micro.copyWith(
-            color: expected == null || off ? MfgColors.orangeAlert : t.muted,
-          ),
         ),
+        const SizedBox(width: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('${woQty(took)} $uom',
+              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          const SizedBox(height: 2),
+          Text(
+            expected == null
+                ? 'not in BOM'
+                : off
+                    ? '${delta > 0 ? '+' : '−'}${woQty(delta.abs())} vs plan'
+                    : 'as planned',
+            style: RunqText.micro.copyWith(
+              color: expected == null || off ? MfgColors.orangeAlert : t.muted,
+            ),
+          ),
+        ]),
       ]),
+      for (final e in _batched(own))
+        _DrawLine(label: _batchOf(e), qty: e.value.qty, uom: uom),
+      // Stand-ins carry their own name: a line reading only the batch number
+      // would put buffalo milk under the A2 heading unremarked.
+      for (final entry in subs.entries) ...[
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 2),
+          child: _batched(entry.value).isEmpty
+              ? _DrawLine(
+                  label: entry.key,
+                  qty: _sum(entry.value),
+                  uom: uom,
+                  dense: false,
+                )
+              : Text(entry.key, style: RunqText.micro.copyWith(color: t.muted2)),
+        ),
+        for (final e in _batched(entry.value))
+          _DrawLine(label: _batchOf(e), qty: e.value.qty, uom: uom),
+      ],
     ]);
   }
 }
 
-/// One material requirement — a BOM line, or a pool of interchangeable ones.
+/// One batch's contribution to the line above: what it came off on the left,
+/// how much on the right. Right-aligned against the item total so the column
+/// reads as an arithmetic breakdown rather than a list of tags.
+class _DrawLine extends StatelessWidget {
+  const _DrawLine({
+    required this.label,
+    required this.qty,
+    required this.uom,
+    this.dense = true,
+  });
+  final String label;
+  final double qty;
+  final String uom;
+
+  /// Batch lines sit under a heading and indent; a stand-in with no batches
+  /// stands in for the heading itself, so it keeps the full width.
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(dense ? 12 : 0, 5, 0, 0),
+      child: Row(children: [
+        Expanded(
+          child: Text(label,
+              style: RunqText.caption.copyWith(color: t.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(width: 12),
+        Text('${woQty(qty)} $uom',
+            style: RunqText.caption.copyWith(
+              color: t.muted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            )),
+      ]),
+    );
+  }
+}
+
 class _MaterialNeed {
   const _MaterialNeed({
     required this.name,
@@ -463,10 +566,12 @@ class _Tag extends StatelessWidget {
           Icon(icon, size: 11, color: t.muted2),
           const SizedBox(width: 4),
         ],
-        Text(label,
-            style: RunqText.micro.copyWith(color: t.muted),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis),
+        Flexible(
+          child: Text(label,
+              style: RunqText.micro.copyWith(color: t.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
       ]),
     );
   }

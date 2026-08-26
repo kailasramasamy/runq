@@ -14,6 +14,7 @@
  */
 
 import type {
+  InputPoolLine,
   ProductionAllocation,
   ProductionAllocationBatch,
   ProductionShortage,
@@ -81,10 +82,7 @@ export function allocateFefo(
   required: number,
   sources: readonly AllocationSource[],
 ): { batches: ProductionAllocationBatch[]; allocated: number } {
-  const queue = sources.flatMap((source, sourceIdx) =>
-    source.available.map((batch) => ({ source, sourceIdx, batch })),
-  );
-  queue.sort(byExpiryThenAge);
+  const queue = orderedQueue(sources);
 
   const batches: ProductionAllocationBatch[] = [];
   let remaining = required;
@@ -130,6 +128,120 @@ function byExpiryThenAge(a: QueuedBatch, b: QueuedBatch): number {
 }
 
 /**
+ * The line's stock as one queue in draw order — earliest expiry, then oldest
+ * movement, then the line's own item ahead of its stand-ins.
+ *
+ * Every reader of the pool goes through here: the allocation, the pool view
+ * and the suggestion. A second ordering would let the screen show one thing
+ * and the run take another.
+ */
+function orderedQueue(
+  sources: readonly AllocationSource[],
+): Array<{ source: AllocationSource; batch: SuggestedBatch }> {
+  const queue = sources.flatMap((source, sourceIdx) =>
+    source.available.map((batch) => ({ source, sourceIdx, batch })),
+  );
+  queue.sort(byExpiryThenAge);
+  return queue;
+}
+
+/**
+ * Draw `required` the way someone on the floor would: tip in whole cans, and
+ * take the shortfall from one bigger batch.
+ *
+ * Plain FEFO empties the queue in order, so a 70 L draw against a 75 L batch
+ * takes 70 and leaves 5 — and the part-cans pile up until the pool is a shelf
+ * of unusable remnants. This walks the same queue but only takes a batch whole
+ * while it fits inside what is still needed; a batch too big to fit is set
+ * aside. The leftover is then drawn from the first batch set aside, so the run
+ * leaves ONE remnant instead of five, and leaves it in the longest-dated stock
+ * it can.
+ *
+ * Nothing is over-drawn: a can that does not fit is never tipped in whole.
+ */
+export function suggestDraw(
+  required: number,
+  sources: readonly AllocationSource[],
+): ProductionAllocationBatch[] {
+  const queue = orderedQueue(sources);
+  const taken: ProductionAllocationBatch[] = [];
+  const deferred: typeof queue = [];
+  let remaining = roundQty(required);
+
+  const take = (entry: (typeof queue)[number], qty: number) => {
+    taken.push({
+      itemId: entry.source.itemId,
+      itemName: entry.source.itemName,
+      batchNo: entry.source.tracksBatches ? entry.batch.batchNo : null,
+      qty,
+      unitCost: entry.batch.unitCost,
+      expiryDate: entry.batch.expiryDate,
+    });
+    remaining = roundQty(remaining - qty);
+  };
+
+  for (const entry of queue) {
+    if (remaining <= 0) break;
+    if (entry.batch.availableQty <= 0) continue;
+    if (entry.batch.availableQty <= remaining) {
+      take(entry, entry.batch.availableQty); // drains the can
+    } else {
+      deferred.push(entry); // too big to finish — keep it for the shortfall
+    }
+  }
+
+  // The shortfall comes from the first deferred batch: leaving a remnant of
+  // long-dated stock beats leaving one that is about to expire.
+  if (remaining > 0 && deferred.length > 0) take(deferred[0]!, remaining);
+
+  return taken;
+}
+
+/**
+ * Every batch standing behind each input line, in the order a run would take
+ * them — the same merged FEFO queue `allocateFefo` walks, just not stopped at
+ * a required qty.
+ *
+ * Sharing the queue is the point: a pool view that ordered stock its own way
+ * would show one thing and the next run would draw another.
+ */
+export function buildPool(
+  lines: readonly BomInputLine[],
+  availableByItem: ReadonlyMap<string, readonly SuggestedBatch[]>,
+): InputPoolLine[] {
+  return lines.map((line) => {
+    const sources = sourcesFor(line, availableByItem);
+    const batches = orderedQueue(sources).map(({ source, batch }) => ({
+      itemId: source.itemId,
+      itemName: source.itemName,
+      batchNo: source.tracksBatches ? batch.batchNo : null,
+      qty: batch.availableQty,
+      unitCost: batch.unitCost,
+      expiryDate: batch.expiryDate,
+      lastMovementAt: batch.lastMovementAt ?? null,
+    }));
+
+    const totalQty = roundQty(batches.reduce((sum, b) => sum + b.qty, 0));
+    // What one BOM batch draws, scrap included — the yardstick behind
+    // "how many more can I run before I open the fresh stock?".
+    const qtyPerBatch = computeRequiredQty(line.qtyPerOutput, 1, line.scrapPct);
+
+    return {
+      bomLineId: line.bomLineId,
+      inputItemId: line.inputItemId,
+      inputItemName: line.inputItemName,
+      uom: line.inputUom,
+      qtyPerBatch,
+      totalQty,
+      batchesCovered: qtyPerBatch > 0 ? Math.floor(totalQty / qtyPerBatch) : 0,
+      isOptional: line.isOptional,
+      substitutes: line.substitutes.map((s) => ({ itemId: s.itemId, itemName: s.itemName })),
+      batches,
+    };
+  });
+}
+
+/**
  * Turn the BOM into a concrete draw against what is on hand.
  *
  * One allocation per line, whether or not the line accepts substitutes — the
@@ -144,6 +256,15 @@ export function buildAllocations(
     const sources = sourcesFor(line, availableByItem);
     const requiredQty = computeRequiredQty(line.qtyPerOutput, runs, line.scrapPct);
     const { batches } = allocateFefo(requiredQty, sources);
+    const pool = orderedQueue(sources).map(({ source, batch }) => ({
+      itemId: source.itemId,
+      itemName: source.itemName,
+      batchNo: source.tracksBatches ? batch.batchNo : null,
+      qty: batch.availableQty,
+      unitCost: batch.unitCost,
+      expiryDate: batch.expiryDate,
+      lastMovementAt: batch.lastMovementAt ?? null,
+    }));
 
     return {
       bomLineId: line.bomLineId,
@@ -163,6 +284,8 @@ export function buildAllocations(
         itemName: s.itemName,
       })),
       batches,
+      pool,
+      suggestion: suggestDraw(requiredQty, sources),
     };
   });
 }
@@ -235,7 +358,11 @@ export function applyOverrides(
     if (items.length === 0) return alloc;
     items.forEach((itemId) => claimed.add(itemId));
 
-    const kept = alloc.batches.filter((b) => !items.includes(b.itemId));
+    // An override set describes the WHOLE line, so the server's own allocation
+    // for it is dropped rather than merged. Keeping the un-overridden part
+    // would let a FEFO draw the operator never saw ride along beside the
+    // quantities they typed — the line would consume more than the screen
+    // showed, which is exactly the drift the manual split exists to stop.
     const replaced = items.flatMap((itemId) =>
       overrideBatches(
         itemId,
@@ -246,7 +373,7 @@ export function applyOverrides(
       ),
     );
 
-    return { ...alloc, batches: [...kept, ...replaced] };
+    return { ...alloc, batches: replaced };
   });
 }
 

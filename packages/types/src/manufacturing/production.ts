@@ -24,6 +24,18 @@ export interface ProductionAllocation {
   substitutes: ProductionAllocationSubstitute[];
   /** Empty when nothing is on hand — pair with the matching shortage row. */
   batches: ProductionAllocationBatch[];
+  /**
+   * Everything this line could draw from, in draw order — its own item plus
+   * every stand-in. The screen lists these with a qty box each so the floor
+   * splits the draw itself.
+   */
+  pool: InputPoolBatch[];
+  /**
+   * What the "Suggest" button fills in: whole cans first, the shortfall from
+   * one bigger batch. Offered, never applied — a number nobody typed is how
+   * stock quietly drifts from what is on the floor.
+   */
+  suggestion: ProductionAllocationBatch[];
 }
 
 export interface ProductionAllocationSubstitute {
@@ -75,4 +87,51 @@ export interface ProductionPreview {
   shortages: ProductionShortage[];
   /** Sum of allocated qty × unit cost — the run's input cost at current WAC. */
   estimatedInputValue: number;
+}
+
+/**
+ * Manufacturing — input pool ("what have I got to run this with?").
+ *
+ * A read-only view of every batch standing behind a BOM's inputs, ordered the
+ * way the backflush would draw them. On a dairy floor that is the milk pool:
+ * cut-open pouches and yesterday's balance ahead of the tanker that landed at
+ * noon, so the operator can see whether the next paneer batch breaks into
+ * fresh stock before committing to it.
+ */
+export interface InputPoolBatch {
+  itemId: string;
+  itemName: string;
+  batchNo: string | null;
+  /** On hand, not allocated — nothing is reserved by looking. */
+  qty: number;
+  unitCost: number;
+  expiryDate: string | null;
+  /** Drives the age shown next to the batch, and breaks FEFO ties. */
+  lastMovementAt: string | null;
+}
+
+export interface InputPoolLine {
+  bomLineId: string | null;
+  inputItemId: string;
+  inputItemName: string;
+  uom: string;
+  /** What one BOM batch draws, scrap included. */
+  qtyPerBatch: number;
+  totalQty: number;
+  /** Whole BOM batches the pool covers — the "can I run two more?" answer. */
+  batchesCovered: number;
+  isOptional: boolean;
+  substitutes: ProductionAllocationSubstitute[];
+  /** Draw order: earliest expiry, then oldest movement, then line item first. */
+  batches: InputPoolBatch[];
+}
+
+export interface InputPool {
+  bomId: string;
+  bomCode: string;
+  bomName: string;
+  outputItemName: string;
+  warehouseId: string;
+  warehouseName: string;
+  lines: InputPoolLine[];
 }

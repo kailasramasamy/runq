@@ -3,6 +3,7 @@ import {
   FlaskConical, Factory, ClipboardList, Plus,
   PlayCircle, Timer, TrendingUp, AlertTriangle, BarChart3, CalendarClock, Milk, Wrench,
   Recycle,
+  Layers,
 } from 'lucide-react';
 import {
   PageHeader, Card, CardContent, Skeleton, EmptyState, Badge,
@@ -178,6 +179,12 @@ export function ManufacturingHomePage() {
             body="Log a run made without a WO"
             to="/manufacturing/production/new"
             accent
+          />
+          <ActionCard
+            icon={Layers}
+            title="Input pool"
+            body="See what a run would draw on"
+            to="/manufacturing/production/pool"
           />
           <ActionCard
             icon={Recycle}

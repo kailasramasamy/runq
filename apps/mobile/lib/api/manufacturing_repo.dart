@@ -378,6 +378,18 @@ class ManufacturingRepo {
     return ProductionPreview.fromJson((res['data'] as Map).cast<String, dynamic>());
   }
 
+  /// Everything on hand behind a BOM's inputs, in the order a run would draw
+  /// it. Read-only, so it skips the offline queue like the preview does.
+  Future<InputPool> inputPool({
+    required String bomId,
+    required String warehouseId,
+  }) async {
+    final res = await apiClient.get(
+      '/manufacturing/production/pool?bomId=$bomId&warehouseId=$warehouseId',
+    );
+    return InputPool.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
   /// Posts the production entry. Routes through `WoRunQueue` — see
   /// `addConsumption` for the offline-queue contract. On success the server
   /// creates + closes an unplanned WO in one shot.

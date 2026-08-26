@@ -26,18 +26,24 @@ import { BatchSuggestService } from './batch-suggest.service';
 import {
   applyOverrides,
   buildAllocations,
+  buildPool,
   findOverdrawnBatches,
   findShortages,
   roundQty,
 } from './production-backflush';
 import type { BomInputLine } from './production-backflush';
 import type {
+  InputPool,
   ProductionAllocation,
   ProductionPreview,
   SuggestedBatch,
   WorkOrderWithDetail,
 } from '@runq/types';
-import type { ProductionPreviewInput, RecordProductionInput } from '@runq/validators';
+import type {
+  InputPoolQuery,
+  ProductionPreviewInput,
+  RecordProductionInput,
+} from '@runq/validators';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
@@ -252,6 +258,33 @@ export class ProductionEntryService {
     return row!.id as string;
   }
 
+  /**
+   * Everything on hand behind a BOM's inputs, in the order a run would draw
+   * it. Reads only — it exists so the floor can see the queue before deciding
+   * what to run, and so drift (stock in the books that is not in the tank)
+   * has somewhere to show itself.
+   */
+  async pool(query: InputPoolQuery): Promise<InputPool> {
+    const bom = await this.resolveBom(this.db, query.bomId, null);
+    const lines = await this.loadBomLines(this.db, bom.id);
+    const warehouseName = await this.loadWarehouseName(this.db, query.warehouseId);
+    const { availableByItem } = await this.loadAvailability(
+      this.db,
+      lines,
+      query.warehouseId,
+    );
+
+    return {
+      bomId: bom.id,
+      bomCode: bom.bomCode,
+      bomName: bom.name,
+      outputItemName: bom.outputItemName,
+      warehouseId: query.warehouseId,
+      warehouseName,
+      lines: buildPool(lines, availableByItem),
+    };
+  }
+
   // ─── Preview construction ───────────────────────────────────────────────
 
   private async buildPreview(
@@ -298,14 +331,12 @@ export class ProductionEntryService {
     };
   }
 
-  /** Read what each input has on hand, then hand the arithmetic to the backflush. */
-  private async buildAllocations(
+  /** What every input line — and every stand-in it accepts — has on hand. */
+  private async loadAvailability(
     exec: Tx,
     lines: readonly BomInputLine[],
-    runs: number,
     warehouseId: string,
   ): Promise<{
-    allocations: ProductionAllocation[];
     availableByItem: Map<string, SuggestedBatch[]>;
     tracksBatchesByItem: Map<string, boolean>;
   }> {
@@ -325,6 +356,23 @@ export class ProductionEntryService {
         tracksBatchesByItem.set(itemId, line.tracksBatches);
       }
     }
+
+    return { availableByItem, tracksBatchesByItem };
+  }
+
+  /** Read what each input has on hand, then hand the arithmetic to the backflush. */
+  private async buildAllocations(
+    exec: Tx,
+    lines: readonly BomInputLine[],
+    runs: number,
+    warehouseId: string,
+  ): Promise<{
+    allocations: ProductionAllocation[];
+    availableByItem: Map<string, SuggestedBatch[]>;
+    tracksBatchesByItem: Map<string, boolean>;
+  }> {
+    const { availableByItem, tracksBatchesByItem } =
+      await this.loadAvailability(exec, lines, warehouseId);
 
     return {
       allocations: buildAllocations(lines, runs, availableByItem),

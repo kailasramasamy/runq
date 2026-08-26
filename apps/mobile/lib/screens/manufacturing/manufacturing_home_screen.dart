@@ -339,6 +339,12 @@ class _QuickActionsGrid extends ConsumerWidget {
         onTap: () => context.push('/manufacturing/production/new'),
       ),
       MfgQuickActionTile(
+        icon: Icons.layers_outlined,
+        title: 'Input pool',
+        subtitle: 'What a run would draw on',
+        onTap: () => context.push('/manufacturing/input-pool'),
+      ),
+      MfgQuickActionTile(
         icon: Icons.recycling_rounded,
         title: 'Reclaim stock',
         subtitle: 'Unsold goods back to raw material',

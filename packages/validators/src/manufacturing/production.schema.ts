@@ -9,9 +9,10 @@ import { wastageSchema } from './run.schema';
 /**
  * A technician override of the backflushed allocation for one input.
  *
- * Supplying any override for an item replaces the server's FEFO allocation for
- * that item entirely — so a partial override must list every batch actually
- * used, not just the changed one.
+ * Overrides describe the WHOLE input line, not a patch on it: as soon as one
+ * is supplied for any item the line accepts, the server's own allocation for
+ * that line is dropped. So the caller must list every batch actually used —
+ * anything left out is not drawn.
  */
 export const productionLineOverrideSchema = z.object({
   inputItemId: z.string().uuid(),
@@ -60,6 +61,13 @@ export const recordProductionSchema = productionBaseSchema
   })
   .superRefine(requireBomRef);
 
+/** Read-only pool lookup — a BOM and the warehouse to read stock in. */
+export const inputPoolQuerySchema = z.object({
+  bomId: z.string().uuid(),
+  warehouseId: z.string().uuid(),
+});
+
+export type InputPoolQuery = z.infer<typeof inputPoolQuerySchema>;
 export type ProductionLineOverride = z.infer<typeof productionLineOverrideSchema>;
 export type ProductionPreviewInput = z.infer<typeof productionPreviewSchema>;
 export type RecordProductionInput = z.infer<typeof recordProductionSchema>;

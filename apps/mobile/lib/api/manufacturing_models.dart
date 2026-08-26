@@ -826,6 +826,14 @@ class ProductionAllocation {
   final List<BomLineSubstitute> substitutes;
   final List<ProductionAllocationBatch> batches;
 
+  /// Everything this line could draw from, in draw order — its own item plus
+  /// every stand-in. The screen lists these with a qty box each.
+  final List<InputPoolBatch> pool;
+
+  /// What the Suggest button fills in: whole cans first, the shortfall from
+  /// one bigger batch. Offered, never applied on its own.
+  final List<ProductionAllocationBatch> suggestion;
+
   ProductionAllocation({
     this.bomLineId,
     required this.inputItemId,
@@ -836,6 +844,8 @@ class ProductionAllocation {
     required this.isOptional,
     this.substitutes = const [],
     required this.batches,
+    this.pool = const [],
+    this.suggestion = const [],
   });
 
   /// Sum of the allocated batch quantities — what will actually be consumed
@@ -859,6 +869,14 @@ class ProductionAllocation {
             .cast<Map<String, dynamic>>()
             .map(ProductionAllocationBatch.fromJson)
             .toList(),
+        pool: (j['pool'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InputPoolBatch.fromJson)
+            .toList(),
+        suggestion: (j['suggestion'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ProductionAllocationBatch.fromJson)
+            .toList(),
       );
 
   ProductionAllocation copyWith({List<ProductionAllocationBatch>? batches}) =>
@@ -872,6 +890,8 @@ class ProductionAllocation {
         isOptional: isOptional,
         substitutes: substitutes,
         batches: batches ?? this.batches,
+        pool: pool,
+        suggestion: suggestion,
       );
 }
 
@@ -962,6 +982,105 @@ class ProductionPreview {
             .map(ProductionShortage.fromJson)
             .toList(),
         estimatedInputValue: _num(j['estimatedInputValue']),
+      );
+}
+
+/// One batch standing behind a BOM input, as the pool view lists it.
+class InputPoolBatch {
+  final String itemId;
+  final String itemName;
+  final String? batchNo;
+  final double qty;
+  final double unitCost;
+  final String? expiryDate;
+
+  InputPoolBatch({
+    required this.itemId,
+    required this.itemName,
+    required this.batchNo,
+    required this.qty,
+    required this.unitCost,
+    required this.expiryDate,
+  });
+
+  factory InputPoolBatch.fromJson(Map<String, dynamic> j) => InputPoolBatch(
+        itemId: (j['itemId'] as String?) ?? '',
+        itemName: (j['itemName'] as String?) ?? '',
+        batchNo: j['batchNo'] as String?,
+        qty: _num(j['qty']),
+        unitCost: _num(j['unitCost']),
+        expiryDate: j['expiryDate'] as String?,
+      );
+}
+
+/// One BOM input line and everything pooled behind it, in draw order.
+class InputPoolLine {
+  final String inputItemId;
+  final String inputItemName;
+  final String uom;
+
+  /// What one BOM batch draws, scrap included.
+  final double qtyPerBatch;
+  final double totalQty;
+
+  /// Whole BOM batches the pool covers — the "can I run two more?" answer.
+  final int batchesCovered;
+  final List<BomLineSubstitute> substitutes;
+  final List<InputPoolBatch> batches;
+
+  InputPoolLine({
+    required this.inputItemId,
+    required this.inputItemName,
+    required this.uom,
+    required this.qtyPerBatch,
+    required this.totalQty,
+    required this.batchesCovered,
+    required this.substitutes,
+    required this.batches,
+  });
+
+  factory InputPoolLine.fromJson(Map<String, dynamic> j) => InputPoolLine(
+        inputItemId: (j['inputItemId'] as String?) ?? '',
+        inputItemName: (j['inputItemName'] as String?) ?? '',
+        uom: (j['uom'] as String?) ?? '',
+        qtyPerBatch: _num(j['qtyPerBatch']),
+        totalQty: _num(j['totalQty']),
+        batchesCovered: _int(j['batchesCovered']),
+        substitutes: (j['substitutes'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BomLineSubstitute.fromJson)
+            .toList(),
+        batches: (j['batches'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InputPoolBatch.fromJson)
+            .toList(),
+      );
+}
+
+class InputPool {
+  final String bomId;
+  final String bomCode;
+  final String bomName;
+  final String warehouseName;
+  final List<InputPoolLine> lines;
+
+  InputPool({
+    required this.bomId,
+    required this.bomCode,
+    required this.bomName,
+    required this.warehouseName,
+    required this.lines,
+  });
+
+  factory InputPool.fromJson(Map<String, dynamic> j) => InputPool(
+        bomId: (j['bomId'] as String?) ?? '',
+        bomCode: (j['bomCode'] as String?) ?? '',
+        bomName: (j['bomName'] as String?) ?? '',
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        lines: (j['lines'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(InputPoolLine.fromJson)
+            .toList(),
       );
 }
 

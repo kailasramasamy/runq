@@ -1,5 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
-import { productionPreviewSchema, recordProductionSchema } from '@runq/validators';
+import {
+  inputPoolQuerySchema,
+  productionPreviewSchema,
+  recordProductionSchema,
+} from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ProductionEntryService } from './production-entry.service';
 
@@ -20,6 +24,21 @@ export const productionRoutes: FastifyPluginAsync = async (app) => {
       const input = productionPreviewSchema.parse(request.body);
       const service = new ProductionEntryService(request.server.db, request.tenantId);
       return { data: await service.preview(input) };
+    },
+  );
+
+  /**
+   * What is on hand behind a BOM's inputs, in the order a run would draw it —
+   * the milk pool on a dairy floor. Read-only, so it sits under the same roles
+   * as the preview it mirrors.
+   */
+  app.get(
+    '/pool',
+    { preHandler: [rbacHook([...ENTRY_ROLES])] },
+    async (request) => {
+      const query = inputPoolQuerySchema.parse(request.query);
+      const service = new ProductionEntryService(request.server.db, request.tenantId);
+      return { data: await service.pool(query) };
     },
   );
 

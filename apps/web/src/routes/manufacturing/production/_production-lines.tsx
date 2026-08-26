@@ -1,31 +1,56 @@
 /**
- * Backflushed consumption table for Record Production — one card per BOM
- * input, FEFO-allocated batches, editable qty/batch that feeds back into
- * `lines[]` on the next preview call. Mirrors the visual language of
- * manufacturing/wos/_run-inputs.tsx.
+ * Manual draw table for Record Production — one row per batch the line can
+ * draw from, each with a qty box the operator fills in themselves.
+ *
+ * The boxes start empty on purpose. The server still computes a draw, but it
+ * is offered behind the Suggest button rather than pre-filled: a number nobody
+ * typed is how the books drift away from what is actually in the tank. Nothing
+ * posts until the entered total matches what the recipe needs.
+ *
  * Spec: docs/manufacturing-plan.md §5.4.
  */
-import { useEffect, useState } from 'react';
-import { AlertTriangle, PackageSearch } from 'lucide-react';
-import { Card, CardHeader, CardContent, Input, EmptyState, Skeleton } from '@/components/ui';
+import { AlertTriangle, PackageSearch, Wand2 } from 'lucide-react';
+import { Card, CardHeader, CardContent, Input, Button, EmptyState, Skeleton } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
-import type { ProductionAllocation, ProductionAllocationBatch, ProductionShortage } from '@runq/types';
+import type { ProductionAllocation, InputPoolBatch, ProductionShortage } from '@runq/types';
 
-export type LineBatchDraft = { batchNo: string | null; qty: number };
+/** Entered quantities, keyed by `itemId::batchNo` across every line. */
+export type DrawDraft = Record<string, string>;
+
+export function batchKey(itemId: string, batchNo: string | null): string {
+  return `${itemId}::${batchNo ?? ''}`;
+}
+
+export function enteredQty(draft: DrawDraft, b: InputPoolBatch): number {
+  const raw = draft[batchKey(b.itemId, b.batchNo)];
+  const n = Number(raw);
+  return raw && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** What the operator has committed to this line so far. */
+export function drawnTotal(draft: DrawDraft, a: ProductionAllocation): number {
+  return round3(a.pool.reduce((sum, b) => sum + enteredQty(draft, b), 0));
+}
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 interface Props {
   allocations: ProductionAllocation[];
   shortages: ProductionShortage[];
+  draft: DrawDraft;
   isLoading: boolean;
   hasQuery: boolean;
-  onLineChange: (inputItemId: string, batches: LineBatchDraft[]) => void;
+  onQtyChange: (key: string, value: string) => void;
+  onSuggest: (allocation: ProductionAllocation) => void;
 }
 
-export function ProductionLinesPanel({ allocations, shortages, isLoading, hasQuery, onLineChange }: Props) {
+export function ProductionLinesPanel({
+  allocations, shortages, draft, isLoading, hasQuery, onQtyChange, onSuggest,
+}: Props) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-3)' }}>
-        Backflushed inputs
+        What went in
       </p>
 
       {shortages.length > 0 && <ShortageBanner shortages={shortages} />}
@@ -33,16 +58,22 @@ export function ProductionLinesPanel({ allocations, shortages, isLoading, hasQue
       {!hasQuery ? (
         <EmptyState
           icon={PackageSearch}
-          title="Nothing to preview yet"
-          description="Pick a BOM, produced qty, and warehouse to see what gets consumed."
+          title="Nothing to draw from yet"
+          description="Pick a BOM, produced qty, and warehouse to see what is available."
         />
       ) : isLoading ? (
         <Card><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
       ) : allocations.length === 0 ? (
-        <EmptyState icon={PackageSearch} title="No input lines" description="This BOM has no input lines to backflush." />
+        <EmptyState icon={PackageSearch} title="No input lines" description="This BOM has no input lines." />
       ) : (
         allocations.map((a) => (
-          <AllocationCard key={a.bomLineId ?? a.inputItemId} allocation={a} onLineChange={onLineChange} />
+          <DrawCard
+            key={a.bomLineId ?? a.inputItemId}
+            allocation={a}
+            draft={draft}
+            onQtyChange={onQtyChange}
+            onSuggest={() => onSuggest(a)}
+          />
         ))
       )}
     </div>
@@ -70,123 +101,156 @@ function ShortageBanner({ shortages }: { shortages: ProductionShortage[] }) {
   );
 }
 
-function AllocationCard({
-  allocation,
-  onLineChange,
+function DrawCard({
+  allocation: a, draft, onQtyChange, onSuggest,
 }: {
   allocation: ProductionAllocation;
-  onLineChange: Props['onLineChange'];
+  draft: DrawDraft;
+  onQtyChange: Props['onQtyChange'];
+  onSuggest: () => void;
 }) {
-  const [rows, setRows] = useState<ProductionAllocationBatch[]>(allocation.batches);
-  const balanceAfter =
-    allocation.availableQty - rows.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
-  // Re-sync from the server's echoed allocation on every fresh preview —
-  // it reflects exactly what will be consumed given the overrides we sent.
-  useEffect(() => { setRows(allocation.batches); }, [allocation.batches]);
-
-  function updateRow(idx: number, patch: Partial<LineBatchDraft>) {
-    const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
-    setRows(next);
-    // Overrides are keyed by item, and a line that accepts substitutes can draw
-    // from several — so each item's rows are sent as its own override set.
-    const edited = next[idx]!;
-    onLineChange(
-      edited.itemId,
-      next.filter((r) => r.itemId === edited.itemId).map((r) => ({ batchNo: r.batchNo, qty: r.qty })),
-    );
-  }
+  const drawn = drawnTotal(draft, a);
+  const gap = round3(a.requiredQty - drawn);
+  const matched = Math.abs(gap) < 0.0005;
 
   return (
     <Card>
       <CardHeader
-        title={allocation.inputItemName}
+        title={a.inputItemName}
         action={
-          allocation.isOptional ? (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-              Optional
-            </span>
-          ) : null
+          <Button type="button" variant="outline" size="sm" onClick={onSuggest}>
+            <Wand2 size={12} className="mr-1" /> Suggest
+          </Button>
         }
       />
       <CardContent>
-        {/* The line will take any of these, so its "in stock" counts them all. */}
-        {allocation.substitutes.length > 0 && (
+        {a.substitutes.length > 0 && (
           <p className="mb-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
-            or {allocation.substitutes.map((s) => s.itemName).join(' / ')}
+            or {a.substitutes.map((s) => s.itemName).join(' / ')}
           </p>
         )}
-        <div className="mb-2 flex justify-between text-[11px]" style={{ color: 'var(--text-3)' }}>
-          <span>Required: {allocation.requiredQty.toFixed(3)} {allocation.uom}</span>
-          <span>In stock: {allocation.availableQty.toFixed(3)} {allocation.uom}</span>
-        </div>
-        {/* What is left once this run draws its share — the figure that tells
-            the floor whether another run can follow. */}
-        <div className="mb-2 flex justify-end text-[11px]" style={{ color: 'var(--text-3)' }}>
-          <span>
-            Balance after:{' '}
-            <span
-              className="font-semibold"
-              style={{ color: balanceAfter <= 0.0001 ? '#dc2626' : 'var(--text-1)' }}
-            >
-              {Math.max(balanceAfter, 0).toFixed(3)} {allocation.uom}
-            </span>
+
+        <div className="mb-3 flex items-baseline justify-between text-[12.5px]">
+          <span style={{ color: 'var(--text-3)' }}>
+            Needs {a.requiredQty.toFixed(3)} {a.uom}
+          </span>
+          <span
+            className="font-semibold"
+            style={{ color: matched ? '#15803d' : drawn > 0 ? '#b45309' : 'var(--text-3)' }}
+          >
+            {drawn.toFixed(3)} {a.uom} entered
+            {!matched && drawn > 0 && (gap > 0 ? ` — short ${gap.toFixed(3)}` : ` — over ${(-gap).toFixed(3)}`)}
+            {matched && ' ✓'}
           </span>
         </div>
-        {rows.length === 0 ? (
+
+        {a.pool.length === 0 ? (
           <p className="py-2 text-center text-[11px]" style={{ color: 'var(--text-3)' }}>
-            No batches on hand.
+            Nothing on hand.
           </p>
         ) : (
           <div className="space-y-2">
-            {rows.map((b, idx) => (
-              <BatchRow
-                key={idx}
+            {a.pool.map((b) => (
+              <PoolRow
+                key={batchKey(b.itemId, b.batchNo)}
                 batch={b}
-                uom={allocation.uom}
-                showItem={b.itemId !== allocation.inputItemId}
-                onChange={(patch) => updateRow(idx, patch)}
+                uom={a.uom}
+                showItem={b.itemId !== a.inputItemId}
+                value={draft[batchKey(b.itemId, b.batchNo)] ?? ''}
+                onChange={(v) => onQtyChange(batchKey(b.itemId, b.batchNo), v)}
               />
             ))}
           </div>
         )}
+
+        <Consequence allocation={a} draft={draft} />
       </CardContent>
     </Card>
   );
 }
 
-function BatchRow({
-  batch, uom, showItem, onChange,
+function PoolRow({
+  batch, uom, showItem, value, onChange,
 }: {
-  batch: ProductionAllocationBatch;
+  batch: InputPoolBatch;
   uom: string;
-  /** True when this batch came from a substitute — say which, or the row lies. */
+  /** True when the batch came from a substitute — say which, or the row lies. */
   showItem: boolean;
-  onChange: (patch: Partial<LineBatchDraft>) => void;
+  value: string;
+  onChange: (value: string) => void;
 }) {
+  const entered = Number(value) || 0;
+  const over = entered > batch.qty + 0.0005;
+
   return (
-    <div className="rounded-md px-1 py-1" style={{ background: 'var(--surface-2)' }}>
-      {showItem && (
-        <p className="px-1 pt-1 text-[11px] font-medium" style={{ color: 'var(--text-2)' }}>
-          {batch.itemName}
+    <div className="flex items-center gap-3 rounded-md px-2 py-1.5" style={{ background: 'var(--surface-2)' }}>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12.5px] font-medium">
+          {showItem ? batch.itemName : (batch.batchNo ?? 'No batch')}
+          {showItem && batch.batchNo && (
+            <span className="ml-2 font-mono text-[11px]" style={{ color: 'var(--text-3)' }}>
+              {batch.batchNo}
+            </span>
+          )}
         </p>
+        <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+          {batch.qty.toFixed(3)} {uom} on hand ·{' '}
+          {batch.expiryDate ? `exp ${batch.expiryDate}` : 'no expiry'} ·{' '}
+          {formatINR(batch.unitCost)}/{uom}
+        </p>
+      </div>
+      <div className="w-28 shrink-0">
+        <Input
+          type="number" min="0" step="0.001"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          error={over ? 'Over' : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the entered split leaves behind. The split itself is on screen already;
+ * what changes a decision is the remnant — 3 L that expires tomorrow is a
+ * reason to draw differently, 565 L of fresh stock is not.
+ */
+function Consequence({ allocation: a, draft }: { allocation: ProductionAllocation; draft: DrawDraft }) {
+  const drawn = drawnTotal(draft, a);
+  if (drawn <= 0) return null;
+
+  const emptied = a.pool.filter((b) => enteredQty(draft, b) >= b.qty - 0.0005 && enteredQty(draft, b) > 0);
+  const remnants = a.pool
+    .map((b) => ({ b, left: round3(b.qty - enteredQty(draft, b)) }))
+    .filter((r) => enteredQty(draft, r.b) > 0 && r.left > 0.0005);
+
+  // Only stock the run actually opened counts as a remnant — untouched batches
+  // were never part of this decision.
+  const soonest = remnants
+    .filter((r) => r.b.expiryDate)
+    .sort((x, y) => (x.b.expiryDate! < y.b.expiryDate! ? -1 : 1))[0];
+
+  return (
+    <div className="mt-3 border-t pt-2 text-[11.5px]" style={{ borderColor: 'var(--border)' }}>
+      {remnants.length === 0 ? (
+        <span style={{ color: '#15803d' }}>
+          Drains {emptied.length} {emptied.length === 1 ? 'batch' : 'batches'} — nothing left part-used.
+        </span>
+      ) : (
+        <span style={{ color: remnants.length > 1 ? '#b45309' : 'var(--text-3)' }}>
+          Leaves{' '}
+          {remnants.map((r, i) => (
+            <span key={batchKey(r.b.itemId, r.b.batchNo)}>
+              {i > 0 && ', '}
+              <span className="font-medium">{r.left.toFixed(3)} {a.uom}</span> {r.b.itemName}
+            </span>
+          ))}
+          {soonest && ` — expires ${soonest.b.expiryDate}`}
+          {remnants.length > 1 && ` (${remnants.length} part-used batches)`}
+        </span>
       )}
-      <div className="grid grid-cols-3 gap-2">
-      <Input
-        label="Batch"
-        value={batch.batchNo ?? ''}
-        onChange={(e) => onChange({ batchNo: e.target.value || null })}
-      />
-      <Input
-        label={`Qty (${uom})`}
-        type="number" min="0" step="0.001"
-        value={batch.qty}
-        onChange={(e) => onChange({ qty: Number(e.target.value) || 0 })}
-      />
-      <div className="flex flex-col justify-end pb-2 text-[11px]" style={{ color: 'var(--text-3)' }}>
-        <span>{batch.expiryDate ? `Exp ${batch.expiryDate}` : 'No expiry'}</span>
-        <span>{formatINR(batch.unitCost)}/{uom}</span>
-      </div>
-      </div>
     </div>
   );
 }

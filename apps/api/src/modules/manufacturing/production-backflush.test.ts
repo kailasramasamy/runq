@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   allocateFefo,
   applyOverrides,
+  suggestDraw,
   buildAllocations,
+  buildPool,
   computeRequiredQty,
   findOverdrawnBatches,
   findShortages,
@@ -46,6 +48,8 @@ const allocation = (over: Partial<ProductionAllocation> = {}): ProductionAllocat
   isOptional: false,
   substitutes: [],
   batches: [],
+  pool: [],
+  suggestion: [],
   ...over,
 });
 
@@ -308,7 +312,10 @@ describe('applyOverrides', () => {
     expect(result[0]!.batches.map((b) => b.qty)).toEqual([40, 60]);
   });
 
-  it('overrides a substitute without disturbing the line item', () => {
+  it('replaces the whole line, not just the overridden item', () => {
+    // The screen sends what the operator typed for the entire line. Anything
+    // it leaves out is not drawn — a server-picked batch surviving next to
+    // typed quantities would consume more than the screen ever showed.
     const base = [
       allocation({
         substitutes: [{ itemId: 'buffalo', itemName: 'Buffalo Milk' }],
@@ -326,9 +333,30 @@ describe('applyOverrides', () => {
     );
 
     expect(result[0]!.batches).toEqual([
-      drawn('B1', 40),
       drawn('BUF-1', 25, 38, null, 'buffalo', 'Buffalo Milk'),
     ]);
+  });
+
+  it('keeps a line the overrides never mention', () => {
+    const base = [
+      allocation({ bomLineId: 'line-1', inputItemId: 'milk', batches: [drawn('B1', 40)] }),
+      allocation({
+        bomLineId: 'line-2',
+        inputItemId: 'culture',
+        inputItemName: 'Culture',
+        batches: [drawn('C1', 2, 500, null, 'culture', 'Culture')],
+      }),
+    ];
+    const result = applyOverrides(
+      base,
+      [{ inputItemId: 'milk', batchNo: 'B1', qty: 35 }],
+      available,
+      tracks,
+    );
+
+    // The override re-reads the batch's expiry from what is on hand.
+    expect(result[0]!.batches).toEqual([drawn('B1', 35, 40, '2026-08-05')]);
+    expect(result[1]!.batches).toEqual([drawn('C1', 2, 500, null, 'culture', 'Culture')]);
   });
 });
 
@@ -427,5 +455,158 @@ describe('findOverdrawnBatches', () => {
     expect(over).toHaveLength(1);
     expect(over[0]!.inputItemId).toBe('buffalo');
     expect(over[0]!.shortQty).toBe(15);
+  });
+});
+
+describe('buildPool', () => {
+  // The paneer floor's actual pool: cut-open pouches and yesterday's odds and
+  // ends, then the tanker that landed at noon. 70 L makes one batch.
+  const paneerLine = line({
+    inputItemId: 'a2',
+    qtyPerOutput: 70,
+    substitutes: [
+      { itemId: 'a2-reclaimed', itemName: 'A2 Milk (Reclaimed)', priority: 1 },
+      { itemId: 'a1', itemName: 'A1 Milk (Raw)', priority: 2 },
+      { itemId: 'buffalo', itemName: 'Buffalo Milk (Raw)', priority: 3 },
+    ],
+  });
+
+  const pool = new Map<string, SuggestedBatch[]>([
+    // Fresh: arrived today, longest expiry — last in the queue despite being
+    // the biggest pile.
+    ['a2', [batch('CON/01596', 600, '2026-08-29', 40, '2026-08-26T12:00:00Z')]],
+    ['a2-reclaimed', [batch('RCL/0042', 75, '2026-08-27', 38, '2026-08-26T09:00:00Z')]],
+    ['a1', [batch('CON/01481', 5, '2026-08-28', 39, '2026-08-25T18:00:00Z')]],
+    ['buffalo', [batch('CON/01482', 5, '2026-08-28', 45, '2026-08-25T18:00:00Z')]],
+  ]);
+
+  it('queues every pooled batch in the order a run would draw it', () => {
+    const [pooled] = buildPool([paneerLine], pool);
+
+    expect(pooled!.batches.map((b) => b.batchNo)).toEqual([
+      'RCL/0042',   // expires first
+      'CON/01481',  // next expiry, older movement than the buffalo tie
+      'CON/01482',
+      'CON/01596',  // fresh, longest-dated — untouched until the rest is gone
+    ]);
+  });
+
+  it('totals the pool across the line item and its stand-ins', () => {
+    const [pooled] = buildPool([paneerLine], pool);
+    expect(pooled!.totalQty).toBe(685);
+  });
+
+  it('reports whole batches covered, not a fraction', () => {
+    const [pooled] = buildPool([paneerLine], pool);
+    expect(pooled!.qtyPerBatch).toBe(70);
+    expect(pooled!.batchesCovered).toBe(9); // 685 / 70 = 9.78 → 9
+  });
+
+  it('counts the odds and ends alone as one batch, not two', () => {
+    const oddsOnly = new Map(pool);
+    oddsOnly.delete('a2');
+    const [pooled] = buildPool([paneerLine], oddsOnly);
+
+    // 75 + 5 + 5 = 85 L: one full batch, with 15 L that needs topping up from
+    // fresh stock before a second can run.
+    expect(pooled!.totalQty).toBe(85);
+    expect(pooled!.batchesCovered).toBe(1);
+  });
+
+  it('matches the order allocateFefo actually draws in', () => {
+    const [pooled] = buildPool([paneerLine], pool);
+    // 90 L so the draw spans several batches — a single-batch draw would make
+    // the prefix check pass without proving anything.
+    const { batches } = allocateFefo(90, [
+      source('a2', pool.get('a2')!, 'A2 Milk (Raw)'),
+      source('a2-reclaimed', pool.get('a2-reclaimed')!, 'A2 Milk (Reclaimed)'),
+      source('a1', pool.get('a1')!, 'A1 Milk (Raw)'),
+      source('buffalo', pool.get('buffalo')!, 'Buffalo Milk (Raw)'),
+    ]);
+
+    // The pool view is only honest if it predicts the draw — same queue, so
+    // the draw is a prefix of what the pool lists.
+    expect(batches.map((b) => b.batchNo)).toEqual(
+      pooled!.batches.slice(0, batches.length).map((b) => b.batchNo),
+    );
+  });
+
+  it('carries an empty pool without inventing a batch', () => {
+    const [pooled] = buildPool([paneerLine], new Map());
+    expect(pooled!.batches).toEqual([]);
+    expect(pooled!.totalQty).toBe(0);
+    expect(pooled!.batchesCovered).toBe(0);
+  });
+});
+
+describe('suggestDraw', () => {
+  // The paneer floor's pool, oldest first: cut-open pouches, yesterday's odds
+  // and ends, then the tanker that landed at noon. A batch takes 70 L.
+  const reclaimed = source('a2-rec', [batch('RCL/0042', 75, '2026-08-27', 38)], 'A2 Reclaimed');
+  const prevDay = source('a2', [batch('CON/01480', 20, '2026-08-28', 40, '2026-08-25T06:00:00Z')], 'A2 Raw');
+  const buffalo = source('buf', [batch('CON/01482', 5, '2026-08-28', 45, '2026-08-25T18:00:00Z')], 'Buffalo Raw');
+  const a1 = source('a1', [batch('CON/01481', 5, '2026-08-28', 39, '2026-08-25T18:00:00Z')], 'A1 Raw');
+  const fresh = source('a2f', [batch('CON/01596', 600, '2026-08-30', 40, '2026-08-26T12:00:00Z')], 'A2 Fresh');
+  const pool = [reclaimed, prevDay, buffalo, a1, fresh];
+
+  it('drains the small cans whole and takes the shortfall from one batch', () => {
+    const drawn = suggestDraw(70, pool);
+
+    // 20 + 5 + 5 fit inside what is needed, so they go in whole. The 40 L
+    // balance comes from the reclaimed batch — the only one set aside that
+    // expires soonest — leaving ONE remnant rather than four.
+    expect(drawn.map((d) => [d.batchNo, d.qty])).toEqual([
+      ['CON/01480', 20],
+      ['CON/01482', 5],
+      ['CON/01481', 5],
+      ['RCL/0042', 40],
+    ]);
+    expect(drawn.reduce((s, d) => s + d.qty, 0)).toBe(70);
+  });
+
+  it('leaves the fresh tanker alone while odds and ends can cover the draw', () => {
+    const drawn = suggestDraw(70, pool);
+    expect(drawn.some((d) => d.batchNo === 'CON/01596')).toBe(false);
+  });
+
+  it('tops up from fresh once the old stock is gone', () => {
+    // Second batch of the day: 35 L of reclaimed left, then the tanker.
+    const leftover = source('a2-rec', [batch('RCL/0042', 35, '2026-08-27', 38)], 'A2 Reclaimed');
+    const drawn = suggestDraw(70, [leftover, fresh]);
+
+    expect(drawn.map((d) => [d.batchNo, d.qty])).toEqual([
+      ['RCL/0042', 35],   // drained
+      ['CON/01596', 35],  // topped up
+    ]);
+  });
+
+  it('never tips in a can that does not fit — no over-draw', () => {
+    const drawn = suggestDraw(70, [reclaimed]);
+    expect(drawn).toEqual([
+      expect.objectContaining({ batchNo: 'RCL/0042', qty: 70 }),
+    ]);
+  });
+
+  it('beats plain FEFO on remnants left behind', () => {
+    const fefo = allocateFefo(70, pool).batches;
+    // FEFO opens the reclaimed batch first and leaves 5 L of it stranded,
+    // on top of the three part-cans it never touched.
+    expect(fefo.map((d) => d.batchNo)).toEqual(['RCL/0042']);
+
+    const suggested = suggestDraw(70, pool);
+    const partUsed = suggested.filter((d) => {
+      const avail = pool.flatMap((s) => s.available).find((b) => b.batchNo === d.batchNo);
+      return avail && d.qty < avail.availableQty;
+    });
+    expect(partUsed).toHaveLength(1); // exactly one remnant created
+  });
+
+  it('returns what it can when the pool cannot cover the draw', () => {
+    const drawn = suggestDraw(70, [buffalo, a1]);
+    expect(drawn.reduce((s, d) => s + d.qty, 0)).toBe(10);
+  });
+
+  it('is empty when nothing is on hand', () => {
+    expect(suggestDraw(70, [])).toEqual([]);
   });
 });

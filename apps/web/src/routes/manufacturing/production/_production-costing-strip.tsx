@@ -2,18 +2,35 @@
  * Bottom-sticky costing strip for Record Production — mirrors
  * manufacturing/wos/_run-costing-strip.tsx but summarizes the backflush
  * preview (estimated input value) instead of a live WO run.
+ *
+ * The input value is priced from the split the operator typed, not the
+ * server's own allocation: they are what will actually post, and a strip that
+ * quoted a different number would be quoting a run nobody is making.
+ *
  * Spec: docs/manufacturing-plan.md §5.4.
  */
 import { Skeleton } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import type { ProductionPreview } from '@runq/types';
+import { enteredQty, type DrawDraft } from './_production-lines';
 
 interface Props {
   preview: ProductionPreview | null | undefined;
+  draft: DrawDraft;
   isLoading: boolean;
 }
 
-export function ProductionCostingStrip({ preview, isLoading }: Props) {
+/** Sum of entered qty × the batch's unit cost, across every line. */
+function drawnValue(preview: ProductionPreview | null | undefined, draft: DrawDraft): number {
+  if (!preview) return 0;
+  const total = preview.allocations.reduce(
+    (sum, a) => sum + a.pool.reduce((n, b) => n + enteredQty(draft, b) * b.unitCost, 0),
+    0,
+  );
+  return Math.round(total * 100) / 100;
+}
+
+export function ProductionCostingStrip({ preview, draft, isLoading }: Props) {
   return (
     <div
       className="sticky bottom-0 z-20 border-t shadow-[0_-4px_12px_-6px_rgba(0,0,0,0.12)]"
@@ -31,7 +48,7 @@ export function ProductionCostingStrip({ preview, isLoading }: Props) {
           <Cell label="BOM runs" value={isLoading ? null : preview ? preview.runs.toFixed(3) : '—'} />
           <Cell
             label="Estimated input value"
-            value={isLoading ? null : formatINR(preview?.estimatedInputValue ?? 0)}
+            value={isLoading ? null : formatINR(drawnValue(preview, draft))}
           />
           <Cell label="Warehouse" value={isLoading ? null : preview?.warehouseName ?? '—'} />
         </div>

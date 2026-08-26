@@ -12,10 +12,12 @@ import { PageHeader, Button, useToast } from '@/components/ui';
 import { useProductionPreview, useRecordProduction } from '@/hooks/queries/use-production';
 import { ApiClientError } from '@/lib/api-client';
 import { ProductionForm, type ProductionFormState } from './_production-form';
-import { ProductionLinesPanel, type LineBatchDraft } from './_production-lines';
+import {
+  ProductionLinesPanel, batchKey, drawnTotal, type DrawDraft,
+} from './_production-lines';
 import { ProductionCostingStrip } from './_production-costing-strip';
-import { ProductionWastagePanel, type WastageDraft } from './_production-wastage';
-import type { ProductionShortage } from '@runq/types';
+import { ProductionWastagePanel, wastageFromLeft, type WastageDraft } from './_production-wastage';
+import type { ProductionAllocation, ProductionShortage } from '@runq/types';
 import type { ProductionLineOverride, ProductionPreviewInput } from '@runq/validators';
 
 const INITIAL_STATE: ProductionFormState = {
@@ -27,7 +29,8 @@ export function RecordProductionPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [form, setForm] = useState<ProductionFormState>(INITIAL_STATE);
-  const [overrides, setOverrides] = useState<ProductionLineOverride[]>([]);
+  /** What the operator typed, keyed by batch. The only source of the draw. */
+  const [draw, setDraw] = useState<DrawDraft>({});
   const [wastage, setWastage] = useState<WastageDraft>({});
   const [submitShortages, setSubmitShortages] = useState<ProductionShortage[] | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,14 +43,13 @@ export function RecordProductionPage() {
 
   // Overrides are only meaningful against a specific BOM + warehouse — a new
   // pick invalidates them.
-  useEffect(() => { setOverrides([]); setWastage({}); }, [form.bomId, form.warehouseId]);
+  useEffect(() => { setDraw({}); setWastage({}); }, [form.bomId, form.warehouseId]);
 
   const rawBody: ProductionPreviewInput = useMemo(() => ({
     bomId: form.bomId || undefined,
     producedQty: Number(form.producedQty) || 0,
     warehouseId: form.warehouseId,
-    lines: overrides.length ? overrides : undefined,
-  }), [form.bomId, form.producedQty, form.warehouseId, overrides]);
+  }), [form.bomId, form.producedQty, form.warehouseId]);
 
   const [debouncedBody, setDebouncedBody] = useState(rawBody);
   useEffect(() => {
@@ -61,10 +63,10 @@ export function RecordProductionPage() {
     useProductionPreview(debouncedBody, hasQuery);
   const preview = previewRes?.data;
 
-  function patchWastage(inputItemId: string, patch: { qty?: string; notes?: string }) {
+  function patchWastage(inputItemId: string, patch: { left?: string; notes?: string }) {
     setWastage((prev) => ({
       ...prev,
-      [inputItemId]: { ...(prev[inputItemId] ?? { qty: '', notes: '' }), ...patch },
+      [inputItemId]: { ...(prev[inputItemId] ?? { left: '', notes: '' }), ...patch },
     }));
   }
 
@@ -77,20 +79,50 @@ export function RecordProductionPage() {
   function wastagePayload() {
     const lines = (preview?.allocations ?? []).flatMap((a) => {
       const row = wastage[a.inputItemId];
-      const qty = Number(row?.qty) || 0;
+      const qty = wastageFromLeft(a, row?.left ?? '', draw);
       if (qty <= 0) return [];
       return [{ itemId: a.inputItemId, qty, notes: row?.notes?.trim() || null }];
     });
     return lines.length ? { warehouseId: form.warehouseId, lines } : undefined;
   }
 
-  function handleLineChange(inputItemId: string, batches: LineBatchDraft[]) {
+  function handleQtyChange(key: string, value: string) {
     setSubmitShortages(null);
-    setOverrides((prev) => [
-      ...prev.filter((o) => o.inputItemId !== inputItemId),
-      ...batches.map((b) => ({ inputItemId, batchNo: b.batchNo, qty: b.qty })),
-    ]);
+    setDraw((prev) => ({ ...prev, [key]: value }));
   }
+
+  /**
+   * Fill this line from the server's suggestion — whole cans first, the
+   * shortfall from one bigger batch. Replaces whatever the line held, so a
+   * half-typed split does not get added to.
+   */
+  function handleSuggest(allocation: ProductionAllocation) {
+    setSubmitShortages(null);
+    setDraw((prev) => {
+      const next = { ...prev };
+      for (const b of allocation.pool) next[batchKey(b.itemId, b.batchNo)] = '';
+      for (const s of allocation.suggestion) {
+        next[batchKey(s.itemId, s.batchNo)] = String(s.qty);
+      }
+      return next;
+    });
+  }
+
+  /** The typed split, as the API's line overrides. */
+  function drawPayload(): ProductionLineOverride[] {
+    return (preview?.allocations ?? []).flatMap((a) =>
+      a.pool.flatMap((b) => {
+        const qty = Number(draw[batchKey(b.itemId, b.batchNo)]) || 0;
+        return qty > 0 ? [{ inputItemId: b.itemId, batchNo: b.batchNo, qty }] : [];
+      }),
+    );
+  }
+
+  /** Lines whose entered total does not match what the recipe needs. */
+  const unbalanced = (preview?.allocations ?? []).filter((a) => {
+    if (a.isOptional && drawnTotal(draw, a) === 0) return false;
+    return Math.abs(a.requiredQty - drawnTotal(draw, a)) >= 0.0005;
+  });
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
@@ -112,7 +144,7 @@ export function RecordProductionPage() {
         bomId: form.bomId,
         producedQty: Number(form.producedQty),
         warehouseId: form.warehouseId,
-        lines: overrides.length ? overrides : undefined,
+        lines: drawPayload(),
         batchNo: form.batchNo || undefined,
         expiryDate: form.expiryDate || undefined,
         shift: form.shift || undefined,
@@ -140,7 +172,9 @@ export function RecordProductionPage() {
   }
 
   const shortages = submitShortages ?? preview?.shortages ?? [];
-  const canSubmit = hasQuery && !previewLoading && shortages.length === 0 && !recordM.isPending;
+  const canSubmit =
+    hasQuery && !previewLoading && shortages.length === 0 &&
+    unbalanced.length === 0 && !recordM.isPending;
   const outputLabel = preview
     ? `Will produce ${preview.producedQty} ${preview.outputUom} of ${preview.outputItemName}`
     : null;
@@ -161,7 +195,13 @@ export function RecordProductionPage() {
               onClick={handleSubmit}
               disabled={!canSubmit}
               loading={recordM.isPending}
-              title={shortages.length > 0 ? 'Resolve shortages before posting' : undefined}
+              title={
+                shortages.length > 0
+                  ? 'Resolve shortages before posting'
+                  : unbalanced.length > 0
+                    ? `Enter what went in for ${unbalanced.map((a) => a.inputItemName).join(', ')}`
+                    : undefined
+              }
               style={{ background: '#E11D48', borderColor: '#E11D48' }}
             >
               Post production
@@ -181,20 +221,23 @@ export function RecordProductionPage() {
             <ProductionLinesPanel
               allocations={preview?.allocations ?? []}
               shortages={shortages}
+              draft={draw}
               isLoading={previewLoading || previewFetching}
               hasQuery={hasQuery}
-              onLineChange={handleLineChange}
+              onQtyChange={handleQtyChange}
+              onSuggest={handleSuggest}
             />
             <ProductionWastagePanel
               allocations={preview?.allocations ?? []}
               draft={wastage}
+              drawDraft={draw}
               onChange={patchWastage}
             />
           </div>
         </div>
       </div>
 
-      <ProductionCostingStrip preview={preview} isLoading={hasQuery && previewLoading} />
+      <ProductionCostingStrip preview={preview} draft={draw} isLoading={hasQuery && previewLoading} />
     </div>
   );
 }

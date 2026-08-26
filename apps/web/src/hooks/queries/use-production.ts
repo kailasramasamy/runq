@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { ProductionPreview, WorkOrderWithDetail } from '@runq/types';
+import type { InputPool, ProductionPreview, WorkOrderWithDetail } from '@runq/types';
 import type { ApiSuccess } from '@runq/types';
 import type { ProductionPreviewInput, RecordProductionInput } from '@runq/validators';
 import { WO_KEYS } from './use-work-orders';
@@ -17,6 +17,8 @@ export interface RecordProductionResult {
 
 const PRODUCTION_KEYS = {
   preview: (body: ProductionPreviewInput) => ['production', 'preview', body] as const,
+  pool: (bomId: string, warehouseId: string) =>
+    ['production', 'pool', bomId, warehouseId] as const,
 };
 
 /**
@@ -29,6 +31,21 @@ export function useProductionPreview(body: ProductionPreviewInput, enabled: bool
     queryFn: () =>
       api.post<ApiSuccess<ProductionPreview>>('/manufacturing/production/preview', body),
     enabled,
+  });
+}
+
+/**
+ * Everything on hand behind a BOM's inputs, in the order a run would draw it.
+ * Read-only — nothing is reserved by looking.
+ */
+export function useInputPool(bomId: string, warehouseId: string) {
+  return useQuery({
+    queryKey: PRODUCTION_KEYS.pool(bomId, warehouseId),
+    queryFn: () =>
+      api.get<ApiSuccess<InputPool>>(
+        `/manufacturing/production/pool?bomId=${bomId}&warehouseId=${warehouseId}`,
+      ),
+    enabled: !!bomId && !!warehouseId,
   });
 }
 
