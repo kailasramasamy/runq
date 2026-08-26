@@ -155,8 +155,9 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
       _warehouseId != null &&
       _preview != null &&
       _preview!.shortages.isEmpty &&
-      // Every required line must add up before anything posts.
-      _preview!.allocations.every((a) => lineBalanced(_drawCtls, a)) &&
+      // Every required line must cover the recipe before anything posts.
+      // Covering it, not matching it — see lineSatisfied.
+      _preview!.allocations.every((a) => lineSatisfied(_drawCtls, a)) &&
       (!_preview!.outputTracksBatches || _expiryDate != null);
 
   void _schedulePreview() {

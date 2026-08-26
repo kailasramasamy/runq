@@ -4,8 +4,9 @@
 // The boxes start empty on purpose. The server still works out a draw, but it
 // sits behind the Suggest button rather than being pre-filled — a number nobody
 // typed is how the books drift away from what is actually in the tank. Nothing
-// posts until the entered total matches what the recipe needs (the caller gates
-// that through `_canSubmit`); shortages block it outright.
+// posts until every line covers what the recipe needs (the caller gates that
+// through `_canSubmit`); shortages block it outright. Drawing *more* than the
+// recipe is allowed and expected — that variance is what the screen is for.
 
 library;
 
@@ -31,12 +32,29 @@ double drawnQty(Map<String, TextEditingController> ctls, InputPoolBatch b) {
 double drawnTotal(Map<String, TextEditingController> ctls, ProductionAllocation a) =>
     _round3(a.pool.fold<double>(0, (s, b) => s + drawnQty(ctls, b)));
 
-/// True once the line's boxes add up to what the recipe asks for. An optional
-/// line left untouched counts as settled — it was never required.
+/// True when the line's boxes land exactly on the recipe. Drives the tally's
+/// green tick — it says "textbook run", not "safe to post".
 bool lineBalanced(Map<String, TextEditingController> ctls, ProductionAllocation a) {
   final drawn = drawnTotal(ctls, a);
   if (a.isOptional && drawn == 0) return true;
   return (a.requiredQty - drawn).abs() < 0.0005;
+}
+
+/// True once the line has drawn at least what the recipe asks for.
+///
+/// Deliberately not [lineBalanced]: a run that took more milk than the BOM
+/// predicted is the ordinary case, and the whole point of recording actual
+/// consumption is to capture that variance. Demanding an exact match made
+/// Suggest the only input that could ever unlock Post. Over-draw stays flagged
+/// in orange and is bounded by what is physically on hand — the server rejects
+/// a draw bigger than the batch (`findOverdrawnBatches`).
+///
+/// Under-draw still blocks, because the server counts it as a shortage and
+/// would 422 the post. An optional line left untouched was never required.
+bool lineSatisfied(Map<String, TextEditingController> ctls, ProductionAllocation a) {
+  final drawn = drawnTotal(ctls, a);
+  if (a.isOptional && drawn == 0) return true;
+  return drawn >= a.requiredQty - 0.0005;
 }
 
 double _round3(double v) => (v * 1000).roundToDouble() / 1000;
