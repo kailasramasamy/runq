@@ -1,8 +1,11 @@
-import { eq, and, ilike, isNull, sql } from 'drizzle-orm';
-import { categories } from '@runq/db';
+import { eq, and, ilike, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
+import { categories, items } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Category } from '@runq/types';
-import type { CreateCategoryInput, UpdateCategoryInput, CategoryFilterInput } from '@runq/validators';
+import type {
+  CreateCategoryInput, UpdateCategoryInput, CategoryFilterInput, CategoryTreeQuery,
+} from '@runq/validators';
+import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import { toNumber } from '../../utils/decimal';
 
@@ -31,7 +34,7 @@ export class CategoryService {
     return rows.map((r) => this.toCategory(r));
   }
 
-  async listTree(): Promise<Category[]> {
+  async listTree(query: CategoryTreeQuery = {}): Promise<Category[]> {
     const all = await this.db
       .select()
       .from(categories)
@@ -54,7 +57,46 @@ export class CategoryService {
       }
     }
 
+    if (query.withCounts) {
+      const direct = await this.itemCounts(query);
+      for (const root of roots) this.applyCounts(root, direct);
+    }
+
     return roots;
+  }
+
+  /**
+   * Direct item count per category id, under the same class filter the
+   * caller will drill in with. Counts active and inactive alike, because
+   * `items.list` returns both — a count has to describe the list it opens.
+   */
+  private async itemCounts(query: CategoryTreeQuery): Promise<Map<string, number>> {
+    const groupClasses = query.itemClassGroup && query.itemClassGroup !== 'all'
+      ? [...ITEM_CLASS_GROUP_MEMBERS[query.itemClassGroup]]
+      : null;
+
+    const rows = await this.db
+      .select({ categoryId: items.categoryId, n: sql<number>`count(*)::int` })
+      .from(items)
+      .where(and(
+        eq(items.tenantId, this.tenantId),
+        isNotNull(items.categoryId),
+        query.itemClass ? eq(items.itemClass, query.itemClass as never) : undefined,
+        groupClasses?.length ? inArray(items.itemClass, groupClasses as never[]) : undefined,
+        query.unclassified ? isNull(items.itemClass) : undefined,
+      ))
+      .groupBy(items.categoryId);
+
+    return new Map(rows.map((r) => [r.categoryId as string, r.n]));
+  }
+
+  /** Depth-first, so each node's total includes everything beneath it. */
+  private applyCounts(node: Category, direct: Map<string, number>): number {
+    const own = direct.get(node.id) ?? 0;
+    const below = (node.subcategories ?? [])
+      .reduce((sum, child) => sum + this.applyCounts(child, direct), 0);
+    node.itemCount = own + below;
+    return node.itemCount;
   }
 
   async getById(id: string): Promise<Category> {

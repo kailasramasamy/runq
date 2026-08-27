@@ -17,6 +17,7 @@ import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
+import 'widgets/item_category_browser.dart';
 import 'widgets/inv_primitives.dart';
 
 // Class filters shown as a pill strip, each with its live count.
@@ -93,6 +94,22 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
 
   String _search = '';
   String _classGroup = 'all';
+
+  /// Flat list, or drill through the category tree. The tree is the same
+  /// catalogue seen through its filing rather than a different data set, so
+  /// it shares the class filter and hands leaves back to this list.
+  bool _browse = false;
+  List<InvCategory> _tree = const [];
+  List<InvCategory> _path = const [];
+  int _uncategorised = 0;
+  bool _treeLoading = false;
+
+  /// Set when the list is showing one category picked out of the browser.
+  /// [_pickedUncategorised] is the no-category bucket, which is a filter the
+  /// category id cannot express. The name is carried by the last breadcrumb,
+  /// not held here.
+  String? _pickedCategoryId;
+  bool _pickedUncategorised = false;
   final List<InvItemListRow> _rows = [];
   int _page = 1;
   int _totalPages = 1;
@@ -152,6 +169,8 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
         itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
         unclassified: kind == _FilterKind.unclassified,
+        categoryId: _pickedCategoryId,
+        uncategorised: _pickedUncategorised,
         // Balance is the headline number on the tile, so the list needs it.
         withStock: true,
         // Ordered category → subcategory → name so the list can section by
@@ -202,6 +221,104 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     if (g == _classGroup) return;
     setState(() => _classGroup = g);
     _load(reset: true);
+    // Counts on the tree are computed under the class filter, so they go
+    // stale the moment it changes.
+    if (_browse) _loadTree();
+  }
+
+  /// Switch between the flat list and the category tree. Leaving the tree
+  /// drops any category it picked — the flat list means "everything".
+  void _setBrowse(bool on) {
+    if (on == _browse) return;
+    setState(() {
+      _browse = on;
+      // Both directions start clean: the flat list means "everything", and
+      // re-entering the tree opens at the root rather than resuming a trail
+      // the user has since stopped thinking about.
+      _path = const [];
+      _clearPick(reload: false);
+    });
+    if (on) {
+      _loadTree();
+      // The tree pane shows no items, but returning to a leaf must not
+      // surface the previous category's rows — reload unfiltered.
+      _load(reset: true);
+    } else {
+      _load(reset: true);
+    }
+  }
+
+  /// Stand-in id for the no-category crumb, which has no category behind it.
+  static const _uncategorisedCrumbId = '__uncategorised__';
+
+  void _clearPick({bool reload = true}) {
+    _pickedCategoryId = null;
+    _pickedUncategorised = false;
+    if (reload) _load(reset: true);
+  }
+
+  Future<void> _loadTree() async {
+    setState(() => _treeLoading = true);
+    try {
+      final kind = _kindOf(_classGroup);
+      final tree = await inventoryRepo.categoryTree(
+        withCounts: true,
+        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
+        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
+        unclassified: kind == _FilterKind.unclassified,
+      );
+      // The tree cannot carry a bucket for items filed under nothing, so it
+      // is counted separately — one row, and only when it is non-empty.
+      final orphans = await inventoryRepo.items(
+        limit: 1,
+        uncategorised: true,
+        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
+        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
+        unclassified: kind == _FilterKind.unclassified,
+      );
+      if (!mounted) return;
+      setState(() {
+        _tree = tree;
+        _uncategorised = orphans.total;
+        _treeLoading = false;
+      });
+    } on Exception {
+      if (mounted) setState(() => _treeLoading = false);
+    }
+  }
+
+  /// Showing items for a picked category rather than the tree beneath it.
+  bool get _showingItems => _pickedCategoryId != null || _pickedUncategorised;
+
+  /// A pick is a step *down* the tree, not a way out of it. The breadcrumb
+  /// stays above the items, so the level you came from is one tap away —
+  /// switching to the flat list here stranded the user at the root.
+  void _onPick(InvCategoryPick pick) {
+    setState(() {
+      _pickedCategoryId = pick.categoryId;
+      _pickedUncategorised = pick.uncategorised;
+      // "Directly in X" is already the last crumb; a leaf and the
+      // no-category bucket each add one so the trail names where you are.
+      final alreadyHere = _path.isNotEmpty && _path.last.id == pick.categoryId;
+      if (!alreadyHere) {
+        _path = [
+          ..._path,
+          InvCategory(id: pick.categoryId ?? _uncategorisedCrumbId, name: pick.label),
+        ];
+      }
+    });
+    _load(reset: true);
+  }
+
+  /// Drop [levels] crumbs. Any pick goes with them: the level above a list of
+  /// items is the tree, never the same items under a shorter trail.
+  void _onUp(int levels) {
+    setState(() {
+      _path = _path.sublist(0, _path.length - levels);
+      _pickedCategoryId = null;
+      _pickedUncategorised = false;
+    });
+    _load(reset: true);
   }
 
   Future<void> _openNew() async {
@@ -228,7 +345,10 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         // Matches the add button on GRNs, deliveries, transfers and
         // adjustments — an extended FAB here covered the last row and read as
         // a different affordance to the same action on its sibling screens.
-        trailing: _AddBtn(onTap: _openNew),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          InvItemViewToggle(browse: _browse, onChanged: _setBrowse),
+          _AddBtn(onTap: _openNew),
+        ]),
       ),
       body: Column(
         children: [
@@ -245,13 +365,67 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
             counts: _classCounts,
             onChanged: _onClass,
           ),
-          if (!_loading && _error == null)
+          if (!_browse && !_loading && _error == null)
             _CountLine(loaded: _rows.length, total: _total),
-          Expanded(child: _body(t)),
+          Expanded(child: _browse ? _browseBody(t) : _body(t)),
         ],
       ),
     );
   }
+
+  Widget _browseBody(RunqTokens t) {
+    // A search spans the catalogue, so it cannot be answered by a tree: the
+    // match is usually in some *other* branch. Results take over the pane
+    // until the box is cleared, which drops the user back exactly where they
+    // were standing.
+    //
+    // Scoped to the picked category once there is one — a category filter
+    // matches one category exactly, so narrowing works at a leaf but has no
+    // meaning part-way down a branch.
+    final searching = _search.trim().isNotEmpty;
+    if (_treeLoading && _tree.isEmpty && !searching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final showItems = _showingItems || searching;
+    return Column(
+      children: [
+        if (searching && !_showingItems)
+          _SearchScopeNote(path: _path, onClear: _clearSearch)
+        else if (_path.isNotEmpty)
+          InvCategoryBreadcrumb(path: _path, onUp: _onUp),
+        if (showItems && !_loading && _error == null)
+          _CountLine(loaded: _rows.length, total: _total),
+        // Items when a category is picked or a search is running, the tree
+        // beneath the current level otherwise.
+        Expanded(child: showItems ? _body(t) : _treePane()),
+      ],
+    );
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchCtrl.clear();
+    setState(() => _search = '');
+    _load(reset: true);
+  }
+
+  Widget _treePane() => RefreshIndicator(
+    color: InvColors.brand(context),
+    onRefresh: _loadTree,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      children: [
+        InvCategoryBrowser(
+          tree: _tree,
+          path: _path,
+          uncategorisedCount: _uncategorised,
+          onDrill: (c) => setState(() => _path = [..._path, c]),
+          onPick: _onPick,
+        ),
+      ],
+    ),
+  );
 
   Widget _body(RunqTokens t) {
     if (_loading && _rows.isEmpty) {
@@ -310,6 +484,51 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
 
 /// Marker entry in the flat list — a section title plus its row count.
 /// [nested] marks the subcategory header sitting under its category.
+/// Says why the tree has been replaced by a list, and offers the way back.
+/// Without it a search reads as "the categories disappeared".
+class _SearchScopeNote extends StatelessWidget {
+  const _SearchScopeNote({required this.path, required this.onClear});
+  final List<InvCategory> path;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final where = path.isEmpty ? null : path.last.name;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+      child: Row(children: [
+        Icon(Icons.search_rounded, size: 14, color: t.muted2),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Searching all categories',
+            style: RunqText.caption.copyWith(color: t.muted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        InkWell(
+          onTap: onClear,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Text(
+              where == null ? 'Back to categories' : 'Back to $where',
+              style: RunqText.caption.copyWith(
+                color: InvColors.brand(context),
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _SectionLabel {
   const _SectionLabel(this.label, this.count, {this.nested = false});
   final String label;

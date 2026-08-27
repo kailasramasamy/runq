@@ -220,11 +220,20 @@ class InventoryRepo {
     /// Items carrying no item_class at all — the "Other" pill. Mutually
     /// exclusive with the two filters above.
     bool unclassified = false,
+
+    /// One exact category. Category filters match a single category, not a
+    /// subtree — the browser drills to a leaf before it asks for items.
+    String? categoryId,
+
+    /// Items filed under no category at all.
+    bool uncategorised = false,
     bool withStock = false,
     String? sort,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (unclassified) qp['unclassified'] = 'true';
+    if (categoryId != null) qp['categoryId'] = categoryId;
+    if (uncategorised) qp['uncategorised'] = 'true';
     if (withStock) qp['withStock'] = 'true';
     if (sort != null) qp['sort'] = sort;
     if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
@@ -251,8 +260,22 @@ class InventoryRepo {
 
   /// Active category tree (roots + nested subcategories) for the item form's
   /// category / subcategory pickers.
-  Future<List<InvCategory>> categoryTree() async {
-    final res = await apiClient.get('/masters/categories/tree');
+  Future<List<InvCategory>> categoryTree({
+    bool withCounts = false,
+    String? itemClassGroup,
+    String? itemClass,
+    bool unclassified = false,
+  }) async {
+    // The class filter rides along so a count describes exactly the list the
+    // caller would get by drilling in.
+    final qp = <String, String>{
+      if (withCounts) 'withCounts': 'true',
+      if (itemClassGroup != null && itemClassGroup != 'all')
+        'itemClassGroup': itemClassGroup,
+      if (itemClass != null && itemClass.isNotEmpty) 'itemClass': itemClass,
+      if (unclassified) 'unclassified': 'true',
+    };
+    final res = await apiClient.get('/masters/categories/tree${_qs(qp)}');
     return _dataList(res).map(InvCategory.fromJson).toList();
   }
 

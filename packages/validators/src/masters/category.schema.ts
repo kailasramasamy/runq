@@ -17,6 +17,21 @@ export const categoryFilterSchema = z.object({
   rootOnly: z.coerce.boolean().optional(),
 });
 
+/**
+ * Tree query. The class filters mirror itemFilterSchema so a count always
+ * describes the exact set the caller would get by drilling in — a browser
+ * showing "24" that opens a list of 14 is worse than showing nothing.
+ */
+export const categoryTreeQuerySchema = z.object({
+  withCounts: z.coerce.boolean().optional(),
+  itemClass: z.string().optional(),
+  itemClassGroup: z
+    .enum(['finished', 'inputs', 'trading', 'other', 'bom_inputs', 'all'])
+    .optional(),
+  unclassified: z.coerce.boolean().optional(),
+});
+
+export type CategoryTreeQuery = z.infer<typeof categoryTreeQuerySchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CategoryFilterInput = z.infer<typeof categoryFilterSchema>;

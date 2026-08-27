@@ -1596,14 +1596,34 @@ class InvCategory {
   final String id;
   final String name;
   final List<InvCategory> subcategories;
+
+  /// Items in this category *and everything below it*, when the tree was
+  /// fetched with counts. Null when it wasn't asked for.
+  final int? itemCount;
+
   const InvCategory({
     required this.id,
     required this.name,
     this.subcategories = const [],
+    this.itemCount,
   });
+
+  /// Items filed on this category itself rather than on a child. The API
+  /// sends subtree totals, so the difference is what would otherwise be
+  /// unreachable: a category filter matches one category exactly, so items
+  /// sitting on a parent need their own way in.
+  int get directCount {
+    final total = itemCount;
+    if (total == null) return 0;
+    final below = subcategories.fold<int>(0, (n, c) => n + (c.itemCount ?? 0));
+    final direct = total - below;
+    return direct < 0 ? 0 : direct;
+  }
+
   factory InvCategory.fromJson(Map<String, dynamic> j) => InvCategory(
     id: j['id'] as String,
     name: j['name'] as String,
+    itemCount: (j['itemCount'] as num?)?.toInt(),
     subcategories: ((j['subcategories'] as List?) ?? const [])
         .cast<Map<String, dynamic>>()
         .map(InvCategory.fromJson)

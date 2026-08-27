@@ -179,6 +179,7 @@ export class ItemService {
       groupClasses && groupClasses.length > 0 ? inArray(items.itemClass, groupClasses) : undefined,
       filters.unclassified ? isNull(items.itemClass) : undefined,
       filters.categoryId ? eq(items.categoryId, filters.categoryId) : undefined,
+      filters.uncategorised ? isNull(items.categoryId) : undefined,
       legacyCategoryFilterId ? eq(items.categoryId, legacyCategoryFilterId) : undefined,
     );
 

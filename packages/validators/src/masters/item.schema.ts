@@ -134,6 +134,9 @@ export const itemFilterSchema = z.object({
    *  need this to offer them an "Other" pill that isn't a lie. */
   unclassified: queryBool.optional(),
   categoryId: z.string().uuid().optional(),
+  /** Items filed under no category at all. Without this they are reachable
+   *  only from the flat list, and the category browser would hide them. */
+  uncategorised: queryBool.optional(),
   category: z.string().optional(),
   subcategory: z.string().optional(),
   /** Attach each row's total on-hand qty. Opt-in — it costs an extra

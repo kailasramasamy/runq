@@ -1,5 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
-import { createCategorySchema, updateCategorySchema, categoryFilterSchema, uuidParamSchema } from '@runq/validators';
+import {
+  createCategorySchema, updateCategorySchema, categoryFilterSchema,
+  categoryTreeQuerySchema, uuidParamSchema,
+} from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { CategoryService } from './category.service';
 
@@ -22,8 +25,9 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     '/tree',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {
+      const query = categoryTreeQuerySchema.parse(request.query);
       const service = new CategoryService(request.server.db, request.tenantId);
-      const data = await service.listTree();
+      const data = await service.listTree(query);
       return { data };
     },
   );
