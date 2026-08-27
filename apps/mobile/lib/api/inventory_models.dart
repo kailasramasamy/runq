@@ -1023,6 +1023,10 @@ class InvExpiringBatch {
 class InvWriteOffLine {
   final String adjNo;
   final String reason;
+
+  /// The adjustment's note. For reason `other` this *is* the reason — the
+  /// label alone says nothing — so the row prints it in place of "Other".
+  final String? notes;
   final String itemName;
   final String? itemSku;
   final String? uom;
@@ -1035,6 +1039,7 @@ class InvWriteOffLine {
   const InvWriteOffLine({
     required this.adjNo,
     required this.reason,
+    this.notes,
     required this.itemName,
     this.itemSku,
     this.uom,
@@ -1048,6 +1053,7 @@ class InvWriteOffLine {
   factory InvWriteOffLine.fromJson(Map<String, dynamic> j) => InvWriteOffLine(
     adjNo: (j['adjNo'] as String?) ?? '',
     reason: (j['reason'] as String?) ?? '',
+    notes: j['notes'] as String?,
     itemName: (j['itemName'] as String?) ?? '',
     itemSku: j['itemSku'] as String?,
     uom: j['uom'] as String?,

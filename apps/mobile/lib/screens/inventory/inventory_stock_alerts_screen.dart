@@ -22,7 +22,15 @@ import 'widgets/inv_primitives.dart';
 import 'widgets/inv_stock_alert_tile.dart';
 
 class InventoryStockAlertsScreen extends ConsumerStatefulWidget {
-  const InventoryStockAlertsScreen({super.key});
+  const InventoryStockAlertsScreen({super.key, this.initialStatus});
+
+  /// Which filter to open on — 'out' | 'low'. Null keeps whatever the
+  /// provider already holds, which is how the tab itself opens.
+  ///
+  /// Arriving from a Low Stock tile and landing on "All" makes the user
+  /// re-apply the filter they just expressed by tapping, so the callers
+  /// that name a bucket pass it through.
+  final String? initialStatus;
 
   @override
   ConsumerState<InventoryStockAlertsScreen> createState() =>
@@ -32,6 +40,19 @@ class InventoryStockAlertsScreen extends ConsumerStatefulWidget {
 class _InventoryStockAlertsScreenState
     extends ConsumerState<InventoryStockAlertsScreen> {
   final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final want = widget.initialStatus;
+    if (want == null) return;
+    // After the frame: the filter providers drive invStockAlertsProvider, and
+    // writing to them while this screen's first build is still running would
+    // mutate a provider mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(invAlertStatusProvider.notifier).state = want;
+    });
+  }
 
   @override
   void dispose() {

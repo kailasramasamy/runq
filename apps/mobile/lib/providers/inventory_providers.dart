@@ -209,6 +209,11 @@ void invalidateStockViews(WidgetRef ref) {
   ref.invalidate(invOnHandProvider);
   ref.invalidate(invExpiringProvider);
   ref.invalidate(invReorderAlertsProvider);
+  // The per-item audit trail is a stock view too. It was the one this helper
+  // missed: post an adjustment from the item screen and the card behind it
+  // kept the pre-movement history, because the screen stayed mounted so the
+  // autoDispose family never dropped its cached page.
+  ref.invalidate(invItemMovementsProvider);
   ref.read(invStockRevisionProvider.notifier).state++;
 }
 

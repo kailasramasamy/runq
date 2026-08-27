@@ -20,6 +20,7 @@ import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/movement_filter_sheets.dart';
 import 'widgets/movement_filters.dart';
+import 'widgets/movement_row.dart';
 import 'widgets/warehouse_picker.dart';
 
 class InventoryItemMovementsScreen extends ConsumerStatefulWidget {
@@ -60,8 +61,16 @@ class _ItemMovementsState extends ConsumerState<InventoryItemMovementsScreen> {
 
     return Scaffold(
       backgroundColor: t.bgWarm,
+      // The item is the subject of this screen, so it holds the title; the
+      // unit rides along because every quantity below is counted in it.
       appBar: InvPlainAppBar(
-        title: widget.itemName == null ? 'Stock Movements' : 'Movements',
+        title: widget.itemName ?? 'Stock Movements',
+        subtitle: widget.itemName == null
+            ? null
+            : ['Stock movements', widget.unit?.trim()]
+                .whereType<String>()
+                .where((s) => s.isNotEmpty)
+                .join(' · '),
         onBack: () => context.pop(),
       ),
       body: Column(
@@ -82,7 +91,6 @@ class _ItemMovementsState extends ConsumerState<InventoryItemMovementsScreen> {
                         text: 'No movements in this window.\nTry "All time".')
                     : _MovementList(
                         page: page,
-                        unit: widget.unit,
                         pageNo: _q.page,
                         onPage: (p) => setState(() => _q = _q.copyWith(page: p)),
                       ),
@@ -257,17 +265,17 @@ class _Filters extends ConsumerWidget {
 class _MovementList extends StatelessWidget {
   const _MovementList({
     required this.page,
-    required this.unit,
     required this.pageNo,
     required this.onPage,
   });
   final InvMovementPage page;
-  final String? unit;
   final int pageNo;
   final ValueChanged<int> onPage;
 
   @override
   Widget build(BuildContext context) {
+    final t = RT(context);
+
     // Group by calendar day so a busy production day reads as one block
     // instead of twenty identical timestamps.
     final groups = <String, List<InvMovementRow>>{};
@@ -278,148 +286,54 @@ class _MovementList extends StatelessWidget {
 
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.only(top: 8, bottom: 32),
       children: [
-        for (final entry in groups.entries) ...[
-          InvSectionHeader(title: prettyShortDate(entry.key), topPad: 8),
-          for (final r in entry.value)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _MovementCard(row: r, unit: unit),
-            ),
-        ],
-        if (pageNo > 1 || page.hasMore)
+        // One card per day — the app's standard surface, inset like every
+        // other screen. The day is the unit worth boxing; the movements
+        // inside it are separated by hairlines rather than each getting a
+        // card of its own. ClipRRect because the rows' ink splashes would
+        // otherwise paint over the card's rounded corners.
+        for (final entry in groups.entries)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: pageNo > 1 ? () => onPage(pageNo - 1) : null,
-                  child: const Text('Newer'),
-                ),
-                const SizedBox(width: 16),
-                TextButton(
-                  onPressed: page.hasMore ? () => onPage(pageNo + 1) : null,
-                  child: const Text('Older'),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _MovementCard extends StatelessWidget {
-  const _MovementCard({required this.row, required this.unit});
-  final InvMovementRow row;
-  final String? unit;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final doc = row.doc;
-    final route = doc?.route;
-    final tone = row.isIn ? InvColors.success : InvColors.error;
-    final label = invMovementLabels[row.movementType] ?? row.movementType;
-
-    return InvCard(
-      onTap: route == null ? null : () => context.push(route),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: row.isIn ? InvColors.successBg : InvColors.errorBg,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  label,
-                  style: RunqText.caption.copyWith(
-                    color: tone,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              InvQtyText(
-                qty: '${row.isIn ? '+' : '−'}${_qty(row.qty)}',
-                unit: unit,
-                style: RunqText.body.copyWith(
-                  color: tone,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: InvCard(
+              padding: EdgeInsets.zero,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      doc == null ? 'Adjustment' : doc.no,
-                      style: RunqText.body.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    if (doc?.party != null)
-                      Text(doc!.party!, style: RunqText.caption.copyWith(color: t.ink)),
-                    if (doc?.note != null)
-                      Text(
-                        doc!.note!,
-                        style: RunqText.caption.copyWith(color: t.muted),
-                      ),
-                    if (doc?.ref != null)
-                      Text(
-                        '${doc!.ref!.label ?? 'Ref'}: ${doc.ref!.no}',
-                        style: RunqText.caption.copyWith(
-                          color: InvColors.brand(context),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                    InvMovementDayHeader(iso: entry.key, rows: entry.value),
+                    for (var i = 0; i < entry.value.length; i++) ...[
+                      if (i > 0)
+                        Divider(height: 1, thickness: 1, indent: 14,
+                            endIndent: 14, color: t.hairlineSoft),
+                      InvMovementListRow(row: entry.value[i]),
+                    ],
                   ],
                 ),
               ),
-              if (route != null)
-                Icon(Icons.chevron_right, size: 18, color: t.muted),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              InvMetaChip(icon: Icons.warehouse_outlined, label: row.warehouseName),
-              if (row.batchNo != null && row.batchNo!.isNotEmpty)
-                InvMetaChip(icon: Icons.qr_code_2, label: row.batchNo!),
-              if (row.unitCost > 0)
-                InvMetaChip(
-                  icon: Icons.currency_rupee,
-                  label: indianINR(row.unitCost, decimals: 2),
-                ),
-              InvMetaChip(
-                icon: Icons.inventory_2_outlined,
-                label: 'Bal ${_qty(row.runningQty)}',
-              ),
-              if (row.postedByName != null)
-                InvMetaChip(icon: Icons.person_outline, label: row.postedByName!),
-            ],
-          ),
-        ],
-      ),
+        if (pageNo > 1 || page.hasMore) _pager(),
+      ],
     );
   }
 
-  static String _qty(double v) {
-    final s = v.toStringAsFixed(3);
-    return s.contains('.')
-        ? s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')
-        : s;
-  }
+  Widget _pager() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        TextButton(
+          onPressed: pageNo > 1 ? () => onPage(pageNo - 1) : null,
+          child: const Text('Newer'),
+        ),
+        const SizedBox(width: 16),
+        TextButton(
+          onPressed: page.hasMore ? () => onPage(pageNo + 1) : null,
+          child: const Text('Older'),
+        ),
+      ],
+    ),
+  );
 }

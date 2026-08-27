@@ -1,0 +1,15 @@
+-- A stock adjustment whose reason the fixed list doesn't carry.
+--
+-- Every other reason is a category the code understands: it picks the GL
+-- account, decides the ITC reversal, and drives the wastage register. `other`
+-- is the escape hatch for the real-world one-off — a sample pulled for an
+-- inspector, stock moved under an arrangement that has no name yet — where
+-- forcing the nearest listed reason would file a lie. Its meaning lives in
+-- `inventory_adjustments.notes`, which the UI makes mandatory for this reason
+-- alone, and which the item audit trail prints in place of a label.
+--
+-- Outbound it books to 5104 (write-off) via the fall-through in
+-- gl-poster.ts:outboundAccountFor and counts in /reports/write-offs: stock
+-- left, the reason wasn't classifiable, and an unexplained shrink is a loss
+-- until someone says otherwise. Ledger and register describe the same set.
+ALTER TYPE inv_adjustment_reason ADD VALUE IF NOT EXISTS 'other';

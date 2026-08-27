@@ -359,6 +359,9 @@ export interface MovementDoc extends MovementDocRef {
 export interface ItemMovementRow {
   id: string;
   movedAt: string;
+  /** When the row was written — `movedAt` is the document's date for anything
+   *  document-driven, so it can't carry a clock time. */
+  postedAt: string;
   movementType: string;
   direction: 'in' | 'out';
   batchNo: string | null;
@@ -670,7 +673,11 @@ export type AdjustmentReason =
   | 'free_issue'
   // Material lost into the process (fill variation, line residue, spillage).
   // Raised at Record Production and shown in the daily write-off register.
-  | 'production_loss';
+  | 'production_loss'
+  // A reason this list doesn't carry, spelled out in `notes` instead. Books
+  // to write-off outbound and counts in the register, like any loss nobody
+  // could classify.
+  | 'other';
 
 export interface Adjustment {
   id: string;
@@ -1145,6 +1152,8 @@ export interface MovementResult {
 export interface WriteOffLine {
   adjNo: string;
   reason: string;
+  /** The adjustment's note. For reason `other` this is the reason itself. */
+  notes: string | null;
   itemName: string;
   itemSku: string;
   uom: string | null;

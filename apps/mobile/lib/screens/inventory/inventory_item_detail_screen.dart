@@ -49,6 +49,10 @@ class InventoryItemDetailScreen extends ConsumerWidget {
           ref.invalidate(invItemDetailProvider(itemId));
           ref.invalidate(invItemStockProvider(itemId));
           ref.invalidate(invItemPriceListsProvider(itemId));
+          // Family, so every filter/page instance behind the Recent
+          // Movements card is dropped — a pull must refresh what is on
+          // screen, not just what this handler happened to remember.
+          ref.invalidate(invItemMovementsProvider);
           await Future<void>.delayed(const Duration(milliseconds: 200));
         },
         child: itemAsync.when(
@@ -163,6 +167,7 @@ class _Body extends StatelessWidget {
           InvSectionHeader(
             title: 'Stock Position',
             action: 'Adjust',
+            actionIcon: Icons.tune_rounded,
             onAction: onAdjustStock,
           ),
           _Pad(
@@ -177,7 +182,6 @@ class _Body extends StatelessWidget {
           _Pad(
             child: ItemStockLevelCard(
               qty: totalQty,
-              unit: item.unit,
               reorderLevel: item.reorderLevel,
               reorderQty: item.reorderQty,
               onEditThreshold: onEditThreshold,
@@ -198,7 +202,7 @@ class _Body extends StatelessWidget {
               child: Column(
                 children: [
                   for (final w in allocations) ...[
-                    _WarehouseRow(alloc: w, totalQty: totalQty, unit: item.unit),
+                    _WarehouseRow(alloc: w, totalQty: totalQty),
                     const SizedBox(height: 8),
                   ],
                 ],
@@ -207,12 +211,12 @@ class _Body extends StatelessWidget {
           InvSectionHeader(
             title: 'Recent Movements',
             action: 'View all',
+            actionIcon: Icons.history_rounded,
             onAction: onViewMovements,
           ),
           _Pad(
             child: ItemMovementsCard(
               itemId: item.id,
-              unit: item.unit,
               onViewAll: onViewMovements,
             ),
           ),
@@ -220,6 +224,7 @@ class _Body extends StatelessWidget {
         InvSectionHeader(
           title: 'Pricing',
           action: 'Edit',
+          actionIcon: Icons.edit_outlined,
           onAction: onEditPricing,
         ),
         if (ItemPricingCard.hasData(item))
@@ -346,11 +351,9 @@ class _WarehouseRow extends StatelessWidget {
   const _WarehouseRow({
     required this.alloc,
     required this.totalQty,
-    required this.unit,
   });
   final _WarehouseAlloc alloc;
   final double totalQty;
-  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -381,9 +384,8 @@ class _WarehouseRow extends StatelessWidget {
                         style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
                       ),
                     ),
-                    InvQtyText(
-                      qty: fmtQty(alloc.qty),
-                      unit: unit,
+                    Text(
+                      fmtQty(alloc.qty),
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
                     ),
                   ],

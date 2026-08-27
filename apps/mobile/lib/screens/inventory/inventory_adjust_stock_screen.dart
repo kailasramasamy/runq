@@ -60,6 +60,11 @@ class _InventoryAdjustStockScreenState
   final _qty = TextEditingController();
   final _batch = TextEditingController();
 
+  /// The reason itself, when "Other" is picked. Every listed reason is a
+  /// category the backend understands; this one only means what it says here,
+  /// so it posts as the adjustment's note and the audit trail prints it.
+  final _otherReason = TextEditingController();
+
   /// Stock is held per (warehouse, batch), so a batch-tracked item shows one
   /// row per lot in the same warehouse — that is the granularity an
   /// adjustment posts at. Emptied lots are dropped: they are history, not
@@ -107,6 +112,7 @@ class _InventoryAdjustStockScreenState
   void dispose() {
     _qty.dispose();
     _batch.dispose();
+    _otherReason.dispose();
     super.dispose();
   }
 
@@ -146,7 +152,19 @@ class _InventoryAdjustStockScreenState
   }
 
   double get _resultQty => _currentQty + (_delta ?? 0);
-  bool get _isOutbound => (_delta ?? 0) < 0;
+
+  /// Direction follows the mode, not the typed delta.
+  ///
+  /// Add / Remove already state the direction outright, and switching mode
+  /// clears the quantity box — so deriving this from the delta left Remove
+  /// showing inbound reasons (Found, Opening Balance) until a number was
+  /// typed, hiding Damage and Extra for Damages behind a keystroke. Only
+  /// Set-to is genuinely ambiguous, and there the delta decides.
+  bool get _isOutbound => switch (_mode) {
+    AdjustMode.add => false,
+    AdjustMode.remove => true,
+    AdjustMode.setTo => (_delta ?? 0) < 0,
+  };
   String get _unit => widget.item.unit ?? '';
 
   /// A picked reason only survives while it fits the direction — flipping
@@ -167,11 +185,16 @@ class _InventoryAdjustStockScreenState
     return typed.isEmpty ? null : typed;
   }
 
+  bool get _isOther => _effectiveReason == invOtherReason;
+
   bool get _canSave {
     final d = _delta;
     if (d == null || d == 0 || _resultQty < 0) return false;
     if (_warehouseId == null) return false;
     if (_row == null && widget.item.trackBatches && _batchNo == null) return false;
+    // "Other" with no explanation is worse than a wrong category: it books
+    // to write-off carrying nothing anyone can audit later.
+    if (_isOther && _otherReason.text.trim().isEmpty) return false;
     return !_saving;
   }
 
@@ -204,7 +227,9 @@ class _InventoryAdjustStockScreenState
         warehouseId: _warehouseId!,
         reason: _effectiveReason,
         adjustmentDate: DateTime.now().toIso8601String().substring(0, 10),
-        notes: 'Adjusted from item detail',
+        notes: _isOther
+            ? _otherReason.text.trim()
+            : 'Adjusted from item detail',
         lines: [
           InvAdjustmentLineInput(
             itemId: widget.item.id,
@@ -260,6 +285,10 @@ class _InventoryAdjustStockScreenState
             value: _effectiveReason,
             onChanged: (r) => setState(() => _reason = r),
           ),
+          if (_isOther) ...[
+            const SizedBox(height: 12),
+            _otherReasonField(t),
+          ],
         ],
       ),
       bottomNavigationBar: _bottomBar(t),
@@ -273,9 +302,20 @@ class _InventoryAdjustStockScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.item.name,
-                style: RunqText.bodyStrong.copyWith(color: t.ink),
+              // The unit qualifies the item, so it sits with the name and
+              // is stated once. Every number on this screen is in it.
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: widget.item.name,
+                    style: RunqText.bodyStrong.copyWith(color: t.ink),
+                  ),
+                  if (_unit.isNotEmpty)
+                    TextSpan(
+                      text: '  $_unit',
+                      style: RunqText.caption.copyWith(color: t.muted2),
+                    ),
+                ]),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -288,9 +328,8 @@ class _InventoryAdjustStockScreenState
           ),
         ),
         const SizedBox(width: 10),
-        InvQtyText(
-          qty: invFmtQty(_currentQty),
-          unit: widget.item.unit,
+        Text(
+          invFmtQty(_currentQty),
           style: RunqText.h4.copyWith(color: t.ink),
         ),
       ],
@@ -306,7 +345,6 @@ class _InventoryAdjustStockScreenState
         AdjustLocationField(
           rows: _rows,
           selected: _row,
-          unit: widget.item.unit,
           newLocationLabel: widget.item.trackBatches
               ? 'Another warehouse or batch'
               : 'Another warehouse',
@@ -370,19 +408,44 @@ class _InventoryAdjustStockScreenState
     ],
   );
 
+  /// Free text that *is* the reason. Nothing downstream can validate it, so
+  /// the save button stays dead until it says something.
+  Widget _otherReasonField(RunqTokens t) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const InvFieldLabel('What happened?'),
+      TextField(
+        controller: _otherReason,
+        textCapitalization: TextCapitalization.sentences,
+        maxLength: 120,
+        style: RunqText.body.copyWith(color: t.ink),
+        cursorColor: InvColors.brand(context),
+        decoration: invInputDecoration(
+          context,
+          hint: 'e.g. Sample pulled for FSSAI inspection',
+        ).copyWith(counterText: ''),
+        onChanged: (_) => setState(() {}),
+      ),
+      Text(
+        'Shown on the stock movement trail in place of a reason.',
+        style: RunqText.caption.copyWith(color: t.muted2),
+      ),
+    ],
+  );
+
   /// The whole point of the screen: spell out the before → after, so a typo
   /// or a wrong mode is caught before it hits the ledger.
   Widget _previewCard(RunqTokens t) {
     final d = _delta;
     if (d == null || d == 0) {
       return Text(
-        '${invFmtQty(_currentQty)} $_unit on hand right now'.trim(),
+        '${invFmtQty(_currentQty)} on hand right now',
         style: RunqText.caption.copyWith(color: t.muted2),
       );
     }
     if (_resultQty < 0) {
       return Text(
-        "Can't remove more than the ${invFmtQty(_currentQty)} $_unit on hand".trim(),
+        "Can't remove more than the ${invFmtQty(_currentQty)} on hand",
         style: RunqText.caption.copyWith(color: InvColors.error),
       );
     }
@@ -392,12 +455,12 @@ class _InventoryAdjustStockScreenState
         Icon(d < 0 ? Icons.south_rounded : Icons.north_rounded, size: 15, color: color),
         const SizedBox(width: 6),
         Text(
-          '${d < 0 ? 'Removing' : 'Adding'} ${invFmtQty(d.abs())} $_unit'.trim(),
+          '${d < 0 ? 'Removing' : 'Adding'} ${invFmtQty(d.abs())}',
           style: RunqText.bodyStrong.copyWith(color: color),
         ),
         const Spacer(),
         Text(
-          '${invFmtQty(_currentQty)} → ${invFmtQty(_resultQty)} $_unit'.trim(),
+          '${invFmtQty(_currentQty)} → ${invFmtQty(_resultQty)}',
           style: RunqText.caption.copyWith(color: t.muted),
         ),
       ],

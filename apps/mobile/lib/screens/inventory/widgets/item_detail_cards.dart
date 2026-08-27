@@ -35,10 +35,20 @@ class ItemIdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // The stock UoM is what this item *is* — every quantity in the app is
+    // counted in it. Pack size is the GST measure (UQC), normalised for the
+    // GSTR-1 HSN summary, and `packSizeValue` is NOT NULL DEFAULT 1: a 500ml
+    // pack sits in the master as "1 LTR". Preferring it put that default
+    // under the name and contradicted every other screen. Same rule as
+    // invoice-form.tsx — unit first, pack only as a fallback, and a pack
+    // value of 1 carries no information.
+    final unit = item.unit?.trim();
+    final packIsMeaningful =
+        item.packSizeValue != null && item.packSizeValue != 1;
     final pack = item.packSizeValue != null
-        ? '${fmtQty(item.packSizeValue!)} ${item.packSizeUqc ?? item.unit ?? ''}'.trim()
+        ? '${fmtQty(item.packSizeValue!)} ${item.packSizeUqc ?? unit ?? ''}'.trim()
         : null;
-    final uom = (pack != null && pack.isNotEmpty) ? pack : item.unit?.trim();
+    final uom = (unit != null && unit.isNotEmpty) ? unit : pack;
     return InvCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
@@ -102,6 +112,14 @@ class ItemIdentityCard extends StatelessWidget {
                   bg: InvColors.amberSubtle,
                   fg: InvColors.amberDeep,
                 ),
+              // The GST pack size, beside the other GST identifier — but only
+              // when it says something the default doesn't.
+              if (packIsMeaningful && pack != null && pack.isNotEmpty)
+                ItemBadge(
+                  label: 'Pack $pack',
+                  bg: InvColors.amberSubtle,
+                  fg: InvColors.amberDeep,
+                ),
               if (classLabel != null && classLabel!.isNotEmpty)
                 ItemBadge(label: classLabel!, bg: t.bgWarmer, fg: t.ink),
               if ((item.ean ?? '').isNotEmpty)
@@ -122,13 +140,11 @@ class ItemStockLevelCard extends StatelessWidget {
   const ItemStockLevelCard({
     super.key,
     required this.qty,
-    required this.unit,
     required this.reorderLevel,
     required this.reorderQty,
     this.onEditThreshold,
   });
   final double qty;
-  final String? unit;
   final double? reorderLevel;
   final double? reorderQty;
 
@@ -157,9 +173,8 @@ class ItemStockLevelCard extends StatelessWidget {
                   style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
                 ),
               ),
-              InvQtyText(
-                qty: fmtQty(qty),
-                unit: unit,
+              Text(
+                fmtQty(qty),
                 style: RunqText.h4.copyWith(
                   color: isOut
                       ? InvColors.error
@@ -221,7 +236,7 @@ class ItemStockLevelCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     isLow
-                        ? 'Below reorder point — short by ${fmtQty(shortfall)} ${unit ?? ''}'.trim()
+                        ? 'Below reorder point — short by ${fmtQty(shortfall)}'
                         : '',
                     style: RunqText.caption.copyWith(color: InvColors.orangeAlert),
                   ),

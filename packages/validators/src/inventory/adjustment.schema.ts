@@ -9,9 +9,12 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'
 // `production_loss` — material lost into the process (fill variation, line
 // residue, spillage while packing). Kept apart from `damage` so the wastage
 // register can separate process loss from handling loss.
+// `other` — a reason the list doesn't carry, spelled out in `notes`. The UI
+// requires the note before it will post; nothing here can enforce that,
+// because a note is optional for every other reason.
 export const adjustmentReasonSchema = z.enum([
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
-  'free_issue', 'production_loss',
+  'free_issue', 'production_loss', 'other',
 ]);
 
 export const adjustmentLineInputSchema = z.object({

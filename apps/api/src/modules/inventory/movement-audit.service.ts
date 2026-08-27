@@ -24,6 +24,7 @@ import {
 } from '@runq/db';
 import { movementGroupMembers } from '@runq/validators';
 import type { ItemMovementFilter } from '@runq/validators';
+import { istDate } from '../manufacturing/mfg-day';
 
 /** Document kinds the UI knows how to deep-link. */
 export type MovementDocKind =
@@ -83,6 +84,17 @@ export class ItemMovementAuditService {
     }
     if (filter.type) conds.push(eq(stockLedger.movementType, filter.type));
 
+    // Chronology, not `moved_at` alone. Document-driven movements stamp
+    // `moved_at` with the document's *date* (midnight), while production
+    // stamps the actual instant — so within one day a 6pm production run
+    // sorts above the 9pm dispatches that drew stock from it, and the
+    // running balance beside them reads 912 → 159 → 722. The IST calendar
+    // day still comes from `moved_at` (that is the day the movement belongs
+    // to, and the day the UI groups under, even for a backdated document);
+    // only the order inside the day comes from `posted_at`, which is the
+    // one column that always records when the row was really written.
+    const istDay = istDate(stockLedger.movedAt);
+
     // Over-fetch by one so the client knows whether another page exists
     // without paying for a COUNT(*) over the whole ledger.
     const rows = await this.db
@@ -95,7 +107,7 @@ export class ItemMovementAuditService {
       .innerJoin(warehouses, eq(warehouses.id, stockLedger.warehouseId))
       .leftJoin(users, eq(users.id, stockLedger.postedBy))
       .where(and(...conds))
-      .orderBy(desc(stockLedger.movedAt), desc(stockLedger.postedAt))
+      .orderBy(sql`${istDay} DESC`, desc(stockLedger.postedAt))
       .limit(filter.limit + 1)
       .offset((filter.page - 1) * filter.limit);
 
@@ -112,6 +124,9 @@ export class ItemMovementAuditService {
         return {
           id: l.id,
           movedAt: l.movedAt,
+          // When the movement was actually written. Date-only `movedAt`
+          // can't show a time, so the trail reads its clock off this.
+          postedAt: l.postedAt,
           movementType: l.movementType,
           direction: INBOUND.has(l.movementType) ? 'in' : 'out',
           batchNo: l.batchNo,
@@ -293,7 +308,12 @@ export class ItemMovementAuditService {
       date: r.date,
       status: r.status,
       party: null,
-      note: [r.reason.replace(/_/g, ' '), r.notes].filter(Boolean).join(' — '),
+      // `other` keeps its reason in the note — printing "other — <note>"
+      // would spend the line on the word that says nothing. Every other
+      // reason is a real category and leads.
+      note: r.reason === 'other'
+        ? (r.notes ?? 'Other')
+        : [r.reason.replace(/_/g, ' '), r.notes].filter(Boolean).join(' — '),
       ref: null,
     }]);
   }

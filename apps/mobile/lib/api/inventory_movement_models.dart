@@ -77,6 +77,11 @@ class InvMovementDoc extends InvMovementDocRef {
 class InvMovementRow {
   final String id;
   final DateTime movedAt;
+
+  /// When the row was actually written. [movedAt] is the document's date for
+  /// anything document-driven (a dispatch stamps midnight), so this is the
+  /// only column that can put a clock time on a movement.
+  final DateTime postedAt;
   final String movementType;
   final String direction;
   final String? batchNo;
@@ -92,6 +97,7 @@ class InvMovementRow {
   const InvMovementRow({
     required this.id,
     required this.movedAt,
+    required this.postedAt,
     required this.movementType,
     required this.direction,
     required this.batchNo,
@@ -111,6 +117,9 @@ class InvMovementRow {
   factory InvMovementRow.fromJson(Map<String, dynamic> j) => InvMovementRow(
     id: (j['id'] as String?) ?? '',
     movedAt: DateTime.tryParse((j['movedAt'] as String?) ?? '')?.toLocal() ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+    postedAt: DateTime.tryParse((j['postedAt'] as String?) ?? '')?.toLocal() ??
+        DateTime.tryParse((j['movedAt'] as String?) ?? '')?.toLocal() ??
         DateTime.fromMillisecondsSinceEpoch(0),
     movementType: (j['movementType'] as String?) ?? '',
     direction: (j['direction'] as String?) ?? 'out',

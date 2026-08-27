@@ -21,11 +21,9 @@ class ItemMovementsCard extends ConsumerWidget {
   const ItemMovementsCard({
     super.key,
     required this.itemId,
-    required this.unit,
     required this.onViewAll,
   });
   final String itemId;
-  final String? unit;
   final VoidCallback onViewAll;
 
   @override
@@ -60,7 +58,7 @@ class ItemMovementsCard extends ConsumerWidget {
             children: [
               for (var i = 0; i < rows.length; i++) ...[
                 if (i > 0) Divider(height: 14, color: t.hairlineSoft),
-                _PreviewRow(row: rows[i], unit: unit),
+                _PreviewRow(row: rows[i]),
               ],
             ],
           ),
@@ -71,9 +69,8 @@ class ItemMovementsCard extends ConsumerWidget {
 }
 
 class _PreviewRow extends StatelessWidget {
-  const _PreviewRow({required this.row, required this.unit});
+  const _PreviewRow({required this.row});
   final InvMovementRow row;
-  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +93,8 @@ class _PreviewRow extends StatelessWidget {
               ),
               Text(
                 [
-                  prettyShortDate(row.movedAt.toIso8601String().substring(0, 10)),
+                  '${prettyShortDate(row.movedAt.toIso8601String().substring(0, 10))}'
+                      ', ${prettyTime(row.postedAt)}',
                   doc?.party ?? doc?.note,
                 ].whereType<String>().join(' · '),
                 style: RunqText.caption.copyWith(color: t.muted),
@@ -107,10 +105,9 @@ class _PreviewRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        InvQtyText(
-          qty: '${row.isIn ? '+' : '−'}'
+        Text(
+          '${row.isIn ? '+' : '−'}'
               '${row.qty.toStringAsFixed(row.qty == row.qty.roundToDouble() ? 0 : 2)}',
-          unit: unit,
           style: RunqText.body.copyWith(color: tone, fontWeight: FontWeight.w700),
         ),
       ],

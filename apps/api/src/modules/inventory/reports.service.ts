@@ -293,6 +293,8 @@ export class ReportsService {
         a.adjustment_date::text          AS date,
         a.adj_no                         AS adj_no,
         a.reason                         AS reason,
+        a.notes                          AS notes,
+        COALESCE(a.posted_at, a.created_at) AS posted_at,
         i.name                           AS item_name,
         i.sku                            AS item_sku,
         i.unit                           AS uom,
@@ -317,7 +319,13 @@ export class ReportsService {
         ${filter.reason ? sql`AND a.reason = ${filter.reason}` : sql``}
         ${filter.warehouseId ? sql`AND a.warehouse_id = ${filter.warehouseId}` : sql``}
         ${filter.itemId ? sql`AND l.item_id = ${filter.itemId}` : sql``}
-      ORDER BY a.adjustment_date DESC, a.adj_no ASC
+      -- Chronology, same rule as the item audit trail. adjustment_date is a
+      -- date, so it can only order the days; inside a day it says nothing,
+      -- and adj_no ASC ran the day backwards against the DESC of the dates.
+      -- posted_at is when the write-off was actually booked.
+      ORDER BY a.adjustment_date DESC,
+               COALESCE(a.posted_at, a.created_at) DESC,
+               a.adj_no DESC
     `) as unknown as QueryResult<WriteOffRow>;
 
     return { from, to, ...groupWriteOffsByDay(result.rows) };
@@ -380,6 +388,7 @@ export class ReportsService {
 
 interface WriteOffRow {
   date: string; adj_no: string; reason: string;
+  notes: string | null; posted_at: Date | string | null;
   item_name: string; item_sku: string; uom: string;
   batch_no: string | null; warehouse_name: string; wo_number: string | null;
   qty: string; value: string;
@@ -400,6 +409,11 @@ function groupWriteOffsByDay(rows: WriteOffRow[]) {
     day.lines.push({
       adjNo: r.adj_no,
       reason: r.reason,
+      // `other` keeps its meaning in the note — without this the register
+      // just reads "Other" and the write-off is unauditable. Sent for every
+      // reason so a note added to a damage line shows up too.
+      notes: r.notes,
+      postedAt: r.posted_at,
       itemName: r.item_name,
       itemSku: r.item_sku,
       uom: r.uom,

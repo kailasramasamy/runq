@@ -23,7 +23,8 @@ const _reasonLabels = <String, String>{
   'damage': 'Damage',
   'expiry': 'Expiry',
   'theft': 'Theft',
-  'free_issue': 'Free issue',
+  'free_issue': 'Extra for damages',
+  'other': 'Other',
 };
 
 /// Reason filter pills. `null` = every loss reason.
@@ -32,6 +33,7 @@ const _reasonFilters = <(String?, String)>[
   ('production_loss', 'Production'),
   ('damage', 'Damage'),
   ('expiry', 'Expiry'),
+  ('other', 'Other'),
 ];
 
 class WriteOffsScreen extends ConsumerStatefulWidget {
@@ -288,8 +290,16 @@ class _LineRow extends StatelessWidget {
     final t = RT(context);
     // Batch and source run are the two things worth chasing a loss by; the
     // adjustment number is the paper trail behind it.
+    // "Other" is a label that says nothing on its own — the reason it stands
+    // for is in the note, so that leads and the word is dropped. Every other
+    // reason is a real category and keeps its label, with any note after it.
+    final note = line.notes?.trim();
+    final label = _reasonLabels[line.reason] ?? line.reason;
+    final reason = line.reason == 'other'
+        ? (note == null || note.isEmpty ? label : note)
+        : [label, if (note != null && note.isNotEmpty) note].join(' — ');
     final meta = [
-      _reasonLabels[line.reason] ?? line.reason,
+      reason,
       if (line.batchNo != null && line.batchNo!.isNotEmpty) line.batchNo!,
       if (line.woNumber != null && line.woNumber!.isNotEmpty) line.woNumber!,
       line.adjNo,
@@ -302,7 +312,23 @@ class _LineRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(line.itemName, style: RunqText.body.copyWith(color: t.ink)),
+              // The register mixes SKUs, so the unit identifies what was
+              // written off; on the number it only made the column ragged.
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: line.itemName,
+                    style: RunqText.body.copyWith(color: t.ink),
+                  ),
+                  if ((line.uom ?? '').isNotEmpty)
+                    TextSpan(
+                      text: '  ${line.uom}',
+                      style: RunqText.caption.copyWith(color: t.muted2),
+                    ),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 2),
               Text(meta, style: RunqText.caption.copyWith(color: t.muted2)),
             ],
@@ -312,8 +338,7 @@ class _LineRow extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text('${_trim(line.qty)}${line.uom == null ? '' : ' ${line.uom}'}',
-                style: RunqText.body.copyWith(color: t.ink)),
+            Text(_trim(line.qty), style: RunqText.body.copyWith(color: t.ink)),
             const SizedBox(height: 2),
             Text(mfgIndianINR(line.value, decimals: 2),
                 style: RunqText.caption.copyWith(color: t.muted)),

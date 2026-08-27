@@ -41,18 +41,14 @@ class AdjustLocationField extends StatelessWidget {
     super.key,
     required this.rows,
     required this.selected,
-    required this.unit,
     required this.newLocationLabel,
     required this.onChanged,
   });
 
   final List<InvItemStockRow> rows;
   final InvItemStockRow? selected;
-  final String? unit;
   final String newLocationLabel;
   final ValueChanged<InvItemStockRow?> onChanged;
-
-  String _qty(InvItemStockRow r) => '${invFmtQty(r.qty)} ${unit ?? ''}'.trim();
 
   @override
   Widget build(BuildContext context) {
@@ -99,10 +95,6 @@ class AdjustLocationField extends StatelessWidget {
                   ],
                 ),
               ),
-              if (r != null) ...[
-                const SizedBox(width: 8),
-                Text(_qty(r), style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              ],
               Icon(Icons.expand_more_rounded, size: 20, color: t.muted),
             ],
           ),
@@ -145,7 +137,7 @@ class AdjustLocationField extends StatelessWidget {
                       _LocationRow(
                         title: r.warehouseName.isEmpty ? 'Warehouse' : r.warehouseName,
                         subtitle: r.batchNo.isEmpty ? 'No batch' : 'Batch ${r.batchNo}',
-                        trailing: _qty(r),
+                        trailing: invFmtQty(r.qty),
                         selected: identical(r, selected),
                         onTap: () => Navigator.of(context).pop(_LocationChoice(r)),
                       ),

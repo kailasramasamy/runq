@@ -17,12 +17,24 @@ const Map<String, String> invReasonLabels = {
   'revaluation': 'Revaluation',
   'correction': 'Correction',
   'opening_balance': 'Opening Balance',
-  'free_issue': 'Free Issue',
+  'free_issue': 'Extra for Damages',
+  'other': 'Other',
 };
 
-// 'free_issue' — stock handed over without an invoice (extra cases to the
-// logistics team to cover their breakages). Outbound like damage, but the
-// goods are intact, so the backend books it to distribution cost not write-off.
+/// The reason whose meaning lives in the note rather than in the label. The
+/// sheet demands that note before it will post, and the audit trail prints it
+/// in place of the word "other".
+const String invOtherReason = 'other';
+
+// 'free_issue' — labelled "Extra for damages": stock handed over without an
+// invoice, the spare cases sent along so the receiver can absorb their own
+// breakages (trade samples ride here too). Outbound like damage, but the
+// goods are intact, so the backend books it to distribution cost (5106) not
+// write-off, and GST §17(5)(h) requires the input tax on it to be reversed.
+// The stored value stays `free_issue`; only the label speaks plainly.
+// 'other' is deliberately absent, like 'correction': both can go either way,
+// and this set is what always means stock left. Tinting an inbound "Other"
+// red would be a lie the chip tells before anyone reads the number.
 const Set<String> invOutboundReasons = {'damage', 'expiry', 'theft', 'free_issue'};
 
 // Reasons split by direction. "correction" / "revaluation" appear on both
@@ -36,12 +48,14 @@ const List<String> invOutboundReasonOrder = [
   'expiry',
   'theft',
   'revaluation',
+  'other',
 ];
 const List<String> invInboundReasonOrder = [
   'found',
   'opening_balance',
   'correction',
   'revaluation',
+  'other',
 ];
 
 // Outbound defaults to 'correction', not 'damage': most downward edits are

@@ -251,7 +251,11 @@ export class InventoryDashboardService {
       INNER JOIN items i ON i.id = sl.item_id
       INNER JOIN warehouses w ON w.id = sl.warehouse_id
       WHERE sl.tenant_id = ${this.tenantId}
-      ORDER BY sl.moved_at DESC, sl.posted_at DESC
+      -- Same chronology rule as the per-item audit trail: the IST day comes
+      -- from moved_at (a dispatch stamps its document date at midnight, so
+      -- intra-day it sorts as noise); the order inside the day comes from
+      -- posted_at, which always records when the row was written.
+      ORDER BY (sl.moved_at AT TIME ZONE ${IST})::date DESC, sl.posted_at DESC
       LIMIT ${limit}
     `);
     return (result as unknown as {
@@ -302,7 +306,11 @@ export class InventoryDashboardService {
       INNER JOIN items i ON i.id = sl.item_id
       INNER JOIN warehouses w ON w.id = sl.warehouse_id
       WHERE ${where}
-      ORDER BY sl.moved_at DESC, sl.posted_at DESC
+      -- Same chronology rule as the per-item audit trail: the IST day comes
+      -- from moved_at (a dispatch stamps its document date at midnight, so
+      -- intra-day it sorts as noise); the order inside the day comes from
+      -- posted_at, which always records when the row was written.
+      ORDER BY (sl.moved_at AT TIME ZONE ${IST})::date DESC, sl.posted_at DESC
       LIMIT ${q.limit} OFFSET ${q.offset}
     `);
     const rows = (result as unknown as { rows: Array<Record<string, string | null>> }).rows;

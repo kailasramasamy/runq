@@ -368,7 +368,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
             // Alerts tab — low stock + out of stock in one list. The older
             // reorder-only screen is still reachable at /inventory/reorder
             // for the rule-driven view.
-            GoRoute(path: '/inventory/alerts', pageBuilder: _fadePage((_) => const InventoryStockAlertsScreen())),
+            GoRoute(
+              path: '/inventory/alerts',
+              pageBuilder: _fadePage((state) => InventoryStockAlertsScreen(
+                initialStatus: state.uri.queryParameters['status'],
+              )),
+            ),
             // Analytics — turnover, where value sits, risk and what runs
             // out next. Web parity: /inventory/analytics.
             GoRoute(path: '/inventory/analytics', pageBuilder: _fadePage((_) => const InventoryAnalyticsScreen())),

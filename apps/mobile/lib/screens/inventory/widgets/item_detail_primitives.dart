@@ -145,14 +145,19 @@ class ItemKvRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: emphasis
-                  ? RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)
-                  : RunqText.body.copyWith(color: t.ink, fontSize: 14),
-            ),
+          // Not Flexible: two flex children split the row between them, so
+          // the value box shrank to its own text and stopped short of the
+          // right edge — `textAlign` had nothing to align inside. Laying the
+          // value out at its intrinsic width and letting the label absorb
+          // the rest puts every figure flush right, which is what makes a
+          // column of prices readable. Same shape as the net-profit row and
+          // the COGM breakdown below.
+          Text(
+            value,
+            textAlign: TextAlign.right,
+            style: emphasis
+                ? RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14)
+                : RunqText.body.copyWith(color: t.ink, fontSize: 14),
           ),
         ],
       ),

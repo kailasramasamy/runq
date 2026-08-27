@@ -12,7 +12,7 @@ import {
   PageHeader, Combobox, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Card, CardContent,
 } from '@/components/ui';
-import { useWriteOffs, useWarehouses } from '@/hooks/queries/use-inventory';
+import { useWriteOffs, useWarehouses, type WriteOffLine } from '@/hooks/queries/use-inventory';
 import { formatINR } from '@/lib/utils';
 
 const REASON_LABELS: Record<string, string> = {
@@ -20,8 +20,16 @@ const REASON_LABELS: Record<string, string> = {
   damage: 'Damage',
   expiry: 'Expiry',
   theft: 'Theft',
-  free_issue: 'Free issue',
+  free_issue: 'Extra for damages',
+  other: 'Other',
 };
+
+function reasonText(l: WriteOffLine): string {
+  const label = REASON_LABELS[l.reason] ?? l.reason;
+  const note = l.notes?.trim();
+  if (l.reason === 'other') return note || label;
+  return note ? `${label} — ${note}` : label;
+}
 
 const REASON_OPTIONS = [
   { value: '', label: 'All reasons' },
@@ -144,7 +152,9 @@ export function WriteOffReportPage() {
                         {l.adjNo} · {l.warehouseName}
                       </div>
                     </TableCell>
-                    <TableCell>{REASON_LABELS[l.reason] ?? l.reason}</TableCell>
+                    {/* "Other" means nothing on its own — the reason it stands
+                        for lives in the note, so that replaces the label. */}
+                    <TableCell>{reasonText(l)}</TableCell>
                     <TableCell>{l.batchNo ?? '—'}</TableCell>
                     <TableCell>{l.woNumber ?? '—'}</TableCell>
                     <TableCell align="right">{l.qty}{l.uom ? ` ${l.uom}` : ''}</TableCell>

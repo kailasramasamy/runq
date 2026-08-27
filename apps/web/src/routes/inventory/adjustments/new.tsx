@@ -23,8 +23,11 @@ const REASON_OPTIONS: { value: AdjustmentReason; label: string }[] = [
   { value: 'revaluation', label: 'Revaluation' },
   { value: 'correction', label: 'Correction' },
   { value: 'opening_balance', label: 'Opening balance' },
-  { value: 'free_issue', label: 'Free issue (no invoice)' },
+  { value: 'free_issue', label: 'Extra for damages (no invoice)' },
   { value: 'production_loss', label: 'Production loss (wastage)' },
+  // Last: the fallback, not a candidate. Its meaning comes from Notes, which
+  // submit() requires for this reason alone.
+  { value: 'other', label: 'Other (explain in notes)' },
 ];
 
 // Reasons where the goods left without a taxable supply, so the input tax
@@ -87,6 +90,11 @@ export function NewAdjustmentPage() {
     if (!warehouseId) return toast('Pick a warehouse', 'error');
     const valid = lines.filter((l) => l.itemId && Number(l.qtyDelta) !== 0);
     if (valid.length === 0) return toast('Add at least one line with non-zero qty', 'error');
+    // "Other" carries its reason in the note. Without one it books to
+    // write-off saying nothing anyone can audit later.
+    if (reason === 'other' && !notes.trim()) {
+      return toast('Describe the reason in Notes when the reason is Other', 'error');
+    }
     try {
       const a = await create.mutateAsync({
         warehouseId,
@@ -136,8 +144,16 @@ export function NewAdjustmentPage() {
                 <Input type="date" value={adjustmentDate} onChange={(e) => setAdjustmentDate(e.target.value)} required />
               </div>
               <div className={showItcReversal ? 'md:col-span-2' : 'md:col-span-3'}>
-                <label className="mb-1 block text-sm font-medium">Notes</label>
-                <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <label className="mb-1 block text-sm font-medium">
+                  Notes {reason === 'other' && '*'}
+                </label>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={reason === 'other'
+                    ? 'What happened? Shown on the stock movement trail.'
+                    : undefined}
+                />
               </div>
               {showItcReversal && (
                 <div>

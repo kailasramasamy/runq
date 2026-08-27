@@ -19,6 +19,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
+import 'widgets/inv_attention.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/inv_stock_highlights.dart';
@@ -84,7 +85,7 @@ class _HomeBody extends StatelessWidget {
         // baseline, what is still on its way, and what was lost outright.
         SliverToBoxAdapter(child: _Movement(k: k)),
         // The dispatch queue and every open exception, as one tile grid.
-        SliverToBoxAdapter(child: _NeedsAttention(k: k)),
+        SliverToBoxAdapter(child: InvNeedsAttention(k: k)),
         // What's actually on the floor right now — goods that just came off
         // production, then the inputs left to run the next batch.
         const SliverToBoxAdapter(
@@ -369,7 +370,9 @@ class _HeroCard extends StatelessWidget {
                       value: k.outOfStockCount.toString(),
                       sub: k.outOfStockCount == 1 ? 'item' : 'items',
                       alert: k.outOfStockCount > 0,
-                      onTap: () => context.push('/inventory/alerts'),
+                      // Land on the bucket the tile counts, not on "All" —
+                      // the tap already said which one.
+                      onTap: () => context.push('/inventory/alerts?status=out'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -379,7 +382,7 @@ class _HeroCard extends StatelessWidget {
                       value: k.lowStockCount.toString(),
                       sub: k.lowStockCount == 1 ? 'item' : 'items',
                       alert: k.lowStockCount > 0,
-                      onTap: () => context.push('/inventory/alerts'),
+                      onTap: () => context.push('/inventory/alerts?status=low'),
                     ),
                   ),
                 ],
@@ -421,7 +424,6 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-String _batches(int n) => n == 1 ? '1 batch' : '$n batches';
 
 /// Scope line for the hero figures, and the way into the per-warehouse split.
 ///
@@ -863,136 +865,3 @@ class _Movement extends ConsumerWidget {
   static String _docs(int n) => n == 1 ? '1 doc' : '$n docs';
 }
 
-// ── Needs attention ───────────────────────────────────────────────────────
-
-/// The dispatch queue plus every open exception, in one 2-column grid.
-///
-/// Pending dispatch used to sit in its own full-width strip above this
-/// section, which split one question — "what needs me?" — across two blocks.
-/// Exceptions still appear only when they exist: a grid of zeroes trains the
-/// eye to skip the section, so an all-clear collapses to a single tile.
-class _NeedsAttention extends ConsumerWidget {
-  const _NeedsAttention({required this.k});
-  final InvKpis k;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = RT(context);
-    // `total`, not `rows.length` — the queue request is capped at 100 rows.
-    final pending = ref.watch(invPendingDispatchProvider).valueOrNull?.total;
-    final exceptions = <Widget>[
-      if (k.outOfStockCount > 0)
-        InvMiniStat(
-          icon: Icons.remove_shopping_cart_outlined,
-          iconColor: InvColors.error,
-          label: 'Out of stock',
-          value: '${k.outOfStockCount}',
-          onTap: () => context.push('/inventory/alerts'),
-        ),
-      if (k.lowStockCount > 0)
-        InvMiniStat(
-          icon: Icons.warning_amber_rounded,
-          iconColor: InvColors.amberDeep,
-          label: 'Below reorder level',
-          value: '${k.lowStockCount}',
-          onTap: () => context.push('/inventory/alerts'),
-        ),
-      // Expiry and dead stock lead with the amount, not the batch count: both
-      // are money decisions (write-off risk, locked-up cash) and "12 batches"
-      // gives an owner nothing to weigh them against. Low / out-of-stock stay
-      // as counts — an out-of-stock line is worth ₹0 by definition, and for a
-      // low line the on-hand value is not the story either.
-      if (k.expiringSoon > 0)
-        InvMiniStat(
-          icon: Icons.schedule_rounded,
-          iconColor: InvColors.error,
-          label: 'Expiring in 30d · ${_batches(k.expiringSoon)}',
-          value: compactINR(k.expiringSoonValue),
-          onTap: () => context.push('/inventory/reports/expiry'),
-        ),
-      if (k.inTransitTransfers > 0)
-        InvMiniStat(
-          icon: Icons.alt_route_outlined,
-          iconColor: InvColors.info,
-          label: 'Transfers in transit',
-          value: '${k.inTransitTransfers}',
-          onTap: () => context.push('/inventory/transfers'),
-        ),
-      if (k.pendingAdjustments > 0)
-        InvMiniStat(
-          icon: Icons.tune_rounded,
-          iconColor: InvColors.amberDeep,
-          label: 'Adjustments to approve',
-          value: '${k.pendingAdjustments}',
-          onTap: () => context.push('/inventory/adjustments'),
-        ),
-      if (k.deadStock > 0)
-        InvMiniStat(
-          icon: Icons.hourglass_bottom_rounded,
-          iconColor: t.muted,
-          label: 'Unmoved 90+ days · ${_batches(k.deadStock)}',
-          value: compactINR(k.deadStockValue),
-          onTap: () => context.push('/inventory/on-hand'),
-        ),
-    ];
-    final tiles = <Widget>[
-      InvMiniStat(
-        icon: Icons.pending_actions_outlined,
-        // Amber while work is outstanding, green once the queue is clear —
-        // the tile should read as "nothing to do", not as a bare zero.
-        iconColor:
-            (pending ?? 0) > 0 ? InvColors.brand(context) : InvColors.success,
-        value: pending == null ? '—' : '$pending',
-        label: switch (pending) {
-          null => 'Pending dispatch',
-          0 => 'All dispatched',
-          1 => 'Invoice to dispatch',
-          _ => 'Invoices to dispatch',
-        },
-        onTap: () => context.push('/inventory/pending-dispatch'),
-      ),
-      ...exceptions,
-      // Never leave a lone tile beside an empty half — say the all-clear.
-      if (exceptions.isEmpty)
-        InvMiniStat(
-          icon: Icons.check_circle_outline,
-          iconColor: InvColors.success,
-          value: 'Clear',
-          label: 'Nothing else pending',
-          onTap: () => context.push('/inventory/alerts'),
-        ),
-    ];
-
-    final rows = <Widget>[];
-    for (var i = 0; i < tiles.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 10));
-      rows.add(
-        // Stretch both tiles to the taller of the pair, so a label that wraps
-        // doesn't leave its neighbour floating in a short box.
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: tiles[i]),
-              const SizedBox(width: 10),
-              // An odd tile count keeps its half-width column rather than
-              // stretching across and breaking the grid rhythm.
-              Expanded(
-                child: i + 1 < tiles.length
-                    ? tiles[i + 1]
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return Column(children: [
-      const InvSectionHeader(title: 'Needs attention'),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(children: rows),
-      ),
-    ]);
-  }
-}

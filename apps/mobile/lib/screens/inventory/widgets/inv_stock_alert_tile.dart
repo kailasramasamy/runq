@@ -11,6 +11,7 @@ import '../../../api/inventory_models.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'inv_colors.dart';
+import 'inv_primitives.dart';
 import 'reorder_level_sheet.dart';
 
 String fmtQty(double q) =>
@@ -171,7 +172,6 @@ class _InvStockAlertTileState extends State<InvStockAlertTile> {
   Widget build(BuildContext context) {
     final t = RT(context);
     final color = alertColor(alert.urgency);
-    final unit = alert.itemUnit ?? '';
     final hasLevel = alert.reorderLevel != null && alert.reorderLevel! > 0;
 
     return InkWell(
@@ -196,53 +196,12 @@ class _InvStockAlertTileState extends State<InvStockAlertTile> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(alert.itemName,
-                      style: RunqText.tabular(
-                          size: 14, w: FontWeight.w600, color: t.ink),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 3),
-                  if (hasLevel)
-                    Text(
-                      '${fmtQty(alert.onHand)} $unit on hand · reorder at '
-                      '${fmtQty(alert.reorderLevel!)}'
-                          .trim(),
-                      style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    Row(children: [
-                      Flexible(
-                        child: Text(
-                          '${fmtQty(alert.onHand)} $unit on hand · no threshold'
-                              .trim(),
-                          style: RunqText.caption.copyWith(color: t.muted),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _SetLink(onTap: _setThreshold),
-                    ]),
+                  _titleRow(t, color),
+                  const SizedBox(height: 6),
+                  if (hasLevel) ..._gauge(color) else _noThreshold(t),
                   if (_open) _Details(alert: alert),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            // The one number worth acting on.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  hasLevel ? '−${fmtQty(alert.shortBy)}' : fmtQty(alert.onHand),
-                  style: RunqText.tabular(
-                          size: 16, w: FontWeight.w700, color: color)
-                      .copyWith(height: 1.1),
-                ),
-                Text(hasLevel ? 'short $unit'.trim() : unit,
-                    style: RunqText.micro.copyWith(color: t.muted2)),
-              ],
             ),
             IconButton(
               onPressed: () => setState(() => _open = !_open),
@@ -258,6 +217,90 @@ class _InvStockAlertTileState extends State<InvStockAlertTile> {
       ),
     );
   }
+
+  /// The shortfall as a picture: fill against a track whose lower third is
+  /// tinted to the reorder point, so a bar that stops inside the tint *is*
+  /// the gap. The caption underneath only has to name it.
+  List<Widget> _gauge(Color color) => [
+        InvStockBar(
+          qty: alert.onHand,
+          reorderLevel: alert.reorderLevel,
+          isLow: true,
+          height: 6,
+          markerLabel: fmtQty(alert.reorderLevel!),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _gapText,
+          style: RunqText.caption.copyWith(color: color),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ];
+
+  /// Nothing to plot against, so offer the fix instead of a bare bar.
+  Widget _noThreshold(RunqTokens t) => Row(children: [
+        Flexible(
+          child: Text(
+            'No reorder threshold set',
+            style: RunqText.caption.copyWith(color: t.muted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 6),
+        _SetLink(onTap: _setThreshold),
+      ]);
+
+  /// How far below the line this item sits, said forwards.
+  ///
+  /// The number used to read "−57 / short 500ml": a minus sign on a quantity
+  /// that is not itself negative (57 units exist, the *gap* is 57), and a
+  /// unit stapled to the word "short". The bar above now carries the gap
+  /// pictorially, so this line only has to name it.
+  String get _gapText {
+    if (alert.onHand <= 0) return 'Out of stock — need ${fmtQty(alert.reorderLevel!)}';
+    return '${fmtQty(alert.shortBy)} short of ${fmtQty(alert.reorderLevel!)}';
+  }
+
+  /// Name (with the unit that qualifies it) and the figure being judged.
+  Widget _titleRow(RunqTokens t, Color color) {
+    final unit = alert.itemUnit ?? '';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: alert.itemName,
+                style: RunqText.tabular(size: 14, w: FontWeight.w600, color: t.ink),
+              ),
+              if (unit.isNotEmpty)
+                TextSpan(
+                  text: '  $unit',
+                  style: RunqText.caption.copyWith(color: t.muted2),
+                ),
+            ]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              fmtQty(alert.onHand),
+              style: RunqText.tabular(size: 16, w: FontWeight.w700, color: color)
+                  .copyWith(height: 1.1),
+            ),
+            Text('on hand', style: RunqText.micro.copyWith(color: t.muted2)),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 /// The facts that don't drive the decision but answer the follow-up: how much
@@ -269,13 +312,11 @@ class _Details extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final unit = alert.itemUnit ?? '';
     final days = alert.daysSinceLastMovement;
     final bits = <String>[
       if ((alert.itemSku ?? '').isNotEmpty) alert.itemSku!,
       alert.warehouseName,
-      if (alert.reorderQty != null)
-        'order ${fmtQty(alert.reorderQty!)} $unit'.trim(),
+      if (alert.reorderQty != null) 'order ${fmtQty(alert.reorderQty!)}',
       if (days != null) days == 0 ? 'moved today' : 'moved ${days}d ago',
       if ((alert.supplierName ?? '').isNotEmpty) alert.supplierName!,
     ];

@@ -310,9 +310,22 @@ class _MovementRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  a.itemName,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                // The unit belongs to the item, not to the number: this feed
+                // mixes SKUs, so "A2 Desi Cow Milk 500ml" identifies what
+                // moved, while a unit tacked onto the quantity just made the
+                // right-hand column ragged.
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                      text: a.itemName,
+                      style: RunqText.bodyStrong.copyWith(color: t.ink),
+                    ),
+                    if ((a.itemUnit ?? '').isNotEmpty)
+                      TextSpan(
+                        text: '  ${a.itemUnit}',
+                        style: RunqText.caption.copyWith(color: t.muted2),
+                      ),
+                  ]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -360,14 +373,14 @@ class _MovementRow extends StatelessWidget {
     );
   }
 
+  /// Signed magnitude only — the unit now rides with the item name.
   static String _qty(InvActivity a) {
     final q = a.signedQty;
-    final unit = (a.itemUnit ?? '').isEmpty ? '' : ' ${a.itemUnit}';
     final mag = q.abs();
     final s = mag == mag.roundToDouble()
         ? mag.toStringAsFixed(0)
         : mag.toStringAsFixed(2);
-    return '${q < 0 ? '-' : '+'}$s$unit';
+    return '${q < 0 ? '-' : '+'}$s';
   }
 
   static String _time(DateTime when) {

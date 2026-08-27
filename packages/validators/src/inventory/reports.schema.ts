@@ -34,10 +34,13 @@ export const movementSummaryFilterSchema = z.object({
 /**
  * Write-off register. Defaults to the reasons that represent stock actually
  * lost — `revaluation`, `correction` and `opening_balance` move value without
- * anything going missing, so they are never losses and stay out.
+ * anything going missing, so they are never losses and stay out. `other` is
+ * in: stock left and the reason wasn't one we can classify, which is a loss
+ * until someone says otherwise, and it debits 5104 like one — this list and
+ * that account have to describe the same set.
  */
 export const writeOffReasonSchema = z.enum([
-  'production_loss', 'damage', 'expiry', 'theft', 'free_issue',
+  'production_loss', 'damage', 'expiry', 'theft', 'free_issue', 'other',
 ]);
 
 export const writeOffFilterSchema = z.object({

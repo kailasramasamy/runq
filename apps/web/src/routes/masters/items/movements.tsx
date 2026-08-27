@@ -211,9 +211,16 @@ function MovementRow({ row }: { row: ItemMovementRow }) {
 
   return (
     <TableRow>
+      {/* Day off `movedAt` (the day the movement belongs to, even when
+          backdated); clock off `postedAt` — a dispatch stamps `movedAt` at
+          midnight, so reading the time off it printed 12:00 am on every row. */}
       <TableCell className="whitespace-nowrap text-xs text-zinc-600 dark:text-zinc-400">
-        {new Date(row.movedAt).toLocaleString('en-IN', {
-          day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit',
+        {new Date(row.movedAt).toLocaleDateString('en-IN', {
+          day: '2-digit', month: 'short', year: '2-digit',
+        })}
+        {', '}
+        {new Date(row.postedAt).toLocaleTimeString('en-IN', {
+          hour: '2-digit', minute: '2-digit',
         })}
       </TableCell>
       <TableCell>

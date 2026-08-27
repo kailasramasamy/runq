@@ -11,7 +11,7 @@ import {
 const REASON_LABELS: Record<string, string> = {
   damage: 'Damage', expiry: 'Expiry', theft: 'Theft', found: 'Found',
   revaluation: 'Revaluation', correction: 'Correction', opening_balance: 'Opening',
-  free_issue: 'Free issue', production_loss: 'Production loss',
+  free_issue: 'Extra for damages', production_loss: 'Production loss', other: 'Other',
 };
 
 export function AdjustmentDetailPage() {

@@ -20,9 +20,17 @@ import { warehouses } from './warehouses';
  * manufacture does not attract the §17(5)(h) ITC reversal that destroyed or
  * stolen goods do.
  */
+/**
+ * `other` — the catch-all, and the only reason that carries its meaning in
+ * `notes` rather than in the code itself. It exists so a real explanation
+ * ("shop-floor sample pulled for the FSSAI inspector") is recorded verbatim
+ * instead of being flattened into whichever listed reason was closest.
+ * Outbound it books to write-off like any unexplained loss and counts in the
+ * write-off register, so it can never quietly shrink stock off the books.
+ */
 export const adjustmentReasonEnum = pgEnum('inv_adjustment_reason', [
   'damage', 'expiry', 'theft', 'found', 'revaluation', 'correction', 'opening_balance',
-  'free_issue', 'production_loss',
+  'free_issue', 'production_loss', 'other',
 ]);
 
 export const adjustmentStatusEnum = pgEnum('inv_adjustment_status', [

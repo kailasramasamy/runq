@@ -91,6 +91,15 @@ String prettyShortDate(String iso) {
   return dt.year == now.year ? base : "$base '${dt.year % 100}";
 }
 
+/// Clock time as "9:46 pm" — the *when* on a movement row. Movements on one
+/// day are otherwise indistinguishable, which is what made a production run
+/// and the dispatches it fed look unordered.
+String prettyTime(DateTime dt) {
+  final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '$h:$m ${dt.hour < 12 ? 'am' : 'pm'}';
+}
+
 // ── Status palette ─────────────────────────────────────────────────────────
 
 /// Tuple-ish record holding the bg/fg/label triple for a status.
@@ -229,32 +238,61 @@ class InvSectionHeader extends StatelessWidget {
     required this.title,
     this.action,
     this.onAction,
+    this.actionIcon,
     this.topPad = 16,
   });
   final String title;
   final String? action;
   final VoidCallback? onAction;
+
+  /// Optional glyph before the action label. Widens the target and says what
+  /// the action does before the word is read.
+  final IconData? actionIcon;
   final double topPad;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final brand = InvColors.brand(context);
+    final hasAction = action != null && onAction != null;
+    // The action used to be a bare Text in a GestureDetector, so the target
+    // was the glyphs themselves — about 40x16, well under the 44pt floor, and
+    // it took two or three stabs to hit. The header's own padding now lives
+    // inside the tap target instead of outside it: the label sits exactly
+    // where it did, but the touchable box is more than twice as tall and
+    // reaches the screen edge.
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, topPad, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, topPad, hasAction ? 4 : 16, hasAction ? 0 : 8),
       child: Row(
         children: [
           Expanded(
             child: Text(title.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
           ),
-          if (action != null && onAction != null)
-            GestureDetector(
-              onTap: onAction,
-              behavior: HitTestBehavior.opaque,
-              child: Text(
-                action!,
-                style: RunqText.caption.copyWith(
-                  color: InvColors.brand(context),
-                  fontWeight: FontWeight.w600,
+          if (hasAction)
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: onAction,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (actionIcon != null) ...[
+                        Icon(actionIcon, size: 15, color: brand),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        action!,
+                        style: RunqText.caption.copyWith(
+                          color: brand,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -343,13 +381,23 @@ class InvGradientHeader extends StatelessWidget {
 /// transparent fill and no underline so the bar reads as part of the
 /// scaffold bgWarm. Optional back arrow + trailing action.
 class InvPlainAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const InvPlainAppBar({super.key, required this.title, this.onBack, this.trailing});
+  const InvPlainAppBar({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.onBack,
+    this.trailing,
+  });
   final String title;
+
+  /// Second line under the title — what this screen is *of*, when the title
+  /// is the subject (an item name) rather than the screen name.
+  final String? subtitle;
   final VoidCallback? onBack;
   final Widget? trailing;
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => Size.fromHeight(subtitle == null ? 56 : 62);
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +407,7 @@ class InvPlainAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: SizedBox(
-          height: 56,
+          height: subtitle == null ? 56 : 62,
           child: Row(
             children: [
               if (onBack != null)
@@ -371,7 +419,25 @@ class InvPlainAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               const SizedBox(width: 4),
               Expanded(
-                child: Text(title, style: RunqText.h3.copyWith(color: t.ink)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: RunqText.h3.copyWith(color: t.ink),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: RunqText.caption.copyWith(color: t.muted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
               ),
               if (trailing != null) trailing!,
             ],
