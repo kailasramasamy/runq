@@ -16,6 +16,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { stockLedger, stockOnHand, items } from '@runq/db';
 import { AppError, NotFoundError } from '../../utils/errors';
 import { syncAlertState } from './stock-alert-state';
+import { rechainIfBackdated } from './stock-ledger-rechain';
 
 // Drizzle's tx parameter has a different concrete type to the top-level Db
 // client (PgTransaction vs NodePgDatabase). Both expose the same query
@@ -166,6 +167,16 @@ export class StockLedgerService {
         journalEntryId: input.journalEntryId ?? null,
       })
       .returning({ id: stockLedger.id });
+
+    // 4b. A backdated row lands mid-chain in every date-ordered view, so the
+    // balances printed beside the rows below it are now stale. Re-derive them.
+    // Cache and valuation are unaffected — see stock-ledger-rechain.
+    await rechainIfBackdated(
+      tx,
+      this.tenantId,
+      { itemId: input.itemId, warehouseId: input.warehouseId, batchKey },
+      ledger!.id,
+    );
 
     // 5. Upsert cache row.
     if (current.exists) {
