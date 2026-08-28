@@ -17,9 +17,9 @@ import { mpShift, mpMilkType, mpSaleKind } from './enums';
  *   • `raw_milk` — bulk milk off the centre's own pool. Carries `milk_type`
  *     and (at a per-shift centre) a shift, and its litres count as an OUTFLOW
  *     at the node, so collected-vs-dispatched still reconciles.
- *   • `product`  — ghee, curd, paneer… an `items` row. Money only for now:
- *     no stock issue, no COGS (Dhenu has no per-centre warehouse), so the
- *     ledger and the payout statement are the whole story.
+ *   • `product`  — ghee, curd, paneer… an `items` row. Moves no bulk milk, but
+ *     it does leave the warehouse: the sale relieves stock FEFO and posts its
+ *     cost (see farmer-sale-stock.ts).
  *
  * Either way `ledger_entry_id` points at the `farmer_sale` debit on
  * mp_farmer_ledger, which the next payout cycle recovers ahead of advances.

@@ -7,11 +7,20 @@ import type {
   CreateFarmerSaleInput, FarmerSaleFilter, UpdateFarmerSaleInput,
 } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
+import { InventoryGlPoster } from '../inventory/gl-poster';
 import { ConsignmentService } from './consignment.service';
 import { MpGlPoster } from './gl-poster';
+import { postSaleStock, reverseSaleStock, type SaleStockContext } from './farmer-sale-stock';
 import { appendLedgerEntry, foldOutstanding } from './farmer-ledger';
 import { isPooled } from './procurement-window';
 import { MpPrincipal, assertFarmerAtNode, assertNodeAccess } from './access-scope';
+
+type MilkType = NonNullable<MpFarmerSaleRow['milkType']>;
+
+// Drizzle's transaction type differs from the top-level client; both expose the
+// same surface these helpers use.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Tx = any;
 
 export type FarmerSaleListRow = MpFarmerSaleRow & {
   farmerName: string; farmerCode: string; nodeName: string;
@@ -34,11 +43,13 @@ export interface SellableItem {
  *   • litres — a RAW-MILK line only: those litres count as an outflow at the
  *              node, so availability and the pending-dispatch alert stay honest.
  *              A product line moves no bulk milk and draws nothing down.
+ *   • stock  — goods that actually left the books come off `stock_ledger`, and
+ *              a product's cost is posted against them. See farmer-sale-stock.ts
+ *              for why bulk milk usually posts nothing and sometimes must.
  *
- * Products are money-only: no stock issue and no COGS, because Dhenu has no
- * per-centre warehouse to relieve. No tax invoice either — raw milk is exempt,
- * and the ledger line plus the farmer's statement are the documents. A
- * correction reverses (contra ledger + JE) rather than editing.
+ * No tax invoice — raw milk is exempt, and the ledger line plus the farmer's
+ * statement are the documents. A correction reverses (contra ledger + JE)
+ * rather than editing.
  */
 export class FarmerSaleService {
   constructor(
@@ -70,7 +81,7 @@ export class FarmerSaleService {
     if (input.qty <= 0 || input.ratePerUnit <= 0) {
       throw new ConflictError('Quantity and rate must both be greater than zero');
     }
-    if (isMilk) await this.assertNotAlreadyDispatched(input, shift, principal);
+    const stockCtx = await this.stockContext(input, shift, principal, userId);
     const amount = round2(input.qty * input.ratePerUnit);
     return this.db.transaction(async (tx) => {
       const ledger = await appendLedgerEntry(tx, this.tenantId, {
@@ -94,6 +105,9 @@ export class FarmerSaleService {
         ledgerEntryId: ledger.id,
         createdBy: userId ?? null,
       }).returning();
+      const cogs = await postSaleStock(tx, this.tenantId, sale!, stockCtx);
+      await new InventoryGlPoster(tx, this.tenantId, userId)
+        .postFarmerSaleCogs({ date: input.saleDate, saleId: sale!.id, cogsValue: cogs });
       const jeId = await new MpGlPoster(this.tenantId, userId).postFarmerSale(tx, {
         saleId: sale!.id, date: input.saleDate, amount,
       });
@@ -106,6 +120,9 @@ export class FarmerSaleService {
   }
 
   /**
+   * The two stock facts a raw-milk sale needs, and the one guard it must pass —
+   * both off a single availability read, since they answer the same question.
+   *
    * Refuses a gate sale of milk that already left on a tanker.
    *
    * A thin collection is NOT a reason to block: milk is handed over off what
@@ -120,21 +137,33 @@ export class FarmerSaleService {
    * at Vrindavan, where an 80 L sale was written up after the morning dispatch
    * had already sent the whole collection.
    *
-   * Only the create path is gated. An edit is how a wrong sale gets corrected,
-   * and a correction that the guard refuses to accept is a trap.
+   * The figures returned are for the stock side: how much the node collected of
+   * this type, and how much of it was already sold. See farmer-sale-stock.ts.
    */
-  private async assertNotAlreadyDispatched(
-    input: CreateFarmerSaleInput, shift: 'am' | 'pm' | null, principal: MpPrincipal,
-  ): Promise<void> {
+  private async stockContext(
+    input: { nodeId: string; saleDate: string; kind: string; milkType?: string | null; qty: number },
+    shift: 'am' | 'pm' | null, principal: MpPrincipal, userId?: string,
+    prior?: MpFarmerSaleRow,
+  ): Promise<SaleStockContext> {
+    if (input.kind !== 'raw_milk') return { collected: 0, soldBefore: 0, userId };
     const a = await new ConsignmentService(this.db, this.tenantId).availability(
-      input.nodeId, input.saleDate, principal, shift ?? undefined, input.milkType!,
+      input.nodeId, input.saleDate, principal, shift ?? undefined, input.milkType as MilkType,
     );
-    if (a.dispatched <= 0 || input.qty <= a.available + 0.001) return;
-    throw new ConflictError(
-      `Only ${round3(a.available)} L left at this centre — `
-      + `${round3(a.dispatched)} L of the ${round3(a.collected)} L collected has already been `
-      + 'dispatched. Record the sale before dispatching, or correct the dispatch quantity.',
-    );
+    // Only a new sale is gated. An edit is how a wrong sale gets corrected, and
+    // a correction the guard refuses to accept is a trap.
+    if (!prior && a.dispatched > 0 && input.qty > a.available + 0.001) {
+      throw new ConflictError(
+        `Only ${round3(a.available)} L left at this centre — `
+        + `${round3(a.dispatched)} L of the ${round3(a.collected)} L collected has already been `
+        + 'dispatched. Record the sale before dispatching, or correct the dispatch quantity.',
+      );
+    }
+    // `sold` is every live sale in this slot, which on an edit still includes the
+    // row being edited — its own litres must not count as somebody else's.
+    const ownLitres = prior && prior.saleDate === input.saleDate
+      && prior.shift === shift && prior.milkType === input.milkType
+      ? Number(prior.qty) : 0;
+    return { collected: a.collected, soldBefore: round3(a.sold - ownLitres), userId };
   }
 
   async list(filters: FarmerSaleFilter, principal: MpPrincipal): Promise<FarmerSaleListRow[]> {
@@ -194,6 +223,8 @@ export class FarmerSaleService {
       .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, sale.nodeId))).limit(1);
     const shift = isMilk && node && !isPooled(node.dispatchMode) ? input.shift ?? null : null;
     const item = isMilk ? null : await this.loadItem(input.itemId!);
+    const stockCtx = await this.stockContext(
+      { ...input, nodeId: sale.nodeId }, shift, principal, userId, sale);
     const amount = round2(input.qty * input.ratePerUnit);
     const delta = round2(amount - Number(sale.amount));
 
@@ -217,6 +248,12 @@ export class FarmerSaleService {
           .set({ amount: String(amount), occurredOn: input.saleDate })
           .where(eq(mpFarmerLedger.id, sale.ledgerEntryId));
       }
+      // Qty, kind, item, milk type and date can all change, so the old draw is
+      // put back and the new one taken fresh rather than diffed.
+      await this.restock(tx, sale, userId);
+      const cogs = await postSaleStock(tx, this.tenantId, row!, stockCtx);
+      await new InventoryGlPoster(tx, this.tenantId, userId)
+        .postFarmerSaleCogs({ date: input.saleDate, saleId: sale.id, cogsValue: cogs });
       await new MpGlPoster(this.tenantId, userId).postFarmerSaleAdjust(tx, {
         saleId: sale.id, date: input.saleDate, delta,
       });
@@ -233,6 +270,7 @@ export class FarmerSaleService {
   async remove(id: string, principal: MpPrincipal, userId?: string): Promise<void> {
     const sale = await this.loadEditable(id, principal);
     await this.db.transaction(async (tx) => {
+      await this.restock(tx, sale, userId);
       await tx.delete(mpFarmerSales).where(eq(mpFarmerSales.id, sale.id));
       if (sale.ledgerEntryId) {
         await tx.delete(mpFarmerLedger).where(eq(mpFarmerLedger.id, sale.ledgerEntryId));
@@ -244,6 +282,15 @@ export class FarmerSaleService {
           saleId: sale.id, date: sale.saleDate, amount: Number(sale.amount), reverse: true,
         });
       }
+    });
+  }
+
+  /** Put back what a sale drew, cost and all. Shared by edit, delete and
+   *  reverse — three ways of saying the goods never left. */
+  private async restock(tx: Tx, sale: MpFarmerSaleRow, userId?: string): Promise<void> {
+    const cogs = await reverseSaleStock(tx, this.tenantId, sale, userId);
+    await new InventoryGlPoster(tx, this.tenantId, userId).postFarmerSaleCogs({
+      date: sale.saleDate, saleId: sale.id, cogsValue: cogs, reverse: true,
     });
   }
 
@@ -301,6 +348,7 @@ export class FarmerSaleService {
     const amount = Number(sale.amount);
 
     return this.db.transaction(async (tx) => {
+      await this.restock(tx, sale, userId);
       await appendLedgerEntry(tx, this.tenantId, {
         farmerId: sale.farmerId, entryType: 'adjustment', amount,
         occurredOn: sale.saleDate, refType: 'farmer_sale', refId: sale.id, createdBy: userId,

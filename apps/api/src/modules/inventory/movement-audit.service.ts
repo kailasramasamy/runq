@@ -20,7 +20,7 @@ import {
   deliveryNotes, deliveryNoteLines, customers, salesInvoices, items,
   inventoryTransfers, inventoryAdjustments, inventoryStockTakes,
   workOrders, boms, woConsumption, woOutput, mfgReclaims,
-  mpConsignments,
+  mpConsignments, mpFarmerSales, mpFarmers, mpNodes,
 } from '@runq/db';
 import { movementGroupMembers } from '@runq/validators';
 import type { ItemMovementFilter } from '@runq/validators';
@@ -29,7 +29,7 @@ import { istDate } from '../manufacturing/mfg-day';
 /** Document kinds the UI knows how to deep-link. */
 export type MovementDocKind =
   | 'grn' | 'delivery_note' | 'work_order' | 'transfer' | 'adjustment'
-  | 'stock_take' | 'reclaim' | 'consignment' | 'invoice' | 'purchase_order'
+  | 'stock_take' | 'reclaim' | 'consignment' | 'farmer_sale' | 'invoice' | 'purchase_order'
   | 'bill' | 'bom';
 
 export interface MovementDocRef {
@@ -250,6 +250,8 @@ export class ItemMovementAuditService {
     run('mfg_reclaim', (ids) => this.reclaimDocs(ids));
     run('mp_receipt', (ids) => this.consignmentDocs(ids));
     run('mp_receipt_adjustment', (ids) => this.consignmentDocs(ids));
+    run('mp_farmer_sale', (ids) => this.farmerSaleDocs(ids, false));
+    run('mp_farmer_sale_reversal', (ids) => this.farmerSaleDocs(ids, true));
 
     await Promise.all(jobs);
     return out;
@@ -545,6 +547,46 @@ export class ItemMovementAuditService {
       status: r.status,
       party: null,
       note: r.notes ?? 'Finished goods torn down to raw material',
+      ref: null,
+    }]);
+  }
+
+  /**
+   * Goods handed to a farmer over the counter — the trader who supplies us and
+   * buys from us.
+   *
+   * These rows post as a plain `delivery`, so without a name behind them the
+   * trail reads "stock left, reason unknown". The farmer IS the counterparty,
+   * so they belong in `party` exactly as a customer does on a delivery note;
+   * the note carries what the badge cannot say — that this was a gate sale, and
+   * where it was handed over.
+   */
+  private async farmerSaleDocs(
+    ids: string[], reversed: boolean,
+  ): Promise<Array<[string, MovementDoc]>> {
+    const rows = await this.db
+      .select({
+        id: mpFarmerSales.id,
+        date: mpFarmerSales.saleDate,
+        code: mpFarmers.code,
+        farmer: mpFarmers.name,
+        node: mpNodes.name,
+        reversedAt: mpFarmerSales.reversedAt,
+      })
+      .from(mpFarmerSales)
+      .innerJoin(mpFarmers, eq(mpFarmers.id, mpFarmerSales.farmerId))
+      .innerJoin(mpNodes, eq(mpNodes.id, mpFarmerSales.nodeId))
+      .where(and(eq(mpFarmerSales.tenantId, this.tenantId), inArray(mpFarmerSales.id, ids)));
+
+    return rows.map((r) => [r.id, {
+      kind: 'farmer_sale' as const,
+      id: r.id,
+      no: r.code,
+      date: r.date,
+      status: r.reversedAt ? 'reversed' : null,
+      party: r.farmer,
+      note: [reversed ? 'Sale to farmer reversed' : 'Sale to farmer', r.node]
+        .filter(Boolean).join(' · '),
       ref: null,
     }]);
   }

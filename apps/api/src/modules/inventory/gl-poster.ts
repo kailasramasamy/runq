@@ -175,6 +175,38 @@ export class InventoryGlPoster {
   }
 
   /**
+   * Goods sold to a farmer at a Dhenu centre: COGS Dr / Inventory Asset Cr.
+   *
+   * Products only. Raw milk never reaches this method — the plant receipt posts
+   * it to stock without a journal entry, so crediting an inventory asset on the
+   * way out would invent a balance that was never debited.
+   *
+   * The revenue half (Dr Sales Receivable / Cr Income) is the milk-procurement
+   * poster's; this is the cost half that matches it.
+   */
+  async postFarmerSaleCogs(args: {
+    date: string;
+    saleId: string;
+    cogsValue: number;
+    reverse?: boolean;
+  }): Promise<string | null> {
+    if (args.cogsValue <= 0) return null;
+    const cogs = { accountCode: INV_ACCOUNTS.COGS, description: 'Goods sold to farmer' };
+    const asset = { accountCode: INV_ACCOUNTS.INVENTORY_ASSET, description: 'Stock issued' };
+    const je = await this.gl.createJournalEntry({
+      date: args.date,
+      description: `Sale to farmer${args.reverse ? ' — reversed' : ''}`,
+      sourceType: args.reverse ? 'mp_farmer_sale_cogs_reversal' : 'mp_farmer_sale_cogs',
+      sourceId: args.saleId,
+      lines: args.reverse
+        ? [{ ...asset, debit: args.cogsValue, credit: 0 }, { ...cogs, debit: 0, credit: args.cogsValue }]
+        : [{ ...cogs, debit: args.cogsValue, credit: 0 }, { ...asset, debit: 0, credit: args.cogsValue }],
+      createdBy: this.userId,
+    });
+    return je.id;
+  }
+
+  /**
    * Adjustment posting. `valueDelta` is signed against Inventory Asset:
    *   positive → Inventory Asset Dr / Inventory Gain Cr (found, revaluation up)
    *   negative → expense Dr / Inventory Asset Cr, where the expense account is
