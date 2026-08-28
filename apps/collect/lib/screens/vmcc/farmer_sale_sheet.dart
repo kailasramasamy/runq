@@ -43,6 +43,21 @@ Future<bool?> showFarmerSaleSheet(
 
 enum _SaleKind { rawMilk, product }
 
+/// What a centre may *sell* — deliberately not `node.allowedMilkTypes`.
+///
+/// That setting governs collection: it is the list an operator may key a pour
+/// against, and Vrindavan keeps A2 off it because no farmer there pours A2.
+/// Selling runs the other way. A trader buys what the dairy hands him over the
+/// counter, including types this centre never collects, so gating the sale on
+/// the collection list left A2 unsellable with no setting to turn it on.
+/// Legacy `cow` is excluded — it is a historical value, not a choice.
+const _sellableMilkTypes = [
+  MilkType.cowA1,
+  MilkType.cowA2,
+  MilkType.buffalo,
+  MilkType.mixed,
+];
+
 class _FarmerSaleSheet extends ConsumerStatefulWidget {
   const _FarmerSaleSheet({required this.farmer, this.existing});
   final MpFarmer farmer;
@@ -105,22 +120,18 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
   bool get _isMilk => _kind == _SaleKind.rawMilk;
 
   /// Fills the milk type from what this farmer bought last, once and only when
-  /// the operator hasn't already chosen. A centre selling one type has no
-  /// question to ask, so that type is taken as given — the toggle hides itself
-  /// in that case and there would be nothing to tap.
-  void _seedMilkType(List<MilkType> allowed, AsyncValue<List<MpFarmerSale>> sales) {
+  /// the operator hasn't already chosen.
+  void _seedMilkType(AsyncValue<List<MpFarmerSale>> sales) {
     if (_milkTypeSeeded || _milkType != null) return;
-    // A single-type centre has no question to ask even before the history
-    // arrives; everyone else waits for it rather than seeding off an empty list
-    // and never trying again.
-    if (sales.isLoading && allowed.length > 1) return;
+    // Wait for the history rather than seeding off an empty list and never
+    // trying again.
+    if (sales.isLoading) return;
     _milkTypeSeeded = true;
-    final last = (sales.asData?.value ?? const <MpFarmerSale>[])
+    final seed = (sales.asData?.value ?? const <MpFarmerSale>[])
         .where((s) => s.isMilk && s.reversedAt == null && s.milkType != null)
         .map((s) => s.milkType!)
-        .where(allowed.contains)
+        .where(_sellableMilkTypes.contains)
         .firstOrNull;
-    final seed = last ?? (allowed.length == 1 ? allowed.first : null);
     if (seed == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _milkType = seed);
@@ -195,9 +206,8 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final node = ref.watch(mpActiveNodeProvider);
-    final allowed = node?.allowedMilkTypes ?? MilkType.values;
     if (_isMilk) {
-      _seedMilkType(allowed, ref.watch(farmerSalesProvider(widget.farmer.id)));
+      _seedMilkType(ref.watch(farmerSalesProvider(widget.farmer.id)));
     }
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -239,7 +249,7 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
             const SizedBox(height: DhenuSpacing.md),
             if (_isMilk) ...[
               MilkTypeToggle(
-                types: allowed,
+                types: _sellableMilkTypes,
                 value: _milkType,
                 onChanged: (v) => setState(() => _milkType = v),
               ),

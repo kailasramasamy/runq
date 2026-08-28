@@ -383,7 +383,10 @@ export interface ItemMovementRow {
   qtyOut: number;
   unitCost: number;
   value: number;
+  /** Balance of this row's batch chain after the movement. */
   runningQty: number;
+  /** Balance of the whole item (within the warehouse filter) after it. */
+  itemRunningQty: number;
   postedByName: string | null;
   sourceType: string;
   sourceId: string;

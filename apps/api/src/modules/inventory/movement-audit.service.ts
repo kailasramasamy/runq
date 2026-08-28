@@ -117,13 +117,20 @@ export class ItemMovementAuditService {
       .innerJoin(warehouses, eq(warehouses.id, stockLedger.warehouseId))
       .leftJoin(users, eq(users.id, stockLedger.postedBy))
       .where(and(...conds))
-      .orderBy(sql`${istDay} DESC`, desc(stockLedger.postedAt))
+      // `id` last so the page is the exact reverse of the chain order the
+      // running balance is summed in — two rows written in one transaction
+      // share a `posted_at`, and without the tiebreak they can print in an
+      // order their balances don't follow.
+      .orderBy(sql`${istDay} DESC`, desc(stockLedger.postedAt), desc(stockLedger.id))
       .limit(filter.limit + 1)
       .offset((filter.page - 1) * filter.limit);
 
     const hasMore = rows.length > filter.limit;
     const page = hasMore ? rows.slice(0, filter.limit) : rows;
-    const docs = await this.resolveDocs(page.map((r) => r.l), itemId);
+    const [docs, itemRun] = await Promise.all([
+      this.resolveDocs(page.map((r) => r.l), itemId),
+      this.itemRunningBalances(itemId, filter.warehouseId, page.map((r) => r.l.id)),
+    ]);
 
     return {
       hasMore,
@@ -147,6 +154,8 @@ export class ItemMovementAuditService {
           unitCost,
           value: (qtyIn + qtyOut) * unitCost,
           runningQty: Number(l.runningQty),
+          // The item's balance, not the batch's — see itemRunningBalances.
+          itemRunningQty: itemRun.get(l.id) ?? Number(l.runningQty),
           postedByName: postedByName ?? null,
           sourceType: l.sourceType,
           sourceId: l.sourceId,
@@ -155,6 +164,52 @@ export class ItemMovementAuditService {
         };
       }),
     };
+  }
+
+  /**
+   * The item's own running balance for each row on the page.
+   *
+   * `stock_ledger.running_qty` is a *batch* balance — it is on-hand for one
+   * (item, warehouse, batch) chain after the movement. On an item trail that
+   * reads as a lie: raw milk arrives on a new consignment batch every morning,
+   * so yesterday closed at 145 and today's 633-litre receipt shows a balance
+   * of 633, not 778, because it opened a fresh chain.
+   *
+   * So re-derive the balance across batches, in the order the trail renders
+   * (IST calendar day of `moved_at`, then `posted_at` — the same order
+   * stock-ledger-rechain keeps the stored chain in). The window deliberately
+   * ignores the direction / type / date filters and the page window: a
+   * running balance that only counted the visible rows would be a running
+   * total of the filter, and would not tie back to `stock_on_hand`. The
+   * warehouse filter *is* honoured, because a per-warehouse trail wants a
+   * per-warehouse balance.
+   */
+  private async itemRunningBalances(
+    itemId: string,
+    warehouseId: string | undefined,
+    rowIds: string[],
+  ): Promise<Map<string, number>> {
+    if (rowIds.length === 0) return new Map();
+    const whClause = warehouseId
+      ? sql`AND warehouse_id = ${warehouseId}`
+      : sql``;
+    const res = await this.db.execute(sql`
+      WITH chain AS (
+        SELECT id,
+               SUM(qty_in - qty_out) OVER (
+                 ORDER BY (moved_at AT TIME ZONE 'Asia/Kolkata')::date, posted_at, id
+                 ROWS UNBOUNDED PRECEDING
+               ) AS run_qty
+          FROM stock_ledger
+         WHERE tenant_id = ${this.tenantId}
+           AND item_id = ${itemId}
+           ${whClause}
+      )
+      SELECT id, run_qty FROM chain
+       WHERE id::text IN (${sql.join(rowIds.map((r) => sql`${r}`), sql`, `)})
+    `);
+    const rows = (res as unknown as { rows: Array<{ id: string; run_qty: string }> }).rows;
+    return new Map(rows.map((r) => [r.id, Number(r.run_qty)]));
   }
 
   /**

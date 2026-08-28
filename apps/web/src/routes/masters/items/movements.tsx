@@ -281,7 +281,18 @@ function MovementRow({ row, itemClass, unit }: {
           {row.postedByName && <span>· {row.postedByName}</span>}
         </div>
       </TableCell>
-      <TableCell className="font-mono text-xs">{row.batchNo || '—'}</TableCell>
+      <TableCell className="font-mono text-xs">
+        {row.batchNo ? (
+          <div className="flex flex-col">
+            <span>{row.batchNo}</span>
+            {/* The batch's own balance still matters for FEFO — it just isn't
+                the item's balance, which is what the Balance column reads. */}
+            <span className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+              bal {row.runningQty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+            </span>
+          </div>
+        ) : '—'}
+      </TableCell>
       <TableCell className="text-right tabular-nums text-green-600">
         {row.qtyIn > 0 ? formatItemQty(row.qtyIn, itemClass, unit) : ''}
       </TableCell>
@@ -292,7 +303,7 @@ function MovementRow({ row, itemClass, unit }: {
         {row.unitCost ? formatINR(row.unitCost) : '—'}
       </TableCell>
       <TableCell className="text-right tabular-nums font-medium">
-        {row.runningQty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
+        {row.itemRunningQty.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
       </TableCell>
     </TableRow>
   );

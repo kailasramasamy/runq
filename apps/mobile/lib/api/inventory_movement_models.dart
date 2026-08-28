@@ -97,7 +97,13 @@ class InvMovementRow {
   final double qtyOut;
   final double unitCost;
   final double value;
+  /// Balance of this row's batch chain after the movement.
   final double runningQty;
+
+  /// Balance of the whole item (within the warehouse filter) after it — the
+  /// number the trail shows, because a batch balance restarts at zero every
+  /// time a new batch lands and reads as stock that vanished overnight.
+  final double itemRunningQty;
   final String? postedByName;
   final InvMovementDoc? doc;
 
@@ -114,6 +120,7 @@ class InvMovementRow {
     required this.unitCost,
     required this.value,
     required this.runningQty,
+    required this.itemRunningQty,
     this.postedByName,
     this.doc,
   });
@@ -137,6 +144,9 @@ class InvMovementRow {
     unitCost: (j['unitCost'] as num?)?.toDouble() ?? 0,
     value: (j['value'] as num?)?.toDouble() ?? 0,
     runningQty: (j['runningQty'] as num?)?.toDouble() ?? 0,
+    itemRunningQty: (j['itemRunningQty'] as num?)?.toDouble() ??
+        (j['runningQty'] as num?)?.toDouble() ??
+        0,
     postedByName: j['postedByName'] as String?,
     doc: j['doc'] == null
         ? null

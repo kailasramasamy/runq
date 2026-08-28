@@ -67,7 +67,7 @@ class InvMovementDayHeader extends StatelessWidget {
                     color: InvColors.error, fontWeight: FontWeight.w700)),
           const SizedBox(width: 10),
           Text(
-            invQty(rows.first.runningQty, unit),
+            invQty(rows.first.itemRunningQty, unit),
             style: RunqText.tabular(size: 12, w: FontWeight.w700)
                 .copyWith(color: t.ink),
           ),
@@ -172,7 +172,10 @@ class InvMovementListRow extends StatelessWidget {
   /// Where it happened and who booked it — the third line, shown only when
   /// there is something to say.
   String get _provenance => [
-        if (row.batchNo != null && row.batchNo!.isNotEmpty) row.batchNo!,
+        // The batch's own balance rides with the batch number — it still
+        // drives FEFO, it just isn't the item balance the row shows.
+        if (row.batchNo != null && row.batchNo!.isNotEmpty)
+          '${row.batchNo!} (${invQty(row.runningQty, unit)})',
         row.warehouseName,
         if (row.postedByName != null) row.postedByName!,
       ].where((s) => s.isNotEmpty).join(' · ');
@@ -234,7 +237,7 @@ class InvMovementListRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          'Bal ${invQty(row.runningQty, unit)}',
+          'Bal ${invQty(row.itemRunningQty, unit)}',
           style: RunqText.tabular(size: 12, w: FontWeight.w600)
               .copyWith(color: t.muted),
         ),
