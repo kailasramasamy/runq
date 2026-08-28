@@ -93,6 +93,7 @@ class _ItemMovementsState extends ConsumerState<InventoryItemMovementsScreen> {
                         page: page,
                         pageNo: _q.page,
                         onPage: (p) => setState(() => _q = _q.copyWith(page: p)),
+                        unit: widget.unit,
                       ),
               ),
             ),
@@ -267,10 +268,16 @@ class _MovementList extends StatelessWidget {
     required this.page,
     required this.pageNo,
     required this.onPage,
+    this.unit,
   });
   final InvMovementPage page;
   final int pageNo;
   final ValueChanged<int> onPage;
+
+  /// The item's unit of measure — the trail is scoped to one item, so the
+  /// screen knows how its quantities should read even though ledger rows
+  /// don't carry it.
+  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -302,12 +309,16 @@ class _MovementList extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: Column(
                   children: [
-                    InvMovementDayHeader(iso: entry.key, rows: entry.value),
+                    InvMovementDayHeader(
+                      iso: entry.key,
+                      rows: entry.value,
+                      unit: unit,
+                    ),
                     for (var i = 0; i < entry.value.length; i++) ...[
                       if (i > 0)
                         Divider(height: 1, thickness: 1, indent: 14,
                             endIndent: 14, color: t.hairlineSoft),
-                      InvMovementListRow(row: entry.value[i]),
+                      InvMovementListRow(row: entry.value[i], unit: unit),
                     ],
                   ],
                 ),

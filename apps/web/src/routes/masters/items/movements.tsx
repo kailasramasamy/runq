@@ -14,7 +14,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState,
 } from '@/components/ui';
-import { formatINR } from '@/lib/utils';
+import { formatINR, formatItemQty } from '@/lib/utils';
 import { useItem } from '@/hooks/queries/use-items';
 import {
   useItemMovements, useWarehouses,
@@ -152,7 +152,7 @@ export function ItemMovementsPage({ itemId }: { itemId: string }) {
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>
           +{added.toLocaleString('en-IN', { maximumFractionDigits: 3 })} /
-          −{removed.toLocaleString('en-IN', { maximumFractionDigits: 3 })} {item?.unit ?? ''} on this page
+          −{formatItemQty(removed, item?.itemClass, item?.unit)} {item?.unit ?? ''} on this page
         </span>
       </div>
 
@@ -182,7 +182,14 @@ export function ItemMovementsPage({ itemId }: { itemId: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => <MovementRow key={r.id} row={r} />)}
+                {rows.map((r) => (
+                  <MovementRow
+                    key={r.id}
+                    row={r}
+                    itemClass={item?.itemClass}
+                    unit={item?.unit}
+                  />
+                ))}
               </TableBody>
             </Table>
           )}
@@ -204,7 +211,13 @@ export function ItemMovementsPage({ itemId }: { itemId: string }) {
   );
 }
 
-function MovementRow({ row }: { row: ItemMovementRow }) {
+function MovementRow({ row, itemClass, unit }: {
+  row: ItemMovementRow;
+  /** The trail is scoped to one item, so the screen knows how its quantities
+   *  should read even though ledger rows don't carry the item's own fields. */
+  itemClass?: string | null;
+  unit?: string | null;
+}) {
   const doc = row.doc;
   const href = doc ? docHref(doc) : null;
   const refHref = doc?.ref ? docHref(doc.ref) : null;
@@ -270,10 +283,10 @@ function MovementRow({ row }: { row: ItemMovementRow }) {
       </TableCell>
       <TableCell className="font-mono text-xs">{row.batchNo || '—'}</TableCell>
       <TableCell className="text-right tabular-nums text-green-600">
-        {row.qtyIn > 0 ? row.qtyIn.toLocaleString('en-IN', { maximumFractionDigits: 3 }) : ''}
+        {row.qtyIn > 0 ? formatItemQty(row.qtyIn, itemClass, unit) : ''}
       </TableCell>
       <TableCell className="text-right tabular-nums text-red-600">
-        {row.qtyOut > 0 ? row.qtyOut.toLocaleString('en-IN', { maximumFractionDigits: 3 }) : ''}
+        {row.qtyOut > 0 ? formatItemQty(row.qtyOut, itemClass, unit) : ''}
       </TableCell>
       <TableCell className="text-right tabular-nums text-xs text-zinc-500">
         {row.unitCost ? formatINR(row.unitCost) : '—'}

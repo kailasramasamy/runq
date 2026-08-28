@@ -24,6 +24,7 @@ import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
 import '../../widgets/runq_snack.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryAdjustmentScreen extends ConsumerWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -1714,7 +1715,7 @@ class _DetailLineCard extends StatelessWidget {
     final t = RT(context);
     final isNegative = line.qtyDelta < 0;
     final mag = line.qtyDelta.abs();
-    final qtyStr = mag == mag.truncateToDouble() ? mag.toInt().toString() : mag.toStringAsFixed(2);
+    final qtyStr = formatItemQty(mag, line.itemClass, unit: line.itemUnit);
     final qtyColor = isNegative ? InvColors.error : InvColors.success;
     final qtyPrefix = isNegative ? '−' : '+';
     return Container(

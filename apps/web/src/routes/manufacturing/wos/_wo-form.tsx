@@ -7,6 +7,7 @@ import { useBoms, useBom } from '@/hooks/queries/use-boms';
 import { useWarehouses, useAutoSelectWarehouse } from '@/hooks/queries/use-inventory';
 import type { WorkOrderWithDetail } from '@runq/types';
 import type { CreateWorkOrderInput } from '@runq/validators';
+import { formatItemQty } from '@/lib/utils';
 
 const SHIFT_OPTIONS = [
   { value: '', label: 'No shift' },
@@ -203,7 +204,7 @@ export function WoForm({ initial, onSubmit, isLoading }: WoFormProps) {
                           )}
                         </span>
                         <span className="font-mono tabular-nums" style={{ color: 'var(--text-2)' }}>
-                          {expected.toFixed(3)} {l.inputUom}
+                          {formatItemQty(expected, null, l.inputUom)} {l.inputUom}
                           {l.scrapPct > 0 && (
                             <span className="ml-1 text-[10px] text-amber-600">(+{l.scrapPct}% scrap)</span>
                           )}

@@ -7,6 +7,7 @@ import '../../theme/runq_tokens.dart';
 import '../inventory/widgets/inv_primitives.dart' show compactINR;
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
+import '../../utils/format_qty.dart';
 
 /// Every input a work order can draw from, batch by batch — inside the
 /// Manufacturing module rather than sending the planner over to Inventory and
@@ -163,7 +164,7 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
           ),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${_trimQty(qty)}$unit',
+            Text('${_trimQty(qty, first.itemUnit)}$unit',
                 style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
             // Uncosted stock is worth stating plainly — anything made from it
             // carries an understated cost until raw milk is valued.
@@ -186,7 +187,7 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
               ),
               Text(b.warehouseName, style: RunqText.micro.copyWith(color: t.muted2)),
               const SizedBox(width: 8),
-              Text('${_trimQty(b.qty)}$unit',
+              Text('${_trimQty(b.qty, first.itemUnit)}$unit',
                   style: RunqText.caption.copyWith(color: t.ink)),
             ]),
           ),
@@ -194,6 +195,6 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     );
   }
 
-  static String _trimQty(double v) =>
-      v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(3);
+  static String _trimQty(double v, [String? unit]) =>
+      formatItemQty(v, null, unit: unit);
 }

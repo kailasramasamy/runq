@@ -25,6 +25,7 @@ import '_record_production_form_cards.dart';
 import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class InputPoolScreen extends ConsumerStatefulWidget {
   const InputPoolScreen({super.key});
@@ -225,7 +226,7 @@ class _PoolLineCard extends StatelessWidget {
               child: Text(line.inputItemName,
                   style: RunqText.bodyStrong.copyWith(color: t.ink)),
             ),
-            Text('${_trim(line.totalQty)} ${line.uom}',
+            Text('${_trim(line.totalQty, line.uom)} ${line.uom}',
                 style: RunqText.bodyStrong.copyWith(color: t.ink)),
           ]),
           if (line.substitutes.isNotEmpty) ...[
@@ -239,7 +240,7 @@ class _PoolLineCard extends StatelessWidget {
           Text.rich(
             TextSpan(children: [
               TextSpan(
-                text: '${_trim(line.qtyPerBatch)} ${line.uom} per batch — ',
+                text: '${_trim(line.qtyPerBatch, line.uom)} ${line.uom} per batch — ',
                 style: RunqText.caption.copyWith(color: t.muted),
               ),
               TextSpan(
@@ -340,9 +341,4 @@ class _BatchRow extends StatelessWidget {
   }
 }
 
-String _trim(double v) {
-  final s = v.toStringAsFixed(3);
-  return s.contains('.')
-      ? s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')
-      : s;
-}
+String _trim(double v, [String? unit]) => formatItemQty(v, null, unit: unit);

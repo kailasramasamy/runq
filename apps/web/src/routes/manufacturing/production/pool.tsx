@@ -22,7 +22,7 @@ import {
 import { useBoms } from '@/hooks/queries/use-boms';
 import { useWarehouses, useAutoSelectWarehouse } from '@/hooks/queries/use-inventory';
 import { useInputPool } from '@/hooks/queries/use-production';
-import { formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR } from '@/lib/utils';
 import type { InputPoolLine, InputPoolBatch } from '@runq/types';
 
 export function InputPoolPage() {
@@ -119,7 +119,7 @@ function PoolLineCard({ line }: { line: InputPoolLine }) {
         title={line.inputItemName}
         action={
           <span className="text-[12.5px] font-semibold">
-            {line.totalQty.toFixed(3)} {line.uom}
+            {formatItemQty(line.totalQty, null, line.uom)} {line.uom}
           </span>
         }
       />
@@ -131,7 +131,7 @@ function PoolLineCard({ line }: { line: InputPoolLine }) {
         )}
 
         <p className="mb-3 text-[12px]" style={{ color: 'var(--text-3)' }}>
-          {line.qtyPerBatch.toFixed(3)} {line.uom} per batch —{' '}
+          {formatItemQty(line.qtyPerBatch, null, line.uom)} {line.uom} per batch —{' '}
           <span className="font-semibold" style={{ color: 'var(--text-1)' }}>
             {line.batchesCovered} full {line.batchesCovered === 1 ? 'batch' : 'batches'}
           </span>{' '}
@@ -201,7 +201,7 @@ function BatchRow({
         {batch.expiryDate ?? '—'}
       </td>
       <td className="py-1.5 text-right font-medium">
-        {batch.qty.toFixed(3)} {uom}
+        {formatItemQty(batch.qty, null, uom)} {uom}
       </td>
       <td className="py-1.5 text-right" style={{ color: 'var(--text-3)' }}>
         {formatINR(batch.unitCost)}

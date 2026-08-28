@@ -19,6 +19,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'inventory_adjust_stock_screen.dart';
 import 'inventory_items_list_screen.dart' show classLabel;
+import '../../utils/format_qty.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/item_detail_cards.dart';
@@ -182,6 +183,7 @@ class _Body extends StatelessWidget {
           _Pad(
             child: ItemStockLevelCard(
               qty: totalQty,
+              unit: item.unit,
               reorderLevel: item.reorderLevel,
               reorderQty: item.reorderQty,
               onEditThreshold: onEditThreshold,
@@ -202,7 +204,7 @@ class _Body extends StatelessWidget {
               child: Column(
                 children: [
                   for (final w in allocations) ...[
-                    _WarehouseRow(alloc: w, totalQty: totalQty),
+                    _WarehouseRow(alloc: w, totalQty: totalQty, unit: item.unit),
                     const SizedBox(height: 8),
                   ],
                 ],
@@ -217,6 +219,7 @@ class _Body extends StatelessWidget {
           _Pad(
             child: ItemMovementsCard(
               itemId: item.id,
+              unit: item.unit,
               onViewAll: onViewMovements,
             ),
           ),
@@ -319,7 +322,7 @@ class _TotalsStrip extends StatelessWidget {
           Expanded(
             child: InvKpiCard(
               label: 'On Hand',
-              value: fmtQty(qty),
+              value: formatItemQty(qty, null, unit: unit),
               sub: unit ?? 'units',
             ),
           ),
@@ -351,9 +354,11 @@ class _WarehouseRow extends StatelessWidget {
   const _WarehouseRow({
     required this.alloc,
     required this.totalQty,
+    this.unit,
   });
   final _WarehouseAlloc alloc;
   final double totalQty;
+  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -385,7 +390,7 @@ class _WarehouseRow extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      fmtQty(alloc.qty),
+                      formatItemQty(alloc.qty, null, unit: unit),
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
                     ),
                   ],

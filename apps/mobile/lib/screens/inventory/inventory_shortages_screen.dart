@@ -23,6 +23,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryShortagesScreen extends ConsumerStatefulWidget {
   const InventoryShortagesScreen({super.key});
@@ -151,7 +152,7 @@ class _ShortageCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis),
               ),
               const SizedBox(width: 8),
-              Text('${_n(row.shortQty)} ${row.uom ?? ''}'.trim(),
+              Text('${_n(row.shortQty, row.uom)} ${row.uom ?? ''}'.trim(),
                   style: RunqText.bodyStrong.copyWith(color: InvColors.error)),
             ],
           ),
@@ -171,7 +172,9 @@ class _ShortageCard extends StatelessWidget {
             runSpacing: 4,
             children: [
               _Pill(
-                label: row.coverable ? 'Stock arrived' : 'On hand ${_n(row.availableQty)}',
+                label: row.coverable
+                    ? 'Stock arrived'
+                    : 'On hand ${_n(row.availableQty, row.uom)}',
                 color: row.coverable ? InvColors.success : InvColors.error,
               ),
               _Pill(label: _age(row.ageDays), color: _ageColor(row.ageDays)),
@@ -252,5 +255,4 @@ class _Empty extends StatelessWidget {
   }
 }
 
-String _n(double v) =>
-    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+String _n(double v, [String? unit]) => formatItemQty(v, null, unit: unit);

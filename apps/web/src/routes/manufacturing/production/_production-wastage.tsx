@@ -13,7 +13,7 @@
  */
 import { Trash2, Info } from 'lucide-react';
 import { Card, CardHeader, CardContent, Input } from '@/components/ui';
-import { formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR } from '@/lib/utils';
 import type { ProductionAllocation } from '@runq/types';
 import { enteredQty, type DrawDraft } from './_production-lines';
 
@@ -146,12 +146,12 @@ function WastageRow({
         />
       </div>
       <p className="mt-2 text-[11.5px]" style={{ color: 'var(--text-3)' }}>
-        Expected balance {expected.toFixed(3)} {a.uom} — {a.availableQty.toFixed(3)} in stock less{' '}
-        {(a.availableQty - expected).toFixed(3)} drawn by this run.
+        Expected balance {formatItemQty(expected, null, a.uom)} {a.uom} — {formatItemQty(a.availableQty, null, a.uom)} in stock less{' '}
+        {formatItemQty(a.availableQty - expected, null, a.uom)} drawn by this run.
       </p>
       {wasted > 0 && (
         <p className="mt-1 text-[11.5px] font-semibold" style={{ color: '#dc2626' }}>
-          Wastage {wasted.toFixed(3)} {a.uom} — written off on top of what the run consumes.
+          Wastage {formatItemQty(wasted, null, a.uom)} {a.uom} — written off on top of what the run consumes.
         </p>
       )}
       {surplus && (

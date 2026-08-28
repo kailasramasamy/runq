@@ -31,6 +31,7 @@ class OnHandGroup {
   String get itemName => lead.itemName;
   String? get itemSku => lead.itemSku;
   String? get itemUnit => lead.itemUnit;
+  String? get itemClass => lead.itemClass;
   String get warehouseName => lead.warehouseName;
   double? get reorderLevel => lead.reorderLevel;
 

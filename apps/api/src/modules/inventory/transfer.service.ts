@@ -87,6 +87,9 @@ export class TransferService {
       .select({
         l: inventoryTransferLines,
         itemName: items.name, itemSku: items.sku, trackBatches: items.trackBatches,
+        // Drives how the quantity reads: a bulk unit is measured and
+        // shows one decimal, a pack size is counted.
+        itemUnit: items.unit, itemClass: items.itemClass,
       })
       .from(inventoryTransferLines)
       .innerJoin(items, eq(items.id, inventoryTransferLines.itemId))

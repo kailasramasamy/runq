@@ -16,6 +16,7 @@ import '../../api/inventory_repo.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../utils/format_qty.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/item_category_browser.dart';
 import 'widgets/inv_primitives.dart';
@@ -792,7 +793,7 @@ class _ItemTile extends StatelessWidget {
           children: [
             if (row.stockQty != null)
               Text(
-                _fmtQty(row.stockQty!),
+                formatItemQty(row.stockQty, row.itemClass, unit: row.unit),
                 style: RunqText.bodyStrong.copyWith(
                   color: row.stockQty! <= 0 ? t.muted2 : t.ink,
                 ),
@@ -809,9 +810,6 @@ class _ItemTile extends StatelessWidget {
       ],
     );
   }
-
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
 }
 
 /// Green counterpart to [_InactivePill] for items the ledger doesn't track.

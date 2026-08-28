@@ -19,6 +19,7 @@ import 'widgets/draft_substitute.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import '../../widgets/runq_snack.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryDeliveryDetailScreen extends ConsumerStatefulWidget {
   const InventoryDeliveryDetailScreen({super.key, required this.dnId});
@@ -530,7 +531,7 @@ class _LineRow extends StatelessWidget {
 
   String _metaLine(InvDnLine l) {
     final qtyStr =
-        '${l.qty % 1 == 0 ? l.qty.toStringAsFixed(0) : l.qty.toStringAsFixed(2)}'
+        '${formatItemQty(l.qty, null, unit: l.uom)}'
         '${(l.uom ?? '').isEmpty ? '' : ' ${l.uom}'} '
         '× ${indianINR(l.unitCost, decimals: 2)}';
     final parts = <String>[

@@ -16,7 +16,7 @@ import {
   useSuggestedBatches,
 } from '@/hooks/queries/use-wo-run';
 import { useItems } from '@/hooks/queries/use-items';
-import { formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR } from '@/lib/utils';
 import type { WorkOrderExpectedLine, WoConsumption } from '@runq/types';
 
 const ACCENT = '#E11D48';
@@ -124,9 +124,9 @@ function BomLineCard({
         {/* Progress bar */}
         <div className="mb-3">
           <div className="mb-1 flex justify-between text-[11px]" style={{ color: 'var(--text-3)' }}>
-            <span>Expected: {line.expectedQty.toFixed(3)} {line.inputUom}</span>
+            <span>Expected: {formatItemQty(line.expectedQty, null, line.inputUom)} {line.inputUom}</span>
             <span style={{ color: over ? '#d97706' : 'var(--text-3)' }}>
-              Consumed: {actualConsumed.toFixed(3)} {line.inputUom}
+              Consumed: {formatItemQty(actualConsumed, null, line.inputUom)} {line.inputUom}
             </span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
@@ -155,7 +155,7 @@ function BomLineCard({
             >
               <span className="font-medium">Excess vs. expected</span>
               <span className="flex items-center gap-2 font-mono">
-                <span>+{excessQty.toFixed(3)} {line.inputUom}</span>
+                <span>+{formatItemQty(excessQty, null, line.inputUom)} {line.inputUom}</span>
                 <span style={{ color: 'rgba(180, 83, 9, 0.55)' }}>·</span>
                 <span>{formatINR(excessValue)} loss</span>
               </span>
@@ -329,7 +329,7 @@ function ConsumeForm({
   const batches = batchRes?.data ?? [];
   const batchOptions = batches.map((b) => ({
     value: b.batchNo,
-    label: `${b.batchNo} — ${b.availableQty.toFixed(3)} ${inputUom} avail${b.expiryDate ? `, exp ${b.expiryDate}` : ''}`,
+    label: `${b.batchNo} — ${formatItemQty(b.availableQty, null, inputUom)} ${inputUom} avail${b.expiryDate ? `, exp ${b.expiryDate}` : ''}`,
   }));
 
   // FEFO suggestion: pre-select the first batch (API returns FEFO-sorted)
@@ -439,7 +439,7 @@ function ConsumptionRow({
     >
       <div className="flex-1 min-w-0">
         <div className="font-mono text-[12px] font-semibold leading-tight" style={{ color: 'var(--text-1)' }}>
-          {item.qty.toFixed(3)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{item.uom}</span>
+          {formatItemQty(item.qty, null, item.uom)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{item.uom}</span>
         </div>
         {item.batchNo && (
           <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-3)' }}>

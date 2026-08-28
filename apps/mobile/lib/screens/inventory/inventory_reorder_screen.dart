@@ -15,6 +15,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryReorderScreen extends ConsumerWidget {
   const InventoryReorderScreen({super.key});
@@ -309,14 +310,14 @@ class _AlertTile extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${_fmtQty(alert.onHand)} ${alert.itemUnit ?? ''}'.trim(),
+                '${_fmtQty(alert.onHand, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
                 style: RunqText.caption.copyWith(
                   color: barColor, fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
               Text(
-                '${_fmtQty(alert.reorderLevel)} ${alert.itemUnit ?? ''}'.trim(),
+                '${_fmtQty(alert.reorderLevel, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
                 style: RunqText.caption.copyWith(color: t.muted),
               ),
             ],
@@ -332,14 +333,14 @@ class _AlertTile extends StatelessWidget {
               Expanded(
                 child: _Stat(
                   label: 'SHORT BY',
-                  value: '${_fmtQty(alert.shortBy)} ${alert.itemUnit ?? ''}'.trim(),
+                  value: '${_fmtQty(alert.shortBy, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
                   color: barColor,
                 ),
               ),
               Expanded(
                 child: _Stat(
                   label: 'ORDER QTY',
-                  value: '${_fmtQty(alert.reorderQty)} ${alert.itemUnit ?? ''}'.trim(),
+                  value: '${_fmtQty(alert.reorderQty, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
                   color: t.ink,
                 ),
               ),
@@ -363,8 +364,8 @@ class _AlertTile extends StatelessWidget {
     );
   }
 
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
+  static String _fmtQty(double q, [String? unit]) =>
+      formatItemQty(q, null, unit: unit);
 }
 
 class _MarkedStockBar extends StatelessWidget {

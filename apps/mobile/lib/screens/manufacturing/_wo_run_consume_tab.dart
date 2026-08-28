@@ -16,6 +16,7 @@ import '_wo_run_adhoc_sheet.dart';
 import '_wo_run_entry_sheet.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class WoRunConsumeTab extends ConsumerStatefulWidget {
   final WorkOrder wo;
@@ -143,7 +144,7 @@ class _BomLineCard extends ConsumerWidget {
                             style: RunqText.bodyStrong.copyWith(color: t.ink)),
                         const SizedBox(height: 3),
                         Text(
-                          'Expected: ${_qty(expected)} ${line.inputUom}'
+                          'Expected: ${_qty(expected, line.inputUom)} ${line.inputUom}'
                           '${line.scrapPct > 0 ? '  +${line.scrapPct.toStringAsFixed(1)}% scrap' : ''}',
                           style: RunqText.caption.copyWith(color: t.muted),
                         ),
@@ -155,7 +156,7 @@ class _BomLineCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${_qty(actualSoFar)} ${line.inputUom}',
+                        '${_qty(actualSoFar, line.inputUom)} ${line.inputUom}',
                         style: RunqText.bodyStrong.copyWith(
                           color: isOver ? MfgColors.error : MfgColors.success,
                         ),
@@ -201,7 +202,7 @@ class _BomLineCard extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    '+${_qty(excessQty)} ${line.inputUom}  ·  ${mfgIndianINR(excessValue, decimals: 2)} loss',
+                    '+${_qty(excessQty, line.inputUom)} ${line.inputUom}  ·  ${mfgIndianINR(excessValue, decimals: 2)} loss',
                     style: RunqText.caption.copyWith(
                       color: MfgColors.orangeAlert,
                       fontWeight: FontWeight.w600,
@@ -398,7 +399,7 @@ class _ConsumedRowTileState extends ConsumerState<_ConsumedRowTile> {
                 Text.rich(
                   TextSpan(children: [
                     TextSpan(
-                      text: _qty(row.qty),
+                      text: _qty(row.qty, row.uom),
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
                     ),
                     TextSpan(
@@ -460,5 +461,4 @@ class _ConsumedRowTileState extends ConsumerState<_ConsumedRowTile> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-String _qty(double v) =>
-    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+String _qty(double v, [String? unit]) => formatItemQty(v, null, unit: unit);

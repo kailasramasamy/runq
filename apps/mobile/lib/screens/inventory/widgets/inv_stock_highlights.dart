@@ -13,6 +13,7 @@ import '../../../api/inventory_models.dart';
 import '../../../providers/inventory_providers.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
+import '../../../utils/format_qty.dart';
 import 'inv_colors.dart';
 import 'inv_primitives.dart';
 
@@ -196,10 +197,8 @@ String _subtitle(InvStockHighlight r) {
   return parts.isEmpty ? '—' : parts.join(' · ');
 }
 
-String _qtyLabel(InvStockHighlight r) {
-  final q = r.qty;
-  return q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
-}
+String _qtyLabel(InvStockHighlight r) =>
+    formatItemQty(r.qty, r.itemClass, unit: r.unit);
 
 String _money(double v) {
   if (v >= 10000000) return '₹${(v / 10000000).toStringAsFixed(2)} Cr';

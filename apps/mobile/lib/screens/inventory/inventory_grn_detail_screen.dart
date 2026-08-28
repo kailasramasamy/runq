@@ -11,6 +11,7 @@ import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryGrnDetailScreen extends ConsumerWidget {
   const InventoryGrnDetailScreen({super.key, required this.grnId});
@@ -241,7 +242,7 @@ class _LineRow extends StatelessWidget {
   String _metaLine(InvGrnLine l) {
     final parts = <String>[
       if ((l.itemSku ?? '').isNotEmpty) l.itemSku!,
-      '${l.qty % 1 == 0 ? l.qty.toStringAsFixed(0) : l.qty.toStringAsFixed(2)}'
+      '${formatItemQty(l.qty, null, unit: l.uom)}'
           '${(l.uom ?? '').isEmpty ? '' : ' ${l.uom}'} '
           '× ${indianINR(l.unitRate, decimals: 2)}',
       if ((l.batchNo ?? '').isNotEmpty) 'Batch ${l.batchNo}',

@@ -12,6 +12,7 @@ import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import 'inv_colors.dart';
 import 'inv_primitives.dart';
+import '../../../utils/format_qty.dart';
 
 /// Day label, that day's net movement, and where stock stood when it ended.
 ///
@@ -19,9 +20,19 @@ import 'inv_primitives.dart';
 /// — rows arrive newest-first, so that is the first of them. Reading
 /// "26 AUG · +912 −753 · 159" answers the whole day without scanning it.
 class InvMovementDayHeader extends StatelessWidget {
-  const InvMovementDayHeader({super.key, required this.iso, required this.rows});
+  const InvMovementDayHeader({
+    super.key,
+    required this.iso,
+    required this.rows,
+    this.unit,
+  });
   final String iso;
   final List<InvMovementRow> rows;
+
+  /// The item's unit of measure. Decides whether these quantities are read as
+  /// measured (one decimal) or counted — the trail is scoped to one item, so
+  /// the screen knows it even though the ledger rows don't carry it.
+  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -46,17 +57,17 @@ class InvMovementDayHeader extends StatelessWidget {
             ),
           ),
           if (inQty > 0)
-            Text('+${invQty(inQty)}',
+            Text('+${invQty(inQty, unit)}',
                 style: RunqText.caption.copyWith(
                     color: InvColors.success, fontWeight: FontWeight.w700)),
           if (inQty > 0 && outQty > 0) const SizedBox(width: 8),
           if (outQty > 0)
-            Text('−${invQty(outQty)}',
+            Text('−${invQty(outQty, unit)}',
                 style: RunqText.caption.copyWith(
                     color: InvColors.error, fontWeight: FontWeight.w700)),
           const SizedBox(width: 10),
           Text(
-            invQty(rows.first.runningQty),
+            invQty(rows.first.runningQty, unit),
             style: RunqText.tabular(size: 12, w: FontWeight.w700)
                 .copyWith(color: t.ink),
           ),
@@ -76,7 +87,10 @@ class InvMovementDayHeader extends StatelessWidget {
 /// app bar already says what everything here is counted in — and neither is
 /// the rate: this is a quantity trail, and the value belongs on the document.
 class InvMovementListRow extends StatelessWidget {
-  const InvMovementListRow({super.key, required this.row});
+  const InvMovementListRow({super.key, required this.row, this.unit});
+
+  /// See [InvMovementDayHeader.unit].
+  final String? unit;
   final InvMovementRow row;
 
   @override
@@ -199,7 +213,7 @@ class InvMovementListRow extends StatelessWidget {
           const Spacer(),
         const SizedBox(width: 8),
         Text(
-          '${row.isIn ? '+' : '−'}${invQty(row.qty)}',
+          '${row.isIn ? '+' : '−'}${invQty(row.qty, unit)}',
           style: RunqText.bodyStrong.copyWith(color: tone),
         ),
       ],
@@ -220,7 +234,7 @@ class InvMovementListRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          'Bal ${invQty(row.runningQty)}',
+          'Bal ${invQty(row.runningQty, unit)}',
           style: RunqText.tabular(size: 12, w: FontWeight.w600)
               .copyWith(color: t.muted),
         ),
@@ -229,9 +243,7 @@ class InvMovementListRow extends StatelessWidget {
   }
 }
 
-String invQty(double v) {
-  final s = v.toStringAsFixed(3);
-  return s.contains('.')
-      ? s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')
-      : s;
-}
+/// A ledger quantity, read the way its item is measured. Falls back to full
+/// precision when the unit isn't known, which is what this always did.
+String invQty(double v, [String? unit]) =>
+    unit == null ? formatExactQty(v) : formatItemQty(v, null, unit: unit);

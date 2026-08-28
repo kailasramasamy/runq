@@ -17,6 +17,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../utils/format_qty.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
 import 'widgets/inv_attention.dart';
@@ -676,9 +677,7 @@ String _sourceLabel(String movementType) {
 String _signedQty(InvActivity a) {
   final q = a.signedQty;
   final unit = a.itemUnit == null || a.itemUnit!.isEmpty ? '' : ' ${a.itemUnit}';
-  final mag = q.abs();
-  final str = mag == mag.roundToDouble() ? mag.toStringAsFixed(0)
-                                         : mag.toStringAsFixed(2);
+  final str = formatItemQty(q.abs(), null, unit: a.itemUnit);
   if (q > 0) return '+$str$unit';
   if (q < 0) return '-$str$unit';
   return str + unit;

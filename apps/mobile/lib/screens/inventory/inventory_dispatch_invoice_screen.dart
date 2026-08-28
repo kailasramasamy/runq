@@ -29,6 +29,7 @@ import 'widgets/inv_primitives.dart';
 import 'widgets/substitute_sheet.dart';
 import 'widgets/warehouse_picker.dart';
 import '../../widgets/runq_snack.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryDispatchInvoiceScreen extends ConsumerStatefulWidget {
   const InventoryDispatchInvoiceScreen({super.key, required this.invoiceId});
@@ -519,13 +520,13 @@ class _LineCard extends StatelessWidget {
                         // happened; until then "/ 11" in the field says it,
                         // and repeating it here is noise.
                         if (line.dispatchedQty > 0) ...[
-                          _Stat(label: 'Invoiced', value: _n(line.invoicedQty)),
-                          _Stat(label: 'Sent', value: _n(line.dispatchedQty)),
+                          _Stat(label: 'Invoiced', value: _n(line.invoicedQty, line.uom)),
+                          _Stat(label: 'Sent', value: _n(line.dispatchedQty, line.uom)),
                         ],
                         if (chosen != null)
                           _Stat(
                             label: 'Stock',
-                            value: _n(chosen.availableQty),
+                            value: _n(chosen.availableQty, line.uom),
                             alert: short,
                           )
                         else
@@ -534,8 +535,9 @@ class _LineCard extends StatelessWidget {
                             // the zero is real, and so is the ability to ship.
                             label: line.repackFrom == null ? 'Stock' : 'Stock / to make',
                             value: line.repackFrom == null
-                                ? _n(line.availableQty)
-                                : '${_n(line.availableQty)} (+${_n(line.repackFrom!.capacityQty)})',
+                                ? _n(line.availableQty, line.uom)
+                                : '${_n(line.availableQty, line.uom)}'
+                                    ' (+${_n(line.repackFrom!.capacityQty, line.uom)})',
                             alert: short,
                           ),
                       ],
@@ -572,7 +574,8 @@ class _LineCard extends StatelessWidget {
           if (qty < line.remainingQty && qty > 0) ...[
             const SizedBox(height: 6),
             Text(
-              '${_n(line.remainingQty - qty)} ${line.uom ?? ''} stays on the invoice'.trim(),
+              '${_n(line.remainingQty - qty, line.uom)} ${line.uom ?? ''}'
+              ' stays on the invoice'.trim(),
               style: RunqText.micro.copyWith(color: t.muted2),
             ),
           ],
@@ -677,7 +680,7 @@ class _QtyFieldState extends State<_QtyField> with _SelectAllOnFocus {
   @override
   void initState() {
     super.initState();
-    initSelectAll(_n(widget.initial));
+    initSelectAll(formatExactQty(widget.initial));
   }
 
   @override
@@ -703,7 +706,7 @@ class _QtyFieldState extends State<_QtyField> with _SelectAllOnFocus {
         decoration: InputDecoration(
           // "/ 11" carries the cap inline — no label or helper row needed,
           // which is what made this field three times taller than its content.
-          suffixText: '/ ${_n(widget.max)}',
+          suffixText: '/ ${formatExactQty(widget.max)}',
           suffixStyle: RunqText.caption.copyWith(color: t.muted2),
           // Unfilled: the card is already a surface, so a second wash inside
           // it reads as a disabled control rather than an editable one.
@@ -926,5 +929,4 @@ class _Hint extends StatelessWidget {
   }
 }
 
-String _n(double v) =>
-    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+String _n(double v, [String? unit]) => formatItemQty(v, null, unit: unit);

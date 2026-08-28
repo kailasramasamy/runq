@@ -12,6 +12,7 @@ import '../../../api/inventory_movement_models.dart';
 import '../../../providers/inventory_providers.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
+import '../../../utils/format_qty.dart';
 import 'inv_colors.dart';
 import 'inv_primitives.dart';
 
@@ -22,9 +23,15 @@ class ItemMovementsCard extends ConsumerWidget {
     super.key,
     required this.itemId,
     required this.onViewAll,
+    this.unit,
   });
   final String itemId;
   final VoidCallback onViewAll;
+
+  /// The item's unit of measure — the card is scoped to one item, so it can
+  /// say whether these quantities are measured or counted even though the
+  /// ledger rows don't carry it.
+  final String? unit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +65,7 @@ class ItemMovementsCard extends ConsumerWidget {
             children: [
               for (var i = 0; i < rows.length; i++) ...[
                 if (i > 0) Divider(height: 14, color: t.hairlineSoft),
-                _PreviewRow(row: rows[i]),
+                _PreviewRow(row: rows[i], unit: unit),
               ],
             ],
           ),
@@ -69,8 +76,9 @@ class ItemMovementsCard extends ConsumerWidget {
 }
 
 class _PreviewRow extends StatelessWidget {
-  const _PreviewRow({required this.row});
+  const _PreviewRow({required this.row, this.unit});
   final InvMovementRow row;
+  final String? unit;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +115,7 @@ class _PreviewRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           '${row.isIn ? '+' : '−'}'
-              '${row.qty.toStringAsFixed(row.qty == row.qty.roundToDouble() ? 0 : 2)}',
+              '${formatItemQty(row.qty, null, unit: unit)}',
           style: RunqText.body.copyWith(color: tone, fontWeight: FontWeight.w700),
         ),
       ],

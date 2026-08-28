@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Badge, TableRow, TableCell } from '@/components/ui';
 import type { OnHandRow } from '@/hooks/queries/use-inventory';
+import { formatItemQty } from '@/lib/utils';
 
 /**
  * One line per item+warehouse, with its batches folded underneath.
@@ -65,7 +66,9 @@ export function groupByItem(rows: OnHandRow[]): ItemGroup[] {
   return [...map.values()].sort((a, b) => a.itemName.localeCompare(b.itemName));
 }
 
-const qtyFmt = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 3 });
+/** Quantities read the way their item is measured — see formatItemQty. */
+const qtyFmt = (n: number, itemClass?: string | null, unit?: string | null) =>
+  formatItemQty(n, itemClass, unit);
 const moneyFmt = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 export function ItemGroupRow({ group: g }: { group: ItemGroup }) {
@@ -95,7 +98,7 @@ export function ItemGroupRow({ group: g }: { group: ItemGroup }) {
         </TableCell>
         <TableCell className="text-xs text-zinc-400">—</TableCell>
         <TableCell><ExpiryCell date={g.earliestExpiry} /></TableCell>
-        <TableCell className="text-right font-semibold tabular-nums">{qtyFmt(g.qty)}</TableCell>
+        <TableCell className="text-right font-semibold tabular-nums">{qtyFmt(g.qty, g.itemClass, g.itemUnit)}</TableCell>
         <TableCell className="text-right tabular-nums">{moneyFmt(g.avgCost)}</TableCell>
         <TableCell className="text-right font-semibold tabular-nums">{moneyFmt(g.value)}</TableCell>
       </TableRow>
@@ -129,7 +132,7 @@ export function StockRow({ row: r, nested }: { row: OnHandRow; nested?: boolean 
       <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
       <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
       <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
-      <TableCell className="text-right tabular-nums">{qtyFmt(r.qty)}</TableCell>
+      <TableCell className="text-right tabular-nums">{qtyFmt(r.qty, r.itemClass, r.itemUnit)}</TableCell>
       <TableCell className="text-right tabular-nums">{moneyFmt(r.avgCost)}</TableCell>
       <TableCell className="text-right tabular-nums font-medium">{moneyFmt(r.value)}</TableCell>
     </TableRow>

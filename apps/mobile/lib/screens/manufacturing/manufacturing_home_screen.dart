@@ -10,6 +10,7 @@ import '../inventory/widgets/inv_primitives.dart' show compactINR;
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../utils/format_qty.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
 import 'widgets/mfg_colors.dart';
@@ -160,7 +161,7 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                             subtitle: wo.bomName,
                             status: wo.status,
                             headline: wo.outputItemName,
-                            rightValue: _fmtQty(wo.plannedQty),
+                            rightValue: formatItemQty(wo.plannedQty, null, unit: wo.outputUom),
                             rightUnit: wo.outputUom,
                             reference: wo.woNumber,
                             onTap: () => context.push('/manufacturing/wos/${wo.id}'),
@@ -486,7 +487,8 @@ class _PerishableGroupTile extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _qtyPill('${_fmtQty(group.totalQty)} ${group.itemUnit ?? ''}'.trim()),
+            _qtyPill('${formatItemQty(group.totalQty, null, unit: group.itemUnit)} '
+                '${group.itemUnit ?? ''}'.trim()),
             Text(
               multi
                   ? '${group.batches.length} batches'
@@ -518,7 +520,7 @@ class _PerishableGroupTile extends StatelessWidget {
             decoration: BoxDecoration(color: t.muted, shape: BoxShape.circle),
           ),
           Text(
-            '${_fmtQty(b.qty)} ${b.itemUnit ?? ''}'.trim(),
+            '${formatItemQty(b.qty, null, unit: b.itemUnit)} ${b.itemUnit ?? ''}'.trim(),
             style: RunqText.caption.copyWith(color: t.ink, fontWeight: FontWeight.w600),
           ),
           const SizedBox(width: 6),
@@ -676,7 +678,7 @@ class _RawMaterialsSectionState extends ConsumerState<_RawMaterialsSection> {
             ),
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('${_trimQty(qty)}$unit',
+              Text('${formatItemQty(qty, null, unit: first.itemUnit)}$unit',
                   style: RunqText.body.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
               // Uncosted stock is worth surfacing: anything made from it carries
               // an understated cost.
@@ -703,15 +705,12 @@ class _RawMaterialsSectionState extends ConsumerState<_RawMaterialsSection> {
               Text(b.warehouseName,
                   style: RunqText.micro.copyWith(color: t.muted2)),
               const SizedBox(width: 8),
-              Text('${_trimQty(b.qty)}$unit',
+              Text('${formatItemQty(b.qty, null, unit: first.itemUnit)}$unit',
                   style: RunqText.micro.copyWith(color: t.ink)),
             ]),
           ),
     ];
   }
-
-  static String _trimQty(double v) =>
-      v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(3);
 }
 
 
@@ -734,7 +733,3 @@ String _activeDate(WorkOrderListRow wo) {
   final dd = at.day.toString().padLeft(2, '0');
   return '${at.year}-$mm-$dd';
 }
-
-/// Date and shift, on their own line beneath the WO number so neither truncates.
-String _fmtQty(double v) =>
-    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);

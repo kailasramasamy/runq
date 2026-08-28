@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import '../../../api/inventory_models.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
+import '../../../utils/format_qty.dart';
 import 'inv_colors.dart';
 import 'inv_primitives.dart';
 import 'item_detail_primitives.dart';
@@ -142,11 +143,16 @@ class ItemStockLevelCard extends StatelessWidget {
     required this.qty,
     required this.reorderLevel,
     required this.reorderQty,
+    this.unit,
     this.onEditThreshold,
   });
   final double qty;
   final double? reorderLevel;
   final double? reorderQty;
+
+  /// The item's unit of measure — decides whether these balances read as
+  /// measured (one decimal) or counted.
+  final String? unit;
 
   /// Opens the threshold editor. Null hides the affordance (read-only use).
   final VoidCallback? onEditThreshold;
@@ -174,7 +180,7 @@ class ItemStockLevelCard extends StatelessWidget {
                 ),
               ),
               Text(
-                fmtQty(qty),
+                formatItemQty(qty, null, unit: unit),
                 style: RunqText.h4.copyWith(
                   color: isOut
                       ? InvColors.error
@@ -202,7 +208,7 @@ class ItemStockLevelCard extends StatelessWidget {
             height: 6,
             // The threshold rides the bar in its own badge, so the row below
             // carries only what the mark can't say (shortfall, order qty).
-            markerLabel: level == null ? null : fmtQty(level),
+            markerLabel: level == null ? null : formatItemQty(level, null, unit: unit),
           ),
           const SizedBox(height: 4),
           if (level == null)
@@ -236,14 +242,14 @@ class ItemStockLevelCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     isLow
-                        ? 'Below reorder point — short by ${fmtQty(shortfall)}'
+                        ? 'Below reorder point — short by ${formatItemQty(shortfall, null, unit: unit)}'
                         : '',
                     style: RunqText.caption.copyWith(color: InvColors.orangeAlert),
                   ),
                 ),
                 if ((reorderQty ?? 0) > 0)
                   Text(
-                    'Order ${fmtQty(reorderQty!)}',
+                    'Order ${formatItemQty(reorderQty!, null, unit: unit)}',
                     style: RunqText.caption.copyWith(color: t.muted),
                   ),
               ],

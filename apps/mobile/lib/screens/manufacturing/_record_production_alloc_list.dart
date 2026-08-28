@@ -18,6 +18,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
+import '../../utils/format_qty.dart';
 
 /// Key for one batch's qty box. Batch numbers are unique per item, not across
 /// items, so a substitute sharing a batch number cannot collide.
@@ -138,7 +139,7 @@ class _ShortageCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '${s.inputItemName} — short ${_trim(s.shortQty)} ${s.uom} '
+                '${s.inputItemName} — short ${_trim(s.shortQty, s.uom)} ${s.uom} '
                 '(need ${_trim(s.requiredQty)}, have ${_trim(s.availableQty)})',
                 style: RunqText.caption.copyWith(color: MfgColors.error),
               ),
@@ -362,7 +363,7 @@ class _Tally extends StatelessWidget {
       decoration: BoxDecoration(color: t.bgWarm, borderRadius: BorderRadius.circular(10)),
       child: Row(children: [
         Expanded(
-          child: Text('Needs ${_trim(a.requiredQty)} ${a.uom}',
+          child: Text('Needs ${_trim(a.requiredQty, a.uom)} ${a.uom}',
               style: RunqText.caption.copyWith(color: t.muted)),
         ),
         Text(
@@ -512,9 +513,4 @@ class _Consequence extends StatelessWidget {
   }
 }
 
-String _trim(double v) {
-  final s = v.toStringAsFixed(3);
-  return s.contains('.')
-      ? s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')
-      : s;
-}
+String _trim(double v, [String? unit]) => formatItemQty(v, null, unit: unit);

@@ -18,6 +18,7 @@ import 'widgets/inv_colors.dart';
 import 'widgets/inv_on_hand_sections.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryOnHandScreen extends ConsumerStatefulWidget {
   const InventoryOnHandScreen({super.key});
@@ -444,7 +445,7 @@ class _StockTile extends StatelessWidget {
                   // needs a legend to say what the mark stands for.
                   markerLabel: row.reorderLevel == null
                       ? null
-                      : _fmtQty(row.reorderLevel!),
+                      : formatItemQty(row.reorderLevel, row.itemClass),
                 ),
               ],
             ),
@@ -456,7 +457,7 @@ class _StockTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _fmtQty(row.qty),
+                formatItemQty(row.qty, row.itemClass),
                 style: RunqText.h4.copyWith(
                   color: row.isLow ? InvColors.orangeAlert : t.ink,
                 ),
@@ -473,10 +474,6 @@ class _StockTile extends StatelessWidget {
     );
   }
 
-  static String _fmtQty(double q) {
-    if (q == q.roundToDouble()) return q.toStringAsFixed(0);
-    return q.toStringAsFixed(2);
-  }
 }
 
 /// Per-row expiry pill. Sits beside the Low badge in the stock tile header.

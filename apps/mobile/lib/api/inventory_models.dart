@@ -538,6 +538,8 @@ class InvAdjustmentDetailLine {
   final String? batchNo;
   final double qtyDelta;
   final bool trackBatches;
+  final String? itemUnit;
+  final String? itemClass;
   const InvAdjustmentDetailLine({
     required this.id,
     required this.itemId,
@@ -546,6 +548,8 @@ class InvAdjustmentDetailLine {
     this.batchNo,
     required this.qtyDelta,
     this.trackBatches = false,
+    this.itemUnit,
+    this.itemClass,
   });
   factory InvAdjustmentDetailLine.fromJson(Map<String, dynamic> j) =>
       InvAdjustmentDetailLine(
@@ -556,6 +560,8 @@ class InvAdjustmentDetailLine {
         batchNo: j['batchNo'] as String?,
         qtyDelta: double.tryParse(j['qtyDelta']?.toString() ?? '0') ?? 0,
         trackBatches: j['trackBatches'] as bool? ?? false,
+        itemUnit: j['itemUnit'] as String?,
+        itemClass: j['itemClass'] as String?,
       );
 }
 
@@ -649,6 +655,8 @@ class InvTransferDetailLine {
   final String? batchNo;
   final double qty;
   final bool trackBatches;
+  final String? itemUnit;
+  final String? itemClass;
   const InvTransferDetailLine({
     required this.id,
     required this.itemId,
@@ -657,6 +665,8 @@ class InvTransferDetailLine {
     this.batchNo,
     required this.qty,
     this.trackBatches = false,
+    this.itemUnit,
+    this.itemClass,
   });
   factory InvTransferDetailLine.fromJson(Map<String, dynamic> j) =>
       InvTransferDetailLine(
@@ -667,6 +677,8 @@ class InvTransferDetailLine {
         batchNo: j['batchNo'] as String?,
         qty: double.tryParse(j['qty']?.toString() ?? '0') ?? 0,
         trackBatches: j['trackBatches'] as bool? ?? false,
+        itemUnit: j['itemUnit'] as String?,
+        itemClass: j['itemClass'] as String?,
       );
 }
 

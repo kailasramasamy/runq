@@ -11,7 +11,7 @@
  */
 import { AlertTriangle, PackageSearch, Wand2 } from 'lucide-react';
 import { Card, CardHeader, CardContent, Input, Button, EmptyState, Skeleton } from '@/components/ui';
-import { formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR } from '@/lib/utils';
 import type { ProductionAllocation, InputPoolBatch, ProductionShortage } from '@runq/types';
 
 /** Entered quantities, keyed by `itemId::batchNo` across every line. */
@@ -92,8 +92,8 @@ function ShortageBanner({ shortages }: { shortages: ProductionShortage[] }) {
       <ul className="list-disc space-y-0.5 pl-5">
         {shortages.map((s, i) => (
           <li key={`${s.inputItemId}-${i}`}>
-            {s.inputItemName} — short {s.shortQty.toFixed(3)} {s.uom}
-            {' '}(need {s.requiredQty.toFixed(3)}, have {s.availableQty.toFixed(3)})
+            {s.inputItemName} — short {formatItemQty(s.shortQty, null, s.uom)} {s.uom}
+            {' '}(need {formatItemQty(s.requiredQty, null, s.uom)}, have {formatItemQty(s.availableQty, null, s.uom)})
           </li>
         ))}
       </ul>
@@ -132,14 +132,14 @@ function DrawCard({
 
         <div className="mb-3 flex items-baseline justify-between text-[12.5px]">
           <span style={{ color: 'var(--text-3)' }}>
-            Needs {a.requiredQty.toFixed(3)} {a.uom}
+            Needs {formatItemQty(a.requiredQty, null, a.uom)} {a.uom}
           </span>
           <span
             className="font-semibold"
             style={{ color: matched ? '#15803d' : drawn > 0 ? '#b45309' : 'var(--text-3)' }}
           >
-            {drawn.toFixed(3)} {a.uom} entered
-            {!matched && drawn > 0 && (gap > 0 ? ` — short ${gap.toFixed(3)}` : ` — over ${(-gap).toFixed(3)}`)}
+            {formatItemQty(drawn, null, a.uom)} {a.uom} entered
+            {!matched && drawn > 0 && (gap > 0 ? ` — short ${formatItemQty(gap, null, a.uom)}` : ` — over ${formatItemQty(-gap, null, a.uom)}`)}
             {matched && ' ✓'}
           </span>
         </div>
@@ -194,7 +194,7 @@ function PoolRow({
           )}
         </p>
         <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
-          {batch.qty.toFixed(3)} {uom} on hand ·{' '}
+          {formatItemQty(batch.qty, null, uom)} {uom} on hand ·{' '}
           {batch.expiryDate ? `exp ${batch.expiryDate}` : 'no expiry'} ·{' '}
           {formatINR(batch.unitCost)}/{uom}
         </p>
@@ -244,7 +244,7 @@ function Consequence({ allocation: a, draft }: { allocation: ProductionAllocatio
           {remnants.map((r, i) => (
             <span key={batchKey(r.b.itemId, r.b.batchNo)}>
               {i > 0 && ', '}
-              <span className="font-medium">{r.left.toFixed(3)} {a.uom}</span> {r.b.itemName}
+              <span className="font-medium">{formatItemQty(r.left, null, a.uom)} {a.uom}</span> {r.b.itemName}
             </span>
           ))}
           {soonest && ` — expires ${soonest.b.expiryDate}`}

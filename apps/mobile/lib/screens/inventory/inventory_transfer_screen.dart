@@ -19,6 +19,7 @@ import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/warehouse_picker.dart';
 import '../../widgets/runq_snack.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryTransferScreen extends ConsumerWidget {
   const InventoryTransferScreen({super.key});
@@ -908,9 +909,7 @@ class _AvailHint extends StatelessWidget {
     final low = isSource && (qty <= 0 || exceeded);
     final color = low ? InvColors.error : t.muted;
     final label = isSource ? 'At FROM' : 'At TO';
-    final qtyStr = qty == qty.truncateToDouble()
-        ? qty.toInt().toString()
-        : qty.toStringAsFixed(2);
+    final qtyStr = formatItemQty(qty, null, unit: unit);
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Row(
@@ -1342,9 +1341,7 @@ class _DetailLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final qtyStr = line.qty == line.qty.truncateToDouble()
-        ? line.qty.toInt().toString()
-        : line.qty.toStringAsFixed(2);
+    final qtyStr = formatItemQty(line.qty, line.itemClass, unit: line.itemUnit);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

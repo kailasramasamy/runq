@@ -13,7 +13,7 @@ import {
   useRecordOutput,
   useReverseOutput,
 } from '@/hooks/queries/use-wo-run';
-import { formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR } from '@/lib/utils';
 import type { WoOutput } from '@runq/types';
 
 const ACCENT = '#E11D48';
@@ -229,7 +229,7 @@ function OutputRow({
     >
       <div className="flex-1 min-w-0">
         <div className="font-mono text-[12px] font-semibold leading-tight" style={{ color: 'var(--text-1)' }}>
-          {item.qty.toFixed(3)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{outputUom}</span>
+          {formatItemQty(item.qty, null, outputUom)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{outputUom}</span>
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-3)' }}>
           <span className="truncate">Batch {item.batchNo}</span>

@@ -14,6 +14,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import '../../utils/format_qty.dart';
 
 class InventoryExpiryScreen extends ConsumerStatefulWidget {
   const InventoryExpiryScreen({super.key});
@@ -225,7 +226,7 @@ class _ExpiryTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${_fmtQty(row.qty)} ${row.itemUnit ?? ''} · ${row.warehouseName}'
+                      '${_fmtQty(row.qty, row.itemUnit)} ${row.itemUnit ?? ''} · ${row.warehouseName}'
                       '${row.batchNo.isEmpty ? '' : ' · ${row.batchNo}'}'
                       ' · exp ${row.expiryDate}',
                       style: RunqText.caption.copyWith(color: t.muted),
@@ -251,5 +252,4 @@ class _ExpiryTile extends StatelessWidget {
   }
 }
 
-String _fmtQty(double v) =>
-    v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(3);
+String _fmtQty(double v, String? unit) => formatItemQty(v, null, unit: unit);

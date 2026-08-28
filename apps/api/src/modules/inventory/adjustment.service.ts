@@ -101,6 +101,9 @@ export class AdjustmentService {
       .select({
         l: inventoryAdjustmentLines,
         itemName: items.name, itemSku: items.sku, trackBatches: items.trackBatches,
+        // Drives how the quantity reads: a bulk unit is measured and
+        // shows one decimal, a pack size is counted.
+        itemUnit: items.unit, itemClass: items.itemClass,
       })
       .from(inventoryAdjustmentLines)
       .innerJoin(items, eq(items.id, inventoryAdjustmentLines.itemId))
