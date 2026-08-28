@@ -270,20 +270,23 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     if (picked != null && mounted) setState(() => _expiryDate = picked);
   }
 
-  /// No batch is sent: the server FEFO-allocates the write-off across what the
-  /// run actually left behind. Naming a batch here gets it wrong — the run
-  /// usually drains the oldest batch outright, so the leftover sits in whichever
-  /// batch the allocation stopped part-way through.
+  /// The batch is sent, because the operator counted it. Each row is one batch
+  /// the run drew from, so the loss goes against the very container it was
+  /// counted in — no guessing which of a line's substitutes it belonged to, and
+  /// no server-side FEFO spreading it onto stock this run never opened. Left
+  /// blank only for untracked items, where the server has nothing to name.
   Map<String, dynamic>? _wastagePayload() {
     final preview = _preview;
     if (preview == null) return null;
     final lines = <Map<String, dynamic>>[];
-    // Rows are per drawn item, so the loss goes against the very stock it was
-    // counted from — no guessing which of a line's substitutes it belonged to.
     for (final r in closingStockRows(preview, _drawCtls)) {
-      final qty = wastageFromLeft(r, _wastageLeftCtls[r.itemId]?.text ?? '');
+      final qty = wastageFromLeft(r, _wastageLeftCtls[r.key]?.text ?? '');
       if (qty <= 0) continue;
-      lines.add({'itemId': r.itemId, 'qty': qty});
+      lines.add({
+        'itemId': r.itemId,
+        if (r.batchNo?.isNotEmpty == true) 'batchNo': r.batchNo,
+        'qty': qty,
+      });
     }
     if (lines.isEmpty) return null;
     final notes = _wastageNotesCtl.text.trim();

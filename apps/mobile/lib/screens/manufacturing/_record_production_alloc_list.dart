@@ -18,6 +18,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
+import '../../utils/format_expiry.dart';
 import '../../utils/format_qty.dart';
 
 /// Key for one batch's qty box. Batch numbers are unique per item, not across
@@ -59,6 +60,76 @@ bool lineSatisfied(Map<String, TextEditingController> ctls, ProductionAllocation
 }
 
 double _round3(double v) => (v * 1000).roundToDouble() / 1000;
+
+/// Keeps a qty box to one decimal place.
+///
+/// The plant floor works to a tenth of a litre — a second decimal is noise
+/// someone has to read past, and on a phone it is noise that costs the digits
+/// in front of it. Rejects the edit outright rather than silently truncating,
+/// so a mistyped third digit is visible as "nothing happened".
+final oneDecimalFormatter = TextInputFormatter.withFunction((old, updated) {
+  return RegExp(r'^\d*\.?\d?$').hasMatch(updated.text) ? updated : old;
+});
+
+/// A quantity as the qty box should hold it: full ledger precision, no
+/// trailing zeros. Deliberately not the display format — writing the rounded
+/// "7.4" of a 7.415 L batch would strand 0.015 L nobody meant to keep.
+String qtyFieldText(double v) {
+  final s = v.toStringAsFixed(3);
+  return s.contains('.') ? s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '') : s;
+}
+
+/// One item's slice of a line's pool.
+class PoolGroup {
+  final String itemName;
+  final List<InputPoolBatch> batches;
+
+  /// Whether the item gets its own heading. A pool of three batches from two
+  /// items reads fine as a flat list; twenty does not.
+  final bool showHeader;
+
+  const PoolGroup({required this.itemName, required this.batches, required this.showHeader});
+}
+
+/// Split a line's pool by item, primary input first, then substitutes in the
+/// order the pool listed them. Batches stay FEFO inside each group — soonest
+/// expiry first, undated last — so the batch to open is the batch on top.
+///
+/// Headings only appear once the list is long enough to be scanned rather than
+/// read: a short mixed pool already says which item each row is on the row
+/// itself, and a heading there is chrome.
+List<PoolGroup> groupPool(ProductionAllocation a) {
+  final byItem = <String, List<InputPoolBatch>>{};
+  for (final b in a.pool) {
+    (byItem[b.itemId] ??= []).add(b);
+  }
+  // Rank, not a comparator that returns 0 — Dart's sort is unstable, and
+  // substitutes should keep the order the BOM declared them in.
+  final ids = byItem.keys.toList();
+  final rank = {
+    for (var i = 0; i < ids.length; i++) ids[i]: ids[i] == a.inputItemId ? -1 : i,
+  };
+  ids.sort((x, y) => rank[x]!.compareTo(rank[y]!));
+  final header = a.pool.length > 5 && ids.length > 1;
+
+  return [
+    for (final id in ids)
+      PoolGroup(
+        itemName: byItem[id]!.first.itemName,
+        showHeader: header,
+        batches: byItem[id]!
+          ..sort((x, y) {
+            final ex = x.expiryDate, ey = y.expiryDate;
+            if (ex != ey) {
+              if (ex == null) return 1;
+              if (ey == null) return -1;
+              return ex.compareTo(ey);
+            }
+            return (x.batchNo ?? '').compareTo(y.batchNo ?? '');
+          }),
+      ),
+  ];
+}
 
 class RecordProductionAllocList extends StatelessWidget {
   final ProductionPreview preview;
@@ -277,16 +348,30 @@ class _DrawCard extends StatelessWidget {
                   style: RunqText.caption.copyWith(color: t.muted)),
             )
           else
-            for (final b in a.pool)
-              _PoolRow(
-                batch: b,
-                uom: a.uom,
-                showItem: b.itemId != a.inputItemId,
-                controller: drawControllers.putIfAbsent(
-                  drawKey(b.itemId, b.batchNo),
-                  () => TextEditingController(),
-                ),
-                onChanged: onChanged,
+            for (final g in groupPool(a))
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (g.showHeader)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, bottom: 2),
+                      child: Text('${g.itemName} · ${g.batches.length} batches',
+                          style: RunqText.micro.copyWith(
+                              color: t.muted, fontWeight: FontWeight.w600)),
+                    ),
+                  for (final b in g.batches)
+                    _PoolRow(
+                      batch: b,
+                      uom: a.uom,
+                      stillNeeded: _round3(a.requiredQty - drawn),
+                      showItem: !g.showHeader && b.itemId != a.inputItemId,
+                      controller: drawControllers.putIfAbsent(
+                        drawKey(b.itemId, b.batchNo),
+                        () => TextEditingController(),
+                      ),
+                      onChanged: onChanged,
+                    ),
+                ],
               ),
           _Consequence(allocation: a, drawControllers: drawControllers),
         ],
@@ -358,19 +443,24 @@ class _Tally extends StatelessWidget {
             ? MfgColors.orangeAlert
             : t.muted;
 
+    // Full precision here, unlike the batch rows. This line is the one the
+    // Post gate reads, and rounding it to the tenth the floor works in printed
+    // "Needs 286.8" beside "286.8 — short 0.04": two numbers that look equal
+    // and a shortfall between them.
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(color: t.bgWarm, borderRadius: BorderRadius.circular(10)),
       child: Row(children: [
         Expanded(
-          child: Text('Needs ${_trim(a.requiredQty, a.uom)} ${a.uom}',
+          child: Text('Needs ${qtyFieldText(a.requiredQty)} ${a.uom}',
               style: RunqText.caption.copyWith(color: t.muted)),
         ),
         Text(
           balanced
-              ? '${_trim(drawn)} ${a.uom} ✓'
+              ? '${qtyFieldText(drawn)} ${a.uom} ✓'
               : drawn > 0
-                  ? '${_trim(drawn)} ${a.uom} — ${gap > 0 ? 'short ${_trim(gap)}' : 'over ${_trim(-gap)}'}'
+                  ? '${qtyFieldText(drawn)} ${a.uom} — '
+                      '${gap > 0 ? 'short ${qtyFieldText(gap)}' : 'over ${qtyFieldText(-gap)}'}'
                   : 'nothing entered',
           style: RunqText.caption.copyWith(color: tone, fontWeight: FontWeight.w600),
         ),
@@ -383,6 +473,11 @@ class _PoolRow extends StatelessWidget {
   final InputPoolBatch batch;
   final String uom;
 
+  /// What the line is still short of, counting every box already filled. The
+  /// fill button stops here rather than at the batch's on-hand qty — see
+  /// [_DrawToggle].
+  final double stillNeeded;
+
   /// True when the batch came from a substitute — say which, or the row lies.
   final bool showItem;
   final TextEditingController controller;
@@ -391,6 +486,7 @@ class _PoolRow extends StatelessWidget {
   const _PoolRow({
     required this.batch,
     required this.uom,
+    required this.stillNeeded,
     required this.showItem,
     required this.controller,
     required this.onChanged,
@@ -405,51 +501,73 @@ class _PoolRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(children: [
+        // Proportional, not fixed: a fixed box sized for "107 litre" clips a
+        // four-figure draw, and the plant's tanker quantities are four figures.
         Expanded(
+          flex: 7,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // What decides the draw is how much is in the tank and how long
+              // it keeps — the consignment number is only how you refer to it
+              // afterwards, so it rides underneath.
               Text(
-                showItem
-                    ? batch.itemName
-                    : (batch.batchNo?.isNotEmpty == true ? batch.batchNo! : 'No batch'),
-                style: RunqText.body.copyWith(color: t.ink),
+                [
+                  if (showItem) batch.itemName,
+                  '${_trim(batch.qty)} $uom',
+                  shortExpiry(batch.expiryDate) ?? 'no expiry',
+                ].join(' · '),
+                style: RunqText.bodyStrong.copyWith(
+                  color: over ? MfgColors.error : t.ink,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
-                [
-                  if (showItem && batch.batchNo?.isNotEmpty == true) batch.batchNo!,
-                  '${_trim(batch.qty)} $uom on hand',
-                  batch.expiryDate == null ? 'no expiry' : 'exp ${batch.expiryDate}',
-                ].join(' · '),
-                style: RunqText.caption.copyWith(
-                  color: over ? MfgColors.error : t.muted,
-                ),
+                batch.batchNo?.isNotEmpty == true ? batch.batchNo! : 'No batch',
+                style: RunqText.micro.copyWith(color: t.muted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 110,
+        const SizedBox(width: 6),
+        _DrawToggle(
+          filled: entered > 0,
+          onTap: () {
+            // A partial draw rounds *up* to the next tenth. The box only
+            // accepts one decimal, so a recipe needing 123.44 can never be
+            // covered exactly — rounding down left the line 0.04 short, which
+            // blocks Post while the tally shows two numbers that both read
+            // "286.8". Up always covers the recipe; the excess is a hundredth
+            // of a litre.
+            //
+            // Draining the batch still takes it exactly, dust and all — leaving
+            // 0.015 L behind to round to a tenth is how part-used batches pile
+            // up.
+            final upToTenth = (stillNeeded * 10).ceilToDouble() / 10;
+            final fill = stillNeeded > 0 && upToTenth < batch.qty ? upToTenth : batch.qty;
+            controller.text = entered > 0 ? '' : qtyFieldText(fill);
+            onChanged();
+          },
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          flex: 3,
           child: TextField(
             controller: controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+            inputFormatters: [oneDecimalFormatter],
             textAlign: TextAlign.right,
             style: RunqText.body.copyWith(color: t.ink),
             onChanged: (_) => onChanged(),
             decoration: InputDecoration(
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               hintText: '0',
               hintStyle: RunqText.body.copyWith(color: t.muted),
-              suffixText: uom,
-              suffixStyle: RunqText.caption.copyWith(color: t.muted),
               filled: true,
               fillColor: t.bgWarm,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -461,6 +579,53 @@ class _PoolRow extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// Draw this batch, or put it back.
+///
+/// Fills the box with what the line still needs, capped by what is in the
+/// batch — not with the batch's whole on-hand qty. The difference matters: a
+/// tank that gave up 107 L for a run the recipe costs at 98.5 L did not
+/// *consume* 107. The missing 8.5 L is process loss, and it belongs in the
+/// closing-stock count below, where it posts as a write-off, instead of being
+/// buried in the finished goods' unit cost.
+///
+/// Once the line is covered, tapping fills the rest of the batch — an
+/// over-draw someone deliberately asked for. Tapping again clears the box, and
+/// partial draws are still typed by hand.
+class _DrawToggle extends StatelessWidget {
+  const _DrawToggle({required this.filled, required this.onTap});
+
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final tone = filled ? MfgColors.error : MfgColors.brand(context);
+    return Semantics(
+      button: true,
+      label: filled ? 'Remove this batch from the draw' : 'Draw all of this batch',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 36,
+          height: 40,
+          decoration: BoxDecoration(
+            color: t.bgWarm,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: t.hairline),
+          ),
+          child: Icon(
+            filled ? Icons.remove_rounded : Icons.add_rounded,
+            size: 20,
+            color: tone,
+          ),
+        ),
+      ),
     );
   }
 }
