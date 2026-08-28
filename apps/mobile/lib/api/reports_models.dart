@@ -206,10 +206,18 @@ class CategoryAmount {
   final String label;
   final double amount;
   final double percentage;
+
+  /// GL account behind this slice, where the report exposes one — it lets a
+  /// category row drill through to the transactions that make up its total.
+  /// Null both for uncategorized rows and for reports that group by something
+  /// other than a GL account (customer, vendor).
+  final String? glAccountId;
+
   CategoryAmount({
     required this.label,
     required this.amount,
     required this.percentage,
+    this.glAccountId,
   });
 }
 
@@ -262,6 +270,7 @@ class BankAccountReport {
             label: strAt(c['name']) ?? '—',
             amount: numAt(c['amount']),
             percentage: numAt(c['percentage']),
+            glAccountId: strAt(c['accountId']),
           ))
       .toList();
 

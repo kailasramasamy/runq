@@ -185,16 +185,12 @@ final pendingPaymentsProvider = FutureProvider<List<PendingPayment>>((ref) async
   return _watchAuth(ref, () => bankingRepo.pendingPayments());
 });
 
+/// The banking hub's recent-activity window. Deliberately small — the full,
+/// filterable ledger lives behind [bankTxnFeedProvider]. The response's
+/// `total` still reports every txn on the account, which is what the hub's
+/// "view all N" line counts.
 final bankTxnsProvider = FutureProvider.family<PaginatedResponse<BankTxn>, String>((ref, accountId) async {
-  return _watchAuth(ref, () => bankingRepo.transactions(accountId));
-});
-
-/// Unreconciled txns for an account, fetched server-side so old stragglers
-/// aren't hidden behind [bankTxnsProvider]'s 50-most-recent window. Backs the
-/// banking screen's "Unmatched" filter.
-final bankUnreconciledTxnsProvider =
-    FutureProvider.family<PaginatedResponse<BankTxn>, String>((ref, accountId) async {
-  return _watchAuth(ref, () => bankingRepo.transactions(accountId, reconStatus: 'unreconciled'));
+  return _watchAuth(ref, () => bankingRepo.transactions(accountId, limit: 10));
 });
 
 /// Date of the most recent imported transaction on the account — backs the

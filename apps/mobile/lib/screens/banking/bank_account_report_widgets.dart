@@ -179,7 +179,11 @@ class InVsOutBars extends StatelessWidget {
             getTitlesWidget: (v, _) {
               final i = v.toInt();
               if (i < 0 || i >= months.length) return const SizedBox.shrink();
-              if (months.length > 6 && i % 2 != 0) return const SizedBox.shrink();
+              // Thin the labels to ~6 across the axis whatever the span — an
+              // all-time report can return years of months, and every second
+              // label out of forty still collides into a smear.
+              final step = (months.length / 6).ceil();
+              if (step > 1 && i % step != 0) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(monthLabel(months[i].month), style: RunqText.micro.copyWith(color: t.muted2)),
@@ -220,7 +224,11 @@ class _LegendDot extends StatelessWidget {
 /// reports screen's category rows.
 class ReportCategoryList extends StatelessWidget {
   final List<CategoryAmount> items;
-  const ReportCategoryList({super.key, required this.items});
+
+  /// Drill-through into the transactions behind a slice. When null the rows
+  /// render flat — a chevron on a row that goes nowhere is a broken promise.
+  final ValueChanged<CategoryAmount>? onTap;
+  const ReportCategoryList({super.key, required this.items, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +245,7 @@ class ReportCategoryList extends StatelessWidget {
         children: [
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const SizedBox(height: 12),
-            _CategoryRow(item: items[i]),
+            _CategoryRow(item: items[i], onTap: onTap),
           ],
         ],
       ),
@@ -247,10 +255,25 @@ class ReportCategoryList extends StatelessWidget {
 
 class _CategoryRow extends StatelessWidget {
   final CategoryAmount item;
-  const _CategoryRow({required this.item});
+  final ValueChanged<CategoryAmount>? onTap;
+  const _CategoryRow({required this.item, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final body = _body(context);
+    if (onTap == null) return body;
+    return InkWell(
+      onTap: () => onTap!(item),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        // Vertical only: the bar should still span the card's full width.
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: body,
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final t = RT(context);
     final pct = (item.percentage / 100).clamp(0.0, 1.0);
     return Column(
@@ -264,6 +287,10 @@ class _CategoryRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(formatINR(item.amount, compact: true),
               style: RunqText.tabular(size: 13, w: FontWeight.w700, color: t.ink)),
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            Icon(Icons.chevron_right_rounded, size: 16, color: t.muted2),
+          ],
         ]),
         const SizedBox(height: 6),
         Row(children: [

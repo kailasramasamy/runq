@@ -8,6 +8,9 @@ export const transactionFilterSchema = z.object({
   dateTo: z.string().date().optional(),
   minAmount: z.coerce.number().optional(),
   search: z.string().optional(),
+  // GL category to narrow by. The literal 'none' selects rows that have no
+  // category yet, which a plain uuid filter can never express.
+  glAccountId: z.union([z.literal('none'), z.string().uuid()]).optional(),
   inSuspense: z.coerce.boolean().optional(),
 });
 

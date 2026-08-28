@@ -606,11 +606,33 @@ class BankingRepo {
     return id;
   }
 
-  Future<PaginatedResponse<BankTxn>> transactions(String accountId, {int page = 1, int limit = 50, String? reconStatus}) async {
+  Future<PaginatedResponse<BankTxn>> transactions(
+    String accountId, {
+    int page = 1,
+    int limit = 50,
+    String? reconStatus,
+    String? type,
+    String? dateFrom,
+    String? dateTo,
+    String? glAccountId,
+    String? search,
+  }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (reconStatus != null) qp['reconStatus'] = reconStatus;
+    if (type != null) qp['type'] = type;
+    if (dateFrom != null) qp['dateFrom'] = dateFrom;
+    if (dateTo != null) qp['dateTo'] = dateTo;
+    if (glAccountId != null) qp['glAccountId'] = glAccountId;
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
     final res = await apiClient.get('/banking/accounts/$accountId/transactions?${Uri(queryParameters: qp).query}');
     return PaginatedResponse.fromJson((res as Map).cast<String, dynamic>(), BankTxn.fromJson);
+  }
+
+  /// GL categories actually used by this account's transactions (plus an
+  /// `id == 'none'` uncategorized bucket) — the options for the category filter.
+  Future<List<BankTxnCategory>> txnCategories(String accountId) async {
+    final res = await apiClient.get('/banking/accounts/$accountId/categories');
+    return _dataList(res).map(BankTxnCategory.fromJson).toList();
   }
 
   Future<int> categorize(String accountId) async {

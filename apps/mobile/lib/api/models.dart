@@ -1064,6 +1064,31 @@ class BankTxn {
   bool get isCredit => type == 'credit';
 }
 
+/// One option in the bank-transaction category filter. `id` is a GL account
+/// uuid, or the literal 'none' for rows with no category yet.
+class BankTxnCategory {
+  final String id;
+  final String? code;
+  final String name;
+  final int count;
+
+  const BankTxnCategory({
+    required this.id,
+    this.code,
+    required this.name,
+    required this.count,
+  });
+
+  factory BankTxnCategory.fromJson(Map<String, dynamic> j) => BankTxnCategory(
+        id: _strOr(j['id'], 'none'),
+        code: _str(j['code']),
+        name: _strOr(j['name'], 'Uncategorized'),
+        count: _int(j['count']),
+      );
+
+  String get label => code == null ? name : '$code · $name';
+}
+
 class ApprovalStep {
   final String id, status, assignedRole;
   final int stepOrder;

@@ -16,6 +16,14 @@ export interface TransactionListParams {
   filters: TransactionFilter;
 }
 
+export interface BankTxnCategory {
+  /** GL account id, or the literal 'none' for uncategorized rows. */
+  id: string;
+  code: string | null;
+  name: string;
+  count: number;
+}
+
 export interface TransactionListResult {
   data: BankTransaction[];
   meta: PaginationMeta;
@@ -38,10 +46,13 @@ export class TransactionService {
     private readonly tenantId: string,
   ) {}
 
-  /** Matches narration/reference/party name, plus the exact amount when the term parses as a number. */
+  /**
+   * Matches narration/reference/memo, the party name, and the GL category
+   * (name or code), plus the exact amount when the term parses as a number.
+   */
   private searchCondition(term: string) {
     const like = `%${term}%`;
-    const text = sql`(${bankTransactions.narration} ILIKE ${like} OR ${bankTransactions.reference} ILIKE ${like} OR ${vendors.name} ILIKE ${like} OR ${customers.name} ILIKE ${like})`;
+    const text = sql`(${bankTransactions.narration} ILIKE ${like} OR ${bankTransactions.reference} ILIKE ${like} OR ${bankTransactions.memo} ILIKE ${like} OR ${vendors.name} ILIKE ${like} OR ${customers.name} ILIKE ${like} OR ${accounts.name} ILIKE ${like} OR ${accounts.code} ILIKE ${like})`;
     const numeric = term.replace(/[₹,\s]/g, '');
     if (!/^\d+(\.\d+)?$/.test(numeric)) return text;
     return sql`(${text} OR ${bankTransactions.amount}::numeric = ${numeric}::numeric)`;
@@ -66,6 +77,11 @@ export class TransactionService {
       filters.dateTo ? lte(bankTransactions.transactionDate, filters.dateTo) : undefined,
       filters.minAmount ? sql`${bankTransactions.amount}::numeric >= ${filters.minAmount}` : undefined,
       filters.search ? this.searchCondition(filters.search) : undefined,
+      filters.glAccountId
+        ? filters.glAccountId === 'none'
+          ? sql`${bankTransactions.glAccountId} IS NULL`
+          : eq(bankTransactions.glAccountId, filters.glAccountId)
+        : undefined,
       filters.inSuspense ? sql`${bankTransactions.glAccountId} IN (SELECT id FROM ${accounts} WHERE code = '1116' AND tenant_id = ${this.tenantId})` : undefined,
     ];
 
@@ -94,6 +110,7 @@ export class TransactionService {
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` })
         .from(bankTransactions)
+        .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere),
@@ -102,6 +119,7 @@ export class TransactionService {
         totalCredit: sql<string>`COALESCE(SUM(CASE WHEN ${bankTransactions.type} = 'credit' THEN ${bankTransactions.amount}::numeric ELSE 0 END), 0)`,
       })
         .from(bankTransactions)
+        .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
         .leftJoin(vendors, eq(bankTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankTransactions.customerId, customers.id))
         .where(baseWhere),
@@ -116,6 +134,44 @@ export class TransactionService {
         credit: parseFloat(totalsResult[0]?.totalCredit ?? '0'),
       },
     };
+  }
+
+  /**
+   * Distinct GL categories actually used by an account's transactions, with
+   * row counts, plus an `uncategorized` bucket. Backs the mobile category
+   * filter: listing the whole chart of accounts there would offer hundreds of
+   * options that match nothing.
+   */
+  async categories(bankAccountId: string): Promise<BankTxnCategory[]> {
+    const rows = await this.db
+      .select({
+        id: accounts.id,
+        code: accounts.code,
+        name: accounts.name,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(bankTransactions)
+      .leftJoin(accounts, eq(bankTransactions.glAccountId, accounts.id))
+      .where(
+        and(
+          eq(bankTransactions.tenantId, this.tenantId),
+          eq(bankTransactions.bankAccountId, bankAccountId),
+        ),
+      )
+      .groupBy(accounts.id, accounts.code, accounts.name);
+
+    return rows
+      .map((r) => ({
+        id: r.id ?? 'none',
+        code: r.code ?? null,
+        name: r.name ?? 'Uncategorized',
+        count: r.count,
+      }))
+      // Uncategorized last; the rest alphabetically, since counts shuffle on
+      // every categorize run and a list that reorders itself is unusable.
+      .sort((a, b) =>
+        a.id === 'none' ? 1 : b.id === 'none' ? -1 : a.name.localeCompare(b.name),
+      );
   }
 
   /**

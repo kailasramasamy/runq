@@ -44,6 +44,16 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
   );
 
   app.get(
+    '/:accountId/categories',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { accountId } = accountParamSchema.parse(request.params);
+      const service = new TransactionService(request.server.db, request.tenantId);
+      return { data: await service.categories(accountId) };
+    },
+  );
+
+  app.get(
     '/:accountId/report',
     { preHandler: [rbacHook([...READ_ROLES])] },
     async (request) => {

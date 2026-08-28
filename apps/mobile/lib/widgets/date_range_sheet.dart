@@ -89,6 +89,9 @@ class _DateRangeSheetState extends State<_DateRangeSheet> {
         DateTime(today.year, today.month - 1, 1),
         DateTime(today.year, today.month, 0),
       ),
+      _Preset('Last 3 months', DateTime(today.year, today.month - 2, 1), today),
+      // Indian financial year: 1 Apr – 31 Mar.
+      _Preset('This FY', DateTime(today.month >= 4 ? today.year : today.year - 1, 4, 1), today),
     ];
     return SafeArea(
       top: false,

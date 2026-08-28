@@ -32,6 +32,8 @@ import 'screens/purchase/po_match_screen.dart';
 import 'screens/purchase/po_edit_screen.dart';
 import 'screens/banking_screen.dart';
 import 'screens/banking/bank_account_report_screen.dart';
+import 'screens/banking/bank_txns_screen.dart';
+import 'providers/bank_txn_feed_provider.dart';
 import 'screens/sales_hub_screen.dart';
 import 'screens/purchases_hub_screen.dart';
 import 'screens/money_hub_screen.dart';
@@ -1093,6 +1095,30 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/money/banking',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const BankingScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          // Optional query params seed the filters, so a report slice can deep
+          // link straight to the transactions behind its number:
+          // ?category=<glAccountId|none>&from=<iso>&to=<iso>&dir=credit|debit
+          path: '/money/banking/:accountId/transactions',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) {
+            final q = state.uri.queryParameters;
+            return _slidePage(
+              BankTxnsScreen(
+                accountId: state.pathParameters['accountId']!,
+                initialCategoryId: q['category'],
+                initialFrom: DateTime.tryParse(q['from'] ?? ''),
+                initialTo: DateTime.tryParse(q['to'] ?? ''),
+                initialDirection: switch (q['dir']) {
+                  'credit' => TxnDirection.credit,
+                  'debit' => TxnDirection.debit,
+                  _ => TxnDirection.all,
+                },
+              ),
+              key: state.pageKey,
+            );
+          },
         ),
         GoRoute(
           path: '/money/banking/:accountId/report',
