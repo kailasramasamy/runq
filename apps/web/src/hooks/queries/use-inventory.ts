@@ -122,6 +122,8 @@ export interface DeliveryNote {
   lrNo: string | null;
   eWayBillNo: string | null;
   journalEntryId: string | null;
+  /** True on the draft auto-dispatch parked for stock it couldn't cover. */
+  isShortfall: boolean;
   dispatchedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -138,6 +140,11 @@ export interface DnLine {
   uom: string | null;
   unitCost: string;
   lineTotal: string;
+  /** The invoice line this fulfils — present on invoice-raised DNs only. */
+  invoiceLineId: string | null;
+  /** Set when this line ships a stand-in for what its invoice line billed. */
+  substitutedForItemId: string | null;
+  substitutionNote: string | null;
 }
 
 export interface DeliveryNoteDetail extends DeliveryNote { lines: DnLine[] }
@@ -354,6 +361,11 @@ export interface MovementDoc extends MovementDocRef {
   party: string | null;
   note: string | null;
   ref: MovementDocRef | null;
+  /**
+   * Set when this movement went out in place of another item. Without it a
+   * stand-in reads as an ordinary sale of itself.
+   */
+  substitutedFor?: string | null;
 }
 
 export interface ItemMovementRow {

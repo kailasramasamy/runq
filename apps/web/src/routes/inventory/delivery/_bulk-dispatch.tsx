@@ -168,6 +168,18 @@ function tally(
       }
       continue;
     }
+    // A total shortfall is reported, not counted as a failure: the draft is
+    // parked and waiting on stock, which is a different thing from a run that
+    // broke.
+    if (outcome.status === 'shortfall') {
+      skipped++;
+      problems.push({
+        invoiceNumber: numberOf.get(invoiceId) ?? '—',
+        reason: `${outcome.shortfall.reason} — draft ${outcome.shortfall.dnNo}`,
+        failed: false,
+      });
+      continue;
+    }
     const isFailure = outcome.status === 'failed';
     if (isFailure) failed++; else skipped++;
     problems.push({

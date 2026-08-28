@@ -111,6 +111,26 @@ class InvMovementListRow extends StatelessWidget {
                   _headline(context, t, route, tone),
                   const SizedBox(height: 2),
                   _subline(t, _about),
+                  // Its own line, in the warning tone: this is the row most
+                  // easily mistaken for a sale of this item, and burying it in
+                  // the meta text is exactly how that mistake gets made.
+                  if ((row.doc?.substitutedFor ?? '').isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.swap_horiz,
+                            size: 13, color: InvColors.orangeAlert),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Sent in place of ${row.doc!.substitutedFor}',
+                            style: RunqText.caption
+                                .copyWith(color: InvColors.orangeAlert),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   if (provenance.isNotEmpty)
                     Text(
                       provenance,

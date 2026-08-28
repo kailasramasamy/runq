@@ -9,11 +9,21 @@ import {
   useDispatchPreview, useCreateDispatchFromInvoice, useSaveItemAlias,
   type DispatchPreviewLine,
 } from '@/hooks/queries/use-sales-dispatch';
+import {
+  SubstitutePanel, SubstituteButton, SubstituteSummary, withUom,
+  type SubstituteChoice,
+} from './_substitute-picker';
 import { useWarehouses, useAutoSelectWarehouse, useDispatchDn } from '@/hooks/queries/use-inventory';
 import { useItems } from '@/hooks/queries/use-items';
 
 /** Per-line operator overrides on top of the server's suggestion. */
-interface LineEdit { qty: number | ''; batchNo: string; include: boolean }
+interface LineEdit {
+  qty: number | '';
+  batchNo: string;
+  include: boolean;
+  /** A declared stand-in going out in place of what this line billed. */
+  substitute: SubstituteChoice;
+}
 
 export function DispatchFromInvoicePage() {
   const { id: invoiceId } = useParams({ strict: false }) as { id: string };
@@ -27,6 +37,8 @@ export function DispatchFromInvoicePage() {
   const [vehicleNo, setVehicleNo] = useState('');
   const [lrNo, setLrNo] = useState('');
   const [edits, setEdits] = useState<Record<string, LineEdit>>({});
+  /** Which row has its substitute panel open — one at a time, like a menu. */
+  const [picking, setPicking] = useState<string | null>(null);
 
   const { data: warehouses = [] } = useWarehouses();
   const { data: preview, isLoading } = useDispatchPreview(invoiceId, warehouseId);
@@ -43,6 +55,7 @@ export function DispatchFromInvoicePage() {
       qty: line.remainingQty,
       batchNo: line.suggestedBatchNo ?? '',
       include: true,
+      substitute: { itemId: null, note: '' },
     };
   }
   function patch(lineId: string, p: Partial<LineEdit>, base: LineEdit) {
@@ -50,16 +63,35 @@ export function DispatchFromInvoicePage() {
   }
 
   async function submit() {
-    const payload = shippable
+    const picked = shippable
       .map((l) => ({ line: l, edit: editFor(l) }))
-      .filter(({ edit }) => edit.include && Number(edit.qty) > 0)
-      .map(({ line, edit }) => ({
-        itemId: line.itemId!,
-        invoiceLineId: line.invoiceLineId,
-        qty: Number(edit.qty),
-        batchNo: edit.batchNo || null,
-        uom: line.uom,
-      }));
+      .filter(({ edit }) => edit.include && Number(edit.qty) > 0);
+
+    // Caught here rather than on the server so the van isn't waiting on a
+    // round trip to be told a box is empty.
+    const unexplained = picked.find(({ line, edit }) => {
+      const sub = line.substitutes.find((s) => s.itemId === edit.substitute.itemId);
+      return sub?.verdict === 'needs_note' && !edit.substitute.note.trim();
+    });
+    if (unexplained) {
+      setPicking(unexplained.line.invoiceLineId);
+      return toast('Say why you are substituting before dispatching', 'error');
+    }
+
+    const payload = picked.map(({ line, edit }) => ({
+      // The substitute is what physically leaves, so it is the line's item.
+      // The billed item moves to `substitutedForItemId`, which is what clears
+      // the invoice line and keeps the swap on the document.
+      itemId: edit.substitute.itemId ?? line.itemId!,
+      invoiceLineId: line.invoiceLineId,
+      qty: Number(edit.qty),
+      // A stand-in's batches are its own — the suggestion was for the billed
+      // item, so hand it back to FEFO.
+      batchNo: edit.substitute.itemId ? null : (edit.batchNo || null),
+      uom: line.uom,
+      substitutedForItemId: edit.substitute.itemId ? line.itemId : null,
+      substitutionNote: edit.substitute.itemId ? (edit.substitute.note.trim() || null) : null,
+    }));
     if (payload.length === 0) return toast('Nothing selected to dispatch', 'error');
 
     try {
@@ -146,6 +178,8 @@ export function DispatchFromInvoicePage() {
                 key={l.invoiceLineId}
                 line={l}
                 edit={editFor(l)}
+                picking={picking === l.invoiceLineId}
+                onPick={(open) => setPicking(open ? l.invoiceLineId : null)}
                 onPatch={(p) => patch(l.invoiceLineId, p, editFor(l))}
               />
             ))}
@@ -156,18 +190,24 @@ export function DispatchFromInvoicePage() {
   );
 }
 
-function LineRow({ line, edit, onPatch }: {
+function LineRow({ line, edit, picking, onPick, onPatch }: {
   line: DispatchPreviewLine;
   edit: LineEdit;
+  picking: boolean;
+  onPick: (open: boolean) => void;
   onPatch: (p: Partial<LineEdit>) => void;
 }) {
   const shippable = isShippable(line);
+  const chosen = line.substitutes.find((s) => s.itemId === edit.substitute.itemId) ?? null;
   // A made-on-demand SKU is never "short" at 0 on hand — that is its normal
   // state. What can run out is the pool behind it.
   const coverQty = line.repackFrom
     ? line.availableQty + line.repackFrom.capacityQty
     : line.availableQty;
-  const short = shippable && Number(edit.qty) > coverQty;
+  // Once a stand-in is chosen it is that item's shelf that has to cover the
+  // qty, so the shortage warning has to follow the swap.
+  const effectiveCover = chosen ? chosen.availableQty : coverQty;
+  const short = shippable && Number(edit.qty) > effectiveCover;
   return (
     <TableRow>
       <TableCell>
@@ -177,6 +217,25 @@ function LineRow({ line, edit, onPatch }: {
           {line.resolution === 'alias' && <span className="ml-1.5">· matched by name</span>}
         </div>
         {!shippable && <ResolutionBadge resolution={line.resolution} />}
+        {shippable && !picking && !chosen && (
+          <SubstituteButton substitutes={line.substitutes} onClick={() => onPick(true)} />
+        )}
+        {shippable && !picking && chosen && (
+          <SubstituteSummary
+            substitutes={line.substitutes}
+            choice={edit.substitute}
+            onEdit={() => onPick(true)}
+          />
+        )}
+        {shippable && picking && (
+          <SubstitutePanel
+            billedName={withUom(line.itemName ?? line.description, line.uom)}
+            substitutes={line.substitutes}
+            choice={edit.substitute}
+            onChange={(substitute) => onPatch({ substitute })}
+            onClose={() => onPick(false)}
+          />
+        )}
       </TableCell>
       <TableCell className="text-right tabular-nums">{line.invoicedQty} {line.uom ?? ''}</TableCell>
       <TableCell className="text-right tabular-nums">{line.dispatchedQty}</TableCell>
@@ -194,7 +253,9 @@ function LineRow({ line, edit, onPatch }: {
         ) : <span style={{ color: 'var(--text-3)' }}>—</span>}
       </TableCell>
       <TableCell>
-        {shippable && line.trackBatches ? (
+        {shippable && chosen ? (
+          <span style={{ color: 'var(--text-3)' }}>FEFO</span>
+        ) : shippable && line.trackBatches ? (
           <Input
             value={edit.batchNo}
             // Leaving it blank on a made-on-demand line is the normal case: the
@@ -208,10 +269,15 @@ function LineRow({ line, edit, onPatch }: {
       <TableCell className="text-right tabular-nums">
         {!shippable ? '—' : (
           <>
-            <span style={short ? { color: 'var(--danger-text)' } : undefined}>
-              {line.availableQty}
+            <span style={short ? { color: 'var(--neg)' } : undefined}>
+              {chosen ? chosen.availableQty : line.availableQty}
             </span>
-            {line.repackFrom && (
+            {chosen && (
+              <div className="text-[11px] font-normal" style={{ color: 'var(--text-3)' }}>
+                of {chosen.itemName}
+              </div>
+            )}
+            {!chosen && line.repackFrom && (
               <div className="text-[11px] font-normal" style={{ color: 'var(--text-3)' }}>
                 +{line.repackFrom.capacityQty} from {line.repackFrom.poolItemName}
               </div>

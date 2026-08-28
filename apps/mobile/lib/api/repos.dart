@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'api_client.dart';
 import 'api_config.dart';
 import 'models.dart';
+import 'sales_dispatch_models.dart';
 import '../services/po_ocr.dart';
 
 // Sentinel for "field not provided" in PATCH bodies — lets a caller pass
@@ -101,7 +102,11 @@ class InvoicesRepo {
   /// it is asked for explicitly — otherwise the invoice goes out on paper only
   /// while the app claims the customer was sent it. The returned outcome says
   /// where the mail actually landed, or why it did not.
-  Future<InvoiceEmailOutcome?> send(
+  /// Returns both halves of what sending did: where the mail landed, and what
+  /// the warehouse managed to ship. The dispatch half used to be dropped on
+  /// the floor here, which is why a shortage at invoice time reached the
+  /// operator only as a notification.
+  Future<({InvoiceEmailOutcome? email, InvAutoDispatchResult? dispatch})> send(
     String id, {
     String? channel,
     String? note,
@@ -114,10 +119,14 @@ class InvoicesRepo {
       'sendEmail': sendEmail,
       'attachPdf': attachPdf,
     });
-    final email = _data(res)['email'];
-    return email is Map
-        ? InvoiceEmailOutcome.fromJson(email.cast<String, dynamic>())
-        : null;
+    final data = _data(res);
+    final email = data['email'];
+    return (
+      email: email is Map
+          ? InvoiceEmailOutcome.fromJson(email.cast<String, dynamic>())
+          : null,
+      dispatch: InvAutoDispatchResult.fromInvoiceJson(data),
+    );
   }
 
   /// Mark an invoice paid. The API server currently hardcodes the receipt's

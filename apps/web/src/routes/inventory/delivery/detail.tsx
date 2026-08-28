@@ -6,6 +6,7 @@ import {
 } from '@/components/ui';
 import { useDn, useDispatchDn, useCancelDn } from '@/hooks/queries/use-inventory';
 import { ReturnDialog } from './_return-dialog';
+import { DraftLineSubstitute, RelabelInvoiceOffer } from './_draft-substitute';
 
 export function DeliveryNoteDetailPage() {
   const { id } = useParams({ strict: false }) as { id: string };
@@ -50,7 +51,22 @@ export function DeliveryNoteDetailPage() {
           <div className="flex items-center gap-1.5">
             <StatusBadge status={dn.status} />
             {dn.direction === 'in' && <Badge variant="warning">Return</Badge>}
-            {dn.invoiceNumber && <Badge variant="default">Inv {dn.invoiceNumber}</Badge>}
+            {/* Tappable: a dispatch is half the story, and reconciling it
+                against what was billed shouldn't mean going to search for a
+                number this page already knows. */}
+            {dn.invoiceNumber && dn.invoiceId && (
+              <Link
+                to={'/ar/invoices/$invoiceId' as '/'}
+                params={{ invoiceId: dn.invoiceId }}
+                className="hover:underline"
+                style={{ color: 'var(--accent-text)' }}
+              >
+                <Badge variant="primary">Inv {dn.invoiceNumber}</Badge>
+              </Link>
+            )}
+            {dn.invoiceNumber && !dn.invoiceId && (
+              <Badge variant="default">Inv {dn.invoiceNumber}</Badge>
+            )}
             {dn.direction === 'out' && !dn.invoiceId && <Badge variant="default">Unlinked</Badge>}
           </div>
         }
@@ -93,7 +109,17 @@ export function DeliveryNoteDetailPage() {
             <TableBody>
               {dn.lines.map((l) => (
                 <TableRow key={l.id}>
-                  <TableCell className="font-medium">{l.itemName}</TableCell>
+                  <TableCell className="font-medium">
+                    {l.itemName}
+                    {dn.status === 'draft' && dn.direction === 'out' && dn.invoiceId && (
+                      <DraftLineSubstitute dnId={id} line={l} />
+                    )}
+                    {dn.status !== 'draft' && l.substitutedForItemId && (
+                      <div className="text-[11.5px]" style={{ color: 'var(--text-3)' }}>
+                        sent in place of what was billed
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">{l.uom ?? '—'}</TableCell>
                   <TableCell className="font-mono text-xs">{l.batchNo ?? '—'}</TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -114,6 +140,10 @@ export function DeliveryNoteDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {dn.status === 'dispatched' && dn.invoiceId && (
+        <RelabelInvoiceOffer invoiceId={dn.invoiceId} lines={dn.lines} />
+      )}
 
       {dn.notes && (
         <Card className="mt-4">

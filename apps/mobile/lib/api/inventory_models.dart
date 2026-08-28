@@ -1161,6 +1161,14 @@ class InvDnLine {
   final String? uom;
   final double unitCost;
   final double lineTotal;
+
+  /// The invoice line this fulfils — present on invoice-raised DNs only.
+  final String? invoiceLineId;
+
+  /// Set when this line ships a stand-in for what its invoice line billed.
+  final String? substitutedForItemId;
+  final String? substitutionNote;
+
   const InvDnLine({
     required this.id,
     required this.itemId,
@@ -1172,7 +1180,13 @@ class InvDnLine {
     this.uom,
     required this.unitCost,
     required this.lineTotal,
+    this.invoiceLineId,
+    this.substitutedForItemId,
+    this.substitutionNote,
   });
+
+  bool get isSubstituted => substitutedForItemId != null;
+
   factory InvDnLine.fromJson(Map<String, dynamic> j) => InvDnLine(
     id: j['id'] as String,
     itemId: j['itemId'] as String,
@@ -1184,6 +1198,9 @@ class InvDnLine {
     uom: j['uom'] as String?,
     unitCost: double.tryParse(j['unitCost']?.toString() ?? '0') ?? 0,
     lineTotal: double.tryParse(j['lineTotal']?.toString() ?? '0') ?? 0,
+    invoiceLineId: j['invoiceLineId'] as String?,
+    substitutedForItemId: j['substitutedForItemId'] as String?,
+    substitutionNote: j['substitutionNote'] as String?,
   );
 }
 
@@ -1202,6 +1219,15 @@ class InvDnDetail {
   final String status;
   final double totalValue;
   final List<InvDnLine> lines;
+
+  /// Set when this DN was raised against an AR invoice — a substitution is
+  /// only meaningful against a line that was billed.
+  final String? invoiceId;
+
+  /// The invoice's human number, so the dispatch can name what it was raised
+  /// against instead of only knowing a UUID.
+  final String? invoiceNumber;
+
   const InvDnDetail({
     required this.id,
     required this.dnNo,
@@ -1217,7 +1243,10 @@ class InvDnDetail {
     required this.status,
     required this.totalValue,
     required this.lines,
+    this.invoiceId,
+    this.invoiceNumber,
   });
+
   factory InvDnDetail.fromJson(Map<String, dynamic> j) => InvDnDetail(
     id: j['id'] as String,
     dnNo: j['dnNo'] as String,
@@ -1232,6 +1261,8 @@ class InvDnDetail {
     notes: j['notes'] as String?,
     status: (j['status'] as String?) ?? 'draft',
     totalValue: double.tryParse(j['totalValue']?.toString() ?? '0') ?? 0,
+    invoiceId: j['invoiceId'] as String?,
+    invoiceNumber: j['invoiceNumber'] as String?,
     lines: ((j['lines'] as List?) ?? const [])
         .cast<Map<String, dynamic>>()
         .map(InvDnLine.fromJson)

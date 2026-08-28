@@ -71,7 +71,15 @@ export function Combobox({
   // by tracking the input's bounding rect, and cap its height to the
   // remaining viewport so it doesn't run off-screen.
   const [dropdownPos, setDropdownPos] = useState<
-    { top: number; left: number; width: number; maxHeight: number } | null
+    {
+      /** Set when dropping downward; anchors the panel's top edge. */
+      top?: number;
+      /** Set when dropping upward; anchors its bottom edge above the input. */
+      bottom?: number;
+      left: number;
+      width: number;
+      maxHeight: number;
+    } | null
   >(null);
 
   const updateDropdownPos = useCallback(() => {
@@ -80,10 +88,30 @@ export function Combobox({
     const margin = 12;
     // Cap at ~10 rows worth of height (≈ 36px each + padding) so a long
     // catalogue scrolls within the dropdown instead of stretching down the
-    // viewport. Then clamp to whatever space is actually available.
+    // viewport.
     const TEN_ROWS = 360;
-    const maxHeight = Math.max(120, Math.min(TEN_ROWS, window.innerHeight - r.bottom - margin));
-    setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width, maxHeight });
+    const below = window.innerHeight - r.bottom - margin;
+    const above = r.top - margin;
+    // Flip above the input when there isn't room under it — an input near the
+    // bottom of the page (the last card on a form) otherwise opens a list that
+    // runs off-screen, and no amount of scrolling reaches it because the panel
+    // is position:fixed and moves with the input.
+    const MIN_USEFUL = 160;
+    const dropUp = below < MIN_USEFUL && above > below;
+    const maxHeight = Math.max(
+      // Below the floor there is no room either way, so pick the roomier side
+      // and let the list scroll inside whatever it got.
+      120,
+      Math.min(TEN_ROWS, dropUp ? above : below),
+    );
+    setDropdownPos({
+      ...(dropUp
+        ? { bottom: window.innerHeight - r.top + 4 }
+        : { top: r.bottom + 4 }),
+      left: r.left,
+      width: r.width,
+      maxHeight,
+    });
   }, []);
 
   const filtered = options.filter(
@@ -241,7 +269,9 @@ export function Combobox({
             // input's bounding rect via fixed positioning.
             style={{
               position: 'fixed',
+              // Exactly one of these is set — see updateDropdownPos.
               top: dropdownPos.top,
+              bottom: dropdownPos.bottom,
               left: dropdownPos.left,
               width: dropdownPos.width,
               maxHeight: dropdownPos.maxHeight,

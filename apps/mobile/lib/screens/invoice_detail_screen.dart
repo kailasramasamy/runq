@@ -21,6 +21,7 @@ import '../widgets/reminder_channel_sheet.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
+import 'inventory/widgets/shortfall_flow.dart';
 import '../widgets/swipe_action.dart' show showPaymentMethodSheet;
 
 class InvoiceDetailScreen extends ConsumerWidget {
@@ -761,15 +762,26 @@ class _StickyFooterState extends ConsumerState<_StickyFooter> {
     try {
       // WhatsApp pings the customer; the invoice mail with the PDF attached
       // goes out alongside it, which is the copy they actually file.
-      final email = await invoicesRepo.send(widget.invoice.id, channel: 'whatsapp');
+      final sent = await invoicesRepo.send(widget.invoice.id, channel: 'whatsapp');
+      if (!mounted) return;
+      widget.onChange();
+      // Auto-dispatch has already met the shelf by now. If it came up short,
+      // ask here — the person who just billed it is the one who can decide.
+      //
+      // The shortage is asked first and the send confirmation waits behind it.
+      // Reporting delivery immediately put a toast over the sheet's primary
+      // action, which read as though the email were part of the decision.
+      final dispatch = sent.dispatch;
+      if (dispatch != null && mounted) {
+        await runShortfallFlow(context, ref, dispatch, invoiceId: widget.invoice.id);
+      }
       if (!mounted) return;
       reportInvoiceSendOutcome(
         context,
-        email,
+        sent.email,
         invoiceNumber: widget.invoice.invoiceNumber,
         customerName: widget.invoice.customerName,
       );
-      widget.onChange();
     } on ApiException catch (e) {
       if (!mounted) return;
       showRunqSnack(context, e.message, kind: SnackKind.error);

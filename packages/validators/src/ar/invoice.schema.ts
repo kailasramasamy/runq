@@ -4,6 +4,16 @@ import { hsnSacCodeSchema } from '../common/hsn.schema';
 const taxCategorySchema = z.enum(['taxable', 'exempt', 'nil_rated', 'zero_rated', 'reverse_charge']);
 
 const invoiceItemSchema = z.object({
+  /**
+   * The existing line this input refers to, on an amendment.
+   *
+   * Delivery-note lines carry a foreign key to `sales_invoice_items.id`, so an
+   * amendment has to keep the surviving rows rather than swap them for fresh
+   * ones. Sending the id makes that matching exact; without it the server
+   * falls back to matching on content, which is right for the ordinary cases
+   * but cannot tell two identical lines apart.
+   */
+  id: z.string().uuid().nullish(),
   itemId: z.string().uuid().nullish(),
   description: z.string().min(1).max(500),
   uom: z.string().max(20).nullish(),

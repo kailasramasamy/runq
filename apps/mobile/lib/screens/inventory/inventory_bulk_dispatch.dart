@@ -88,7 +88,12 @@ Future<bool> runBulkDispatch(
   progress.dispose();
   cancelled.dispose();
 
-  if (result.shipped > 0) ref.invalidate(invPendingDispatchProvider);
+  if (result.shipped > 0) {
+    ref.invalidate(invPendingDispatchProvider);
+    // A bulk run is the likeliest source of new shortfalls.
+    ref.invalidate(invShortageCountProvider);
+    ref.invalidate(invShortagesProvider);
+  }
   if (context.mounted) {
     await _report(context, result, problems, fatal: fatal);
   }

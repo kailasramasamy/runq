@@ -17,7 +17,7 @@ import type { Db } from '@runq/db';
 import {
   stockLedger, warehouses, users,
   inventoryGrns, vendors, purchaseOrdersV2, purchaseInvoices,
-  deliveryNotes, customers, salesInvoices,
+  deliveryNotes, deliveryNoteLines, customers, salesInvoices, items,
   inventoryTransfers, inventoryAdjustments, inventoryStockTakes,
   workOrders, boms, woConsumption, woOutput, mfgReclaims,
   mpConsignments,
@@ -49,6 +49,16 @@ export interface MovementDoc extends MovementDocRef {
   note: string | null;
   /** Secondary document worth linking to — invoice for a DN, PO/bill for a GRN. */
   ref: MovementDocRef | null;
+  /**
+   * The item this movement went out *in place of*, when it was a substitution.
+   *
+   * Without it a stand-in reads as an ordinary sale of itself. Fourteen A2
+   * pouches leaving to cover a Farm Fresh order look, on A2's movement trail,
+   * exactly like fourteen A2 pouches being sold — which then distorts every
+   * reading of what A2 actually sells, and leaves the person auditing a
+   * discrepancy with no way to tell the two apart.
+   */
+  substitutedFor?: string | null;
 }
 
 type DocMap = Map<string, MovementDoc>;
@@ -113,7 +123,7 @@ export class ItemMovementAuditService {
 
     const hasMore = rows.length > filter.limit;
     const page = hasMore ? rows.slice(0, filter.limit) : rows;
-    const docs = await this.resolveDocs(page.map((r) => r.l));
+    const docs = await this.resolveDocs(page.map((r) => r.l), itemId);
 
     return {
       hasMore,
@@ -151,7 +161,10 @@ export class ItemMovementAuditService {
    * Batch-resolve every (source_type, source_id) on the page. Keys are
    * "<sourceType>|<sourceId>" so a reversal and its original never collide.
    */
-  private async resolveDocs(rows: Array<{ sourceType: string; sourceId: string }>): Promise<DocMap> {
+  private async resolveDocs(
+    rows: Array<{ sourceType: string; sourceId: string }>,
+    itemId: string,
+  ): Promise<DocMap> {
     const byType = new Map<string, string[]>();
     for (const r of rows) {
       const ids = byType.get(r.sourceType);
@@ -172,8 +185,8 @@ export class ItemMovementAuditService {
     };
 
     run('inventory_grn', (ids) => this.grnDocs(ids));
-    run('delivery_note', (ids) => this.dnDocs(ids));
-    run('sales_return', (ids) => this.dnDocs(ids));
+    run('delivery_note', (ids) => this.dnDocs(ids, itemId));
+    run('sales_return', (ids) => this.dnDocs(ids, itemId));
     run('inventory_transfer', (ids) => this.transferDocs(ids));
     run('inventory_adjustment', (ids) => this.adjustmentDocs(ids));
     run('inventory_stock_take', (ids) => this.stockTakeDocs(ids));
@@ -225,7 +238,8 @@ export class ItemMovementAuditService {
   }
 
   /** Dispatches and customer returns share the delivery-note document. */
-  private async dnDocs(ids: string[]): Promise<Array<[string, MovementDoc]>> {
+  private async dnDocs(ids: string[], itemId: string): Promise<Array<[string, MovementDoc]>> {
+    const substituted = await this.substitutionsOn(ids, itemId);
     const rows = await this.db
       .select({
         id: deliveryNotes.id,
@@ -250,10 +264,44 @@ export class ItemMovementAuditService {
       status: r.status,
       party: r.party ?? null,
       note: r.returnOfDnId ? 'Customer return' : null,
+      substitutedFor: substituted.get(r.id) ?? null,
       ref: r.invoiceId && r.invoiceNo
         ? { kind: 'invoice' as const, id: r.invoiceId, no: r.invoiceNo, label: 'Invoice' }
         : null,
     }]);
+  }
+
+  /**
+   * Which of these delivery notes shipped *this* item as a stand-in, and for
+   * what. Keyed by delivery note, since the trail is already scoped to one
+   * item — a note carrying the same item twice is not worth modelling.
+   */
+  private async substitutionsOn(
+    dnIds: string[],
+    itemId: string,
+  ): Promise<Map<string, string>> {
+    const replaced = alias(items, 'replaced_item');
+    const rows = await this.db
+      .select({
+        dnId: deliveryNoteLines.dnId,
+        name: replaced.name,
+        uom: replaced.unit,
+      })
+      .from(deliveryNoteLines)
+      .innerJoin(replaced, eq(replaced.id, deliveryNoteLines.substitutedForItemId))
+      .where(and(
+        eq(deliveryNoteLines.tenantId, this.tenantId),
+        eq(deliveryNoteLines.itemId, itemId),
+        inArray(deliveryNoteLines.dnId, dnIds),
+      ));
+
+    const out = new Map<string, string>();
+    for (const r of rows) {
+      // The pack size matters as much as the name: one product name covers
+      // several SKUs, and "in place of Farm Fresh Cow Milk" doesn't say which.
+      out.set(r.dnId, r.uom ? `${r.name} ${r.uom}` : r.name);
+    }
+    return out;
   }
 
   private async transferDocs(ids: string[]): Promise<Array<[string, MovementDoc]>> {

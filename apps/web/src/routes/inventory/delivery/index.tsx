@@ -1,13 +1,16 @@
 import { Link } from '@tanstack/react-router';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, Truck, Calendar, Clock, FileText, IndianRupee, Search } from 'lucide-react';
+import {
+  Plus, Truck, Calendar, Clock, FileText, IndianRupee, Search, PackageX,
+} from 'lucide-react';
 import {
   PageHeader, Button, Input, Table, TableHeader, TableBody, TableRow, TableCell, Th,
   TableSkeleton, EmptyState, Badge, Combobox,
 } from '@/components/ui';
 import { useDnList, useWarehouses, type DeliveryNote } from '@/hooks/queries/use-inventory';
-import { usePendingDispatches } from '@/hooks/queries/use-sales-dispatch';
+import { usePendingDispatches, useShortageCount } from '@/hooks/queries/use-sales-dispatch';
 import { PendingDispatchTab } from './_pending-tab';
+import { ShortagesTab } from './_shortages-tab';
 import { KpiStrip, formatInrShort } from '../_widgets';
 
 const STATUS_OPTIONS = [
@@ -17,7 +20,9 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-type Params = { q?: string; status?: string; warehouse?: string; tab?: string };
+type Params = {
+  q?: string; status?: string; warehouse?: string; tab?: string; coverable?: string;
+};
 
 /**
  * How far back the "Awaiting dispatch" queue looks by default. Tenants that
@@ -38,7 +43,9 @@ export function DeliveryListPage() {
   const q = params.q ?? '';
   const statusFilter = params.status ?? '';
   const warehouseFilter = params.warehouse ?? '';
-  const tab = params.tab === 'pending' ? 'pending' : 'dispatches';
+  const tab = params.tab === 'pending' || params.tab === 'shortages'
+    ? params.tab
+    : 'dispatches';
 
   function updateSearch(patch: Partial<Params>) {
     navigate({
@@ -60,6 +67,8 @@ export function DeliveryListPage() {
   const pendingFrom = queueFloor();
   const { data: pending } = usePendingDispatches({ from: pendingFrom, limit: 1 });
   const pendingCount = pending?.total ?? 0;
+  const { data: shortages } = useShortageCount();
+  const shortageCount = shortages?.open ?? 0;
 
   const ql = q.toLowerCase();
   const filtered = rows.filter((r) => {
@@ -102,17 +111,26 @@ export function DeliveryListPage() {
 
       <KpiStrip tiles={[
         { label: 'Awaiting dispatch', value: pendingCount, icon: Clock, tone: pendingCount > 0 ? 'warning' : 'muted' },
+        // Billed and not sent — a customer waiting, so it outranks the raw
+        // draft count it used to hide inside.
+        { label: 'Short', value: shortageCount, icon: PackageX, tone: shortageCount > 0 ? 'danger' : 'muted' },
         { label: 'Dispatched today', value: todayCount, icon: Calendar, tone: 'success', loading: isLoading },
         { label: 'Drafts', value: draftCount, icon: FileText, tone: draftCount > 0 ? 'warning' : 'muted', loading: isLoading },
         { label: 'MTD COGS', value: formatInrShort(monthCogs), icon: IndianRupee, loading: isLoading },
       ]} />
 
-      <div className="mb-3 flex gap-1 border-b" style={{ borderColor: 'var(--border-1)' }}>
+      <div className="mb-3 flex gap-1 border-b" style={{ borderColor: 'var(--border)' }}>
         <TabButton
           active={tab === 'pending'}
           onClick={() => updateSearch({ tab: 'pending' })}
           label="Awaiting dispatch"
           count={pendingCount}
+        />
+        <TabButton
+          active={tab === 'shortages'}
+          onClick={() => updateSearch({ tab: 'shortages' })}
+          label="Shortages"
+          count={shortageCount}
         />
         <TabButton
           active={tab === 'dispatches'}
@@ -123,6 +141,11 @@ export function DeliveryListPage() {
 
       {tab === 'pending' ? (
         <PendingDispatchTab from={pendingFrom} q={q || undefined} />
+      ) : tab === 'shortages' ? (
+        <ShortagesTab
+          coverableOnly={params.coverable === '1'}
+          onToggleCoverable={(v) => updateSearch({ coverable: v ? '1' : undefined })}
+        />
       ) : (
         <DispatchesTab
           rows={filtered}

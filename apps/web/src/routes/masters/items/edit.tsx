@@ -11,6 +11,7 @@ import {
 } from '@/components/ui';
 import { useItem, useDeleteItem } from '@/hooks/queries/use-items';
 import { ItemForm } from './item-form';
+import { SubstitutesCard } from './substitutes-card';
 
 export function ItemEditPage({
   itemId,
@@ -187,6 +188,12 @@ export function ItemEditPage({
           />
         </CardContent>
       </Card>
+
+      {/* Only on a saved, stocked item: substitutes are a relationship
+          between two existing items, with their own endpoint. */}
+      {!isCreate && item!.trackInventory && (
+        <SubstitutesCard itemId={item!.id} itemName={item!.name} />
+      )}
 
       <ConfirmationDialog
         open={confirmingDelete}

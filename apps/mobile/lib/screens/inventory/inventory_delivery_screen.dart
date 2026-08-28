@@ -101,6 +101,7 @@ class _State extends ConsumerState<InventoryDeliveryScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _Stats(all: list)),
+                const SliverToBoxAdapter(child: _ShortagesBanner()),
                 const SliverToBoxAdapter(child: _AwaitingDispatchBanner()),
                 SliverToBoxAdapter(child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -139,6 +140,44 @@ class _State extends ConsumerState<InventoryDeliveryScreen> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Goods billed and not sent. Sits above the dispatch queue because it is a
+/// customer already waiting, not work merely scheduled — and hides itself
+/// when there is none, like every other banner here.
+class _ShortagesBanner extends ConsumerWidget {
+  const _ShortagesBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(invShortageCountProvider).valueOrNull ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    final t = RT(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: InvCard(
+        onTap: () => context.push('/inventory/shortages'),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, size: 18, color: InvColors.error),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$count line${count == 1 ? '' : 's'} billed but not sent',
+                      style: RunqText.bodyStrong),
+                  Text('Cover from stock, or send a substitute',
+                      style: RunqText.caption.copyWith(color: t.muted)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: t.muted),
+          ],
         ),
       ),
     );

@@ -62,6 +62,9 @@ export function PendingDispatchTab({ from, q }: { from?: string; q?: string }) {
 
 function PendingRow({ row }: { row: PendingInvoice }) {
   const unmapped = row.lineCount - row.stockableCount;
+  // With auto-dispatch on, most rows are waiting on stock rather than on a
+  // person. Saying so stops the queue reading as a neglected backlog.
+  const short = row.shortLineCount;
   return (
     <TableRow>
       <TableCell className="font-mono">{row.invoiceNumber}</TableCell>
@@ -72,14 +75,19 @@ function PendingRow({ row }: { row: PendingInvoice }) {
           <span className="text-[12px]">{row.stockableCount} of {row.lineCount} stockable</span>
           {unmapped > 0 && <Badge variant="warning">{unmapped} unmapped</Badge>}
           {row.dispatchedCount > 0 && <Badge variant="default">Part sent</Badge>}
-          {row.openDraftDnId && <Badge variant="default">Draft open</Badge>}
+          {short > 0 && <Badge variant="danger">{short} short — waiting on stock</Badge>}
+          {row.openDraftDnId && short === 0 && <Badge variant="default">Draft open</Badge>}
         </div>
       </TableCell>
       <TableCell className="text-right tabular-nums">
         ₹{Number(row.totalAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
       </TableCell>
       <TableCell className="text-right">
-        {row.openDraftDnId ? (
+        {short > 0 ? (
+          <Link to="/inventory/delivery" search={{ tab: 'shortages' }}>
+            <Button variant="secondary" className="h-7 px-2 text-[12px]">View shortage</Button>
+          </Link>
+        ) : row.openDraftDnId ? (
           <Link to="/inventory/delivery/$id" params={{ id: row.openDraftDnId }}>
             <Button variant="secondary" className="h-7 px-2 text-[12px]">Open draft</Button>
           </Link>

@@ -25,11 +25,14 @@ import { nextDocNo } from './sequence';
 import {
   RESOLVED_ITEM_JOIN, dispatchedQtyFor, committedQtyFor,
   hasUndispatchedLines, stockableLineCount, repackCapacityJoin,
+  shortfallLineCount,
 } from './sales-dispatch.sql';
 import {
   dispatchStatus, isStockable, overCommitMessage, remainingQty, resolveLine,
 } from './sales-dispatch.logic';
 import type { LineResolution } from './sales-dispatch.logic';
+import { SubstitutionService } from './substitution.service';
+import type { BilledContext, SubstituteOption } from './substitution.service';
 
 interface Ctx { db: Db; tenantId: string; userId?: string }
 
@@ -62,6 +65,12 @@ export interface PreviewLine {
    * shipped. Null for ordinary items.
    */
   repackFrom: { poolItemName: string; capacityQty: number } | null;
+  /**
+   * Declared stand-ins with stock on the shelf, each already scored against
+   * what this line billed — so the picker can grey out the ones that would
+   * misdescribe the invoice instead of failing on submit.
+   */
+  substitutes: SubstituteOption[];
 }
 
 export class SalesDispatchService {
@@ -97,6 +106,7 @@ export class SalesDispatchService {
         lineCount: Number(r.lineCount ?? 0),
         stockableCount: Number(r.stockableCount ?? 0),
         dispatchedCount: Number(r.dispatchedCount ?? 0),
+        shortLineCount: Number(r.shortLineCount ?? 0),
       })),
       page: filter.page,
       limit: filter.limit,
@@ -171,6 +181,7 @@ export class SalesDispatchService {
           WHERE ${salesInvoiceItems.invoiceId} = ${salesInvoices.id}
         )`.as('line_count'),
         stockableCount: stockableLineCount(sql`${salesInvoices.id}`).as('stockable_count'),
+        shortLineCount: shortfallLineCount(sql`${salesInvoices.id}`).as('short_line_count'),
         dispatchedCount: sql<number>`(
           SELECT COUNT(DISTINCT l.invoice_line_id)::int
           FROM delivery_note_lines l
@@ -201,6 +212,7 @@ export class SalesDispatchService {
     const raw = await this.previewRows(invoiceId, warehouseId);
     const lines: PreviewLine[] = [];
     for (const r of raw) lines.push(await this.toPreviewLine(r, warehouseId));
+    await this.attachSubstitutes(lines, raw, warehouseId);
     return { invoice: inv, lines };
   }
 
@@ -233,6 +245,11 @@ export class SalesDispatchService {
         sii.quantity::text AS invoiced_qty,
         sii.uom            AS invoice_uom,
         sii.item_id        AS direct_item_id,
+        -- See SubstitutionService.billedLines: the line's own tax fields are
+        -- absent on invoices raised from mobile, so the item master stands in.
+        COALESCE(sii.hsn_sac_code, i.hsn_sac_code) AS hsn_sac_code,
+        COALESCE(sii.tax_rate, i.gst_rate)::text   AS tax_rate,
+        sii.unit_price::text AS unit_price,
         i.id               AS item_id,
         i.name             AS item_name,
         i.sku              AS item_sku,
@@ -256,6 +273,31 @@ export class SalesDispatchService {
       ORDER BY sii.created_at ASC
     `);
     return (result as unknown as { rows: Row[] }).rows;
+  }
+
+  /**
+   * Hang the stand-in options off the lines that could use one.
+   *
+   * Only lines still owing goods are asked about: a fully-sent line has no
+   * decision left to make, and every item added here costs a stock lookup.
+   */
+  private async attachSubstitutes(lines: PreviewLine[], raw: Row[], warehouseId: string) {
+    const billed = new Map<string, BilledContext>();
+    for (const r of raw) {
+      const line = lines.find((l) => l.invoiceLineId === r.invoice_line_id);
+      if (!line?.itemId || line.remainingQty <= 0) continue;
+      billed.set(line.itemId, {
+        itemId: line.itemId,
+        itemName: line.itemName ?? line.description,
+        hsnSacCode: r.hsn_sac_code ?? null,
+        taxRate: r.tax_rate === null || r.tax_rate === undefined ? null : Number(r.tax_rate),
+        unitPrice: Number(r.unit_price ?? 0),
+      });
+    }
+    const options = await new SubstitutionService(this.ctx).optionsFor(billed, warehouseId);
+    for (const line of lines) {
+      line.substitutes = (line.itemId && options.get(line.itemId)) || [];
+    }
   }
 
   private async toPreviewLine(r: Row, warehouseId: string): Promise<PreviewLine> {
@@ -290,6 +332,9 @@ export class SalesDispatchService {
           capacityQty: Math.floor(Number(r.repack_capacity_qty ?? 0)),
         }
         : null,
+      // Filled by attachSubstitutes once every line is known — the lookup is
+      // batched across the invoice rather than run per line.
+      substitutes: [],
     };
   }
 
@@ -298,7 +343,11 @@ export class SalesDispatchService {
    * follows with the normal dispatch call, so a shortage leaves an editable
    * draft rather than a half-posted ledger.
    */
-  async createFromInvoice(invoiceId: string, input: DispatchFromInvoiceInput) {
+  async createFromInvoice(
+    invoiceId: string,
+    input: DispatchFromInvoiceInput,
+    opts?: { isShortfall?: boolean },
+  ) {
     return this.ctx.db.transaction(async (tx: Tx) => {
       const [inv] = await tx
         .select({
@@ -315,6 +364,9 @@ export class SalesDispatchService {
         throw new ConflictError(`Invoice is ${inv.status} — nothing to dispatch`);
       }
       await this.assertWithinRemaining(tx, invoiceId, input.lines);
+      // Before any row is written: a line whose item isn't the billed one is
+      // either a declared, tax-neutral substitution or a mistake.
+      await new SubstitutionService(this.ctx).assertValid(tx, invoiceId, input.lines);
 
       const dnNo = await nextDocNo(tx, this.ctx.tenantId, 'DN');
       const [dn] = await tx
@@ -329,6 +381,7 @@ export class SalesDispatchService {
           vehicleNo: input.vehicleNo ?? null,
           lrNo: input.lrNo ?? null,
           notes: input.notes ?? `Against invoice ${inv.invoiceNumber}`,
+          isShortfall: opts?.isShortfall ?? false,
           createdBy: this.ctx.userId ?? null,
         })
         .returning();
@@ -342,6 +395,8 @@ export class SalesDispatchService {
           batchNo: l.batchNo ?? null,
           qty: String(l.qty),
           uom: l.uom ?? null,
+          substitutedForItemId: l.substitutedForItemId ?? null,
+          substitutionNote: l.substitutionNote ?? null,
         })),
       );
       return dn!;

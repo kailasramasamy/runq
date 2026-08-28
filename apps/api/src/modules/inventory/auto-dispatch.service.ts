@@ -28,6 +28,8 @@ import type { PreviewLine } from './sales-dispatch.service';
 import type { SplitLine } from './auto-dispatch.logic';
 import { shortfallReason, splitByAvailability } from './auto-dispatch.logic';
 import { DeliveryNoteService } from './delivery.service';
+import { StockAlertNotifier } from './stock-alert-notifier';
+import type { PendingShortfall } from './stock-alert-notifier';
 
 interface Ctx { db: Db; tenantId: string; userId?: string }
 
@@ -37,6 +39,13 @@ export interface DispatchShortfall {
   dnNo: string;
   lineCount: number;
   reason: string;
+  /**
+   * What is owed, so the caller can name it without re-reading the draft.
+   * The uom rides along because the same product name covers several SKUs —
+   * "Farm Fresh Cow Milk" is both the 500ml pouch and the 1L — and a shortage
+   * that doesn't say which one is not actionable.
+   */
+  items: Array<{ itemName: string; qty: number; uom: string | null }>;
 }
 
 /** What auto-dispatch did, for the caller to report back to the user. */
@@ -50,6 +59,14 @@ export type AutoDispatchOutcome =
     lineCount: number;
     shortfall?: DispatchShortfall;
   }
+  /**
+   * The warehouse could cover none of it. Distinct from `failed` on purpose:
+   * nothing went wrong, the shelf was simply empty, and the caller's next move
+   * is to offer a substitute rather than to report an error. Folding this into
+   * `failed` made a routine 4am shortage look like a bug and left clients with
+   * no item detail to put in front of the operator.
+   */
+  | { status: 'shortfall'; dnId: string; dnNo: string; shortfall: DispatchShortfall }
   | { status: 'failed'; reason: string; dnId?: string; dnNo?: string };
 
 /** How a hand-driven run should date and address its delivery notes. */
@@ -67,6 +84,13 @@ export interface BulkDispatchResult {
 }
 
 export class AutoDispatchService {
+  /**
+   * Shortfalls seen since the last notify. A bulk run clearing a backlog can
+   * turn up dozens; twenty pushes in a row is how people learn to swipe the
+   * app away, so they are collected and sent as one.
+   */
+  private pendingShortfalls: PendingShortfall[] = [];
+
   constructor(private readonly ctx: Ctx) {}
 
   /**
@@ -94,7 +118,14 @@ export class AutoDispatchService {
         };
       }
 
-      return await this.dispatchInvoice(invoiceId, warehouseId, { dateMode: 'today' });
+      const outcome = await this.dispatchInvoice(invoiceId, warehouseId, { dateMode: 'today' });
+      // Deliberately no notification. This runs as an invoice is issued, so
+      // the person who caused the shortage is looking at the screen and is
+      // about to be asked about it directly — a push telling them what they
+      // just did is noise. The bulk lane still notifies: nobody is watching a
+      // backlog being cleared.
+      this.pendingShortfalls = [];
+      return outcome;
     } catch (err) {
       return { status: 'failed', reason: messageOf(err) };
     }
@@ -147,7 +178,35 @@ export class AutoDispatchService {
     for (const invoiceId of invoiceIds) {
       out.push({ invoiceId, outcome: await this.dispatchOne(invoiceId, opts) });
     }
+    await this.notifyShortfalls();
     return out;
+  }
+
+  /**
+   * Best-effort by design: the goods have already moved and the drafts are
+   * already parked. A notification service having a bad day is not a reason
+   * to report a dispatch as failed.
+   */
+  private queueShortfalls(short: SplitLine<PreviewLine>[], customerName: string | null): void {
+    for (const s of short) {
+      this.pendingShortfalls.push({
+        itemName: s.line.itemName ?? s.line.description,
+        qty: s.qty,
+        uom: s.line.uom ?? null,
+        customerName,
+      });
+    }
+  }
+
+  private async notifyShortfalls(): Promise<void> {
+    const rows = this.pendingShortfalls;
+    this.pendingShortfalls = [];
+    if (rows.length === 0) return;
+    try {
+      await new StockAlertNotifier(this.ctx.db, this.ctx.tenantId).sendShortfallDigest(rows);
+    } catch {
+      // Swallowed on purpose — see above.
+    }
   }
 
   // ─── Internals ──────────────────────────────────────────────────────────
@@ -174,10 +233,26 @@ export class AutoDispatchService {
 
     const at = { warehouseId, dispatchDate: dispatchDateFor(opts, invoice.invoiceDate) };
     const { ready, short } = splitByAvailability(shippable);
+    // Queued whether or not the draft below survives: what makes this worth
+    // telling someone is the goods being owed, not the paperwork landing.
+    this.queueShortfalls(short, invoice.customerName);
 
     if (ready.length === 0) {
-      const draft = await this.raiseDn(dispatch, invoiceId, { ...at, lines: short, notes: SHORTFALL_NOTE });
-      return { status: 'failed', reason: shortfallReason(short), dnId: draft.id, dnNo: draft.dnNo };
+      const draft = await this.raiseDn(dispatch, invoiceId, {
+        ...at, lines: short, notes: SHORTFALL_NOTE, isShortfall: true,
+      });
+      return {
+        status: 'shortfall',
+        dnId: draft.id,
+        dnNo: draft.dnNo,
+        shortfall: {
+          dnId: draft.id,
+          dnNo: draft.dnNo,
+          lineCount: short.length,
+          reason: shortfallReason(short),
+          items: shortfallItems(short),
+        },
+      };
     }
 
     const dn = await this.raiseDn(dispatch, invoiceId, {
@@ -215,12 +290,15 @@ export class AutoDispatchService {
     short: SplitLine<PreviewLine>[],
   ): Promise<DispatchShortfall | undefined> {
     try {
-      const draft = await this.raiseDn(dispatch, invoiceId, { ...at, lines: short, notes: SHORTFALL_NOTE });
+      const draft = await this.raiseDn(dispatch, invoiceId, {
+        ...at, lines: short, notes: SHORTFALL_NOTE, isShortfall: true,
+      });
       return {
         dnId: draft.id,
         dnNo: draft.dnNo,
         lineCount: short.length,
         reason: shortfallReason(short),
+        items: shortfallItems(short),
       };
     } catch {
       return undefined;
@@ -230,7 +308,9 @@ export class AutoDispatchService {
   private raiseDn(
     dispatch: SalesDispatchService,
     invoiceId: string,
-    opts: DispatchTarget & { lines: SplitLine<PreviewLine>[]; notes: string },
+    opts: DispatchTarget & {
+      lines: SplitLine<PreviewLine>[]; notes: string; isShortfall?: boolean;
+    },
   ) {
     return dispatch.createFromInvoice(invoiceId, {
       warehouseId: opts.warehouseId,
@@ -247,7 +327,7 @@ export class AutoDispatchService {
         batchNo: qty === line.remainingQty ? line.suggestedBatchNo ?? null : null,
         uom: line.uom ?? null,
       })),
-    });
+    }, { isShortfall: opts.isShortfall ?? false });
   }
 
   private async isEnabled(): Promise<boolean> {
@@ -290,6 +370,17 @@ export class AutoDispatchService {
     if (flagged) return flagged.id;
     return rows.length === 1 ? rows[0]!.id : null;
   }
+}
+
+/** The owed quantities, named — what a toast or a push has room to say. */
+function shortfallItems(
+  short: SplitLine<PreviewLine>[],
+): Array<{ itemName: string; qty: number; uom: string | null }> {
+  return short.map((s) => ({
+    itemName: s.line.itemName ?? s.line.description,
+    qty: s.qty,
+    uom: s.line.uom ?? null,
+  }));
 }
 
 function messageOf(err: unknown): string {

@@ -50,7 +50,8 @@ class InvNeedsAttention extends ConsumerWidget {
     final t = RT(context);
     // `total`, not `rows.length` — the queue request is capped at 100 rows.
     final pending = ref.watch(invPendingDispatchProvider).valueOrNull?.total;
-    final items = _items(context, t, pending);
+    final shortages = ref.watch(invShortageCountProvider).valueOrNull ?? 0;
+    final items = _items(context, t, pending, shortages);
 
     return Column(
       children: [
@@ -82,8 +83,17 @@ class InvNeedsAttention extends ConsumerWidget {
 
   /// Exceptions appear only when they exist — a list of zeroes trains the eye
   /// to skip the section, so an all-clear collapses to a single row.
-  List<_AttentionItem> _items(BuildContext context, RunqTokens t, int? pending) {
-    final exceptions = [..._stockExceptions(t), ..._queueExceptions()];
+  List<_AttentionItem> _items(
+    BuildContext context,
+    RunqTokens t,
+    int? pending,
+    int shortages,
+  ) {
+    final exceptions = [
+      ..._shortageException(shortages),
+      ..._stockExceptions(t),
+      ..._queueExceptions(),
+    ];
     return [
       _AttentionItem(
         icon: Icons.pending_actions_outlined,
@@ -110,6 +120,19 @@ class InvNeedsAttention extends ConsumerWidget {
         ),
     ];
   }
+
+  /// Billed and not sent — the sharpest exception on this screen, because
+  /// unlike a low-stock warning there is a customer already short.
+  List<_AttentionItem> _shortageException(int shortages) => [
+        if (shortages > 0)
+          _AttentionItem(
+            icon: Icons.error_outline,
+            color: InvColors.error,
+            label: shortages == 1 ? 'Line billed not sent' : 'Lines billed not sent',
+            value: '$shortages',
+            route: '/inventory/shortages',
+          ),
+      ];
 
   /// What is wrong with stock levels themselves.
   List<_AttentionItem> _stockExceptions(RunqTokens t) => [

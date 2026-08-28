@@ -45,6 +45,11 @@ class InvMovementDoc extends InvMovementDocRef {
   final String? status;
   final String? party;
   final String? note;
+
+  /// The item this movement went out *in place of*, when it was a
+  /// substitution. Without it a stand-in reads as an ordinary sale of itself,
+  /// and the trail can't be told apart from real demand for this SKU.
+  final String? substitutedFor;
   final InvMovementDocRef? ref;
 
   const InvMovementDoc({
@@ -56,6 +61,7 @@ class InvMovementDoc extends InvMovementDocRef {
     this.status,
     this.party,
     this.note,
+    this.substitutedFor,
     this.ref,
   });
 
@@ -68,6 +74,7 @@ class InvMovementDoc extends InvMovementDocRef {
     status: j['status'] as String?,
     party: j['party'] as String?,
     note: j['note'] as String?,
+    substitutedFor: j['substitutedFor'] as String?,
     ref: j['ref'] == null
         ? null
         : InvMovementDocRef.fromJson(j['ref'] as Map<String, dynamic>),

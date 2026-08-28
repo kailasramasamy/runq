@@ -1,9 +1,9 @@
-import { eq, and, sql, gte, lte, inArray, notInArray, desc } from 'drizzle-orm';
+import { eq, and, sql, gte, lte, inArray, notInArray, desc, asc } from 'drizzle-orm';
 import {
   salesInvoices, salesInvoiceItems, customers, invoiceSequences, tenants,
   paymentReceipts, receiptAllocations, bankAccounts, items,
   creditNotes, collectionAssignments, dunningLog, journalEntries, poDrafts,
-  gstReturns, gstReturnInvoices,
+  gstReturns, gstReturnInvoices, deliveryNotes, deliveryNoteLines,
 } from '@runq/db';
 import { CreditNoteService } from './credit-note.service';
 import type { CreateCreditNoteInput } from '@runq/validators';
@@ -72,6 +72,8 @@ interface TenantSettings {
   invoiceSequencePadding?: number;
   financialYearStartMonth?: number;
 }
+
+import { isInFiledReturn as isInFiledReturnShared } from './invoice-guards';
 
 export class InvoiceService {
   constructor(
@@ -633,7 +635,7 @@ export class InvoiceService {
         .where(and(eq(salesInvoices.id, id), eq(salesInvoices.tenantId, this.tenantId)));
 
       if (input.items && input.items.length > 0 && gst) {
-        await this.replaceLineItemsWithGst(tx, id, input.items, gst.itemTaxes);
+        await this.syncLineItemsWithGst(tx, id, input.items, gst.itemTaxes);
       }
 
       // Amending a sent invoice: tear down the old GL posting and post a
@@ -826,18 +828,8 @@ export class InvoiceService {
    * already been filed with GSTN. Used as a guard by update/hardDelete to
    * force the caller into the CN/DN/void flow.
    */
-  private async isInFiledReturn(invoiceId: string): Promise<boolean> {
-    const [row] = await this.db
-      .select({ id: gstReturnInvoices.id })
-      .from(gstReturnInvoices)
-      .innerJoin(gstReturns, eq(gstReturns.id, gstReturnInvoices.returnId))
-      .where(and(
-        eq(gstReturnInvoices.tenantId, this.tenantId),
-        eq(gstReturnInvoices.invoiceId, invoiceId),
-        eq(gstReturns.status, 'filed'),
-      ))
-      .limit(1);
-    return !!row;
+  private isInFiledReturn(invoiceId: string): Promise<boolean> {
+    return isInFiledReturnShared(this.db, this.tenantId, invoiceId);
   }
 
   /**
@@ -1040,6 +1032,8 @@ export class InvoiceService {
     skipped: { id: string; reason: string }[];
     dispatched?: number;
     dispatchFailed?: number;
+    /** Invoices whose goods were entirely out of stock — parked, not broken. */
+    dispatchShort?: number;
   }> {
     const allowedFrom: SalesInvoiceStatus = 'draft';
     const skipped: { id: string; reason: string }[] = [];
@@ -1080,6 +1074,11 @@ export class InvoiceService {
       skipped,
       dispatched: outcomes.filter((o) => o.status === 'dispatched').length,
       dispatchFailed: outcomes.filter((o) => o.status === 'failed').length,
+      // Counted separately from failures: an empty shelf is a known outcome
+      // with a parked draft behind it, not a run that broke. Before this was
+      // split out it was reported as a failure; after the split it was
+      // reported as nothing at all.
+      dispatchShort: outcomes.filter((o) => o.status === 'shortfall').length,
     };
   }
 
@@ -1104,21 +1103,29 @@ export class InvoiceService {
 
     // The channel picks how the customer is pinged; `sendEmail` is a separate
     // opt-in for the invoice mail itself, so a WhatsApp send can still put the
-    // PDF in their inbox. Email is awaited — the caller gets told whether it
-    // actually left — while WhatsApp stays fire-and-forget.
-    let email: InvoiceEmailResult | undefined;
+    // PDF in their inbox. WhatsApp is fire-and-forget.
     if (input.channel === 'whatsapp') {
       void this.sendInvoiceWhatsApp(invoice, existing.customerId, existing.customerName, input.whatsappTo);
     }
-    if (input.sendEmail) {
-      email = await this.sendInvoiceEmail(id, invoice, existing.customerId, existing.customerName, input);
-    }
 
-    // Awaited too: the operator needs to know whether
-    // the goods moved before they walk away from the screen. The invoice is
-    // already committed, and runForInvoice never throws, so a warehouse problem
-    // can only downgrade the message — never the billing document.
+    // Dispatch first, and awaited: the operator is standing on the screen
+    // waiting to learn whether the goods moved, and a shortage needs an answer
+    // from them right now. The invoice is already committed and runForInvoice
+    // never throws, so a warehouse problem can only downgrade the message —
+    // never the billing document.
     const autoDispatch = await this.autoDispatch(userId).runForInvoice(id);
+
+    // Email last, and only the cheap half of it is awaited.
+    //
+    // Rendering the PDF and handing it to SMTP took the best part of two
+    // seconds, and every one of them was spent with the operator watching a
+    // spinner over work whose result they cannot act on. What they *can* act
+    // on — "this customer has no email address on file" — is a database read.
+    // So the recipients are resolved now and the delivery is left running.
+    let email: InvoiceEmailResult | undefined;
+    if (input.sendEmail) {
+      email = await this.queueInvoiceEmail(id, invoice, existing.customerId, existing.customerName, input);
+    }
     return {
       ...invoice,
       ...(autoDispatch.status === 'off' ? {} : { autoDispatch }),
@@ -1185,6 +1192,45 @@ export class InvoiceService {
       .where(eq(customers.id, customerId))
       .limit(1);
     return row?.phone ?? null;
+  }
+
+  /**
+   * Resolve who the invoice is going to, then let the sending happen behind
+   * the response.
+   *
+   * The split is deliberate: everything the caller can do something about is
+   * decided here — no address on file is a real answer, delivered instantly —
+   * while the PDF render and the SMTP round trip, which the operator can only
+   * wait on, run on their own. A failure after this point surfaces in the
+   * server log rather than the toast, which is the trade for a send that
+   * returns in the time the invoice actually took.
+   */
+  private async queueInvoiceEmail(
+    invoiceId: string,
+    invoice: SalesInvoice,
+    customerId: string,
+    customerName: string,
+    input: SendInvoiceInput,
+  ): Promise<InvoiceEmailResult> {
+    const [customer] = await this.db
+      .select({ email: customers.email, ccEmail: customers.ccEmail })
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, this.tenantId)))
+      .limit(1);
+
+    const to = parseEmails(input.emailTo ?? customer?.email);
+    if (to.length === 0) {
+      return { sent: false, to: [], attached: false, reason: 'No email address on file for this customer' };
+    }
+
+    void this.sendInvoiceEmail(invoiceId, invoice, customerId, customerName, input)
+      .catch((err) => {
+        // Nothing is left to unwind — the invoice is issued and the goods have
+        // moved. Logged loudly so a persistently broken mailer is findable.
+        console.error(`[invoice ${invoice.invoiceNumber}] email failed`, err);
+      });
+
+    return { sent: true, to, attached: input.attachPdf ?? false, reason: 'sending in the background' };
   }
 
   private async sendInvoiceEmail(
@@ -1529,44 +1575,139 @@ export class InvoiceService {
    * an invoice doesn't silently zero out the line-level GST breakdown that
    * the print template + HSN summary depend on.
    */
-  private async replaceLineItemsWithGst(
+  /**
+   * Bring the stored line items in line with an amendment, in place.
+   *
+   * This used to delete every row and insert the new set, which is simpler and
+   * was fine until dispatch tracking existed. `delivery_note_lines` carries a
+   * foreign key to `sales_invoice_items.id`, so once any delivery note has
+   * been raised against an invoice, dropping its lines either fails outright
+   * or — without the constraint — would quietly sever the record of which
+   * goods settled which billed line.
+   *
+   * So rows are matched and updated instead. An amendment sends `id` for the
+   * lines it is carrying forward; where it doesn't, lines are matched on
+   * content, which handles the ordinary "same items, changed quantity" edit
+   * and only gets ambiguous between two genuinely identical lines.
+   *
+   * Removing a line that goods have already gone out against is refused
+   * rather than forced — the dispatch happened, and an invoice that no longer
+   * mentions it cannot explain the stock that left.
+   */
+  private async syncLineItemsWithGst(
     tx: AnyTx,
     invoiceId: string,
     items: NonNullable<UpdateSalesInvoiceInput['items']>,
     itemTaxes: TaxBreakdown[],
   ): Promise<void> {
-    await tx
-      .delete(salesInvoiceItems)
-      .where(and(eq(salesInvoiceItems.invoiceId, invoiceId), eq(salesInvoiceItems.tenantId, this.tenantId)));
+    const existing = await tx
+      .select()
+      .from(salesInvoiceItems)
+      .where(and(
+        eq(salesInvoiceItems.invoiceId, invoiceId),
+        eq(salesInvoiceItems.tenantId, this.tenantId),
+      ))
+      .orderBy(asc(salesInvoiceItems.createdAt));
 
-    await tx.insert(salesInvoiceItems).values(
-      items.map((item, i) => {
-        const tax = itemTaxes[i]!;
-        const pack = item.itemId ? null : defaultPackSize(item.hsnSacCode, item.uom);
-        return {
-          tenantId: this.tenantId,
-          invoiceId,
-          itemId: item.itemId ?? null,
-          description: item.description!,
-          uom: item.uom ?? null,
-          ...(pack ? { packSizeValue: String(pack.packSizeValue), packSizeUqc: pack.packSizeUqc } : {}),
-          quantity: String(item.quantity),
-          unitPrice: String(item.unitPrice),
-          amount: String(item.amount),
-          hsnSacCode: item.hsnSacCode ?? null,
-          taxCategory: (item.taxCategory as TaxCategory) ?? null,
-          taxRate: item.taxRate != null ? String(item.taxRate) : null,
-          cgstRate: String(tax.cgstRate),
-          cgstAmount: String(tax.cgstAmount),
-          sgstRate: String(tax.sgstRate),
-          sgstAmount: String(tax.sgstAmount),
-          igstRate: String(tax.igstRate),
-          igstAmount: String(tax.igstAmount),
-          cessRate: String(tax.cessRate),
-          cessAmount: String(tax.cessAmount),
-        };
-      }),
-    );
+    const unmatched = new Map(existing.map((r) => [r.id, r]));
+    const matched = matchLines(items, unmatched);
+    const pairs = items.map((item, i) => ({
+      item,
+      tax: itemTaxes[i]!,
+      existingId: matched[i],
+    }));
+
+    for (const { item, tax, existingId } of pairs) {
+      const values = this.lineItemValues(invoiceId, item, tax);
+      if (existingId) {
+        await tx
+          .update(salesInvoiceItems)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(salesInvoiceItems.id, existingId));
+      } else {
+        await tx.insert(salesInvoiceItems).values(values);
+      }
+    }
+
+    // Whatever the amendment no longer carries.
+    const dropped = [...unmatched.keys()];
+    if (dropped.length === 0) return;
+    await this.assertNotDispatched(tx, dropped, existing);
+    await tx.delete(salesInvoiceItems).where(inArray(salesInvoiceItems.id, dropped));
+  }
+
+  /**
+   * Refuse to drop a line that a delivery note points at. Draft notes are
+   * cleared out of the way first — they hold nothing but an intention, and
+   * the amendment supersedes it — while a dispatched one is a fact.
+   */
+  private async assertNotDispatched(
+    tx: AnyTx,
+    lineIds: string[],
+    existing: Array<{ id: string; description: string }>,
+  ): Promise<void> {
+    const refs = await tx
+      .select({
+        invoiceLineId: deliveryNoteLines.invoiceLineId,
+        dnNo: deliveryNotes.dnNo,
+        status: deliveryNotes.status,
+      })
+      .from(deliveryNoteLines)
+      .innerJoin(deliveryNotes, eq(deliveryNotes.id, deliveryNoteLines.dnId))
+      .where(and(
+        eq(deliveryNoteLines.tenantId, this.tenantId),
+        inArray(deliveryNoteLines.invoiceLineId, lineIds),
+      ));
+
+    const blocking = refs.find((r) => r.status === 'dispatched');
+    if (blocking) {
+      const line = existing.find((e) => e.id === blocking.invoiceLineId);
+      throw new ConflictError(
+        `Cannot remove "${line?.description ?? 'this line'}" — it was dispatched on `
+        + `${blocking.dnNo}. Record a sales return first, or issue a credit note.`,
+      );
+    }
+
+    const draftRefs = refs.filter((r) => r.status !== 'dispatched');
+    if (draftRefs.length > 0) {
+      await tx
+        .delete(deliveryNoteLines)
+        .where(inArray(
+          deliveryNoteLines.invoiceLineId,
+          draftRefs.map((r) => r.invoiceLineId!).filter(Boolean),
+        ));
+    }
+  }
+
+  /** One line's stored shape, shared by the insert and update paths. */
+  private lineItemValues(
+    invoiceId: string,
+    item: NonNullable<UpdateSalesInvoiceInput['items']>[number],
+    tax: TaxBreakdown,
+  ) {
+    const pack = item.itemId ? null : defaultPackSize(item.hsnSacCode, item.uom);
+    return {
+      tenantId: this.tenantId,
+      invoiceId,
+      itemId: item.itemId ?? null,
+      description: item.description!,
+      uom: item.uom ?? null,
+      ...(pack ? { packSizeValue: String(pack.packSizeValue), packSizeUqc: pack.packSizeUqc } : {}),
+      quantity: String(item.quantity),
+      unitPrice: String(item.unitPrice),
+      amount: String(item.amount),
+      hsnSacCode: item.hsnSacCode ?? null,
+      taxCategory: (item.taxCategory as TaxCategory) ?? null,
+      taxRate: item.taxRate != null ? String(item.taxRate) : null,
+      cgstRate: String(tax.cgstRate),
+      cgstAmount: String(tax.cgstAmount),
+      sgstRate: String(tax.sgstRate),
+      sgstAmount: String(tax.sgstAmount),
+      igstRate: String(tax.igstRate),
+      igstAmount: String(tax.igstAmount),
+      cessRate: String(tax.cessRate),
+      cessAmount: String(tax.cessAmount),
+    };
   }
 
   async summary(filters: SalesInvoiceFilter = {}): Promise<InvoiceSummary> {
@@ -1760,4 +1901,49 @@ export class InvoiceService {
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Pair each amended line with the stored row it refers to.
+ *
+ * Resolved in passes, strongest evidence first, because a greedy single pass
+ * lets a loose description match consume a row that a later exact match
+ * needed. An id beats a catalogue item, which beats matching wording.
+ *
+ * The description pass ignores whether the stored row had a catalogue item,
+ * which matters more than it sounds: the mobile amend form doesn't surface
+ * `itemId`, so every line it sends back looks ad-hoc. Without that leniency an
+ * ordinary mobile edit would look like "delete all lines, add new ones" and
+ * take the delivery-note links with it.
+ */
+export function matchLines(
+  items: Array<{ id?: string | null; itemId?: string | null; description?: string }>,
+  unmatched: Map<string, { id: string; itemId: string | null; description: string }>,
+): Array<string | null> {
+  const out: Array<string | null> = items.map(() => null);
+
+  const claim = (i: number, id: string) => { out[i] = id; unmatched.delete(id); };
+  const findBy = (pred: (row: { itemId: string | null; description: string }) => boolean) => {
+    for (const [id, row] of unmatched) if (pred(row)) return id;
+    return null;
+  };
+
+  // 1. Explicit ids. An id naming a row that no longer exists is treated as a
+  //    new line rather than silently rebound to someone else's row.
+  items.forEach((item, i) => {
+    if (item.id && unmatched.has(item.id)) claim(i, item.id);
+  });
+  // 2. Same catalogue item.
+  items.forEach((item, i) => {
+    if (out[i] || item.id || !item.itemId) return;
+    const id = findBy((row) => row.itemId === item.itemId);
+    if (id) claim(i, id);
+  });
+  // 3. Same wording.
+  items.forEach((item, i) => {
+    if (out[i] || item.id) return;
+    const id = findBy((row) => row.description === item.description);
+    if (id) claim(i, id);
+  });
+  return out;
 }

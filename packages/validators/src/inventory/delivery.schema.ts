@@ -11,6 +11,13 @@ export const dnLineInputSchema = z.object({
   notes: z.string().max(500).nullish(),
   // Set only when the line originated from an AR invoice line.
   invoiceLineId: z.string().uuid().nullish(),
+  /**
+   * Ships a declared stand-in for what the invoice line billed. `itemId` is
+   * the item that physically leaves — this is the one it leaves in place of,
+   * and the server checks the pairing was actually declared.
+   */
+  substitutedForItemId: z.string().uuid().nullish(),
+  substitutionNote: z.string().max(500).nullish(),
 });
 
 export const createDeliveryNoteSchema = z.object({
@@ -42,6 +49,33 @@ export const dispatchFromInvoiceSchema = z.object({
   lines: z.array(dnLineInputSchema.extend({
     invoiceLineId: z.string().uuid(),
   })).min(1, 'At least one line is required'),
+});
+
+/**
+ * Declaring what may go out in place of an item. Sent whole, not patched:
+ * the item form edits the list as a set, and a partial update would need a
+ * per-row id the picker never shows.
+ */
+export const itemSubstitutesSchema = z.object({
+  substituteItemIds: z.array(z.string().uuid()).max(20),
+});
+
+/**
+ * Swapping what a draft line will send. `itemId` equal to the originally
+ * billed item reverts the swap, which is how the picker clears a choice.
+ */
+export const substituteDraftLineSchema = z.object({
+  itemId: z.string().uuid(),
+  note: z.string().max(500).nullish(),
+});
+
+export const shortageFilterSchema = z.object({
+  warehouseId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+  /** Only rows stock has since caught up on — the "post these now" list. */
+  coverableOnly: z.coerce.boolean().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
 });
 
 export const pendingDispatchFilterSchema = z.object({
@@ -121,3 +155,6 @@ export type PendingDispatchFilter = z.infer<typeof pendingDispatchFilterSchema>;
 export type SalesReturnInput = z.infer<typeof salesReturnSchema>;
 export type BulkDispatchInput = z.infer<typeof bulkDispatchSchema>;
 export type WaiveDispatchInput = z.infer<typeof waiveDispatchSchema>;
+export type ItemSubstitutesInput = z.infer<typeof itemSubstitutesSchema>;
+export type ShortageFilter = z.infer<typeof shortageFilterSchema>;
+export type SubstituteDraftLineInput = z.infer<typeof substituteDraftLineSchema>;

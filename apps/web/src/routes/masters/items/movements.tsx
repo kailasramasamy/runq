@@ -242,7 +242,17 @@ function MovementRow({ row }: { row: ItemMovementRow }) {
         )}
       </TableCell>
       <TableCell className="max-w-[22rem]">
-        <div className="truncate text-[12.5px]">{doc?.party ?? doc?.note ?? '—'}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[12.5px]">{doc?.party ?? doc?.note ?? '—'}</span>
+          {/* Called out, not tucked into the meta line: this row is the one
+              most likely to be mistaken for a sale of this item. */}
+          {doc?.substitutedFor && <Badge variant="warning">Substitution</Badge>}
+        </div>
+        {doc?.substitutedFor && (
+          <div className="truncate text-[11px]" style={{ color: 'var(--warn)' }}>
+            Sent in place of {doc.substitutedFor}
+          </div>
+        )}
         <div className="flex items-center gap-2 text-[11px] text-zinc-500">
           {doc?.party && doc?.note && <span className="truncate">{doc.note}</span>}
           {doc?.ref && (

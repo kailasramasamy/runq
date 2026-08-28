@@ -10,9 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
+import '../../providers/data_providers.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../../api/sales_dispatch_models.dart';
+import 'widgets/draft_substitute.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import '../../widgets/runq_snack.dart';
@@ -135,10 +138,29 @@ class _State extends ConsumerState<InventoryDeliveryDetailScreen> {
     );
   }
 
+  /// A swap changes the draft, the invoice's owed qty and the shortage
+  /// counts, so everything that reads them has to be dropped together —
+  /// including the invoice itself, which relabelling rewrites. Leaving its
+  /// cache in place shows the operator the item that was billed and makes a
+  /// change that did happen look like one that didn't.
+  Future<void> _reloadAfterSubstitute([String? invoiceId]) async {
+    ref.invalidate(invDnDetailProvider(widget.dnId));
+    ref.invalidate(invDraftSubstitutesProvider(widget.dnId));
+    ref.invalidate(invPendingDispatchProvider);
+    ref.invalidate(invShortageCountProvider);
+    ref.invalidate(invShortagesProvider);
+    if (invoiceId != null) ref.invalidate(invoiceDetailProvider(invoiceId));
+    ref.invalidate(invoicesProvider);
+    ref.invalidate(invoiceSummaryProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final async = ref.watch(invDnDetailProvider(widget.dnId));
+    // Options are only meaningful while the DN can still change what it sends.
+    final subs = ref.watch(invDraftSubstitutesProvider(widget.dnId)).valueOrNull
+        ?? const <String, List<InvSubstituteOption>>{};
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -181,7 +203,22 @@ class _State extends ConsumerState<InventoryDeliveryDetailScreen> {
             children: [
               _HeaderCard(dn: dn),
               const SizedBox(height: 12),
-              _LinesCard(lines: dn.lines, totalValue: dn.totalValue),
+              _LinesCard(
+                dnId: widget.dnId,
+                lines: dn.lines,
+                totalValue: dn.totalValue,
+                isDraft: dn.status == 'draft' && dn.invoiceId != null,
+                substitutes: subs,
+                onChanged: () => _reloadAfterSubstitute(dn.invoiceId),
+              ),
+              if (dn.status == 'dispatched' && dn.invoiceId != null) ...[
+                const SizedBox(height: 12),
+                RelabelInvoiceCard(
+                  invoiceId: dn.invoiceId!,
+                  lines: dn.lines,
+                  onChanged: () => _reloadAfterSubstitute(dn.invoiceId),
+                ),
+              ],
               if ((dn.notes ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _NotesCard(text: dn.notes!.trim()),
@@ -290,6 +327,34 @@ class _HeaderCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(dn.customerName!, style: RunqText.body.copyWith(color: t.ink)),
           ],
+          // The invoice this shipped against, tappable. A dispatch is only
+          // ever half the story — what left, but not what was billed for it —
+          // and reconciling the two meant leaving the screen to search for a
+          // number the row already knew.
+          if ((dn.invoiceNumber ?? '').isNotEmpty && dn.invoiceId != null) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => context.push('/invoices/${dn.invoiceId}'),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.receipt_long_outlined,
+                        size: 15, color: InvColors.brand(context)),
+                    const SizedBox(width: 6),
+                    Text('Invoice ${dn.invoiceNumber}',
+                        style: RunqText.body
+                            .copyWith(color: InvColors.brand(context))),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right,
+                        size: 16, color: InvColors.brand(context)),
+                  ],
+                ),
+              ),
+            ),
+          ],
           if ((dn.vehicleNo ?? '').isNotEmpty || (dn.eWayBillNo ?? '').isNotEmpty) ...[
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 6, children: [
@@ -353,9 +418,20 @@ class _MiniStat extends StatelessWidget {
 // ── Lines card ────────────────────────────────────────────────────────────
 
 class _LinesCard extends StatelessWidget {
-  const _LinesCard({required this.lines, required this.totalValue});
+  const _LinesCard({
+    required this.dnId,
+    required this.lines,
+    required this.totalValue,
+    required this.isDraft,
+    required this.substitutes,
+    required this.onChanged,
+  });
+  final String dnId;
   final List<InvDnLine> lines;
   final double totalValue;
+  final bool isDraft;
+  final Map<String, List<InvSubstituteOption>> substitutes;
+  final Future<void> Function() onChanged;
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
@@ -380,7 +456,16 @@ class _LinesCard extends StatelessWidget {
           else
             ...lines.map((l) => Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: _LineRow(line: l),
+                  child: _LineRow(
+                    line: l,
+                    trailing: DraftSubstituteRow(
+                      dnId: dnId,
+                      line: l,
+                      options: substitutes[l.id] ?? const [],
+                      isDraft: isDraft,
+                      onChanged: onChanged,
+                    ),
+                  ),
                 )),
           const SizedBox(height: 10),
           Divider(height: 1, color: t.hairlineSoft),
@@ -398,8 +483,12 @@ class _LinesCard extends StatelessWidget {
 }
 
 class _LineRow extends StatelessWidget {
-  const _LineRow({required this.line});
+  const _LineRow({required this.line, this.trailing});
   final InvDnLine line;
+
+  /// The substitute action or swap note, rendered inside the tile so it reads
+  /// as part of the line rather than a detached control.
+  final Widget? trailing;
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
@@ -431,6 +520,7 @@ class _LineRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(_metaLine(line),
                   style: RunqText.caption.copyWith(color: t.muted)),
+              if (trailing != null) trailing!,
             ],
           ),
         ),

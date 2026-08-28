@@ -26,6 +26,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/substitute_sheet.dart';
 import 'widgets/warehouse_picker.dart';
 import '../../widgets/runq_snack.dart';
 
@@ -46,6 +47,10 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
   /// refresh can't silently resurrect stale quantities.
   final _qty = <String, double>{};
   final _batch = <String, String>{};
+
+  /// Stand-ins the operator chose, keyed by invoice line. Absent means the
+  /// line sends what it billed.
+  final _substitute = <String, SubstituteChoice>{};
 
   @override
   void dispose() {
@@ -72,6 +77,38 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
   }
 
   double _qtyFor(InvDispatchPreviewLine l) => _qty[l.invoiceLineId] ?? l.remainingQty;
+
+  SubstituteChoice? _subFor(InvDispatchPreviewLine l) => _substitute[l.invoiceLineId];
+
+  /// The stand-in's own shelf, once one is chosen — that is what has to cover
+  /// the quantity now, so every shortage check has to follow the swap.
+  double _coverFor(InvDispatchPreviewLine l) {
+    final sub = _subFor(l);
+    if (sub == null) return l.coverQty;
+    for (final o in l.substitutes) {
+      if (o.itemId == sub.itemId) return o.availableQty;
+    }
+    return l.coverQty;
+  }
+
+  Future<void> _pickSubstitute(InvDispatchPreviewLine l) async {
+    final choice = await showSubstituteSheet(
+      context,
+      line: l,
+      current: _subFor(l),
+    );
+    if (!mounted) return;
+    setState(() {
+      if (choice == null) {
+        _substitute.remove(l.invoiceLineId);
+      } else {
+        _substitute[l.invoiceLineId] = choice;
+        // The FEFO suggestion was for the billed item; the stand-in's batches
+        // are its own, so hand the pick back to the server.
+        _batch.remove(l.invoiceLineId);
+      }
+    });
+  }
   String _batchFor(InvDispatchPreviewLine l) =>
       _batch[l.invoiceLineId] ?? l.suggestedBatchNo ?? '';
 
@@ -84,7 +121,7 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
   /// stock the dispatch would make on the spot, or every made-on-demand line
   /// would be flagged as short at its normal zero.
   List<InvDispatchPreviewLine> _shortages(InvDispatchPreview p) =>
-      _selected(p).where((l) => _qtyFor(l) > l.coverQty).toList();
+      _selected(p).where((l) => _qtyFor(l) > _coverFor(l)).toList();
 
   Future<void> _submit(InvDispatchPreview preview) async {
     final wh = _warehouseId;
@@ -101,15 +138,21 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
         warehouseId: wh,
         dispatchDate: DateTime.now().toIso8601String().substring(0, 10),
         vehicleNo: _vehicleCtrl.text,
-        lines: selected
-            .map((l) => InvDispatchLineInput(
-                  itemId: l.itemId!,
-                  invoiceLineId: l.invoiceLineId,
-                  qty: _qtyFor(l),
-                  batchNo: _batchFor(l),
-                  uom: l.uom,
-                ))
-            .toList(),
+        lines: selected.map((l) {
+          final sub = _subFor(l);
+          return InvDispatchLineInput(
+            // The stand-in is what physically leaves, so it is the line's
+            // item; the billed one moves to substitutedForItemId, which is
+            // what clears the invoice line.
+            itemId: sub?.itemId ?? l.itemId!,
+            invoiceLineId: l.invoiceLineId,
+            qty: _qtyFor(l),
+            batchNo: sub == null ? _batchFor(l) : null,
+            uom: l.uom,
+            substitutedForItemId: sub == null ? null : l.itemId,
+            substitutionNote: sub?.note,
+          );
+        }).toList(),
       );
       try {
         await inventoryRepo.dispatchDn(dn.id);
@@ -121,6 +164,10 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
             kind: SnackKind.warning, detail: snackErrorText(e));
       }
       ref.invalidate(invPendingDispatchProvider);
+      // A dispatch either clears a shortfall or creates one, so the badge is
+      // stale either way.
+      ref.invalidate(invShortageCountProvider);
+      ref.invalidate(invShortagesProvider);
       ref.invalidate(invDnListProvider(null));
       ref.invalidate(invKpisProvider);
       if (mounted) context.pushReplacement('/inventory/delivery/${dn.id}');
@@ -179,6 +226,9 @@ class _State extends ConsumerState<InventoryDispatchInvoiceScreen> {
                 shortages: _shortages(data),
                 qtyFor: _qtyFor,
                 batchFor: _batchFor,
+                subFor: _subFor,
+                coverFor: _coverFor,
+                onSubstitute: _pickSubstitute,
                 onQty: (l, v) => setState(() => _qty[l.invoiceLineId] = v),
                 onBatch: (l, v) => setState(() => _batch[l.invoiceLineId] = v),
               ),
@@ -292,6 +342,9 @@ class _Lines extends StatelessWidget {
     required this.shortages,
     required this.qtyFor,
     required this.batchFor,
+    required this.subFor,
+    required this.coverFor,
+    required this.onSubstitute,
     required this.onQty,
     required this.onBatch,
   });
@@ -300,6 +353,9 @@ class _Lines extends StatelessWidget {
   final List<InvDispatchPreviewLine> shortages;
   final double Function(InvDispatchPreviewLine) qtyFor;
   final String Function(InvDispatchPreviewLine) batchFor;
+  final SubstituteChoice? Function(InvDispatchPreviewLine) subFor;
+  final double Function(InvDispatchPreviewLine) coverFor;
+  final void Function(InvDispatchPreviewLine) onSubstitute;
   final void Function(InvDispatchPreviewLine, double) onQty;
   final void Function(InvDispatchPreviewLine, String) onBatch;
 
@@ -321,6 +377,9 @@ class _Lines extends StatelessWidget {
               line: l,
               qty: qtyFor(l),
               batch: batchFor(l),
+              substitute: subFor(l),
+              coverQty: coverFor(l),
+              onSubstitute: () => onSubstitute(l),
               onQty: (v) => onQty(l, v),
               onBatch: (v) => onBatch(l, v),
             ),
@@ -387,6 +446,9 @@ class _LineCard extends StatelessWidget {
     required this.line,
     required this.qty,
     required this.batch,
+    required this.substitute,
+    required this.coverQty,
+    required this.onSubstitute,
     required this.onQty,
     required this.onBatch,
   });
@@ -394,13 +456,29 @@ class _LineCard extends StatelessWidget {
   final InvDispatchPreviewLine line;
   final double qty;
   final String batch;
+  final SubstituteChoice? substitute;
+
+  /// What has to cover this line — the stand-in's shelf once one is chosen.
+  final double coverQty;
+  final VoidCallback onSubstitute;
   final ValueChanged<double> onQty;
   final ValueChanged<String> onBatch;
+
+  /// The chosen stand-in as the server described it, for its name and stock.
+  InvSubstituteOption? get _chosen {
+    final s = substitute;
+    if (s == null) return null;
+    for (final o in line.substitutes) {
+      if (o.itemId == s.itemId) return o;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final short = qty > line.coverQty;
+    final short = qty > coverQty;
+    final chosen = _chosen;
     return InvCard(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
@@ -444,15 +522,22 @@ class _LineCard extends StatelessWidget {
                           _Stat(label: 'Invoiced', value: _n(line.invoicedQty)),
                           _Stat(label: 'Sent', value: _n(line.dispatchedQty)),
                         ],
-                        _Stat(
-                          // A made-on-demand SKU reads "0 (+240 to make)" —
-                          // the zero is real, and so is the ability to ship.
-                          label: line.repackFrom == null ? 'Stock' : 'Stock / to make',
-                          value: line.repackFrom == null
-                              ? _n(line.availableQty)
-                              : '${_n(line.availableQty)} (+${_n(line.repackFrom!.capacityQty)})',
-                          alert: short,
-                        ),
+                        if (chosen != null)
+                          _Stat(
+                            label: 'Stock',
+                            value: _n(chosen.availableQty),
+                            alert: short,
+                          )
+                        else
+                          _Stat(
+                            // A made-on-demand SKU reads "0 (+240 to make)" —
+                            // the zero is real, and so is the ability to ship.
+                            label: line.repackFrom == null ? 'Stock' : 'Stock / to make',
+                            value: line.repackFrom == null
+                                ? _n(line.availableQty)
+                                : '${_n(line.availableQty)} (+${_n(line.repackFrom!.capacityQty)})',
+                            alert: short,
+                          ),
                       ],
                     ),
                   ],
@@ -467,7 +552,16 @@ class _LineCard extends StatelessWidget {
               ),
             ],
           ),
-          if (line.trackBatches) ...[
+          // Substituting is offered on any line the item master has a
+          // stand-in for, not only the short ones: the shelf disagrees with
+          // the ledger often enough that the operator is the authority here.
+          if (line.substitutes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _SubstituteRow(chosen: chosen, onTap: onSubstitute),
+          ],
+          // A stand-in's batch is its own, so the billed item's FEFO
+          // suggestion is meaningless — the server re-picks at post time.
+          if (line.trackBatches && chosen == null) ...[
             const SizedBox(height: 8),
             _BatchField(
               initial: batch,
@@ -483,6 +577,47 @@ class _LineCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// The swap, stated on the line it changes. Reads as an action when nothing
+/// is chosen and as a fact once something is, because after the choice the
+/// operator is scanning to confirm rather than to decide.
+class _SubstituteRow extends StatelessWidget {
+  const _SubstituteRow({required this.chosen, required this.onTap});
+  final InvSubstituteOption? chosen;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final c = chosen;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.swap_horiz,
+                size: 16,
+                color: c == null ? t.muted : InvColors.brand(context)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                c == null ? 'Send something else' : 'Sending ${c.itemName} instead',
+                style: RunqText.caption.copyWith(
+                  color: c == null ? t.muted : InvColors.brand(context),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 16, color: t.muted2),
+          ],
+        ),
       ),
     );
   }

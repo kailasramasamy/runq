@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex,
+  pgTable, uuid, varchar, decimal, date, text, timestamp, pgEnum, index, uniqueIndex, boolean,
 } from 'drizzle-orm/pg-core';
 import { tenants } from '../tenant';
 import { customers } from '../ar/customers';
@@ -39,6 +39,11 @@ export const deliveryNotes = pgTable(
     notes: text('notes'),
     status: deliveryNoteStatusEnum('status').notNull().default('draft'),
     totalValue: decimal('total_value', { precision: 18, scale: 2 }).notNull().default('0'),
+    /**
+     * The remainder auto-dispatch could not cover, parked for a human. Only
+     * ever true on a draft: posting it clears the shortage by definition.
+     */
+    isShortfall: boolean('is_shortfall').notNull().default(false),
     journalEntryId: uuid('journal_entry_id'),
     cancelledJournalEntryId: uuid('cancelled_journal_entry_id'),
     dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
@@ -54,6 +59,9 @@ export const deliveryNotes = pgTable(
     index('idx_dn_tenant_invoice').on(t.tenantId, t.invoiceId),
     index('idx_dn_tenant_direction').on(t.tenantId, t.direction),
     index('idx_dn_return_of').on(t.returnOfDnId),
+    // idx_dn_open_shortfall is partial (is_shortfall AND status='draft') and
+    // lives only in migration 0203 — drizzle-kit push chokes on expression
+    // indexes and takes the container down with it.
   ],
 );
 
@@ -67,6 +75,14 @@ export const deliveryNoteLines = pgTable(
     // Set when the line came from an AR invoice. Dispatched-vs-invoiced qty is
     // computed off this, so partial dispatch works and over-dispatch is caught.
     invoiceLineId: uuid('invoice_line_id'),
+    /**
+     * Set when this line ships a different item than its invoice line billed.
+     * The line draws and costs its own `itemId` — what physically left — and
+     * this records the item it was sent against, so the invoice line still
+     * clears and the swap stays visible on the document.
+     */
+    substitutedForItemId: uuid('substituted_for_item_id').references(() => items.id),
+    substitutionNote: text('substitution_note'),
     batchNo: varchar('batch_no', { length: 60 }),
     qty: decimal('qty', { precision: 18, scale: 3 }).notNull(),
     uom: varchar('uom', { length: 20 }),

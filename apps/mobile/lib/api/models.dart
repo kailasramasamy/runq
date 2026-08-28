@@ -621,6 +621,18 @@ String? _pickUom(Map<String, dynamic> j) {
 }
 
 class InvoiceItem {
+  /// The stored line's own id, and the catalogue item behind it.
+  ///
+  /// Both are sent back on an amendment: `delivery_note_lines` holds a foreign
+  /// key to the invoice line, so the server has to recognise a line it already
+  /// has rather than replace it. Dropping these on hydration used to make
+  /// every amended line look brand new.
+  final String? id;
+  final String? itemId;
+
+  /// The line's stored HSN, so an amendment carries it back rather than
+  /// blanking a field the server would then have to infer.
+  final String? hsnSacCode;
   final String description, itemName;
   final String? uom;
   final double quantity, unitPrice, amount;
@@ -630,6 +642,9 @@ class InvoiceItem {
   /// Total tax for this line: cgst + sgst + igst + cess.
   final double taxAmount;
   InvoiceItem({
+    this.id,
+    this.itemId,
+    this.hsnSacCode,
     required this.description,
     required this.itemName,
     required this.uom,
@@ -641,6 +656,9 @@ class InvoiceItem {
   });
 
   factory InvoiceItem.fromJson(Map<String, dynamic> j) => InvoiceItem(
+        id: j['id'] as String?,
+        itemId: j['itemId'] as String?,
+        hsnSacCode: j['hsnSacCode'] as String?,
         description: _strOr(j['description'], ''),
         itemName: _strOr(j['itemName'] ?? j['description'], ''),
         uom: _pickUom(j),
@@ -1713,6 +1731,9 @@ class ItemSummary {
   /// Master selling price (the "landing price"). Used to prefill the rate
   /// field in PO line mapping so the user immediately sees what'll be billed.
   final double? defaultSellingPrice;
+
+  /// Tax classification, carried onto any invoice line built from this item.
+  final String? hsnSacCode;
   /// GST rate from the items master, percent (e.g. 5.0 for 5% GST). Null /
   /// 0 means GST-exempt — important for staples like milk.
   final double? gstRate;
@@ -1722,6 +1743,7 @@ class ItemSummary {
     required this.sku,
     this.unit,
     this.defaultSellingPrice,
+    this.hsnSacCode,
     this.gstRate,
   });
 
@@ -1731,6 +1753,7 @@ class ItemSummary {
         sku: _strOr(j['sku'], ''),
         unit: _str(j['unit']),
         defaultSellingPrice: _numOrNull(j['defaultSellingPrice']),
+        hsnSacCode: j['hsnSacCode'] as String?,
         gstRate: _numOrNull(j['gstRate']),
       );
 }

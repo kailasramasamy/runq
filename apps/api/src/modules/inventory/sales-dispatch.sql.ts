@@ -50,6 +50,26 @@ export function committedQtyFor(lineIdExpr: SQL | string) {
 }
 
 /** True when the invoice still owes goods on at least one line. */
+/**
+ * Lines on this invoice whose remainder is parked on an open shortfall draft.
+ *
+ * The queue is a list of goods still owed, which is not the same as work
+ * waiting on a human — with auto-dispatch on, most rows are there because the
+ * shelf ran out, not because nobody pressed a button. Without this the row
+ * offers a Dispatch action that can only fail, and reads as a backlog the
+ * operator is neglecting.
+ */
+export function shortfallLineCount(invoiceIdExpr: SQL) {
+  return sql`(
+    SELECT COUNT(DISTINCT l.invoice_line_id)::int
+    FROM delivery_note_lines l
+    JOIN delivery_notes d ON d.id = l.dn_id
+    WHERE d.invoice_id = ${invoiceIdExpr}
+      AND d.is_shortfall = true
+      AND d.status = 'draft'
+  )`;
+}
+
 export function hasUndispatchedLines(invoiceIdExpr: SQL) {
   return sql`EXISTS (
     SELECT 1 FROM sales_invoice_items sii

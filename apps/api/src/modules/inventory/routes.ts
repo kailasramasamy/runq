@@ -5,6 +5,7 @@ import {
   createDeliveryNoteSchema, updateDeliveryNoteSchema, cancelDeliveryNoteSchema,
   deliveryNoteFilterSchema, dispatchFromInvoiceSchema, pendingDispatchFilterSchema,
   bulkDispatchSchema, waiveDispatchSchema, salesReturnSchema,
+  itemSubstitutesSchema, shortageFilterSchema, substituteDraftLineSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
   movementFeedQuerySchema,
   itemMovementFilterSchema,
@@ -32,6 +33,8 @@ import { DeliveryNoteService } from './delivery.service';
 import { SalesDispatchService } from './sales-dispatch.service';
 import { SalesReturnService } from './sales-return.service';
 import { AutoDispatchService } from './auto-dispatch.service';
+import { SubstitutionService } from './substitution.service';
+import { ShortageService } from './shortage.service';
 import { StockQueryService } from './stock-query.service';
 import { ItemMovementAuditService } from './movement-audit.service';
 import { InventoryDashboardService } from './dashboard.service';
@@ -301,6 +304,57 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = uuidParamSchema.parse(req.params);
     const svc = new SalesDispatchService({ db: req.server.db, tenantId: req.tenantId });
     return { data: await svc.invoiceDispatchStatus(id) };
+  });
+
+  // ─── Substituting on a parked draft ──────────────────────────────────
+  // Where most substitutions are actually decided: auto-dispatch parked the
+  // shortfall hours ago and the operator meets it here, not on the invoice.
+  app.get('/delivery-notes/:id/substitutes', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SubstitutionService({ db: req.server.db, tenantId: req.tenantId });
+    const byLine = await svc.optionsForDraft(id);
+    return { data: Object.fromEntries(byLine) };
+  });
+
+  app.post('/delivery-notes/:id/lines/:lineId/substitute', {
+    preHandler: [rbacHook([...WRITE_ROLES])],
+  }, async (req) => {
+    const { id, lineId } = z.object({
+      id: z.string().uuid(), lineId: z.string().uuid(),
+    }).parse(req.params);
+    const input = substituteDraftLineSchema.parse(req.body);
+    const svc = new SubstitutionService({
+      db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId,
+    });
+    return { data: await svc.substituteDraftLine(id, lineId, input) };
+  });
+
+  // ─── Shortages: billed goods the warehouse never covered ─────────────
+  app.get('/shortages', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const filter = shortageFilterSchema.parse(req.query);
+    const svc = new ShortageService({ db: req.server.db, tenantId: req.tenantId });
+    return await svc.list(filter);
+  });
+
+  app.get('/shortages/count', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const svc = new ShortageService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: { open: await svc.openCount() } };
+  });
+
+  // ─── Declared stand-ins, per item ────────────────────────────────────
+  app.get('/items/:id/substitutes', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SubstitutionService({ db: req.server.db, tenantId: req.tenantId });
+    return { data: await svc.listSubstitutes(id) };
+  });
+
+  app.put('/items/:id/substitutes', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = itemSubstitutesSchema.parse(req.body);
+    const svc = new SubstitutionService({
+      db: req.server.db, tenantId: req.tenantId, userId: req.user?.userId,
+    });
+    return { data: await svc.setSubstitutes(id, input.substituteItemIds) };
   });
 
   app.post('/sales-dispatch/item-aliases', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (req, reply) => {

@@ -97,6 +97,28 @@ final invPendingDispatchProvider =
   return salesDispatchRepo.pending(from: invPendingDispatchFrom());
 });
 
+/// Goods billed that never went out, oldest first.
+///
+/// [coverableOnly] narrows to the ones stock has since caught up on — the
+/// list that can be cleared by posting, with no purchasing needed.
+final invShortagesProvider = FutureProvider.autoDispose
+    .family<({List<InvShortageLine> rows, int total}), bool>((ref, coverableOnly) async {
+  return salesDispatchRepo.shortages(coverableOnly: coverableOnly);
+});
+
+/// Stand-in options for a draft DN's lines, keyed by delivery-note line id.
+/// Returns empty for anything that can no longer change what it sends.
+final invDraftSubstitutesProvider = FutureProvider.autoDispose
+    .family<Map<String, List<InvSubstituteOption>>, String>((ref, dnId) async {
+  return salesDispatchRepo.draftSubstitutes(dnId);
+});
+
+/// Just the count, for the badge — kept separate so the home screen doesn't
+/// pull a hundred rows to render one number.
+final invShortageCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  return salesDispatchRepo.shortageCount();
+});
+
 /// (invoiceId, warehouseId) — availability and FEFO batches are per-warehouse.
 final invDispatchPreviewProvider = FutureProvider.autoDispose
     .family<InvDispatchPreview, ({String invoiceId, String warehouseId})>((ref, arg) async {

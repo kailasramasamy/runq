@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, Outlet, Link, useRouterState, Navigate, redirect } from '@tanstack/react-router';
 import { Sidebar, MobileHeader, MobileBottomNav } from '../components/layout/sidebar';
 import { Topbar } from '../components/layout/topbar';
 import { useAuth, canManageHrModule } from '../providers/auth-provider';
@@ -2194,6 +2194,18 @@ const invDeliveryRoute = createRoute({
   path: '/delivery',
   component: DeliveryListPage,
 });
+/**
+ * The shortages queue is a tab on the delivery page, but notifications need a
+ * stable path both clients own — mobile has a dedicated screen at this route
+ * and can't resolve a web tab query. Redirecting keeps one destination.
+ */
+const invShortagesRoute = createRoute({
+  getParentRoute: () => inventoryRoute,
+  path: '/shortages',
+  beforeLoad: () => {
+    throw redirect({ to: '/inventory/delivery', search: { tab: 'shortages' } });
+  },
+});
 const invDeliveryNewRoute = createRoute({
   getParentRoute: () => inventoryRoute,
   path: '/delivery/new',
@@ -3087,6 +3099,7 @@ export const routeTree = rootRoute.addChildren([
       invGrnNewRoute,
       invGrnDetailRoute,
       invDeliveryRoute,
+      invShortagesRoute,
       invDeliveryNewRoute,
       invDispatchFromInvoiceRoute,
       invDeliveryDetailRoute,

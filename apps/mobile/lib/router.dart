@@ -83,6 +83,7 @@ import 'screens/inventory/inventory_delivery_detail_screen.dart';
 import 'screens/inventory/inventory_delivery_edit_screen.dart';
 import 'screens/inventory/inventory_delivery_screen.dart';
 import 'screens/inventory/inventory_pending_dispatch_screen.dart';
+import 'screens/inventory/inventory_shortages_screen.dart';
 import 'screens/inventory/inventory_dispatch_invoice_screen.dart';
 import 'screens/inventory/inventory_item_detail_screen.dart';
 import 'screens/inventory/inventory_item_movements_screen.dart';
@@ -457,6 +458,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) =>
               _slidePage(const InventoryPendingDispatchScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/inventory/shortages',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const InventoryShortagesScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/inventory/dispatch-invoice/:invoiceId',

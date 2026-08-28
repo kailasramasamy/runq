@@ -223,9 +223,13 @@ class _InvoiceRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => context.push(
-          row.openDraftDnId != null
-              ? '/inventory/delivery/${row.openDraftDnId}'
-              : '/inventory/dispatch-invoice/${row.id}',
+          row.blockedOnStock
+              // Straight to the shortage, where covering it or sending a
+              // substitute is the actual next move.
+              ? '/inventory/shortages'
+              : row.openDraftDnId != null
+                  ? '/inventory/delivery/${row.openDraftDnId}'
+                  : '/inventory/dispatch-invoice/${row.id}',
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
@@ -293,7 +297,14 @@ class _RowChips extends StatelessWidget {
             ink: dark ? const Color(0xFF93C5FD) : InvColors.info,
             bg: InvColors.infoBg,
           ),
-        if (row.openDraftDnId != null)
+        // Naming the blocker beats a Dispatch button that can only fail.
+        if (row.blockedOnStock)
+          _Chip(
+            label: '${row.shortLineCount} short — waiting on stock',
+            ink: InvColors.error,
+            bg: InvColors.errorBg,
+          ),
+        if (row.openDraftDnId != null && !row.blockedOnStock)
           _Chip(label: 'Draft open', ink: t.muted2, bg: t.hairlineSoft),
       ],
     );

@@ -100,6 +100,77 @@ class SalesDispatchRepo {
     return (_data(res)['waived'] as num?)?.toInt() ?? 0;
   }
 
+  /// Goods that were billed and never went out.
+  ///
+  /// Auto-dispatch parks the uncovered remainder of a short line on a draft
+  /// DN; before this endpoint that draft looked like any other and nobody
+  /// found it. [coverableOnly] narrows to the ones stock has since caught up
+  /// on — the morning's post-these-now list.
+  Future<({List<InvShortageLine> rows, int total})> shortages({
+    bool coverableOnly = false,
+    int page = 1,
+  }) async {
+    final qp = <String, String>{'limit': '100', 'page': '$page'};
+    if (coverableOnly) qp['coverableOnly'] = 'true';
+    final res = await apiClient.get('/inventory/shortages?${_qs(qp)}');
+    final rows = _dataList(res).map(InvShortageLine.fromJson).toList();
+    final total = res is Map ? (res['total'] as num?)?.toInt() : null;
+    return (rows: rows, total: total ?? rows.length);
+  }
+
+  /// Just the count, for the badge — the rows are a much heavier query.
+  Future<int> shortageCount() async {
+    final res = await apiClient.get('/inventory/shortages/count');
+    return (_data(res)['open'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Stand-in options for a draft DN's lines, keyed by delivery-note line id.
+  ///
+  /// Where most substitutions are actually decided — auto-dispatch parked the
+  /// shortfall hours ago and the operator meets it on the draft, not on the
+  /// invoice.
+  Future<Map<String, List<InvSubstituteOption>>> draftSubstitutes(String dnId) async {
+    final res = await apiClient.get('/inventory/delivery-notes/$dnId/substitutes');
+    final data = _data(res);
+    return data.map((k, v) => MapEntry(
+          k,
+          ((v as List?) ?? const [])
+              .map((e) => InvSubstituteOption.fromJson((e as Map).cast<String, dynamic>()))
+              .toList(),
+        ));
+  }
+
+  /// Swap what a draft line will send. Passing the billed item reverts it.
+  Future<void> substituteDraftLine({
+    required String dnId,
+    required String lineId,
+    required String itemId,
+    String? note,
+  }) async {
+    await apiClient.post(
+      '/inventory/delivery-notes/$dnId/lines/$lineId/substitute',
+      {'itemId': itemId, if (note != null && note.isNotEmpty) 'note': note},
+    );
+  }
+
+  /// Point an invoice line at the substitute that actually shipped. Item and
+  /// description only — price, HSN and tax are untouched, so nothing the
+  /// customer owes changes.
+  Future<void> relabelInvoiceLine({
+    required String invoiceId,
+    required String lineId,
+  }) async {
+    await apiClient.post('/ar/invoices/$invoiceId/lines/$lineId/relabel', {});
+  }
+
+  /// Bill only what the warehouse could deliver: cuts each line to the
+  /// quantity that shipped and cancels the shortfall draft, so nothing is left
+  /// outstanding. Lowers what the customer owes — only ever called on an
+  /// explicit choice.
+  Future<void> trimInvoiceToDelivered(String invoiceId) async {
+    await apiClient.post('/ar/invoices/$invoiceId/trim-to-delivered', {});
+  }
+
   /// Remember a description → item mapping so future invoices self-resolve.
   Future<void> saveItemAlias({required String sourceName, required String itemId}) async {
     await apiClient.post('/inventory/sales-dispatch/item-aliases', {

@@ -1,8 +1,22 @@
-import 'dart:async';
+// Writing an invoice, and amending one.
+//
+// Mobile equivalent of the web `InvoiceForm` (apps/web/src/components/forms/
+// invoice-form.tsx): same payload shape (createSalesInvoiceSchema) — customer,
+// dates, line items, totals, notes. No HSN/SAC editing and no per-customer
+// price resolver; those stay on the web for now.
+//
+// The screen is deliberately thin. Fields live in invoice_form_fields.dart and
+// line editing in invoice_line_editing.dart, because this file used to hold
+// both plus a full-screen item picker and had grown past twelve hundred lines
+// — at which point the create and amend paths had quietly drifted into two
+// different designs without anyone deciding that.
+
+library;
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../api/api_client.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
@@ -12,43 +26,18 @@ import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/customer_picker_screen.dart';
 import '../widgets/runq_snack.dart';
+import 'invoice/invoice_form_fields.dart';
+import 'invoice/invoice_line_draft.dart';
+import 'invoice/invoice_line_editing.dart';
 
-/// Mobile equivalent of the web `InvoiceForm` (apps/web/src/components/forms/
-/// invoice-form.tsx). Same payload shape (createSalesInvoiceSchema): customer,
-/// dates, line items, totals, notes. No HSN/SAC editing, no per-customer
-/// price resolver — those stay on the web for now.
 class NewInvoiceScreen extends ConsumerStatefulWidget {
-  /// When set, the form hydrates from this invoice and PUTs to update on
-  /// save. Used by the Amend flow from invoice detail.
+  /// When set, the form hydrates from this invoice and PUTs to update on save.
+  /// Used by the Amend flow from invoice detail.
   final String? editInvoiceId;
   const NewInvoiceScreen({super.key, this.editInvoiceId});
 
   @override
   ConsumerState<NewInvoiceScreen> createState() => _NewInvoiceScreenState();
-}
-
-class _LineItem {
-  String? itemId;
-  String description = '';
-  String uom = '';
-  String quantity = '';
-  String unitPrice = '';
-  // Null = no rate chosen yet. Free-typed lines start unset so the user must
-  // pick (0% for exempt items included) instead of silently defaulting to 0%
-  // and under-charging GST.
-  double? taxRate;
-  _LineItem();
-
-  double get amount =>
-      (double.tryParse(quantity) ?? 0) * (double.tryParse(unitPrice) ?? 0);
-
-  double get taxAmount {
-    final r = taxRate;
-    if (r == null || r <= 0) return 0;
-    // Round to paise per line, matching the server's per-line CGST/SGST, so
-    // the previewed total ties to the saved invoice.
-    return (amount * r).roundToDouble() / 100;
-  }
 }
 
 class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
@@ -58,7 +47,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
   bool _dueDirty = false;
   final _poCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-  final List<_LineItem> _lines = [_LineItem()];
+  List<InvoiceLineDraft> _lines = const [];
   bool _saving = false;
   bool _hydrating = false;
 
@@ -67,58 +56,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
   @override
   void initState() {
     super.initState();
-    if (_isEdit) {
-      _hydrate();
-    }
-  }
-
-  Future<void> _hydrate() async {
-    setState(() => _hydrating = true);
-    try {
-      final inv = await invoicesRepo.detail(widget.editInvoiceId!);
-      if (!mounted) return;
-      // The detail payload carries customerId + name but the picker
-      // expects a CustomerSummary. Build a minimal one — payment-terms
-      // isn't needed (the due date is already set on the invoice).
-      final customer = CustomerSummary(
-        id: inv.customerId,
-        name: inv.customerName,
-        gstin: null,
-        paymentTermsDays: 30,
-      );
-      setState(() {
-        _customer = customer;
-        _invoiceDate = inv.invoiceDate;
-        _dueDate = inv.dueDate;
-        _dueDirty = true; // suppress auto-recompute when editing
-        _poCtrl.text = ''; // poNumber not exposed on the mobile model — leave blank
-        _notesCtrl.text = '';
-        _lines
-          ..clear()
-          ..addAll(inv.items.map((it) {
-            final l = _LineItem();
-            l.itemId = null; // mobile InvoiceItem doesn't surface itemId
-            l.description = it.description;
-            l.uom = it.uom ?? '';
-            l.quantity = _trim(it.quantity);
-            l.unitPrice = _trim(it.unitPrice);
-            l.taxRate = it.taxRate ?? 0;
-            return l;
-          }));
-        if (_lines.isEmpty) _lines.add(_LineItem());
-      });
-    } on ApiException catch (e) {
-      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
-    } catch (_) {
-      if (mounted) showRunqSnack(context, 'Could not load invoice for editing.', kind: SnackKind.error);
-    } finally {
-      if (mounted) setState(() => _hydrating = false);
-    }
-  }
-
-  String _trim(double v) {
-    if (v == v.roundToDouble()) return v.toInt().toString();
-    return v.toString();
+    if (_isEdit) _hydrate();
   }
 
   @override
@@ -128,12 +66,61 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
     super.dispose();
   }
 
+  Future<void> _hydrate() async {
+    setState(() => _hydrating = true);
+    try {
+      final inv = await invoicesRepo.detail(widget.editInvoiceId!);
+      if (!mounted) return;
+      setState(() {
+        // The detail payload carries customerId + name but the picker wants a
+        // CustomerSummary. Payment terms don't matter here — the due date is
+        // already set on the invoice being amended.
+        _customer = CustomerSummary(
+          id: inv.customerId,
+          name: inv.customerName,
+          gstin: null,
+          paymentTermsDays: 30,
+        );
+        _invoiceDate = inv.invoiceDate;
+        _dueDate = inv.dueDate;
+        _dueDirty = true; // don't auto-recompute a due date already agreed
+        _poCtrl.text = ''; // poNumber isn't on the mobile model yet
+        _notesCtrl.text = '';
+        _lines = inv.items
+            .map((it) => InvoiceLineDraft(
+                  // Carried so the server updates these rows rather than
+                  // replacing them — delivery notes hold a foreign key to
+                  // them, and a replaced row loses that link.
+                  id: it.id,
+                  itemId: it.itemId,
+                  hsnSacCode: it.hsnSacCode,
+                  description: it.description,
+                  uom: it.uom ?? '',
+                  quantity: _trim(it.quantity),
+                  unitPrice: _trim(it.unitPrice),
+                  taxRate: it.taxRate ?? 0,
+                ))
+            .toList();
+      });
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } catch (_) {
+      if (mounted) {
+        showRunqSnack(context, 'Could not load invoice for editing.',
+            kind: SnackKind.error);
+      }
+    } finally {
+      if (mounted) setState(() => _hydrating = false);
+    }
+  }
+
+  String _trim(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
   void _onCustomerChanged(CustomerSummary c) {
     setState(() {
       _customer = c;
-      if (!_dueDirty) {
-        _dueDate = _invoiceDate.add(Duration(days: c.paymentTermsDays));
-      }
+      if (!_dueDirty) _dueDate = _invoiceDate.add(Duration(days: c.paymentTermsDays));
     });
   }
 
@@ -141,8 +128,7 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
     setState(() {
       _invoiceDate = d;
       if (!_dueDirty) {
-        final days = _customer?.paymentTermsDays ?? 30;
-        _dueDate = d.add(Duration(days: days));
+        _dueDate = d.add(Duration(days: _customer?.paymentTermsDays ?? 30));
       }
     });
   }
@@ -151,35 +137,49 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
   double get _tax => _lines.fold(0.0, (s, l) => s + l.taxAmount);
   double get _total => _subtotal + _tax;
 
-  String _isoDate(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _isoDate(DateTime d) => '${d.year.toString().padLeft(4, '0')}'
+      '-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Future<void> _openEditLineSheet(int index) async {
-    if (index < 0 || index >= _lines.length) return;
-    final changed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EditLineSheet(line: _lines[index]),
+  /// Add a line by opening the editor straight away. An empty row sitting in
+  /// the list is a placeholder nobody asked for; the operator pressed "Add
+  /// item" because they have an item in mind.
+  Future<void> _addLine() async {
+    final seed = InvoiceLineDraft(
+      // Carry the last line's rate forward so a multi-line invoice picks GST
+      // once. Still unset on the first line, which must be chosen.
+      taxRate: _lines.isNotEmpty ? _lines.last.taxRate : null,
     );
-    if (changed == true && mounted) setState(() {});
+    final added = await showInvoiceLineSheet(context, seed);
+    if (added != null && mounted) setState(() => _lines = [..._lines, added]);
+  }
+
+  Future<void> _editLine(int index) async {
+    final edited = await showInvoiceLineSheet(context, _lines[index]);
+    if (edited == null || !mounted) return;
+    setState(() {
+      final next = [..._lines];
+      next[index] = edited;
+      _lines = next;
+    });
+  }
+
+  void _removeLine(int index) {
+    setState(() => _lines = [..._lines]..removeAt(index));
   }
 
   Future<void> _save() async {
     if (_customer == null) {
-      showRunqSnack(context, 'Pick a customer first.', kind: SnackKind.error);
-      return;
+      return showRunqSnack(context, 'Pick a customer first.', kind: SnackKind.error);
     }
-    final validLines = _lines.where((l) => l.amount > 0 && l.description.trim().isNotEmpty).toList();
-    if (validLines.isEmpty) {
-      showRunqSnack(context, 'Add at least one line item with qty and price.',
+    final valid = _lines.where((l) => l.isComplete).toList();
+    if (valid.isEmpty) {
+      return showRunqSnack(context, 'Add at least one line item with qty and price.',
           kind: SnackKind.error);
-      return;
     }
-    if (validLines.any((l) => l.taxRate == null)) {
-      showRunqSnack(context, 'Choose a GST rate for every line — use 0% for exempt items.',
+    if (valid.any((l) => l.taxRate == null)) {
+      return showRunqSnack(context,
+          'Choose a GST rate for every line — use 0% for exempt items.',
           kind: SnackKind.error);
-      return;
     }
 
     final body = <String, dynamic>{
@@ -192,21 +192,27 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
       'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       'poNumber': _poCtrl.text.trim().isEmpty ? null : _poCtrl.text.trim(),
       'reverseCharge': false,
-      'items': validLines.map((l) => <String, dynamic>{
-            'itemId': l.itemId,
-            'description': l.description.trim(),
-            'uom': l.uom.trim().isEmpty ? null : l.uom.trim(),
-            'quantity': double.tryParse(l.quantity) ?? 0,
-            'unitPrice': double.tryParse(l.unitPrice) ?? 0,
-            'amount': l.amount,
-            'taxCategory': (l.taxRate ?? 0) > 0 ? 'taxable' : 'exempt',
-            'taxRate': l.taxRate ?? 0,
-          }).toList(),
+      'items': valid
+          .map((l) => <String, dynamic>{
+                if (l.id != null) 'id': l.id,
+                'itemId': l.itemId,
+                // Carried so the stored line can be compared on tax treatment
+                // later — a substitution is refused if HSN or rate differ.
+                if (l.hsnSacCode != null) 'hsnSacCode': l.hsnSacCode,
+                'description': l.description.trim(),
+                'uom': l.uom.trim().isEmpty ? null : l.uom.trim(),
+                'quantity': double.tryParse(l.quantity) ?? 0,
+                'unitPrice': double.tryParse(l.unitPrice) ?? 0,
+                'amount': l.amount,
+                'taxCategory': (l.taxRate ?? 0) > 0 ? 'taxable' : 'exempt',
+                'taxRate': l.taxRate ?? 0,
+              })
+          .toList(),
     };
 
     setState(() => _saving = true);
     try {
-      String invoiceId;
+      final String invoiceId;
       if (_isEdit) {
         await invoicesRepo.update(widget.editInvoiceId!, body);
         invoiceId = widget.editInvoiceId!;
@@ -215,9 +221,8 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
       }
       if (!mounted) return;
       ref.invalidate(invoiceSummaryProvider);
-      // Invalidate every filter variant so the sales hub, status tabs, and
-      // dashboard refresh — not just the empty-filter list the create flow
-      // started from.
+      // Every filter variant, so the sales hub, status tabs and dashboard all
+      // refresh — not just the empty-filter list this flow started from.
       ref.invalidate(invoicesProvider);
       if (_isEdit) ref.invalidate(invoiceDetailProvider(invoiceId));
       showRunqSnack(context, _isEdit ? 'Invoice updated.' : 'Invoice created.');
@@ -255,973 +260,172 @@ class _NewInvoiceScreenState extends ConsumerState<NewInvoiceScreen> {
         child: _hydrating
             ? const Center(child: CircularProgressIndicator())
             : ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  _customerSection(),
+                  const SizedBox(height: 12),
+                  _linesSection(t),
+                  const SizedBox(height: 12),
+                  _summarySection(),
+                  const SizedBox(height: 12),
+                  _notesSection(t),
+                ],
+              ),
+      ),
+      // Saving is pinned rather than scrolled to: on a long invoice the button
+      // would otherwise sit below several screens of line items.
+      bottomNavigationBar: _hydrating ? null : _saveBar(t),
+    );
+  }
+
+  Widget _customerSection() => InvoiceSectionCard(
+        title: 'Customer & dates',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionCard(
-              title: 'Customer & dates',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _CustomerPickerRow(
-                    customer: _customer,
-                    onPick: () async {
-                      final picked = await showCustomerPicker(
-                        context,
-                        currentCustomerId: _customer?.id,
-                      );
-                      if (picked != null) _onCustomerChanged(picked);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DateField(
-                          label: 'Invoice date',
-                          value: _invoiceDate,
-                          onChanged: _onInvoiceDateChanged,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _DateField(
-                          label: 'Due date',
-                          value: _dueDate,
-                          onChanged: (d) => setState(() {
-                            _dueDate = d;
-                            _dueDirty = true;
-                          }),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _TextField(
-                    controller: _poCtrl,
-                    label: 'PO number (optional)',
-                    hint: "Buyer's PO/order reference",
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Line items',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (int i = 0; i < _lines.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    if (_isEdit)
-                      _LineSummaryRow(
-                        line: _lines[i],
-                        canRemove: _lines.length > 1,
-                        onEdit: () => _openEditLineSheet(i),
-                        onRemove: () => setState(() => _lines.removeAt(i)),
-                      )
-                    else
-                      _LineCard(
-                        line: _lines[i],
-                        canRemove: _lines.length > 1,
-                        onRemove: () => setState(() => _lines.removeAt(i)),
-                        onChanged: () => setState(() {}),
-                      ),
-                  ],
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        final newLine = _LineItem();
-                        // Carry the last line's chosen GST rate forward so a
-                        // multi-line invoice only picks once; still null (must
-                        // pick) when no prior line has set a rate.
-                        if (_lines.isNotEmpty) newLine.taxRate = _lines.last.taxRate;
-                        setState(() => _lines.add(newLine));
-                        if (_isEdit) _openEditLineSheet(_lines.length - 1);
-                      },
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add row'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Summary',
-              child: Column(
-                children: [
-                  _SummaryRow(label: 'Subtotal', value: formatINR(_subtotal)),
-                  const SizedBox(height: 6),
-                  _SummaryRow(label: 'GST (auto)', value: formatINR(_tax)),
-                  const Divider(height: 18),
-                  _SummaryRow(label: 'Total', value: formatINR(_total), bold: true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Notes',
-              child: TextField(
-                controller: _notesCtrl,
-                minLines: 2,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: _inputDecoration(t, hint: 'Optional notes for this invoice'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: RunqColors.indigo,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(_isEdit ? 'Save changes' : 'Save invoice'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-InputDecoration _inputDecoration(RunqTokens t, {String? hint, String? prefix, String? suffix}) {
-  return InputDecoration(
-    isDense: true,
-    filled: true,
-    fillColor: t.inputFill,
-    hintText: hint,
-    prefixText: prefix,
-    suffixText: suffix,
-    hintStyle: RunqText.body.copyWith(color: t.muted),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.hairline, width: 0.5),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide(color: t.hairline, width: 0.5),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: RunqColors.indigo, width: 1),
-    ),
-  );
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  const _SectionCard({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _CustomerPickerRow extends StatelessWidget {
-  final CustomerSummary? customer;
-  final VoidCallback onPick;
-  const _CustomerPickerRow({required this.customer, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final has = customer != null;
-    return InkWell(
-      onTap: onPick,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: t.inputFill,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: has ? RunqColors.indigo : t.hairline, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            Icon(has ? Icons.business_rounded : Icons.search_rounded,
-                size: 18, color: has ? RunqColors.indigo : t.muted),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    has ? customer!.name : 'Pick customer',
-                    style: RunqText.body.copyWith(
-                      color: has ? t.ink : t.muted,
-                      fontWeight: has ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                  ),
-                  if (has && customer!.gstin != null && customer!.gstin!.isNotEmpty)
-                    Text(customer!.gstin!,
-                        style: RunqText.label.copyWith(color: t.muted)),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: t.muted2),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DateField extends StatelessWidget {
-  final String label;
-  final DateTime value;
-  final ValueChanged<DateTime> onChanged;
-  const _DateField({required this.label, required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final text = '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: value,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2100),
-            );
-            if (picked != null) onChanged(picked);
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              color: t.inputFill,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: t.hairline, width: 0.5),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today_rounded, size: 14, color: t.muted),
-                const SizedBox(width: 8),
-                Text(text, style: RunqText.body.copyWith(color: t.ink)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String? hint;
-  const _TextField({required this.controller, required this.label, this.hint});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 4),
-        TextField(
-          controller: controller,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: _inputDecoration(t, hint: hint),
-        ),
-      ],
-    );
-  }
-}
-
-class _NumField extends StatelessWidget {
-  final String label;
-  final String value;
-  final ValueChanged<String> onChanged;
-  final String? hint;
-  const _NumField({required this.label, required this.value, required this.onChanged, this.hint});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: RunqText.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 4),
-        TextFormField(
-          initialValue: value,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-          onChanged: onChanged,
-          decoration: _inputDecoration(t, hint: hint),
-        ),
-      ],
-    );
-  }
-}
-
-class _LineCard extends StatelessWidget {
-  final _LineItem line;
-  final bool canRemove;
-  final VoidCallback onRemove;
-  final VoidCallback onChanged;
-  const _LineCard({
-    required this.line,
-    required this.canRemove,
-    required this.onRemove,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: t.bgWarmer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: t.hairline, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ItemPickerRow(
-            label: line.description.isEmpty ? null : line.description,
-            uom: line.uom.isEmpty ? null : line.uom,
-            onPick: () async {
-              final picked = await Navigator.of(context).push<ItemSummary>(
-                MaterialPageRoute(
-                  builder: (_) => const _ItemPickerScreen(),
-                ),
-              );
-              if (picked != null) {
-                line.itemId = picked.id;
-                line.description = picked.name;
-                line.uom = picked.unit ?? line.uom;
-                if (picked.defaultSellingPrice != null) {
-                  line.unitPrice = picked.defaultSellingPrice!.toString();
-                }
-                if (picked.gstRate != null) line.taxRate = picked.gstRate!;
-                onChanged();
-              }
-            },
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _NumField(
-                  label: 'Qty',
-                  value: line.quantity,
-                  hint: '0',
-                  onChanged: (v) {
-                    line.quantity = v;
-                    onChanged();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _NumField(
-                  label: 'Unit price',
-                  value: line.unitPrice,
-                  hint: '0.00',
-                  onChanged: (v) {
-                    line.unitPrice = v;
-                    onChanged();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 72,
-                child: _UomDisplay(uom: line.uom),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _GstSelector(
-                  rate: line.taxRate,
-                  onChanged: (r) {
-                    line.taxRate = r;
-                    onChanged();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Amount', style: RunqText.caption.copyWith(color: t.muted)),
-                    const SizedBox(height: 4),
-                    Text(formatINR(line.amount + line.taxAmount),
-                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (canRemove) ...[
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onRemove,
-                icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                label: const Text('Remove'),
-                style: TextButton.styleFrom(foregroundColor: RunqColors.redInk),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _UomDisplay extends StatelessWidget {
-  final String uom;
-  const _UomDisplay({required this.uom});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('UOM', style: RunqText.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 4),
-        Container(
-          height: 44,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: t.inputFill,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: t.hairline, width: 0.5),
-          ),
-          child: Text(uom.isEmpty ? '—' : uom,
-              style: RunqText.body.copyWith(color: uom.isEmpty ? t.muted : t.ink)),
-        ),
-      ],
-    );
-  }
-}
-
-class _GstSelector extends StatelessWidget {
-  final double? rate;
-  final ValueChanged<double> onChanged;
-  const _GstSelector({required this.rate, required this.onChanged});
-
-  static const _options = [0.0, 5.0, 12.0, 18.0, 28.0];
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final unset = rate == null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('GST', style: RunqText.caption.copyWith(color: t.muted)),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: t.inputFill,
-            borderRadius: BorderRadius.circular(10),
-            // Flag an unset rate so it can't be missed and shipped as 0%.
-            border: Border.all(
-                color: unset ? RunqColors.amberInk : t.hairline,
-                width: unset ? 1 : 0.5),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<double>(
-              value: rate != null && _options.contains(rate) ? rate : null,
-              isExpanded: true,
-              hint: Text('Select', style: RunqText.body.copyWith(color: t.muted)),
-              icon: Icon(Icons.expand_more_rounded, color: t.muted, size: 18),
-              style: RunqText.body.copyWith(color: t.ink),
-              items: _options
-                  .map((r) => DropdownMenuItem<double>(
-                        value: r,
-                        child: Text('${r.toStringAsFixed(0)}%'),
-                      ))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) onChanged(v);
+            CustomerPickerRow(
+              customer: _customer,
+              onPick: () async {
+                final picked = await showCustomerPicker(
+                  context,
+                  currentCustomerId: _customer?.id,
+                );
+                if (picked != null) _onCustomerChanged(picked);
               },
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ItemPickerRow extends StatelessWidget {
-  final String? label;
-  final String? uom;
-  final VoidCallback onPick;
-  const _ItemPickerRow({required this.label, required this.uom, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final has = label != null;
-    final display = has && uom != null && uom!.isNotEmpty ? '$label · $uom' : (label ?? 'Pick item');
-    return InkWell(
-      onTap: onPick,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: has ? RunqColors.indigo : t.hairline, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            Icon(has ? Icons.inventory_2_rounded : Icons.search_rounded,
-                size: 18, color: has ? RunqColors.indigo : t.muted),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                display,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: RunqText.body.copyWith(
-                  color: has ? t.ink : t.muted,
-                  fontWeight: has ? FontWeight.w600 : FontWeight.w400,
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InvoiceDateField(
+                    label: 'Invoice date',
+                    value: _invoiceDate,
+                    onChanged: _onInvoiceDateChanged,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InvoiceDateField(
+                    label: 'Due date',
+                    value: _dueDate,
+                    onChanged: (d) => setState(() {
+                      _dueDate = d;
+                      _dueDirty = true;
+                    }),
+                  ),
+                ),
+              ],
             ),
-            Icon(Icons.chevron_right_rounded, color: t.muted2),
+            const SizedBox(height: 12),
+            InvoiceTextField(
+              controller: _poCtrl,
+              label: 'PO number (optional)',
+              hint: "Buyer's PO/order reference",
+            ),
           ],
         ),
-      ),
-    );
-  }
-}
+      );
 
-class _ItemPickerScreen extends StatefulWidget {
-  const _ItemPickerScreen();
-
-  @override
-  State<_ItemPickerScreen> createState() => _ItemPickerScreenState();
-}
-
-class _ItemPickerScreenState extends State<_ItemPickerScreen> {
-  final _ctrl = TextEditingController();
-  Timer? _debounce;
-  List<ItemSummary> _results = const [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _runQuery('');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    _debounce?.cancel();
-    super.dispose();
-  }
-
-  void _onChanged(String q) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () => _runQuery(q));
-  }
-
-  Future<void> _runQuery(String q) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final res = await orderRepo.searchItems(q);
-      if (!mounted) return;
-      setState(() {
-        _results = res;
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Could not load items';
-        _loading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Scaffold(
-      backgroundColor: t.bgWarmer,
-      appBar: AppBar(
-        title: const Text('Pick item'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
-            children: [
-              TextField(
-                controller: _ctrl,
-                autofocus: true,
-                onChanged: _onChanged,
-                decoration: _inputDecoration(t, hint: 'Search by name or SKU'),
+  Widget _linesSection(RunqTokens t) => InvoiceSectionCard(
+        title: 'Line items',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_lines.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('Nothing on this invoice yet.',
+                    style: RunqText.caption.copyWith(color: t.muted)),
+              )
+            else
+              for (int i = 0; i < _lines.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                InvoiceLineRow(
+                  line: _lines[i],
+                  canRemove: true,
+                  onEdit: () => _editLine(i),
+                  onRemove: () => _removeLine(i),
+                ),
+              ],
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addLine,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Add item'),
               ),
-              const SizedBox(height: 12),
-              Expanded(child: _buildList(t)),
-            ],
-          ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
+      );
 
-  Widget _buildList(RunqTokens t) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(child: Text(_error!, style: RunqText.body.copyWith(color: RunqColors.redInk)));
-    }
-    if (_results.isEmpty) {
-      return Center(child: Text('No items found', style: RunqText.body.copyWith(color: t.muted)));
-    }
-    return ListView.separated(
-      itemCount: _results.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: t.hairlineSoft),
-      itemBuilder: (_, i) {
-        final item = _results[i];
-        return ListTile(
-          title: Text(item.name, style: RunqText.bodyStrong.copyWith(color: t.ink)),
-          subtitle: Text(
-            [
-              if (item.sku.isNotEmpty) 'SKU ${item.sku}',
-              if (item.unit != null && item.unit!.isNotEmpty) item.unit!,
-              if (item.defaultSellingPrice != null) formatINR(item.defaultSellingPrice!),
-            ].join(' · '),
-            style: RunqText.caption.copyWith(color: t.muted),
-          ),
-          trailing: Icon(Icons.chevron_right_rounded, color: t.muted2),
-          onTap: () => Navigator.of(context).pop(item),
-        );
-      },
-    );
-  }
-}
+  Widget _summarySection() => InvoiceSectionCard(
+        title: 'Summary',
+        child: Column(
+          children: [
+            InvoiceSummaryRow(label: 'Subtotal', value: formatINR(_subtotal)),
+            const SizedBox(height: 6),
+            InvoiceSummaryRow(label: 'GST (auto)', value: formatINR(_tax)),
+            const Divider(height: 18),
+            InvoiceSummaryRow(label: 'Total', value: formatINR(_total), bold: true),
+          ],
+        ),
+      );
 
-class _LineSummaryRow extends StatelessWidget {
-  final _LineItem line;
-  final bool canRemove;
-  final VoidCallback onEdit;
-  final VoidCallback onRemove;
-  const _LineSummaryRow({
-    required this.line,
-    required this.canRemove,
-    required this.onEdit,
-    required this.onRemove,
-  });
+  Widget _notesSection(RunqTokens t) => InvoiceSectionCard(
+        title: 'Notes',
+        child: TextField(
+          controller: _notesCtrl,
+          minLines: 2,
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: invoiceInputDecoration(t, hint: 'Optional notes for this invoice'),
+        ),
+      );
 
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final desc = line.description.isEmpty ? 'Untitled item' : line.description;
-    final qty = line.quantity.isEmpty ? '0' : line.quantity;
-    final price = line.unitPrice.isEmpty ? '0' : line.unitPrice;
-    final metaParts = <String>[
-      if (line.uom.isNotEmpty) line.uom,
-      '$qty × ₹$price',
-      if (line.taxRate == null)
-        'GST —'
-      else if (line.taxRate! > 0)
-        'GST ${line.taxRate!.toStringAsFixed(0)}%',
-    ];
-    return InkWell(
-      onTap: onEdit,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+  /// Shows the total next to the action, so the number being committed to is
+  /// on screen at the moment of committing rather than scrolled away.
+  Widget _saveBar(RunqTokens t) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
         decoration: BoxDecoration(
           color: t.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: t.hairline, width: 0.5),
+          border: Border(top: BorderSide(color: t.hairline, width: 0.5)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    desc,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    metaParts.join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.caption.copyWith(color: t.muted),
-                  ),
+                  Text('Total', style: RunqText.caption.copyWith(color: t.muted)),
+                  Text(formatINR(_total),
+                      style: RunqText.tabular(size: 18, w: FontWeight.w700, color: t.ink)),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              formatINR(line.amount + line.taxAmount),
-              style: RunqText.tabular(size: 14, w: FontWeight.w600, color: t.ink),
-            ),
-            IconButton(
-              icon: Icon(Icons.edit_outlined, size: 18, color: t.muted),
-              onPressed: onEdit,
-              visualDensity: VisualDensity.compact,
-              tooltip: 'Edit',
-            ),
-            if (canRemove)
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: RunqColors.redInk),
-                onPressed: onRemove,
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Remove',
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EditLineSheet extends StatefulWidget {
-  final _LineItem line;
-  const _EditLineSheet({required this.line});
-
-  @override
-  State<_EditLineSheet> createState() => _EditLineSheetState();
-}
-
-class _EditLineSheetState extends State<_EditLineSheet> {
-  late _LineItem _draft;
-
-  @override
-  void initState() {
-    super.initState();
-    _draft = _LineItem()
-      ..itemId = widget.line.itemId
-      ..description = widget.line.description
-      ..uom = widget.line.uom
-      ..quantity = widget.line.quantity
-      ..unitPrice = widget.line.unitPrice
-      ..taxRate = widget.line.taxRate;
-  }
-
-  void _save() {
-    widget.line
-      ..itemId = _draft.itemId
-      ..description = _draft.description
-      ..uom = _draft.uom
-      ..quantity = _draft.quantity
-      ..unitPrice = _draft.unitPrice
-      ..taxRate = _draft.taxRate;
-    Navigator.of(context).pop(true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final inset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: inset),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: t.hairline,
-                    borderRadius: BorderRadius.circular(2),
+              const SizedBox(width: 16),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: RunqColors.indigo,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(_isEdit ? 'Save changes' : 'Save invoice'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text('Edit line item', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              const SizedBox(height: 12),
-              _ItemPickerRow(
-                label: _draft.description.isEmpty ? null : _draft.description,
-                uom: _draft.uom.isEmpty ? null : _draft.uom,
-                onPick: () async {
-                  final picked = await Navigator.of(context).push<ItemSummary>(
-                    MaterialPageRoute(builder: (_) => const _ItemPickerScreen()),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _draft.itemId = picked.id;
-                      _draft.description = picked.name;
-                      _draft.uom = picked.unit ?? _draft.uom;
-                      if (picked.defaultSellingPrice != null) {
-                        _draft.unitPrice = picked.defaultSellingPrice!.toString();
-                      }
-                      if (picked.gstRate != null) _draft.taxRate = picked.gstRate!;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _NumField(
-                      label: 'Qty',
-                      value: _draft.quantity,
-                      hint: '0',
-                      onChanged: (v) => setState(() => _draft.quantity = v),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _NumField(
-                      label: 'Unit price',
-                      value: _draft.unitPrice,
-                      hint: '0.00',
-                      onChanged: (v) => setState(() => _draft.unitPrice = v),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _GstSelector(
-                      rate: _draft.taxRate,
-                      onChanged: (r) => setState(() => _draft.taxRate = r),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('Amount', style: RunqText.caption.copyWith(color: t.muted)),
-                        const SizedBox(height: 4),
-                        Text(formatINR(_draft.amount + _draft.taxAmount),
-                            style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _save,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: RunqColors.indigo,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Save'),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final String label, value;
-  final bool bold;
-  const _SummaryRow({required this.label, required this.value, this.bold = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final style = bold
-        ? RunqText.bodyStrong.copyWith(color: t.ink)
-        : RunqText.body.copyWith(color: t.muted);
-    final valStyle = bold
-        ? RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)
-        : RunqText.tabular(size: 14, w: FontWeight.w500, color: t.ink);
-    return Row(
-      children: [
-        Expanded(child: Text(label, style: style)),
-        Text(value, style: valStyle),
-      ],
-    );
-  }
+      );
 }

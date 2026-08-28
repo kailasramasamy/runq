@@ -25,6 +25,15 @@ export interface PendingAlert {
   status: 'low' | 'out';
 }
 
+/** One line an invoice billed that the warehouse could not cover. */
+export interface PendingShortfall {
+  itemName: string;
+  qty: number;
+  /** Pack size — one product name covers several SKUs. */
+  uom: string | null;
+  customerName: string | null;
+}
+
 export class StockAlertNotifier {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
 
@@ -81,6 +90,50 @@ export class StockAlertNotifier {
     }
     return userIds.length;
   }
+
+  /**
+   * Goods that were billed and couldn't be sent — a different notice from a
+   * low-stock warning, and a louder one. Low stock is a purchasing problem
+   * for next week; this is a customer who has been invoiced for something
+   * still sitting unshipped, and it links to the shortages queue where it can
+   * be covered or substituted.
+   */
+  async sendShortfallDigest(rows: PendingShortfall[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    const userIds = await this.recipients();
+    if (userIds.length === 0) return 0;
+
+    const title = rows.length === 1
+      ? `Short on ${rows[0]!.itemName}${rows[0]!.uom ? ` ${rows[0]!.uom}` : ''}`
+        + ' — billed but not sent'
+      : `${rows.length} lines billed but not sent`;
+
+    for (const userId of userIds) {
+      await new NotificationsService(this.db, this.tenantId, userId).create({
+        type: 'warn',
+        source: SOURCE,
+        title,
+        body: `${shortfallList(rows)}. Cover from stock or send a substitute.`,
+        // A route both clients own outright. The web app used to get
+        // `/inventory/delivery?tab=shortages`, which mobile's notification
+        // resolver could only reduce to the delivery list — dropping the
+        // reader on the wrong screen for the one notice that needs action.
+        targetUrl: '/inventory/shortages',
+      });
+    }
+    return userIds.length;
+  }
+}
+
+/** "A, B, C and 4 more" for goods owed, qty-qualified rather than warehouse. */
+function shortfallList(rows: PendingShortfall[]): string {
+  const named = rows.slice(0, NAMED_LIMIT).map((r) => {
+    const pack = r.uom ? ` ${r.uom}` : '';
+    const to = r.customerName ? ` for ${r.customerName}` : '';
+    return `${r.itemName}${pack} ×${r.qty}${to}`;
+  });
+  const rest = rows.length - named.length;
+  return rest > 0 ? `${named.join(', ')} and ${rest} more` : named.join(', ');
 }
 
 function digestTitle(outCount: number, lowCount: number): string {

@@ -19,6 +19,7 @@ import '../widgets/runq_snack.dart';
 import '../widgets/payment_qr_sheet.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/swipe_action.dart';
+import 'inventory/widgets/shortfall_flow.dart';
 
 class InvoiceRow extends ConsumerWidget {
   final Invoice invoice;
@@ -191,12 +192,18 @@ class InvoiceRow extends ConsumerWidget {
 
   Future<void> _send(BuildContext context, WidgetRef ref) async {
     try {
-      final email = await invoicesRepo.send(invoice.id);
+      final sent = await invoicesRepo.send(invoice.id);
       await _refreshAll(ref);
+      if (!context.mounted) return;
+      // Shortage first — see the note in invoice_detail_screen._send.
+      final dispatch = sent.dispatch;
+      if (dispatch != null) {
+        await runShortfallFlow(context, ref, dispatch, invoiceId: invoice.id);
+      }
       if (!context.mounted) return;
       reportInvoiceSendOutcome(
         context,
-        email,
+        sent.email,
         invoiceNumber: invoice.invoiceNumber,
         customerName: invoice.customerName,
       );

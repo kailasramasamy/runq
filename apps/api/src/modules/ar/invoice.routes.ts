@@ -14,6 +14,8 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { InvoiceService } from './invoice.service';
+import { InvoiceRelabelService } from './invoice-relabel.service';
+import { InvoiceTrimService } from './invoice-trim.service';
 import { GLService } from '../gl/gl.service';
 import { generateUPILink } from '../../utils/upi/upi-link';
 import { InterestService } from './interest.service';
@@ -208,6 +210,51 @@ export const invoiceRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return { data: result };
+    },
+  );
+
+  /**
+   * Point an invoice line at the substitute that was actually dispatched.
+   *
+   * Item and description only — the substitution guard has already forced
+   * HSN and rate to match, and the billed price is held, so nothing about
+   * what the customer owes moves and no journal needs re-posting.
+   */
+  /**
+   * Bill only what the warehouse could deliver.
+   *
+   * Cuts each line to the quantity that actually shipped and cancels the
+   * shortfall draft, so nothing is left outstanding. Lowers what the customer
+   * owes, so it is only ever reached by an explicit choice.
+   */
+  app.post(
+    '/:id/trim-to-delivered',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const service = new InvoiceTrimService({
+        db: request.server.db,
+        tenantId: request.tenantId,
+        userId: request.user?.userId,
+      });
+      return { data: await service.trimToDelivered(id) };
+    },
+  );
+
+  app.post(
+    '/:id/lines/:lineId/relabel',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const { id, lineId } = z.object({
+        id: z.string().uuid(),
+        lineId: z.string().uuid(),
+      }).parse(request.params);
+      const service = new InvoiceRelabelService({
+        db: request.server.db,
+        tenantId: request.tenantId,
+        userId: request.user?.userId,
+      });
+      return { data: await service.relabelToDispatched(id, lineId) };
     },
   );
 
