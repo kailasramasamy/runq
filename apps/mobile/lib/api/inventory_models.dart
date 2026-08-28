@@ -1335,6 +1335,11 @@ class InvItemDetail {
   final double? reorderLevel;
   final double? reorderQty;
 
+  /// Days from receipt until the stock is unfit to use. Null for anything that
+  /// does not perish on a clock. Batches that arrive without an expiry of their
+  /// own — raw milk off a procurement consignment — get one derived from this.
+  final double? shelfLifeDays;
+
   /// Tenant-defined catalogue attributes (brand, packing type, size…).
   /// Shape varies per tenant schema, so it stays an untyped map.
   final Map<String, dynamic> attributes;
@@ -1371,6 +1376,7 @@ class InvItemDetail {
     this.batchCodeTemplate,
     this.reorderLevel,
     this.reorderQty,
+    this.shelfLifeDays,
     this.attributes = const {},
     this.cogmBreakdown = const [],
     required this.isActive,
@@ -1404,6 +1410,7 @@ class InvItemDetail {
     batchCodeTemplate: j['batchCodeTemplate'] as String?,
     reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
     reorderQty: (j['reorderQty'] as num?)?.toDouble(),
+    shelfLifeDays: (j['shelfLifeDays'] as num?)?.toDouble(),
     attributes: (j['attributes'] as Map?)?.cast<String, dynamic>() ?? const {},
     cogmBreakdown: ((j['cogmBreakdown'] as List?) ?? const [])
         .map(

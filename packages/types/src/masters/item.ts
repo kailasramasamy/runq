@@ -84,6 +84,10 @@ export interface Item {
    *  inventory.reorder_rules overrides these when one exists. */
   reorderLevel: number | null;
   reorderQty: number | null;
+  /** Days from receipt until the stock is unfit to use. Batches with no expiry
+   *  of their own derive one from this — see the raw-milk source in
+   *  `batchExpiryMap`. NULL = does not perish on a clock. */
+  shelfLifeDays: number | null;
   isActive: boolean;
   /** Total on-hand quantity across warehouses and batches. Only populated
    *  when the list endpoint is called with `withStock=true`; undefined

@@ -118,6 +118,11 @@ export const createItemSchema = z.object({
   reorderLevel: z.number().min(0).nullish(),
   /** Suggested quantity to order when the level is breached. */
   reorderQty: z.number().min(0).nullish(),
+  /** Days from receipt until the stock is no longer fit to use. Batches that
+   *  carry no expiry of their own — raw milk taken in against a procurement
+   *  consignment, for one — have theirs derived from this, so FEFO can order
+   *  them. Null means the item does not perish on a clock. */
+  shelfLifeDays: z.number().int().min(0).max(36500).nullish(),
 });
 
 export const updateItemSchema = createItemSchema.partial();

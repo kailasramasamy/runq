@@ -281,6 +281,13 @@ class ItemTrackingCard extends StatelessWidget {
         ),
       if ((item.batchCodeTemplate ?? '').isNotEmpty)
         ItemKvRow(label: 'Batch code', value: item.batchCodeTemplate!),
+      // Only meaningful where it is set: it is what gives a batch with no
+      // entered expiry a date to be sorted by.
+      if ((item.shelfLifeDays ?? 0) > 0)
+        ItemKvRow(
+          label: 'Shelf life',
+          value: '${formatItemQty(item.shelfLifeDays, null)} days from receipt',
+        ),
     ];
     return InvCard(
       child: Column(

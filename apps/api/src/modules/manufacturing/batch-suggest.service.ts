@@ -79,21 +79,42 @@ export class BatchSuggestService {
         SELECT batch_no, MIN(expiry_date) AS expiry_date
         FROM batch_expiry
         GROUP BY batch_no
+      ),
+      -- Stock nobody typed an expiry for. Raw milk posts straight to the
+      -- ledger against its procurement consignment, so it reaches FEFO with
+      -- no date at all and sorts last — the freshest can ahead of milk that
+      -- is about to turn. Where the item declares a shelf life, count it from
+      -- the first inbound movement's business date: an MP receipt stamps that
+      -- with the collection date, so the clock starts when the milk was
+      -- collected. A typed date still wins (see the COALESCE below).
+      derived_expiry AS (
+        SELECT sl.batch_no,
+               (MIN(sl.moved_at)::date + i.shelf_life_days::int) AS expiry_date
+        FROM stock_ledger sl
+        JOIN items i ON i.id = sl.item_id AND i.tenant_id = sl.tenant_id
+        WHERE sl.tenant_id = ${this.tenantId}
+          AND sl.item_id = ${inputItemId}
+          AND sl.batch_no IS NOT NULL
+          AND sl.qty_in > 0
+          AND i.shelf_life_days IS NOT NULL
+        GROUP BY sl.batch_no, i.shelf_life_days
       )
       SELECT
         soh.batch_no,
         soh.qty::float   AS available_qty,
         soh.avg_cost::float AS unit_cost,
         soh.last_movement_at,
-        me.expiry_date
+        COALESCE(me.expiry_date, de.expiry_date) AS expiry_date
       FROM stock_on_hand soh
       LEFT JOIN min_expiry me ON me.batch_no = soh.batch_no
+      LEFT JOIN derived_expiry de ON de.batch_no = soh.batch_no
       WHERE soh.tenant_id = ${this.tenantId}
         AND soh.item_id = ${inputItemId}
         AND soh.warehouse_id = ${warehouseId}
         AND soh.qty > 0
         ${qtyFilter}
-      ORDER BY me.expiry_date ASC NULLS LAST, soh.last_movement_at ASC
+      ORDER BY COALESCE(me.expiry_date, de.expiry_date) ASC NULLS LAST,
+               soh.last_movement_at ASC
     `);
 
     type Row = {

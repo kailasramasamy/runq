@@ -27,7 +27,10 @@ const FMCG_PRESET: ItemAttributeSchema = [
   { key: 'packingType', label: 'Packing Type', type: 'text', placeholder: 'e.g. PET' },
   { key: 'vendorPackSize', label: 'Vendor Pack Size', type: 'text', placeholder: 'Carton' },
   { key: 'packagingDimension', label: 'Packaging Dimension', type: 'text', placeholder: 'L x B x H' },
-  { key: 'shelfLifeDays', label: 'Shelf Life (days)', type: 'number', placeholder: '180' },
+  // NOTE: `shelfLifeDays` is intentionally NOT in the preset. It is a real
+  // column on items, and it drives derived batch expiry — a descriptive copy
+  // in `attributes` would render as a second "Shelf life" box on the item form
+  // that looks identical and changes nothing. Migration 0204 retired it.
   {
     key: 'temperature',
     label: 'Temperature',

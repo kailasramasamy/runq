@@ -9,6 +9,11 @@ import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 
+/** `YYYY-MM-DD` plus n whole days, in UTC so a shelf life never loses a day to
+ *  the server's timezone. */
+const addDays = (date: string, n: number): string =>
+  new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
 // Leaf category and its parent. Aliased because both come from `categories`.
 const category = alias(categories, 'item_category');
 const parentCategory = alias(categories, 'item_category_parent');
@@ -135,7 +140,8 @@ export class StockQueryService {
    * stock by. Used by on-hand to surface a shelf-life column without a second
    * round-trip per row.
    *
-   * Three sources, because a batch is not always bought:
+   * Three sources carry a date somebody entered, because a batch is not always
+   * bought:
    *   inventory_grn_lines — received from a vendor
    *   wo_output           — manufactured
    *   mfg_reclaim_lines   — recovered from torn-down finished goods
@@ -143,6 +149,19 @@ export class StockQueryService {
    * The last two matter most for shelf life: reclaimed milk has already spent
    * time in a packet, so it carries a short expiry and FEFO has to see it, or
    * it sits behind fresher stock until it spoils.
+   *
+   * A fourth is derived, for stock that enters by none of those routes. Raw
+   * milk taken in against a procurement consignment posts straight to
+   * `stock_ledger`, so nobody ever types an expiry for it and every can read
+   * "no expiry" — which left FEFO with nothing to sort raw milk by, on the one
+   * input in the plant that actually spoils in days. Where the item declares a
+   * `shelf_life_days`, its expiry is its first inbound movement plus that many
+   * days. `movedAt` is the business date, not the clock: an MP receipt stamps
+   * it with the collection date, so the milk's three days run from when it was
+   * collected rather than from when the plant got around to keying it in.
+   *
+   * Derived only as a fallback — an entered date always wins, and an item with
+   * no shelf life set is left alone rather than guessed at.
    */
   private async batchExpiryMap(
     keys: Array<{ itemId: string; batchNo: string }>,
@@ -207,6 +226,60 @@ export class StockQueryService {
       const key = `${r.itemId}|${r.batchNo}`;
       const existing = out.get(key);
       if (!existing || r.expiryDate < existing) out.set(key, r.expiryDate);
+    }
+
+    const missing = keys.filter((k) => !out.has(`${k.itemId}|${k.batchNo}`));
+    for (const [key, date] of await this.shelfLifeExpiryMap(missing)) out.set(key, date);
+    return out;
+  }
+
+  /**
+   * Expiry implied by the item's shelf life and when the batch first landed.
+   *
+   * Only for the keys that have no entered expiry — see `batchExpiryMap`. Both
+   * halves must be present: an item with no `shelf_life_days` gets nothing, and
+   * so does a batch with no inbound movement to count from.
+   */
+  private async shelfLifeExpiryMap(
+    keys: Array<{ itemId: string; batchNo: string }>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (keys.length === 0) return out;
+    const itemIds = Array.from(new Set(keys.map((k) => k.itemId)));
+    const batchNos = Array.from(new Set(keys.map((k) => k.batchNo)));
+
+    const [shelfRows, receivedRows] = await Promise.all([
+      this.db
+        .select({ id: items.id, shelfLifeDays: items.shelfLifeDays })
+        .from(items)
+        .where(and(
+          eq(items.tenantId, this.tenantId),
+          inArray(items.id, itemIds),
+          sql`${items.shelfLifeDays} IS NOT NULL`,
+        )),
+      this.db
+        .select({
+          itemId: stockLedger.itemId,
+          batchNo: stockLedger.batchNo,
+          // The business date the stock arrived on, not when it was keyed in.
+          receivedOn: sql<string>`MIN(${stockLedger.movedAt})::date::text`,
+        })
+        .from(stockLedger)
+        .where(and(
+          eq(stockLedger.tenantId, this.tenantId),
+          inArray(stockLedger.itemId, itemIds),
+          inArray(stockLedger.batchNo, batchNos),
+          sql`${stockLedger.qtyIn} > 0`,
+        ))
+        .groupBy(stockLedger.itemId, stockLedger.batchNo),
+    ]);
+
+    const shelfLife = new Map(shelfRows.map((r) => [r.id, Number(r.shelfLifeDays)]));
+    for (const r of receivedRows) {
+      if (!r.batchNo || !r.receivedOn) continue;
+      const days = shelfLife.get(r.itemId);
+      if (days === undefined || !Number.isFinite(days)) continue;
+      out.set(`${r.itemId}|${r.batchNo}`, addDays(r.receivedOn, days));
     }
     return out;
   }

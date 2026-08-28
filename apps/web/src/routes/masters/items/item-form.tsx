@@ -151,6 +151,9 @@ export function ItemForm({
   const [reorderQty, setReorderQty] = useState<string>(
     source?.reorderQty != null ? String(source.reorderQty) : '',
   );
+  const [shelfLifeDays, setShelfLifeDays] = useState<string>(
+    source?.shelfLifeDays != null ? String(source.shelfLifeDays) : '',
+  );
   const [batchCodeTemplate, setBatchCodeTemplate] = useState<string>(
     source?.batchCodeTemplate ?? '',
   );
@@ -270,6 +273,7 @@ export function ItemForm({
               : null,
             reorderLevel: reorderLevel.trim() === '' ? null : Number(reorderLevel),
             reorderQty: reorderQty.trim() === '' ? null : Number(reorderQty),
+            shelfLifeDays: shelfLifeDays.trim() === '' ? null : Number(shelfLifeDays),
           }
         : {}),
       // Carry the source's COGM breakdown into the new item when duplicating,
@@ -530,6 +534,16 @@ export function ItemForm({
                 onChange={(e) => setReorderQty(e.target.value)}
                 placeholder="Optional"
                 helper="Suggested quantity to order when the threshold is breached."
+              />
+              <Input
+                label="Shelf life (days)"
+                type="number"
+                min={0}
+                step={1}
+                value={shelfLifeDays}
+                onChange={(e) => setShelfLifeDays(e.target.value)}
+                placeholder="Doesn't expire"
+                helper="Used when a batch arrives without its own expiry date — raw milk taken in against a procurement consignment, for one. Counted from the date the stock was received, and it gives FEFO something to sort by."
               />
             </div>
           )}

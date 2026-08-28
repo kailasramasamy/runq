@@ -80,6 +80,10 @@ export interface Item {
   /** Low-stock threshold; null = no threshold (still alerts at zero). */
   reorderLevel?: number | null;
   reorderQty?: number | null;
+  /** Days from receipt until the stock is unfit to use. Gives batches that
+   *  arrive without their own expiry — raw milk off a procurement consignment
+   *  — a date, so FEFO can order them. Null = doesn't expire on a clock. */
+  shelfLifeDays?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

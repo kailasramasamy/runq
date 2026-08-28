@@ -12,7 +12,6 @@ const ATTRIBUTE_COLUMN_SYNONYMS: Record<string, string> = {
   brand: '"Brand", "Brand Name", "Manufacturer", "Maker"',
   packingType: '"Packing Type", "Packaging", "Pack Type", "Container Type" (e.g. "PET", "Glass", "Tetra Pak", "Pouch")',
   grammage: '"Grammage", "Pack Size", "Net Weight", "Net Wt", "Weight", "Volume". Raw verbatim value, e.g. "200ml", "1 litre", "5 Litre"',
-  shelfLifeDays: '"Shelf Life", "Shelf Life (days)", "Shelf life (number of days)", "Expiry Days", "Best Before". Integer. "180 days" → 180',
   rtvAllowed: '"RTV", "RTV / Non RTV", "Returnable". Map "RTV"/"Yes"/"Returnable"/"true" → true; "Non RTV"/"No"/"Non-Returnable"/"false" → false; otherwise null',
   vendorPackSize: '"Vendor Pack Size", "Carton Size", "Case Pack", "Box Qty", "Inner Pack". Free-text',
   packagingDimension: '"Packaging Dimension", "Dimensions", "Box Dimensions", "L x B x H". Free-text',
