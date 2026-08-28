@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -336,12 +338,11 @@ class _ForecastChart extends StatelessWidget {
     final rawMaxDay = projections.last.day.toDouble();
     final maxDay = rawMaxDay > 0 ? rawMaxDay : 1.0;
     final values = projections.map((p) => p.projectedBalance).toList();
-    final maxV = values.reduce((a, b) => a > b ? a : b);
-    final minV = values.reduce((a, b) => a < b ? a : b);
-    final pad = ((maxV - minV).abs() * 0.15).clamp(1.0, double.infinity);
-    final maxY = maxV + pad;
-    final rawMinY = (minV - pad).clamp(double.negativeInfinity, currentBalance);
-    final minY = rawMinY < maxY ? rawMinY : maxY - 1.0;
+    // The axis is snapped to round values so every label is a number worth
+    // reading and each one sits exactly on its grid line. Deriving the bounds
+    // from the data and dividing by three put the labels on arbitrary values
+    // like ₹4.87L, whose varying width read as a ragged, misaligned column.
+    final axis = _Axis.forValues(values);
     final spots = projections
         .map((p) => FlSpot(p.day.toDouble(), p.projectedBalance))
         .toList();
@@ -367,12 +368,12 @@ class _ForecastChart extends StatelessWidget {
               LineChartData(
                 minX: 0,
                 maxX: maxDay,
-                minY: minY,
-                maxY: maxY,
+                minY: axis.min,
+                maxY: axis.max,
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: (maxY - minY) / 3,
+                  horizontalInterval: axis.interval,
                   getDrawingHorizontalLine: (_) =>
                       FlLine(color: t.hairlineSoft, strokeWidth: 0.5),
                 ),
@@ -383,12 +384,18 @@ class _ForecastChart extends StatelessWidget {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 44,
-                      interval: (maxY - minY) / 3,
-                      getTitlesWidget: (v, _) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
+                      reservedSize: _Axis.labelWidth,
+                      interval: axis.interval,
+                      // Right-aligned in a fixed box so the labels form a
+                      // straight column against the plot edge instead of each
+                      // one centring on its own width.
+                      getTitlesWidget: (v, _) => Container(
+                        width: _Axis.labelWidth,
+                        padding: const EdgeInsets.only(right: 8),
+                        alignment: Alignment.centerRight,
                         child: Text(
-                          formatINR(v, compact: true),
+                          formatChartINR(v),
+                          maxLines: 1,
                           style: RunqText.tabular(size: 10, w: FontWeight.w500, color: t.muted2),
                         ),
                       ),
@@ -546,5 +553,47 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(height: 0.5, color: RT(context).hairline);
+  }
+}
+
+/// A y-axis snapped to round numbers.
+///
+/// [interval] is a 1/2/2.5/5 × 10ⁿ step, and [min]/[max] are the data range
+/// widened to whole multiples of it — so ticks land on values like ₹5L rather
+/// than ₹4.87L, and every label sits on a grid line.
+class _Axis {
+  final double min, max, interval;
+  const _Axis(this.min, this.max, this.interval);
+
+  /// Wide enough for "−₹12.3Cr" at 10pt, and fixed so the column is straight.
+  static const labelWidth = 56.0;
+
+  static const _targetTicks = 4;
+
+  factory _Axis.forValues(List<double> values) {
+    var lo = values.reduce((a, b) => a < b ? a : b);
+    var hi = values.reduce((a, b) => a > b ? a : b);
+    if (hi - lo < 1) {
+      // A flat forecast still needs a band to draw in, or the line sits on the
+      // frame and the axis repeats one number.
+      final pad = (hi.abs() * 0.1).clamp(1.0, double.infinity);
+      lo -= pad;
+      hi += pad;
+    }
+    final interval = _niceStep((hi - lo) / _targetTicks);
+    return _Axis(
+      (lo / interval).floorToDouble() * interval,
+      (hi / interval).ceilToDouble() * interval,
+      interval,
+    );
+  }
+
+  /// Rounds up to the next 1, 2, 2.5 or 5 times a power of ten.
+  static double _niceStep(double raw) {
+    if (raw <= 0) return 1;
+    final mag = math.pow(10, (math.log(raw) / math.ln10).floor()).toDouble();
+    final norm = raw / mag;
+    final step = norm <= 1 ? 1.0 : (norm <= 2 ? 2.0 : (norm <= 2.5 ? 2.5 : (norm <= 5 ? 5.0 : 10.0)));
+    return step * mag;
   }
 }

@@ -28,6 +28,50 @@ interface AccountRow {
   balance: number;
 }
 
+/**
+ * Cash-flow buckets, keyed on `journal_entries.source_type`.
+ *
+ * These are matched against the values the system actually writes. The
+ * previous sets were written against names nothing emits — 'manual',
+ * 'debit_note', 'loan_disbursement', 'equity_injection' — so FINANCING could
+ * never match and everything outside 'payment'/'receipt' fell through to
+ * INVESTING. For a dairy that put reconciled bank movements, milk payouts and
+ * VMCC bills under "asset purchases & sales".
+ *
+ * Operating is the default: it is where an unrecognised cash movement most
+ * likely belongs, and a new source type showing up as investing is a much
+ * more misleading answer than one showing up as operating.
+ */
+const FINANCING = new Set([
+  'owner_injection',
+  'loan_disbursement',
+  'loan_repayment',
+  'equity_injection',
+  'dividend',
+]);
+
+const INVESTING = new Set([
+  'fixed_asset_purchase',
+  'fixed_asset_sale',
+]);
+
+/** Opening entries state the position the period starts from, so they are not
+ * flows within it — counting them made every window that reached back far
+ * enough show the opening balance as income. */
+const OPENING_BALANCE = new Set([
+  'opening_balance',
+  'opening_balance_bank',
+  'opening_balance_ap',
+  'opening_balance_ar',
+  'opening_balance_wallet',
+]);
+
+function mergeByDescription(rows: { description: string; amount: number }[]) {
+  const byDesc = new Map<string, number>();
+  for (const r of rows) byDesc.set(r.description, (byDesc.get(r.description) ?? 0) + r.amount);
+  return [...byDesc].map(([description, amount]) => ({ description, amount }));
+}
+
 export class ReportsService {
   constructor(
     private readonly db: Db,
@@ -274,14 +318,17 @@ export class ReportsService {
     return toNumber(result?.total ?? '0');
   }
 
+  /**
+   * Cash position from the GL alone: every posted movement on the cash
+   * accounts before the date, opening-balance entries included.
+   *
+   * It used to seed this with SUM(bank_accounts.opening_balance) and add the
+   * GL movements on top. Tenants post an `opening_balance_bank` entry for
+   * exactly that amount, so the opening balance was counted twice — and
+   * because reversed entries were not filtered out, a reversed-and-reposted
+   * opening could land a third and fourth time.
+   */
   private async getCashBalanceAsOf(asOfDate: string): Promise<number> {
-    // Sum of bank opening balances + all cash JE movements before the date
-    const [openingResult] = await this.db
-      .select({ total: sql<string>`COALESCE(SUM(${bankAccounts.openingBalance}), 0)::text` })
-      .from(bankAccounts)
-      .where(and(eq(bankAccounts.tenantId, this.tenantId), eq(bankAccounts.isActive, true)));
-    const openingBalance = toNumber(openingResult?.total ?? '0');
-
     const [movementResult] = await this.db
       .select({
         totalDebit: sum(journalLines.debit),
@@ -292,17 +339,20 @@ export class ReportsService {
       .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
       .where(and(
         eq(journalLines.tenantId, this.tenantId),
+        eq(journalEntries.status, 'posted'),
         sql`${accounts.code} IN ('1101', '1102')`,
         sql`${journalEntries.date} < ${asOfDate}`,
       ));
 
     const dr = toNumber(movementResult?.totalDebit ?? '0');
     const cr = toNumber(movementResult?.totalCredit ?? '0');
-    return openingBalance + dr - cr;
+    return dr - cr;
   }
 
   private async getCashJournalEntries(dateFrom: string, dateTo: string) {
-    // Only actual cash/bank accounts (1101, 1102), not AR (1103) or other 11xx
+    // Only actual cash/bank accounts (1101, 1102), not AR (1103) or other 11xx.
+    // Posted only: reversed entries are cancelled movements, and counting them
+    // alongside the reposted originals double-charged the period.
     return this.db
       .select({
         sourceType: journalEntries.sourceType,
@@ -314,6 +364,7 @@ export class ReportsService {
       .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
       .where(and(
         eq(journalLines.tenantId, this.tenantId),
+        eq(journalEntries.status, 'posted'),
         sql`${accounts.code} IN ('1101', '1102')`,
         gte(journalEntries.date, dateFrom),
         lte(journalEntries.date, dateTo),
@@ -326,24 +377,28 @@ export class ReportsService {
     const investing: { description: string; amount: number }[] = [];
     const financing: { description: string; amount: number }[] = [];
 
-    const OPERATING = new Set(['payment', 'receipt', 'manual', 'debit_note', 'credit_note']);
-    const FINANCING = new Set(['loan_disbursement', 'loan_repayment', 'equity_injection', 'dividend']);
-
     for (const entry of entries) {
       const net = toNumber(entry.totalDebit ?? '0') - toNumber(entry.totalCredit ?? '0');
       if (Math.abs(net) < 0.01) continue;
-      const desc = this.sourceTypeLabel(entry.sourceType);
       const type = entry.sourceType ?? '';
+      if (OPENING_BALANCE.has(type)) continue; // a position, not a period flow
 
-      if (OPERATING.has(type)) {
-        operating.push({ description: desc, amount: net });
-      } else if (FINANCING.has(type)) {
-        financing.push({ description: desc, amount: net });
+      const row = { description: this.sourceTypeLabel(entry.sourceType), amount: net };
+      if (FINANCING.has(type)) {
+        financing.push(row);
+      } else if (INVESTING.has(type)) {
+        investing.push(row);
       } else {
-        investing.push({ description: desc, amount: net });
+        operating.push(row);
       }
     }
-    return { operating, investing, financing };
+    // Several source types share one label (a payout cycle and its lines, a
+    // settlement and its payment), so fold them into a single row each.
+    return {
+      operating: mergeByDescription(operating),
+      investing: mergeByDescription(investing),
+      financing: mergeByDescription(financing),
+    };
   }
 
   private async getVendorExpenses(dateFrom: string, dateTo: string) {
@@ -414,7 +469,12 @@ export class ReportsService {
   }
 
   private buildProjections(days: number, currentBalance: number, avgDailyFlow: number) {
-    const projections: { date: string; projected: number; confidence: number }[] = [];
+    const today = new Date().toISOString().split('T')[0]!;
+    // Anchor at today's actual balance. Without it the line started one day
+    // out and never passed through the figure the screen calls "today".
+    const projections: { date: string; projected: number; confidence: number }[] = [
+      { date: today, projected: Math.round(currentBalance * 100) / 100, confidence: 1 },
+    ];
     let balance = currentBalance;
     const step = days <= 90 ? 1 : 7;
 
@@ -438,6 +498,24 @@ export class ReportsService {
       credit_note: 'Credit Note Adjustments',
       loan_disbursement: 'Loan Disbursements',
       loan_repayment: 'Loan Repayments',
+      manual_adjustment: 'Adjustments & Accruals',
+      customer_debit_note: 'Debit Note Adjustments',
+      bank_credit: 'Bank Receipts',
+      bank_debit: 'Bank Payments',
+      bank_expense: 'Bank Charges',
+      bank_charge_adjustment: 'Bank Charge Adjustments',
+      owner_injection: 'Owner Contributions',
+      employee_payment: 'Employee Payments',
+      contract_advance: 'Contract Advances',
+      contract_settlement: 'Contract Settlements',
+      contract_settlement_payment: 'Contract Settlements',
+      mp_payout_line_payment: 'Milk Procurement Payouts',
+      mp_payout_cycle: 'Milk Procurement Payouts',
+      mp_vmcc_bill_payment: 'VMCC Bill Payments',
+      mp_vmcc_bill_commission: 'VMCC Commissions',
+      mp_farmer_sale: 'Farmer Sales',
+      invoice_roundoff: 'Rounding',
+      receipt_roundoff: 'Rounding',
     };
     return labels[sourceType ?? ''] ?? (sourceType ?? 'Other');
   }
