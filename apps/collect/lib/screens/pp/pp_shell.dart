@@ -19,9 +19,9 @@ class PpShell extends ConsumerWidget {
   /// Optional bar pinned above the tabs — the admin centre-switcher.
   final Widget? header;
 
-  List<DhenuNavItem> _items(AppLocalizations l, bool waiting) => [
+  List<DhenuNavItem> _items(AppLocalizations l, int waiting) => [
         DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
-        DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive, alert: waiting),
+        DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive, count: waiting),
         DhenuNavItem(icon: DhenuIcons.tankers, label: l.navTankers),
         DhenuNavItem(icon: DhenuIcons.profile, label: l.navProfile),
       ];
@@ -33,7 +33,7 @@ class PpShell extends ConsumerWidget {
     // inbound rather than outbound, so its badge watches pending receipts the
     // way a CC's watches pending dispatches.
     final waiting =
-        ref.watch(nodePendingInboundProvider(node.id)).valueOrNull?.isNotEmpty ?? false;
+        ref.watch(nodePendingInboundProvider(node.id)).valueOrNull?.length ?? 0;
     return RoleShell(
       items: _items(l, waiting),
       header: header,

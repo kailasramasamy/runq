@@ -45,7 +45,7 @@ class PpReceiveTab extends ConsumerWidget {
   /// had to pull down to make it disappear.
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(nodeInboundConsignmentsProvider(node.id));
-    ref.invalidate(nodePendingInboundProvider(node.id));
+    refreshPendingWork(ref);
     ref.invalidate(nodeReceivedRangeProvider(_recentArgs));
     await ref.read(nodeReceivedRangeProvider(_recentArgs).future);
   }

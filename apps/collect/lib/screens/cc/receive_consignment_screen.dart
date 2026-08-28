@@ -121,6 +121,7 @@ class _ReceiveConsignmentScreenState extends ConsumerState<ReceiveConsignmentScr
       } else {
         await mpRepo.receiveConsignment(c.id, body);
       }
+      refreshPendingWork(ref);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });

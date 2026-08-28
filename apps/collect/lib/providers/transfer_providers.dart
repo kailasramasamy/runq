@@ -136,6 +136,22 @@ final pendingDispatchProvider =
   return mpRepo.pendingDispatch(nodeId);
 });
 
+/// Clear both work queues behind the bottom-nav badges.
+///
+/// The badges outlive the screen that changes them: they hang off the shell, so
+/// they keep serving the count they cached before the operator received a
+/// tanker or sent one on, and a stale badge is worse than none — it says work
+/// is waiting when it isn't. Every write that moves milk calls this.
+///
+/// Whole families rather than one node's key. The screen making the change
+/// doesn't always know which node the shell is showing (an admin switches
+/// centres beneath it), and nothing else holds these providers, so the extra
+/// keys cost a refetch that never happens.
+void refreshPendingWork(WidgetRef ref) {
+  ref.invalidate(pendingDispatchProvider);
+  ref.invalidate(nodePendingInboundProvider);
+}
+
 /// Which shifts are closed for collection at a node today. Drives the close
 /// banner on Record Collection and the hard dispatch gate. Key: nodeId.
 final shiftStatusProvider =

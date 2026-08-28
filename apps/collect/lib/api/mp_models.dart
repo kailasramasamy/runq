@@ -866,18 +866,29 @@ class MpPendingDispatch {
   /// open slot has to be closed for collection first.
   final bool closed;
 
+  /// Consignments received into this slot — what the operator counts when he
+  /// looks at the floor. Two tankers in from two VMCCs is two pieces of work
+  /// even though they pool into one slot. Zero at a VMCC, where milk arrives as
+  /// pours and the slot itself is the unit of work.
+  final int sources;
+
   const MpPendingDispatch({
     required this.collectionDate,
     required this.shift,
     required this.available,
     required this.closed,
+    this.sources = 0,
   });
+
+  /// Pieces of work this slot represents on the dispatch tab.
+  int get workUnits => sources > 0 ? sources : 1;
 
   factory MpPendingDispatch.fromJson(Map<String, dynamic> j) => MpPendingDispatch(
     collectionDate: _s(j['collectionDate']),
     shift: j['shift'] as String?,
     available: _d(j['available']),
     closed: j['closed'] == true,
+    sources: (j['sources'] as num?)?.toInt() ?? 0,
   );
 }
 

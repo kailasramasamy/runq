@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../providers/transfer_providers.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
@@ -127,6 +128,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
         }
         saved++;
       }
+      refreshPendingWork(ref);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -162,6 +164,7 @@ class _ManualReceiveEntryScreenState extends ConsumerState<ManualReceiveEntryScr
     setState(() { _saving = true; _error = null; });
     try {
       await mpRepo.deleteReceipt(existing.id);
+      refreshPendingWork(ref);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });

@@ -42,6 +42,7 @@ class CcReceiveTab extends ConsumerWidget {
     ref.invalidate(nodeInboundByDateProvider);
     ref.invalidate(nodeAvailabilityProvider);
     ref.invalidate(nodeAvailabilityForDateProvider);
+    refreshPendingWork(ref);
   }
 
   Future<void> _refresh(WidgetRef ref) async {

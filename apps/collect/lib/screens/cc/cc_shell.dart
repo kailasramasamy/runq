@@ -22,10 +22,10 @@ class CcShell extends ConsumerWidget {
   /// Optional bar pinned above the tabs — the admin centre-switcher.
   final Widget? header;
 
-  List<DhenuNavItem> _items(AppLocalizations l, bool owed) => [
+  List<DhenuNavItem> _items(AppLocalizations l, int waiting, int owed) => [
         DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
-        DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive),
-        DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, alert: owed),
+        DhenuNavItem(icon: DhenuIcons.receive, label: l.navReceive, count: waiting),
+        DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, count: owed),
         DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
       ];
 
@@ -36,9 +36,17 @@ class CcShell extends ConsumerWidget {
     // operator across every tab, which is the point: they live on Receive.
     // Closes and dispatches share one badge here because a CC does both on the
     // dispatch screen; only a VMCC has to split them across two tabs.
-    final owed = ref.watch(pendingDispatchProvider(node.id)).valueOrNull?.isNotEmpty ?? false;
+    // Tankers still to send on, counted as the operator counts them: two
+    // received from two VMCCs is two, even where they pool into one slot and
+    // will leave as a single tanker.
+    final owed = (ref.watch(pendingDispatchProvider(node.id)).valueOrNull ?? const [])
+        .fold<int>(0, (t, s) => t + s.workUnits);
+    // Tankers on the road to this centre, however old the collection date —
+    // a CC's inbound queue is work too, and it had no badge at all before.
+    final waiting =
+        ref.watch(nodePendingInboundProvider(node.id)).valueOrNull?.length ?? 0;
     return RoleShell(
-      items: _items(l, owed),
+      items: _items(l, waiting, owed),
       header: header,
       // A CC both receives from VMCCs and dispatches onward.
       deepLinkTabs: const {'receive': 1, 'dispatch': 2},

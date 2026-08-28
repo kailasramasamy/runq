@@ -245,7 +245,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
       ref.invalidate(nodeAvailabilityForDateProvider);
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
-      ref.invalidate(pendingDispatchProvider(widget.node.id));
+      refreshPendingWork(ref);
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });
       ref.invalidate(nodeAvailabilityForDateProvider);

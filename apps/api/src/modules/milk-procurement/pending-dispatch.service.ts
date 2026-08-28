@@ -31,10 +31,22 @@ export interface PendingDispatchSlot {
    * needs its collection closed first, and only ever appears here once the date
    * itself is past. */
   closed: boolean;
+  /**
+   * How many received consignments make up this slot's milk — what the operator
+   * counts when he looks at the floor. Two tankers in from two VMCCs is two
+   * pieces of work to him, even though they land in one (date, shift) slot and
+   * may well leave as one tanker.
+   *
+   * Zero at a VMCC, whose milk arrives as pours rather than consignments. There
+   * the slot itself is the unit of work.
+   */
+  sources: number;
 }
 
 type SlotKey = string;
 type Tally = Map<SlotKey, number>;
+/** What a slot holds: litres, and the number of consignments they arrived in. */
+type Collected = { litres: Tally; sources: Tally };
 /** Dispatched litres, split so untagged (whole-day / legacy) tankers can be
  * drawn across a date's shifts rather than pinned to one of them. */
 type Dispatched = { tagged: Tally; untagged: Map<string, number> };
@@ -56,7 +68,9 @@ export class PendingDispatchService {
     if (!node) throw new NotFoundError('Node not found');
 
     const [collected, dispatched, closures] = await Promise.all([
-      node.nodeType === 'vmcc' ? this.pouredBySlot(nodeId) : this.receivedBySlot(nodeId),
+      node.nodeType === 'vmcc'
+        ? this.pouredBySlot(nodeId).then((litres) => ({ litres, sources: new Map() }))
+        : this.receivedBySlot(nodeId),
       this.outflowBySlot(nodeId),
       this.closedSlots(nodeId),
     ]);
@@ -91,16 +105,17 @@ export class PendingDispatchService {
   /** Litres received in at a CC per (date, shift). A whole-day receipt carries a
    * null shift and folds onto AM, exactly as `receiptShiftCond` does — otherwise
    * milk from a BMC VMCC belongs to no shift and can never be sent onward. */
-  private async receivedBySlot(nodeId: string): Promise<Tally> {
+  private async receivedBySlot(nodeId: string): Promise<Collected> {
     const rows = await this.db.select({
       collectionDate: mpConsignments.collectionDate,
       shift: sql<'am' | 'pm'>`coalesce(${mpConsignments.shift}, 'am')`,
       qty: sql<string>`sum(${mpConsignments.receiptQty})`,
+      n: sql<number>`count(*)::int`,
     }).from(mpConsignments)
       .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.toNodeId, nodeId),
         eq(mpConsignments.status, 'received')))
       .groupBy(mpConsignments.collectionDate, sql`coalesce(${mpConsignments.shift}, 'am')`);
-    return tally(rows);
+    return { litres: tally(rows), sources: tally(rows.map((r) => ({ ...r, qty: String(r.n) }))) };
   }
 
   /**
@@ -184,15 +199,15 @@ function tally(rows: { collectionDate: string; shift: 'am' | 'pm'; qty: string |
  * in the availability service.
  */
 function perShiftSlotsOf(
-  collected: Tally, dispatched: Dispatched, closures: Set<SlotKey>,
+  collected: Collected, dispatched: Dispatched, closures: Set<SlotKey>,
 ): PendingDispatchSlot[] {
-  const dates = new Set([...collected.keys()].map((k) => k.split('|')[0]));
+  const dates = new Set([...collected.litres.keys()].map((k) => k.split('|')[0]));
   return [...dates].flatMap((date) => {
     let untagged = dispatched.untagged.get(date) ?? 0;
     return (['am', 'pm'] as const).flatMap((shift) => {
       const k = key(date, shift);
-      if (!collected.has(k)) return [];
-      const left = (collected.get(k) ?? 0) - (dispatched.tagged.get(k) ?? 0);
+      if (!collected.litres.has(k)) return [];
+      const left = (collected.litres.get(k) ?? 0) - (dispatched.tagged.get(k) ?? 0);
       const drawn = Math.min(Math.max(left, 0), untagged);
       untagged -= drawn;
       return [{
@@ -200,6 +215,7 @@ function perShiftSlotsOf(
         shift,
         available: round3(left - drawn),
         closed: closures.has(k),
+        sources: collected.sources.get(k) ?? 0,
       }];
     });
   });
@@ -213,10 +229,10 @@ function perShiftSlotsOf(
  * is read whole for that date rather than per shift.
  */
 function poolSlotsOf(
-  mode: DispatchMode, collected: Tally, dispatched: Dispatched, closures: Set<SlotKey>,
+  mode: DispatchMode, collected: Collected, dispatched: Dispatched, closures: Set<SlotKey>,
 ): PendingDispatchSlot[] {
   const anchors = new Set<string>();
-  for (const k of collected.keys()) {
+  for (const k of collected.litres.keys()) {
     const [date, shift] = k.split('|') as [string, 'am' | 'pm'];
     anchors.add(mode === 'overnight' && shift === 'pm' ? nextDay(date) : date);
   }
@@ -224,7 +240,10 @@ function poolSlotsOf(
     const window = mode === 'overnight'
       ? [key(prevDay(anchor), 'pm'), key(anchor, 'am')]
       : [key(anchor, 'am'), key(anchor, 'pm')];
-    const inPool = window.reduce((t, k) => t + (collected.get(k) ?? 0), 0);
+    const inPool = window.reduce((t, k) => t + (collected.litres.get(k) ?? 0), 0);
+    // Every tanker that fed the pool, across the whole window — two VMCCs into
+    // one morning's BMC is two, even though it leaves as one.
+    const sources = window.reduce((t, k) => t + (collected.sources.get(k) ?? 0), 0);
     // A pool's tanker is anchored on this date whatever shift it carries, so
     // every dispatch dated here counts against it.
     const sentOut = (dispatched.tagged.get(key(anchor, 'am')) ?? 0)
@@ -233,6 +252,7 @@ function poolSlotsOf(
     return {
       collectionDate: anchor,
       shift: null,
+      sources,
       available: round3(inPool - sentOut),
       // A pool is only dispatchable once its whole window is closed, matching
       // the `poolSlots` gate the dispatch route enforces.

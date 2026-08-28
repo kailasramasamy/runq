@@ -895,11 +895,29 @@ function drawDown(batches: Batch[], dispatched: { milkType: MilkType | null; qty
 }
 
 /** Litres on hand, optionally for one milk type. */
+/**
+ * Litres a dispatch of [milkType] may draw on — its own remaining batches PLUS
+ * whatever untyped milk is left.
+ *
+ * The untyped half is the whole point. Milk received before the per-type split
+ * sits on a NULL-type batch, and [drawDown] already lets a typed dispatch
+ * consume those litres — "untyped" means unknown type, not no type, and naming
+ * the type is exactly what the dispatch card asks the operator to do. Gating on
+ * the named type alone contradicted that: the gate said 0 L of cow A1 while the
+ * screen offered 137.3 L to send, so legacy milk could never leave the node and
+ * the slot stayed on the pending-dispatch badge forever. Seen at Vrindavan CC,
+ * where 137.3 L of 17 Jul milk was stuck from July to late August.
+ *
+ * The gate and the draw now read the same pool, which is the invariant that was
+ * broken: anything this permits, [drawDown] will actually consume.
+ */
 function availableOf(
   batches: Batch[], dispatched: { milkType: MilkType | null; qty: number }[], milkType?: MilkType,
 ): number {
   const left = drawDown(batches, dispatched);
-  return weigh(milkType ? left.filter((b) => b.milkType === milkType) : left).qty;
+  return weigh(milkType
+    ? left.filter((b) => b.milkType === milkType || b.milkType === null)
+    : left).qty;
 }
 
 function remainderBatches(batches: Batch[], dispatched: number): Batch[] {

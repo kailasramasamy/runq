@@ -106,6 +106,7 @@ class _PpManualReceiveScreenState extends ConsumerState<PpManualReceiveScreen> {
         });
         saved++;
       }
+      refreshPendingWork(ref);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;

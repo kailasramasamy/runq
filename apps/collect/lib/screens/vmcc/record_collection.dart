@@ -696,6 +696,7 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
       ref.invalidate(shiftStatusForDateProvider((nodeId: widget.node.id, date: _date)));
       ref.invalidate(shiftStatusProvider(widget.node.id));
       ref.invalidate(nodeTodayPoursProvider(widget.node.id));
+      refreshPendingWork(ref);
       ref.invalidate(nodeTodaySummaryProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityForDateProvider((nodeId: widget.node.id, date: _date, shift: _shift.name)));
       ref.invalidate(nodeAvailabilityForDateProvider((nodeId: widget.node.id, date: _date, shift: null)));

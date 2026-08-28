@@ -123,6 +123,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       ref.invalidate(shiftStatusForDateProvider(_dateArgs));
       ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(shiftStatusProvider(widget.node.id));
+      refreshPendingWork(ref);
     } catch (e) {
       if (mounted) showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     } finally {
@@ -289,7 +290,7 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
       ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));
       ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
       ref.invalidate(nodeAvailabilityProvider);
-      ref.invalidate(pendingDispatchProvider(widget.node.id));
+      refreshPendingWork(ref);
     } catch (e) {
       setState(() { _saving = false; _error = friendlyError(context, e); });
       ref.invalidate(nodeAvailabilityForDateProvider(_availArgs));

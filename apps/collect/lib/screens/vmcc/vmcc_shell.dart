@@ -30,12 +30,13 @@ class VmccShell extends ConsumerWidget {
     // on Dispatch — so each badge points at the screen that clears it.
     final owed = ref.watch(pendingDispatchProvider(node.id)).valueOrNull
         ?? const <MpPendingDispatch>[];
-    final toClose = owed.any((s) => !s.closed);
-    final toDispatch = owed.any((s) => s.closed);
+    final toClose = owed.where((s) => !s.closed).length;
+    final toDispatch = owed.where((s) => s.closed).length;
+
     final items = [
       DhenuNavItem(icon: DhenuIcons.home, label: l.navHome),
-      DhenuNavItem(icon: DhenuIcons.collect, label: l.navCollect, alert: toClose),
-      DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, alert: toDispatch),
+      DhenuNavItem(icon: DhenuIcons.collect, label: l.navCollect, count: toClose),
+      DhenuNavItem(icon: DhenuIcons.dispatch, label: l.navDispatch, count: toDispatch),
       DhenuNavItem(icon: DhenuIcons.payments, label: l.navPayments),
     ];
     return RoleShell(
