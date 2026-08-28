@@ -47,6 +47,8 @@ class ReclaimScreen extends ConsumerStatefulWidget {
 class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
   String? _warehouseId;
   bool _busy = false;
+  final _searchCtl = TextEditingController();
+  String _query = '';
 
   /// Packet count and chosen destination, keyed by FG item id. Only products
   /// the technician actually typed into become lines.
@@ -58,11 +60,27 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
     _applyDefaultWarehouse();
   }
 
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
   Future<void> _applyDefaultWarehouse() async {
     final whs = await ref.read(invWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);
+  }
+
+  /// Products matching the search box, on the name of the product being
+  /// reclaimed and nothing else. Searching the recovered item or the category
+  /// too meant typing "milk" returned every product that tears down into milk
+  /// — most of the screen — which is the opposite of narrowing.
+  List<ReclaimOption> _matching(List<ReclaimOption> options) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return options;
+    return options.where((o) => o.fgItemName.toLowerCase().contains(q)).toList();
   }
 
   List<MapEntry<String, _Entry>> get _filled =>
@@ -132,6 +150,14 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
               dense: true,
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: MfgSearchBar(
+              controller: _searchCtl,
+              placeholder: 'Search product',
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
           Expanded(
             child: options == null
                 ? const SizedBox.shrink()
@@ -163,13 +189,23 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
     );
   }
 
-  Widget _buildList(List<ReclaimOption> options) {
-    if (options.isEmpty) {
+  Widget _buildList(List<ReclaimOption> allOptions) {
+    if (allOptions.isEmpty) {
       return const MfgEmptyState(
         icon: Icons.recycling_rounded,
         title: 'Nothing to reclaim',
         description:
             'Reclaim needs a product in stock with an active recipe behind it.',
+      );
+    }
+    // An empty search result is not an empty shelf — say which it is, or the
+    // technician reads a typo as "nothing here to tear down".
+    final options = _matching(allOptions);
+    if (options.isEmpty) {
+      return MfgEmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No match for "${_query.trim()}"',
+        description: 'Search by the name of the product you are tearing down.',
       );
     }
     final sections = _sectioned(options);
@@ -354,8 +390,25 @@ class _ProductCardState extends State<_ProductCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(o.fgItemName,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                    // Pack size belongs to the product's identity — "Curd" and
+                    // "Curd 500ml" are different things to count. Trailing the
+                    // name keeps it there instead of hiding it in the stock
+                    // line, where it read as part of the quantity.
+                    Text.rich(
+                      TextSpan(
+                        text: o.fgItemName,
+                        style: RunqText.bodyStrong.copyWith(color: t.ink),
+                        children: [
+                          if ((o.fgUnit ?? '').isNotEmpty)
+                            TextSpan(
+                              text: '  ${o.fgUnit}',
+                              style: RunqText.caption.copyWith(color: t.muted),
+                            ),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 4),
                     // The stock figure is the number the technician checks
                     // their count against, so it reads as a value rather than
@@ -371,8 +424,7 @@ class _ProductCardState extends State<_ProductCard> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'in stock'
-                          '${(o.fgUnit ?? '').isEmpty ? '' : ' · ${o.fgUnit}'}',
+                          'in stock',
                           style: RunqText.caption.copyWith(color: t.muted),
                         ),
                       ],
