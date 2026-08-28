@@ -708,6 +708,15 @@ class AppLocalizationsTa extends AppLocalizations {
   String get dispatchNoCentresFound => 'மையங்கள் எதுவும் கிடைக்கவில்லை';
 
   @override
+  String dispatchSoldBreakdown(
+    Object collected,
+    Object sold,
+    Object available,
+  ) {
+    return '$collected லி சேகரிப்பு − $sold லி வாயிலில் விற்பனை = $available லி';
+  }
+
+  @override
   String get dispatchErrorNoDestination =>
       'சேருமிட சேகரிப்பு மையத்தை தேர்ந்தெடுக்கவும்';
 
@@ -3309,6 +3318,10 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get farmerSaleInvalidEntry => 'லிட்டர் மற்றும் விலையை உள்ளிடவும்';
+
+  @override
+  String get farmerSalePickMilkType =>
+      'விற்கப்படும் பாலின் வகையைத் தேர்ந்தெடுக்கவும்';
 
   @override
   String get farmerSaleSaved => 'விற்பனை பதிவானது';

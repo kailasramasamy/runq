@@ -700,6 +700,15 @@ class AppLocalizationsKn extends AppLocalizations {
   String get dispatchNoCentresFound => 'ಯಾವುದೇ ಕೇಂದ್ರಗಳು ಕಂಡುಬಂದಿಲ್ಲ';
 
   @override
+  String dispatchSoldBreakdown(
+    Object collected,
+    Object sold,
+    Object available,
+  ) {
+    return '$collected ಲೀ ಸಂಗ್ರಹ − $sold ಲೀ ಗೇಟಿನಲ್ಲಿ ಮಾರಾಟ = $available ಲೀ';
+  }
+
+  @override
   String get dispatchErrorNoDestination => 'ಗಮ್ಯಸ್ಥಾನ ಸಂಗ್ರಹ ಕೇಂದ್ರ ಆಯ್ಕೆ ಮಾಡಿ';
 
   @override
@@ -3284,6 +3293,9 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get farmerSaleInvalidEntry => 'ಲೀಟರ್ ಮತ್ತು ದರವನ್ನು ನಮೂದಿಸಿ';
+
+  @override
+  String get farmerSalePickMilkType => 'ಮಾರುತ್ತಿರುವ ಹಾಲಿನ ಬಗೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ';
 
   @override
   String get farmerSaleSaved => 'ಮಾರಾಟ ದಾಖಲಾಗಿದೆ';

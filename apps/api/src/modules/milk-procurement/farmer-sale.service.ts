@@ -7,6 +7,7 @@ import type {
   CreateFarmerSaleInput, FarmerSaleFilter, UpdateFarmerSaleInput,
 } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
+import { ConsignmentService } from './consignment.service';
 import { MpGlPoster } from './gl-poster';
 import { appendLedgerEntry, foldOutstanding } from './farmer-ledger';
 import { isPooled } from './procurement-window';
@@ -66,14 +67,10 @@ export class FarmerSaleService {
     // someone edits the item master.
     const item = isMilk ? null : await this.loadItem(input.itemId!);
 
-    // Deliberately NOT gated on availability: milk is handed over off whatever
-    // the centre physically holds, which is not always what the app has been
-    // told about yet (pours entered later, milk from the tank). The litres still
-    // come off availability — the slot just floors at zero rather than blocking
-    // the sale.
     if (input.qty <= 0 || input.ratePerUnit <= 0) {
       throw new ConflictError('Quantity and rate must both be greater than zero');
     }
+    if (isMilk) await this.assertNotAlreadyDispatched(input, shift, principal);
     const amount = round2(input.qty * input.ratePerUnit);
     return this.db.transaction(async (tx) => {
       const ledger = await appendLedgerEntry(tx, this.tenantId, {
@@ -106,6 +103,38 @@ export class FarmerSaleService {
       }
       return { ...sale!, journalEntryId: jeId };
     });
+  }
+
+  /**
+   * Refuses a gate sale of milk that already left on a tanker.
+   *
+   * A thin collection is NOT a reason to block: milk is handed over off what
+   * the centre physically holds, which is not always what the app has been told
+   * about yet — pours keyed later, milk drawn from the tank. Those litres just
+   * take the slot to zero.
+   *
+   * Milk already dispatched is a different claim. It is on a lorry to the
+   * chilling centre, so it cannot also have been carried home from the gate,
+   * and letting the sale through books the same litres as leaving twice: the
+   * node's day then says more went out than ever came in. Seen on 20 and 24 Aug
+   * at Vrindavan, where an 80 L sale was written up after the morning dispatch
+   * had already sent the whole collection.
+   *
+   * Only the create path is gated. An edit is how a wrong sale gets corrected,
+   * and a correction that the guard refuses to accept is a trap.
+   */
+  private async assertNotAlreadyDispatched(
+    input: CreateFarmerSaleInput, shift: 'am' | 'pm' | null, principal: MpPrincipal,
+  ): Promise<void> {
+    const a = await new ConsignmentService(this.db, this.tenantId).availability(
+      input.nodeId, input.saleDate, principal, shift ?? undefined, input.milkType!,
+    );
+    if (a.dispatched <= 0 || input.qty <= a.available + 0.001) return;
+    throw new ConflictError(
+      `Only ${round3(a.available)} L left at this centre — `
+      + `${round3(a.dispatched)} L of the ${round3(a.collected)} L collected has already been `
+      + 'dispatched. Record the sale before dispatching, or correct the dispatch quantity.',
+    );
   }
 
   async list(filters: FarmerSaleFilter, principal: MpPrincipal): Promise<FarmerSaleListRow[]> {
@@ -318,4 +347,9 @@ function scopeSales(principal: MpPrincipal, filters: FarmerSaleFilter) {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Litres, at the precision the column stores them. */
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }

@@ -826,12 +826,18 @@ class MpConsignment {
 class MpTypeAvailability {
   final String? milkType;
   final double collected, dispatched, available;
+
+  /// Litres sold to a trader-farmer at the gate. They come off availability
+  /// the same way a dispatch does, and an operator who can't see them reads
+  /// the shortfall as the app losing his milk.
+  final double sold;
   final double? avgFat, avgSnf, avgWater;
   MpTypeAvailability({
     required this.milkType,
     required this.collected,
     required this.dispatched,
     required this.available,
+    this.sold = 0,
     this.avgFat,
     this.avgSnf,
     this.avgWater,
@@ -841,6 +847,7 @@ class MpTypeAvailability {
     collected: _d(j['collected']),
     dispatched: _d(j['dispatched']),
     available: _d(j['available']),
+    sold: _d(j['sold']),
     avgFat: _dn(j['avgFat']),
     avgSnf: _dn(j['avgSnf']),
     avgWater: _dn(j['avgWater']),

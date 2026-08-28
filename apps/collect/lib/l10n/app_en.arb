@@ -432,6 +432,14 @@
   "dispatchSelectDestination": "Select destination centre…",
   "dispatchSearchCentre": "Search centre",
   "dispatchNoCentresFound": "No centres found",
+  "dispatchSoldBreakdown": "{collected} L collected − {sold} L sold at the gate = {available} L",
+  "@dispatchSoldBreakdown": {
+    "placeholders": {
+      "collected": {},
+      "sold": {},
+      "available": {}
+    }
+  },
   "dispatchErrorNoDestination": "Select a destination collection centre",
   "dispatchErrorInvalidQty": "Enter a valid dispatch quantity",
   "dispatchErrorOverQty": "Only {available} L available to dispatch",
@@ -2372,6 +2380,7 @@
   "farmerSaleQtyHint": "Quantity",
   "farmerSaleRateHint": "Rate / L",
   "farmerSaleInvalidEntry": "Enter the litres and the rate",
+  "farmerSalePickMilkType": "Choose the milk type being sold",
   "farmerSaleSaved": "Sale recorded",
   "farmerSaleAmountNote": "{amount} — recovered from the next payment",
   "@farmerSaleAmountNote": {

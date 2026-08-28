@@ -43,6 +43,9 @@ class DispatchTypeEntry {
   bool include = true;
 
   double get available => availability.available;
+
+  /// Litres this centre sold at the gate — subtracted from what can be sent on.
+  double get sold => availability.sold;
   double get enteredQty => double.tryParse(qty.text) ?? 0;
   double? get enteredFat => double.tryParse(fat.text);
   double? get enteredSnf => double.tryParse(snf.text);
@@ -122,6 +125,20 @@ class DispatchTypeCard extends StatelessWidget {
           Text(litres(entry.available, unit: true),
               style: DhenuText.number(size: 18, color: on ? t.brand : t.inkSoft)),
         ]),
+        // The arithmetic behind a headline that is smaller than the day's
+        // collection. Sold litres are the one deduction an operator has no
+        // other screen for, and left unsaid they read as milk gone missing.
+        if (entry.sold > 0) ...[
+          const SizedBox(height: DhenuSpacing.xs),
+          Text(
+            l.dispatchSoldBreakdown(
+              litres(entry.availability.collected),
+              litres(entry.sold),
+              litres(entry.available),
+            ),
+            style: DhenuText.caption.copyWith(color: t.inkSoft),
+          ),
+        ],
         if (on) ...[
           // Legacy untyped milk: the operator names what the tanker actually
           // held. Without this the leg is invalid, so nothing goes onward as a

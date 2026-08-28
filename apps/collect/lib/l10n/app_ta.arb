@@ -195,6 +195,14 @@
   "dispatchSelectDestination": "சேருமிட மையத்தை தேர்ந்தெடுக்கவும்…",
   "dispatchSearchCentre": "மையத்தை தேடவும்",
   "dispatchNoCentresFound": "மையங்கள் எதுவும் கிடைக்கவில்லை",
+  "dispatchSoldBreakdown": "{collected} லி சேகரிப்பு − {sold} லி வாயிலில் விற்பனை = {available} லி",
+  "@dispatchSoldBreakdown": {
+    "placeholders": {
+      "collected": {},
+      "sold": {},
+      "available": {}
+    }
+  },
   "dispatchErrorNoDestination": "சேருமிட சேகரிப்பு மையத்தை தேர்ந்தெடுக்கவும்",
   "dispatchErrorInvalidQty": "சரியான அனுப்பும் அளவை உள்ளிடவும்",
   "dispatchErrorOverQty": "அனுப்ப {available} L மட்டுமே உள்ளது",
@@ -958,6 +966,7 @@
   "farmerSaleQtyHint": "அளவு",
   "farmerSaleRateHint": "விலை / லி",
   "farmerSaleInvalidEntry": "லிட்டர் மற்றும் விலையை உள்ளிடவும்",
+  "farmerSalePickMilkType": "விற்கப்படும் பாலின் வகையைத் தேர்ந்தெடுக்கவும்",
   "farmerSaleSaved": "விற்பனை பதிவானது",
   "farmerSaleAmountNote": "{amount} — அடுத்த பணத்திலிருந்து பிடிக்கப்படும்",
   "farmerPaymentsSold": "விவசாயிக்கு விற்பனை",

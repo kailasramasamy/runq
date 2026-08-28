@@ -1270,6 +1270,12 @@ abstract class AppLocalizations {
   /// **'No centres found'**
   String get dispatchNoCentresFound;
 
+  /// No description provided for @dispatchSoldBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'{collected} L collected − {sold} L sold at the gate = {available} L'**
+  String dispatchSoldBreakdown(Object collected, Object sold, Object available);
+
   /// No description provided for @dispatchErrorNoDestination.
   ///
   /// In en, this message translates to:
@@ -5679,6 +5685,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter the litres and the rate'**
   String get farmerSaleInvalidEntry;
+
+  /// No description provided for @farmerSalePickMilkType.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the milk type being sold'**
+  String get farmerSalePickMilkType;
 
   /// No description provided for @farmerSaleSaved.
   ///

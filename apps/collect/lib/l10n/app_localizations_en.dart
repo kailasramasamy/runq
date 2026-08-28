@@ -702,6 +702,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispatchNoCentresFound => 'No centres found';
 
   @override
+  String dispatchSoldBreakdown(
+    Object collected,
+    Object sold,
+    Object available,
+  ) {
+    return '$collected L collected − $sold L sold at the gate = $available L';
+  }
+
+  @override
   String get dispatchErrorNoDestination =>
       'Select a destination collection centre';
 
@@ -3298,6 +3307,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerSaleInvalidEntry => 'Enter the litres and the rate';
+
+  @override
+  String get farmerSalePickMilkType => 'Choose the milk type being sold';
 
   @override
   String get farmerSaleSaved => 'Sale recorded';

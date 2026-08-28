@@ -56,8 +56,17 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
   final _rate = TextEditingController();
   late _SaleKind _kind =
       (widget.existing?.isMilk ?? true) ? _SaleKind.rawMilk : _SaleKind.product;
-  late MilkType _milkType =
-      widget.existing?.milkType ?? widget.farmer.defaultMilkType;
+  /// What is being sold — null until it is known, never guessed.
+  ///
+  /// It used to seed from `farmer.defaultMilkType`, which is the type the
+  /// farmer *supplies*. For a trader who pours buffalo and buys A1 that is
+  /// the one answer guaranteed to be wrong, and it silently drew 80 L off the
+  /// buffalo pool: the tanker left with 27 L instead of 107. What a farmer
+  /// hands over says nothing about what he takes away, so the seed is his last
+  /// purchase — resolved in [_seedMilkType] once his sales load — and failing
+  /// that, nothing at all.
+  late MilkType? _milkType = widget.existing?.milkType;
+  bool _milkTypeSeeded = false;
   MpSellableItem? _item;
   /// Set when editing a product sale before the catalogue resolves, so the
   /// field shows what was sold rather than an empty picker.
@@ -94,6 +103,30 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
   }
 
   bool get _isMilk => _kind == _SaleKind.rawMilk;
+
+  /// Fills the milk type from what this farmer bought last, once and only when
+  /// the operator hasn't already chosen. A centre selling one type has no
+  /// question to ask, so that type is taken as given — the toggle hides itself
+  /// in that case and there would be nothing to tap.
+  void _seedMilkType(List<MilkType> allowed, AsyncValue<List<MpFarmerSale>> sales) {
+    if (_milkTypeSeeded || _milkType != null) return;
+    // A single-type centre has no question to ask even before the history
+    // arrives; everyone else waits for it rather than seeding off an empty list
+    // and never trying again.
+    if (sales.isLoading && allowed.length > 1) return;
+    _milkTypeSeeded = true;
+    final last = (sales.asData?.value ?? const <MpFarmerSale>[])
+        .where((s) => s.isMilk && s.reversedAt == null && s.milkType != null)
+        .map((s) => s.milkType!)
+        .where(allowed.contains)
+        .firstOrNull;
+    final seed = last ?? (allowed.length == 1 ? allowed.first : null);
+    if (seed == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _milkType = seed);
+    });
+  }
+
   String get _unit => _isMilk ? 'L' : (_item?.unit ?? widget.existing?.unit ?? '');
   double get _amount =>
       (double.tryParse(_qty.text) ?? 0) * (double.tryParse(_rate.text) ?? 0);
@@ -117,7 +150,7 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
     final qty = double.tryParse(_qty.text);
     final rate = double.tryParse(_rate.text);
     if (qty == null || qty <= 0 || rate == null || rate <= 0 ||
-        (!_isMilk && _itemId == null)) {
+        (_isMilk && _milkType == null) || (!_isMilk && _itemId == null)) {
       setState(() => _error = l.farmerSaleInvalidEntry);
       return;
     }
@@ -132,7 +165,7 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
         // A shift scopes a bulk-milk slot; a pooled centre and every product
         // belong to no shift at all.
         if (_isMilk && node.dispatchMode == 'per_shift') 'shift': _shift.name,
-        if (_isMilk) 'milkType': milkTypeToApi(_milkType) else 'itemId': _itemId,
+        if (_isMilk) 'milkType': milkTypeToApi(_milkType!) else 'itemId': _itemId,
         'qty': qty,
         'ratePerUnit': rate,
       };
@@ -162,6 +195,10 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final node = ref.watch(mpActiveNodeProvider);
+    final allowed = node?.allowedMilkTypes ?? MilkType.values;
+    if (_isMilk) {
+      _seedMilkType(allowed, ref.watch(farmerSalesProvider(widget.farmer.id)));
+    }
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -202,10 +239,16 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
             const SizedBox(height: DhenuSpacing.md),
             if (_isMilk) ...[
               MilkTypeToggle(
-                types: node?.allowedMilkTypes ?? MilkType.values,
+                types: allowed,
                 value: _milkType,
                 onChanged: (v) => setState(() => _milkType = v),
               ),
+              // An unanswered toggle reads as an oversight unless it says so.
+              if (_milkType == null) ...[
+                const SizedBox(height: DhenuSpacing.xs),
+                Text(l.farmerSalePickMilkType,
+                    style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              ],
               if (node?.dispatchMode == 'per_shift') ...[
                 const SizedBox(height: DhenuSpacing.md),
                 DhenuSegmented<Shift>(

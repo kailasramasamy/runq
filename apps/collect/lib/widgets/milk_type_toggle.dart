@@ -5,9 +5,13 @@ import '../l10n/l10n_helpers.dart';
 import '../theme/dhenu_theme.dart';
 import '../theme/dhenu_tokens.dart';
 
-/// Segmented pill switching between the milk types a farmer supplies. Renders
-/// nothing for a single type — most farmers supply one, and a toggle with one
-/// option is just noise. Scrolls horizontally so three-plus types never overflow.
+/// Segmented pill switching between milk types. Renders nothing for a single
+/// type — most farmers supply one, and a toggle with one option is just noise.
+/// Scrolls horizontally so three-plus types never overflow.
+///
+/// [value] may be null, which selects nothing: a screen that has no safe
+/// default is better off showing an unanswered question than a plausible
+/// wrong answer the operator will tap straight past.
 class MilkTypeToggle extends StatelessWidget {
   const MilkTypeToggle({
     super.key,
@@ -17,7 +21,7 @@ class MilkTypeToggle extends StatelessWidget {
   });
 
   final List<MilkType> types;
-  final MilkType value;
+  final MilkType? value;
   final ValueChanged<MilkType> onChanged;
 
   @override

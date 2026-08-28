@@ -195,6 +195,14 @@
   "dispatchSelectDestination": "ಗಮ್ಯಸ್ಥಾನ ಕೇಂದ್ರ ಆಯ್ಕೆ ಮಾಡಿ…",
   "dispatchSearchCentre": "ಕೇಂದ್ರ ಹುಡುಕಿ",
   "dispatchNoCentresFound": "ಯಾವುದೇ ಕೇಂದ್ರಗಳು ಕಂಡುಬಂದಿಲ್ಲ",
+  "dispatchSoldBreakdown": "{collected} ಲೀ ಸಂಗ್ರಹ − {sold} ಲೀ ಗೇಟಿನಲ್ಲಿ ಮಾರಾಟ = {available} ಲೀ",
+  "@dispatchSoldBreakdown": {
+    "placeholders": {
+      "collected": {},
+      "sold": {},
+      "available": {}
+    }
+  },
   "dispatchErrorNoDestination": "ಗಮ್ಯಸ್ಥಾನ ಸಂಗ್ರಹ ಕೇಂದ್ರ ಆಯ್ಕೆ ಮಾಡಿ",
   "dispatchErrorInvalidQty": "ಮಾನ್ಯ ರವಾನೆ ಪ್ರಮಾಣ ನಮೂದಿಸಿ",
   "dispatchErrorOverQty": "ರವಾನಿಸಲು ಕೇವಲ {available} L ಲಭ್ಯವಿದೆ",
@@ -958,6 +966,7 @@
   "farmerSaleQtyHint": "ಪ್ರಮಾಣ",
   "farmerSaleRateHint": "ದರ / ಲೀ",
   "farmerSaleInvalidEntry": "ಲೀಟರ್ ಮತ್ತು ದರವನ್ನು ನಮೂದಿಸಿ",
+  "farmerSalePickMilkType": "ಮಾರುತ್ತಿರುವ ಹಾಲಿನ ಬಗೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
   "farmerSaleSaved": "ಮಾರಾಟ ದಾಖಲಾಗಿದೆ",
   "farmerSaleAmountNote": "{amount} — ಮುಂದಿನ ಪಾವತಿಯಿಂದ ಕಡಿತವಾಗುತ್ತದೆ",
   "farmerPaymentsSold": "ರೈತರಿಗೆ ಮಾರಾಟ",
