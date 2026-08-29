@@ -4,6 +4,8 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import '../inventory/batch_detail_sheet.dart';
+import '../inventory/widgets/batch_pool.dart';
 import '../inventory/widgets/inv_primitives.dart' show compactINR;
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
@@ -152,8 +154,10 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     final value = batches.fold<double>(0, (sum, r) => sum + r.value);
     final unit =
         first.itemUnit != null && first.itemUnit!.isNotEmpty ? ' ${first.itemUnit}' : '';
-    // Oldest batch first: a run should consume the milk that arrived earliest.
-    final ordered = [...batches]..sort((a, b) => a.batchNo.compareTo(b.batchNo));
+    // FEFO, the order a run should draw in: soonest expiry first, undated
+    // last, oldest intake breaking the tie. Sorting on the batch number
+    // instead only worked while numbers happened to run in arrival order.
+    final ordered = [...batches]..sort(_byUrgency);
 
     return MfgCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -173,26 +177,45 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
           ]),
         ]),
         Divider(color: t.hairline, height: 16),
+        // One labelled row per batch — a planner picking milk for paneer is
+        // choosing on centre, shift and freshness, none of which a
+        // consignment number carries.
         for (final b in ordered)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(children: [
-              Icon(Icons.label_outline_rounded, size: 14, color: t.muted2),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(b.batchNo.isEmpty ? 'No batch' : b.batchNo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.caption.copyWith(color: t.ink2)),
+          BatchPoolRow(
+            batchNo: b.batchNo,
+            qty: b.qty,
+            unit: first.itemUnit,
+            origin: b.origin,
+            expiryDate: b.expiryDate,
+            partUsed: b.isPartUsed,
+            onTap: () => showBatchDetailSheet(
+              context,
+              BatchDetailArgs(
+                itemId: b.itemId,
+                itemName: b.itemName,
+                batchNo: b.batchNo,
+                qty: b.qty,
+                unit: b.itemUnit,
+                value: b.value,
+                expiryDate: b.expiryDate,
+                warehouseName: b.warehouseName,
+                origin: b.origin,
               ),
-              Text(b.warehouseName, style: RunqText.micro.copyWith(color: t.muted2)),
-              const SizedBox(width: 8),
-              Text('${_trimQty(b.qty, first.itemUnit)}$unit',
-                  style: RunqText.caption.copyWith(color: t.ink)),
-            ]),
+            ),
           ),
       ]),
     );
+  }
+
+  /// See `StockQueryService.compareByUrgency` — the same order, so the app and
+  /// the API never disagree about which batch is next.
+  static int _byUrgency(InvOnHandRow a, InvOnHandRow b) {
+    if (a.expiryDate != b.expiryDate) {
+      if (a.expiryDate == null) return 1;
+      if (b.expiryDate == null) return -1;
+      return a.expiryDate!.compareTo(b.expiryDate!);
+    }
+    return (a.receivedAt ?? '').compareTo(b.receivedAt ?? '');
   }
 
   static String _trimQty(double v, [String? unit]) =>

@@ -41,6 +41,27 @@ export interface OnHandRow {
   /** When the batch first came into stock. Unlike `lastMovementAt` this is the
    *  post time, so same-day intake sorts in the order it actually arrived. */
   receivedAt: string | null;
+
+  /**
+   * Where the batch came from, resolved server-side from the movement that
+   * opened it — `Indus CC · 28 Aug PM · A2 cow` rather than `CN-2026-000418`.
+   * Null for stock with no batch, or an origin nothing could be read behind.
+   */
+  originKind: string | null;
+  originLabel: string | null;
+  originDetail: string | null;
+  originDate: string | null;
+  originShift: 'am' | 'pm' | null;
+  originMilkType: string | null;
+  originRef: { type: string; id: string; no: string | null } | null;
+  /** Everything ever put into the batch. Less than `qty` means this is a
+   *  part-used balance rather than a full intake. */
+  receivedQty: number | null;
+  /** Stock added to the batch from a source `originLabel` does not name — an
+   *  adjustment topping up a milk consignment, say. Above zero, the label
+   *  accounts for only part of what is in the batch. */
+  addedQty: number | null;
+  addedAt: string | null;
 }
 
 export interface LedgerRow {

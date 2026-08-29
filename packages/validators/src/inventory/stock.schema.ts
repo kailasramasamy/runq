@@ -51,6 +51,9 @@ export type StockHighlightsQuery = z.infer<typeof stockHighlightsQuerySchema>;
 export const stockLedgerFilterSchema = z.object({
   itemId: z.string().uuid().optional(),
   warehouseId: z.string().uuid().optional(),
+  /** Narrow the ledger to one batch — the movement history behind a single
+   *  can of milk, for the batch detail view. */
+  batchNo: z.string().max(60).optional(),
   movementType: z
     .enum([
       'grn', 'delivery', 'transfer_in', 'transfer_out',
@@ -134,6 +137,9 @@ export type MovementType = z.infer<typeof movementTypeSchema>;
  */
 export const itemMovementFilterSchema = z.object({
   warehouseId: z.string().uuid().optional(),
+  /** Narrow the trail to a single batch — the movements behind one can of
+   *  milk, for the batch detail view. */
+  batchNo: z.string().max(60).optional(),
   direction: z.enum(['in', 'out']).optional(),
   group: movementGroupSchema.optional(),
   type: movementTypeSchema.optional(),

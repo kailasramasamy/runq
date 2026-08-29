@@ -315,3 +315,91 @@ class AdjustReasonChips extends StatelessWidget {
     );
   }
 }
+
+/// Where stock being added should land: a lot of its own, or the lot already
+/// selected.
+///
+/// Defaults to a new lot. Merging an addition into the selected lot leaves the
+/// two indistinguishable afterwards — 20 L added to a milk consignment made
+/// the batch read 128 L from one collection when 108 came from there, and only
+/// the movement trail could tell you otherwise. Adding into the existing lot
+/// is still the right call when the lot itself was miscounted, so it stays a
+/// tap away rather than being removed.
+class AdjustBatchDestination extends StatelessWidget {
+  const AdjustBatchDestination({
+    super.key,
+    required this.existingBatchNo,
+    required this.intoExisting,
+    required this.onChanged,
+  });
+
+  final String existingBatchNo;
+  final bool intoExisting;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Expanded(
+        child: _Option(
+          label: 'New batch',
+          hint: 'Kept separate',
+          selected: !intoExisting,
+          onTap: () => onChanged(false),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _Option(
+          label: existingBatchNo.isEmpty ? 'This lot' : existingBatchNo,
+          hint: 'Miscounted',
+          selected: intoExisting,
+          onTap: () => onChanged(true),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _Option extends StatelessWidget {
+  const _Option({
+    required this.label,
+    required this.hint,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String hint;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = InvColors.brand(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? InvColors.amberSubtle : t.surface,
+          border: Border.all(color: selected ? brand : t.hairline),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: RunqText.caption.copyWith(
+              color: selected ? InvColors.amberDarkest : t.ink,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(hint, style: RunqText.micro.copyWith(color: t.muted)),
+        ]),
+      ),
+    );
+  }
+}

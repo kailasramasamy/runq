@@ -230,6 +230,19 @@ export class AdjustmentService {
     return u!;
   }
 
+  /** Which of these items hold stock per batch — decides whether an inbound
+   *  line with no batch gets one minted for it. */
+  private async batchTrackedItems(tx: Tx, itemIds: string[]): Promise<Set<string>> {
+    const unique = Array.from(new Set(itemIds));
+    if (unique.length === 0) return new Set();
+    const rows = await tx
+      .select({ id: items.id, trackBatches: items.trackBatches })
+      .from(items)
+      .where(and(eq(items.tenantId, this.ctx.tenantId), inArray(items.id, unique)));
+    return new Set(rows.filter((r: { trackBatches: boolean }) => r.trackBatches)
+      .map((r: { id: string }) => r.id));
+  }
+
   async post(id: string) {
     return this.ctx.db.transaction((tx: Tx) => this.postInTx(tx, id));
   }
@@ -253,14 +266,25 @@ export class AdjustmentService {
 
     const ledger = new StockLedgerService(this.ctx.tenantId);
     const movedAt = new Date(a.adjustmentDate);
+    const tracksBatches = await this.batchTrackedItems(tx, lines.map((l: { itemId: string }) => l.itemId));
     let totalValueDelta = 0;
-    for (const line of lines) {
+    for (const [idx, line] of lines.entries()) {
       const qtyDelta = Number(line.qtyDelta);
       const overrideCost = Number(line.unitCost);
+      // Stock arriving on a batch-tracked item opens its own batch when the
+      // line names none. Letting it fall into the unbatched bucket — or into
+      // whichever batch the caller happened to have selected — is how 20 L
+      // found in a tank ends up indistinguishable from the milk consignment
+      // it was added to, with the batch label still claiming one source.
+      // Mirrors reclaim's `${reclaimNo}-NN`.
+      const batchNo = line.batchNo
+        ?? (qtyDelta > 0 && tracksBatches.has(line.itemId)
+          ? `${a.adjNo}-${String(idx + 1).padStart(2, '0')}`
+          : null);
       const result = await ledger.recordMovement(tx, {
         itemId: line.itemId,
         warehouseId: a.warehouseId,
-        batchNo: line.batchNo ?? null,
+        batchNo,
         movementType: qtyDelta > 0 ? 'adjustment_in' : 'adjustment_out',
         sourceType: 'inventory_adjustment',
         sourceId: a.id,
@@ -275,6 +299,7 @@ export class AdjustmentService {
       await tx
         .update(inventoryAdjustmentLines)
         .set({
+          batchNo,
           unitCost: String(result.unitCostUsed),
           valueDelta: String(lineValueDelta),
         })

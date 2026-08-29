@@ -108,6 +108,13 @@ export interface InputPoolBatch {
   expiryDate: string | null;
   /** Drives the age shown next to the batch, and breaks FEFO ties. */
   lastMovementAt: string | null;
+  /** Provenance — see `SuggestedBatch`. A draw is booked against a specific
+   *  can of milk, so the row has to say which collection that is. */
+  originKind?: string | null;
+  originLabel?: string | null;
+  originDetail?: string | null;
+  receivedQty?: number | null;
+  addedQty?: number | null;
 }
 
 export interface InputPoolLine {

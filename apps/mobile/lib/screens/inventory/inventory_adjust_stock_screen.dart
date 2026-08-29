@@ -84,6 +84,15 @@ class _InventoryAdjustStockScreenState
   String? _warehouseId;
   String? _reason;
   AdjustMode _mode = AdjustMode.add;
+
+  /// Whether an Add books into the selected lot instead of opening its own.
+  ///
+  /// Off by default: stock arriving is new stock, and merging it into the lot
+  /// that happened to be selected makes it indistinguishable afterwards — 20 L
+  /// added to a milk consignment left the batch claiming 128 L from one
+  /// collection when only 108 came from there. On is still right for a
+  /// genuine miscount of that lot, so it stays one tap away.
+  bool _intoSelectedBatch = false;
   bool _saving = false;
 
   @override
@@ -132,6 +141,9 @@ class _InventoryAdjustStockScreenState
   void _setMode(AdjustMode m) {
     setState(() {
       _mode = m;
+      // Remove and Set-to always act on the selected lot, so the choice below
+      // is meaningless there and must not carry over into the next Add.
+      if (m != AdjustMode.add) _intoSelectedBatch = false;
       // Set-to opens on the current figure so the user edits a number rather
       // than recalling it; the delta modes are typed from scratch.
       _qty.text = m == AdjustMode.setTo ? invFmtQty(_currentQty) : '';
@@ -176,14 +188,26 @@ class _InventoryAdjustStockScreenState
     return invDefaultReason(_isOutbound);
   }
 
-  /// Batch-tracked stock needs a lot to post against. Existing rows carry
-  /// theirs; a fresh location gets the house-convention suggestion.
+  /// Which lot the movement posts against.
+  ///
+  /// Stock leaving, and any Set-to, act on the lot that was selected — that is
+  /// the quantity being corrected. An Add is new stock, so on a batch-tracked
+  /// item it opens its own lot: typed here, or minted by the server as
+  /// `ADJ-000039-01` when left blank.
   String? get _batchNo {
-    if (_row != null) return _row!.batchNo.isEmpty ? null : _row!.batchNo;
-    if (!widget.item.trackBatches) return null;
-    final typed = _batch.text.trim();
-    return typed.isEmpty ? null : typed;
+    final rowBatch = (_row?.batchNo.isEmpty ?? true) ? null : _row!.batchNo;
+    if (!widget.item.trackBatches) return rowBatch;
+    if (_opensNewBatch) {
+      final typed = _batch.text.trim();
+      return typed.isEmpty ? null : typed;
+    }
+    return rowBatch;
   }
+
+  /// True when this posting should start a lot of its own.
+  bool get _opensNewBatch =>
+      widget.item.trackBatches &&
+      (_mode == AdjustMode.add && !_intoSelectedBatch || _row == null);
 
   bool get _isOther => _effectiveReason == invOtherReason;
 
@@ -191,7 +215,6 @@ class _InventoryAdjustStockScreenState
     final d = _delta;
     if (d == null || d == 0 || _resultQty < 0) return false;
     if (_warehouseId == null) return false;
-    if (_row == null && widget.item.trackBatches && _batchNo == null) return false;
     // "Other" with no explanation is worse than a wrong category: it books
     // to write-off carrying nothing anyone can audit later.
     if (_isOther && _otherReason.text.trim().isEmpty) return false;
@@ -358,24 +381,32 @@ class _InventoryAdjustStockScreenState
           dense: true,
           onChanged: (id) => setState(() => _warehouseId = id),
         ),
-        if (widget.item.trackBatches) ...[
-          const SizedBox(height: 10),
-          TextField(
-            controller: _batch,
-            textCapitalization: TextCapitalization.characters,
-            style: RunqText.body.copyWith(color: RT(context).ink),
-            cursorColor: InvColors.brand(context),
-            decoration: invInputDecoration(
-              context,
-              hint: invSuggestBatchNo(
-                sku: widget.item.sku,
-                itemName: widget.item.name,
-                on: DateTime.now(),
-              ),
+      ],
+      if (_row != null && widget.item.trackBatches && _mode == AdjustMode.add) ...[
+        const SizedBox(height: 10),
+        AdjustBatchDestination(
+          existingBatchNo: _row!.batchNo,
+          intoExisting: _intoSelectedBatch,
+          onChanged: (v) => setState(() => _intoSelectedBatch = v),
+        ),
+      ],
+      if (_opensNewBatch) ...[
+        const SizedBox(height: 10),
+        TextField(
+          controller: _batch,
+          textCapitalization: TextCapitalization.characters,
+          style: RunqText.body.copyWith(color: RT(context).ink),
+          cursorColor: InvColors.brand(context),
+          decoration: invInputDecoration(
+            context,
+            hint: invSuggestBatchNo(
+              sku: widget.item.sku,
+              itemName: widget.item.name,
+              on: DateTime.now(),
             ),
-            onChanged: (_) => setState(() {}),
           ),
-        ],
+          onChanged: (_) => setState(() {}),
+        ),
       ],
     ];
   }

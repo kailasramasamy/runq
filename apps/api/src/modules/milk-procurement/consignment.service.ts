@@ -20,6 +20,7 @@ import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
 import { MpNotifier } from './mp-notifier';
 import { RateChartService } from './rate-chart.service';
+import { RawMilkCostService } from './raw-milk-cost';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type MilkType = NonNullable<MpConsignmentRow['milkType']>;
@@ -646,50 +647,6 @@ export class ConsignmentService {
     return rows.map((r) => ({ milkType: r.milkType, qty: Number(r.q ?? 0) }));
   }
 
-  /** What a litre of this leg cost to buy, from the pours it is made of.
-   *
-   * The plant's raw milk has to carry a cost or manufacturing consumes it at
-   * zero and every finished product is under-costed by its main input. The
-   * farmer's pour is where the price is actually struck (`rate_per_litre`
-   * resolved against the rate chart), so a volume-weighted average of the day's
-   * pours behind this leg is the real purchase cost per litre.
-   *
-   * Returns 0 when nothing links back to a pour — centres that don't use the
-   * app record no pours, so their cost isn't known until the VMCC bill. Those
-   * legs stay at zero for now rather than carry a guessed rate; see
-   * `docs/dhenu-raw-milk-valuation.md`.
-   *
-   * Bonuses and deductions settled later (quarterly bonus, advances, feed loans)
-   * are deliberately excluded — they are not per-litre purchase cost, and they
-   * land as variance when the cycle clears.
-   */
-  private async rawMilkUnitCost(db: Db | Tx, c: MpConsignmentRow): Promise<number> {
-    const [src] = await db.select({ nodeType: mpNodes.nodeType }).from(mpNodes)
-      .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, c.fromNodeId)));
-    if (!src) return 0;
-    // A CC's intake is its VMCCs' pours; a VMCC sending straight to the plant
-    // is its own source.
-    let nodeIds = [c.fromNodeId];
-    if (src.nodeType === 'cc') {
-      const kids = await db.select({ id: mpNodes.id }).from(mpNodes)
-        .where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.parentNodeId, c.fromNodeId)));
-      nodeIds = kids.map((k) => k.id);
-    }
-    if (nodeIds.length === 0) return 0;
-    const [r] = await db.select({
-      qty: sql<string>`coalesce(sum(${mpPours.qtyLitres}), 0)`,
-      amount: sql<string>`coalesce(sum(${mpPours.lineAmount}), 0)`,
-    }).from(mpPours).where(and(
-      eq(mpPours.tenantId, this.tenantId),
-      inArray(mpPours.nodeId, nodeIds),
-      eq(mpPours.collectionDate, c.collectionDate),
-      eq(mpPours.status, 'recorded'),
-      ...(c.milkType ? [eq(mpPours.milkType, c.milkType)] : []),
-    ));
-    const qty = Number(r?.qty ?? 0);
-    return qty > 0 ? round2(Number(r?.amount ?? 0) / qty) : 0;
-  }
-
   /** Single milk type of the source's real composition for the day/shift, or
    *  null when mixed — drives which raw-milk item a PP receipt posts to. */
   private async deriveMilkType(
@@ -712,7 +669,7 @@ export class ConsignmentService {
 
   /** PP intake → raw-milk stock_ledger batch. Best-effort: needs the warehouse +
    *  a milk-type item mapped, else skipped. Valued from the pours behind the leg
-   *  (see `rawMilkUnitCost`); the matching GL entry is still to come, so stock
+   *  (see `RawMilkCostService`); the matching GL entry is still to come, so stock
    *  carries a value the ledger doesn't yet mirror — step 2 of
    *  `docs/dhenu-raw-milk-valuation.md`. Returns the ledger id or null. */
   private async postRawMilkReceipt(
@@ -736,7 +693,7 @@ export class ConsignmentService {
       .where(and(eq(mpRawMilkItems.tenantId, this.tenantId),
         eq(mpRawMilkItems.milkType, c.milkType)));
     if (!map) return null;
-    const unitCost = await this.rawMilkUnitCost(tx, c);
+    const unitCost = await new RawMilkCostService(this.tenantId).unitCost(tx, c);
     const { ledgerId } = await new StockLedgerService(this.tenantId).recordMovement(tx, {
       itemId: map.itemId, warehouseId: settings.wh, batchNo: c.consignmentNo,
       movementType: 'grn', sourceType: 'mp_receipt', sourceId: c.id,

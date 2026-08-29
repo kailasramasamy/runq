@@ -1,7 +1,8 @@
 # Raw milk valuation — interim accrual
 
-Status: step 1 built, steps 2–3 specified (not built).
-Owner decision needed on §5 before step 2 starts.
+Status: step 1 built (both bases), steps 2–3 specified (not built).
+Owner decision needed on §5 before step 2 starts. Decision 4 resolved
+2026-08-29: non-pour centres value at the previous VMCC bill's realised rate.
 
 ## 1. Why
 
@@ -69,11 +70,33 @@ are not per-litre purchase cost; they land as variance when the cycle clears.
 **No GL entry is posted.** Stock now carries a value the ledger does not mirror.
 That is the whole of step 2.
 
-### Known gap
+### Non-pour centres — the last bill's realised rate (built)
 
-The twelve VMCCs under Indus CC record no pours — they are entered as manual
-receipts at the CC. Nothing knows their rate until the VMCC bill, so their legs
-value at **0**. Step 3 has to give them a bill-derived or standard rate.
+The twelve VMCCs under Indus CC record no pours; they are entered as manual
+receipts at the CC. Nothing knows their rate at pour time, so their legs valued
+at **0** — about 600 L a day of the plant's intake carrying no cost, which is
+what made the item screen's value tile look broken.
+
+`RawMilkCostService` (extracted from `ConsignmentService`) now falls back to the
+last settled VMCC bill: for each source VMCC, the newest bill whose cycle period
+ended **before** this collection date, blended by volume as
+`Σ milk_cost / Σ qty_litres`. Reversed bills are excluded, and the cutoff is the
+cycle period rather than `generated_at` so re-posting a receipt later cannot
+change its cost.
+
+Verified on 29 Aug data: Indus CC's three CC→PP legs price at **₹37.46/L**
+(632.1 L → ₹23,678) against an all-history blend of ₹37.66. Pour-backed legs are
+untouched — Vrindavan buffalo still ₹65.00, cow_a1 still ₹38.70.
+
+**Milk-type guard.** A bill has no per-type split, so its rate is blended across
+everything the centre collected. Applied to a mixed-type centre it would price
+buffalo at a cow-blended rate — a ₹25/L error. So the fallback only fires where
+the source has shipped a single milk type over the billed period, and that type
+matches the leg. Mixed centres keep the zero until their VMCCs record pours.
+Indus ships only `cow_a2`, so it qualifies.
+
+The estimate re-bases every cycle, and the difference against the next
+settlement is the variance in §5 — not a silent zero.
 
 ## 4. Step 2 — post the receipt entry
 
@@ -154,8 +177,9 @@ at on the next receipt.
    needs a COA migration for the standard seed and existing tenants.
 2. Variance account code.
 3. Step 3 option (1 / 2 / 3 above).
-4. What non-pour centres value at before their first bill: 0 (today), a standard
-   rate per node, or the previous bill's realised rate.
+4. ~~What non-pour centres value at before their first bill.~~ **Resolved
+   2026-08-29: the previous bill's realised rate** (§3). A centre with no bill
+   yet still values at 0 — there is nothing that knows its price.
 
 ## 7. Backfill
 
@@ -170,3 +194,8 @@ Buffalo Milk (Raw)  CON/2026-27/00848   108.4 L   0.0000
 They predate valuation. Restating them changes WAC for anything already
 consumed, so leave them unless a work order has already consumed against them —
 decide when step 2 ships.
+
+The same applies to Indus legs received before the bill fallback shipped: they
+hold zero, and `CON/2026-27/01705` has already had 413.6 L drawn against it at
+that zero. Revaluing the remainder would price the leftover milk differently
+from the milk consumed out of the same tanker.

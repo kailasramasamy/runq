@@ -310,8 +310,15 @@ class WoRunSuggestedBatchChip extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(batch.batchNo,
+                    Text(batch.origin?.label ?? batch.batchNo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: RunqText.bodyStrong.copyWith(color: selected ? brand : t.ink)),
+                    if (batch.origin != null)
+                      Text(batch.batchNo,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: RunqText.micro.copyWith(color: t.muted2)),
                     if (batch.expiryDate != null)
                       Text('Exp: ${mfgPrettyDate(batch.expiryDate!)}',
                           style: RunqText.caption.copyWith(color: t.muted)),

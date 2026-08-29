@@ -8,11 +8,38 @@ import {
 import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
+import { BatchOriginService } from './batch-origin.service';
 
 /** `YYYY-MM-DD` plus n whole days, in UTC so a shelf life never loses a day to
  *  the server's timezone. */
 const addDays = (date: string, n: number): string =>
   new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** The shape `decorateBatches` needs — every stock row it enriches has these. */
+interface DecoratableRow {
+  itemId: string;
+  batchNo: string;
+  qty: string | number;
+  avgCost: string | number;
+  value: string | number;
+  reorderLevel?: string | number | null;
+}
+
+/** FEFO order for a batch list: soonest expiry first, undated last, oldest
+ *  intake breaking the tie. Undated stock sorts last rather than first — an
+ *  unknown date is not a fresh one, and putting it on top would send a run at
+ *  the batch nobody has dated instead of the one about to turn. */
+const compareByUrgency = (
+  a: { expiryDate: string | null; receivedAt: string | null },
+  b: { expiryDate: string | null; receivedAt: string | null },
+): number => {
+  if (a.expiryDate !== b.expiryDate) {
+    if (!a.expiryDate) return 1;
+    if (!b.expiryDate) return -1;
+    return a.expiryDate < b.expiryDate ? -1 : 1;
+  }
+  return (a.receivedAt ?? '').localeCompare(b.receivedAt ?? '');
+};
 
 // Leaf category and its parent. Aliased because both come from `categories`.
 const category = alias(categories, 'item_category');
@@ -67,39 +94,58 @@ export class StockQueryService {
       .where(and(...conds))
       .orderBy(asc(items.name), asc(warehouses.name));
 
-    let filtered = rows;
-    if (filter.lowOnly) {
-      filtered = rows.filter((r) =>
-        r.reorderLevel != null && Number(r.qty) <= Number(r.reorderLevel),
-      );
-    }
-    // Per-batch expiry: keyed by `${itemId}|${batchNo}`. Pulled in a single
-    // round-trip from GRN lines (the source of truth — stock_on_hand doesn't
-    // store expiry). Empty when no batches are tracked, so the join is free
-    // on non-perishable tenants.
-    const expiryMap = await this.batchExpiryMap(
-      filtered
-        .filter((r) => r.batchNo)
-        .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo })),
-    );
-    // `lastMovementAt` mirrors the movement's business date, which some sources
-    // stamp at midnight — raw-milk receipts use the collection date, so every
-    // batch reads 00:00. `receivedAt` is when the batch was actually posted, the
-    // only field that orders same-day intake correctly.
-    const receivedMap = await this.batchReceivedMap(
-      filtered
-        .filter((r) => r.batchNo)
-        .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo })),
-    );
-    return filtered.map((r) => ({
-      ...r,
-      qty: Number(r.qty),
-      avgCost: Number(r.avgCost),
-      value: Number(r.value),
-      reorderLevel: r.reorderLevel ? Number(r.reorderLevel) : null,
-      expiryDate: expiryMap.get(`${r.itemId}|${r.batchNo}`) ?? null,
-      receivedAt: receivedMap.get(`${r.itemId}|${r.batchNo}`) ?? null,
-    }));
+    const filtered = filter.lowOnly
+      ? rows.filter((r) => r.reorderLevel != null && Number(r.qty) <= Number(r.reorderLevel))
+      : rows;
+    return this.decorateBatches(filtered);
+  }
+
+  /**
+   * Add the per-batch facts `stock_on_hand` does not carry: when the batch
+   * landed, when it expires, and where it came from. Three batched lookups
+   * rather than a join, so a tenant with no batches pays nothing.
+   */
+  private async decorateBatches<T extends DecoratableRow>(rows: readonly T[]) {
+    const keys = rows
+      .filter((r) => r.batchNo)
+      .map((r) => ({ itemId: r.itemId, batchNo: r.batchNo }));
+    const [expiryMap, receivedMap, originMap] = await Promise.all([
+      // Expiry is not on stock_on_hand — GRN lines, WO output and reclaim
+      // lines are the source of truth, with shelf life filling the gap.
+      this.batchExpiryMap(keys),
+      // `lastMovementAt` carries the movement's business date, which some
+      // sources stamp at midnight — raw-milk receipts use the collection date,
+      // so every batch reads 00:00. `receivedAt` orders same-day intake.
+      this.batchReceivedMap(keys),
+      // A batch number is opaque on its own: the raw-milk pool is a dozen
+      // consignment codes, and choosing which to open for a paneer run needs
+      // the centre, shift and milk type behind each one.
+      new BatchOriginService(this.db, this.tenantId).resolve(keys),
+    ]);
+
+    return rows.map((r) => {
+      const key = `${r.itemId}|${r.batchNo}`;
+      const origin = originMap.get(key);
+      return {
+        ...r,
+        qty: Number(r.qty),
+        avgCost: Number(r.avgCost),
+        value: Number(r.value),
+        reorderLevel: r.reorderLevel ? Number(r.reorderLevel) : null,
+        expiryDate: expiryMap.get(key) ?? null,
+        receivedAt: receivedMap.get(key) ?? null,
+        originKind: origin?.kind ?? null,
+        originLabel: origin?.label ?? null,
+        originDetail: origin?.detail ?? null,
+        originDate: origin?.sourceDate ?? null,
+        originShift: origin?.shift ?? null,
+        originMilkType: origin?.milkType ?? null,
+        originRef: origin?.sourceRef ?? null,
+        receivedQty: origin?.receivedQty ?? null,
+        addedQty: origin?.addedQty ?? null,
+        addedAt: origin?.addedAt ?? null,
+      };
+    });
   }
 
   /** When each (item, batch) first came into stock — the earliest inbound
@@ -288,6 +334,7 @@ export class StockQueryService {
     const conds = [eq(stockLedger.tenantId, this.tenantId)];
     if (filter.itemId) conds.push(eq(stockLedger.itemId, filter.itemId));
     if (filter.warehouseId) conds.push(eq(stockLedger.warehouseId, filter.warehouseId));
+    if (filter.batchNo) conds.push(eq(stockLedger.batchNo, filter.batchNo));
     if (filter.movementType) conds.push(eq(stockLedger.movementType, filter.movementType));
     if (filter.from) conds.push(gte(stockLedger.movedAt, new Date(filter.from)));
     if (filter.to) conds.push(lte(stockLedger.movedAt, new Date(filter.to)));
@@ -332,6 +379,7 @@ export class StockQueryService {
 
     const rows = await this.db
       .select({
+        itemId: stockOnHand.itemId,
         warehouseId: stockOnHand.warehouseId,
         batchNo: stockOnHand.batchNo,
         qty: stockOnHand.qty,
@@ -342,18 +390,23 @@ export class StockQueryService {
       })
       .from(stockOnHand)
       .innerJoin(warehouses, eq(warehouses.id, stockOnHand.warehouseId))
-      .where(and(eq(stockOnHand.tenantId, this.tenantId), eq(stockOnHand.itemId, itemId)))
+      // Spent batches are history, not stock. Without this a milk item opens
+      // as months of exhausted consignments — 81 rows reading "0 litre" —
+      // with the one batch that is actually in the tank buried among them.
+      // The audit trail is the place to see a batch that is finished.
+      .where(and(
+        eq(stockOnHand.tenantId, this.tenantId),
+        eq(stockOnHand.itemId, itemId),
+        sql`${stockOnHand.qty} <> 0`,
+      ))
       .orderBy(asc(warehouses.name));
 
-    return {
-      item,
-      onHand: rows.map((r) => ({
-        ...r,
-        qty: Number(r.qty),
-        avgCost: Number(r.avgCost),
-        value: Number(r.value),
-      })),
-    };
+    // This is what an item detail screen shows when someone taps a raw
+    // material, so the batches arrive labelled and in the order a run should
+    // draw them: soonest to expire first, oldest intake breaking the tie.
+    const onHand = await this.decorateBatches(rows);
+    onHand.sort(compareByUrgency);
+    return { item, onHand };
   }
 
   /** Barcode lookup for mobile scan. Returns the item or null. */

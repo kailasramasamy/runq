@@ -17,9 +17,12 @@ import '../../api/inventory_models.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'batch_detail_sheet.dart';
 import 'inventory_adjust_stock_screen.dart';
 import 'inventory_items_list_screen.dart' show classLabel;
 import '../../utils/format_qty.dart';
+import 'widgets/batch_pool.dart';
+import 'widgets/item_warehouse_breakdown.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/item_detail_cards.dart';
@@ -133,14 +136,23 @@ class _Body extends StatelessWidget {
     final stock = stockAsync.valueOrNull ?? const <InvItemStockRow>[];
     final totalQty = stock.fold<double>(0, (a, r) => a + r.qty);
     final totalValue = stock.fold<double>(0, (a, r) => a + r.value);
-    final avgCost = totalQty > 0 ? totalValue / totalQty : 0.0;
+    // Stock nobody has priced. Raw milk from a centre that records no pours
+    // reaches the plant with no rate behind it, so it lands at zero — the
+    // value tile then covers a fraction of the on-hand and reads as a
+    // collapse in worth rather than a gap in costing.
+    final uncostedQty =
+        stock.where((r) => r.value == 0 && r.qty > 0).fold<double>(0, (a, r) => a + r.qty);
+    final costedQty = totalQty - uncostedQty;
+    // Averaged over what actually carries a cost. Dividing by the whole
+    // on-hand blends in zeroes and prints a rate no batch was ever bought at.
+    final avgCost = costedQty > 0 ? totalValue / costedQty : 0.0;
     // Bucket by warehouse — Item Stock view groups across batches but
     // the spec wants one row per warehouse with a horizontal share bar.
-    final byWarehouse = <String, _WarehouseAlloc>{};
+    final byWarehouse = <String, WarehouseAlloc>{};
     for (final r in stock) {
       final cur = byWarehouse[r.warehouseId];
       if (cur == null) {
-        byWarehouse[r.warehouseId] = _WarehouseAlloc(
+        byWarehouse[r.warehouseId] = WarehouseAlloc(
           id: r.warehouseId,
           name: r.warehouseName,
           qty: r.qty,
@@ -176,6 +188,15 @@ class _Body extends StatelessWidget {
               qty: totalQty,
               value: totalValue,
               avgCost: avgCost,
+              uncostedQty: uncostedQty,
+              unit: item.unit,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _Pad(
+            child: ItemWarehouseBreakdown(
+              allocations: allocations,
+              totalQty: totalQty,
               unit: item.unit,
             ),
           ),
@@ -189,27 +210,12 @@ class _Body extends StatelessWidget {
               onEditThreshold: onEditThreshold,
             ),
           ),
-          InvSectionHeader(title: 'By Warehouse (${allocations.length})'),
-          if (allocations.isEmpty)
-            _Pad(
-              child: InvCard(
-                child: Text(
-                  'No stock recorded yet',
-                  style: RunqText.caption.copyWith(color: RT(context).muted),
-                ),
-              ),
-            )
-          else
-            _Pad(
-              child: Column(
-                children: [
-                  for (final w in allocations) ...[
-                    _WarehouseRow(alloc: w, totalQty: totalQty, unit: item.unit),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ),
+          if (stock.any((r) => r.batchNo.isNotEmpty)) ...[
+            InvSectionHeader(
+              title: 'Batches (${stock.where((r) => r.batchNo.isNotEmpty).length})',
             ),
+            _Pad(child: _BatchPool(item: item, stock: stock)),
+          ],
           InvSectionHeader(
             title: 'Recent Movements',
             action: 'View all',
@@ -282,156 +288,142 @@ class _Pad extends StatelessWidget {
       );
 }
 
-class _WarehouseAlloc {
-  final String id;
-  final String name;
-  final double qty;
-  final double value;
-  const _WarehouseAlloc({
-    required this.id,
-    required this.name,
-    required this.qty,
-    required this.value,
-  });
-  _WarehouseAlloc add(double q, double v) =>
-      _WarehouseAlloc(id: id, name: name, qty: qty + q, value: value + v);
-}
-
-// ── Totals strip (On Hand / Value / Avg Cost) ────────────────────────────
-
 class _TotalsStrip extends StatelessWidget {
   const _TotalsStrip({
     required this.qty,
     required this.value,
     required this.avgCost,
+    required this.uncostedQty,
     required this.unit,
   });
   final double qty;
   final double value;
   final double avgCost;
+
+  /// On-hand carrying no cost at all. Stated rather than blended away: the
+  /// value tile only covers the rest, and the difference is a costing gap
+  /// somebody has to close, not stock that is genuinely worthless.
+  final double uncostedQty;
   final String? unit;
 
   @override
   Widget build(BuildContext context) {
     // IntrinsicHeight bounds the row — `stretch` inside an unbounded ListView
     // child would otherwise feed h=Infinity into each Expanded card.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: InvKpiCard(
-              label: 'On Hand',
-              value: formatItemQty(qty, null, unit: unit),
-              sub: unit ?? 'units',
+    final t = RT(context);
+    final costed = qty - uncostedQty;
+    final unitLabel = unit?.isNotEmpty == true ? ' ${unit!}' : '';
+    return Column(children: [
+      IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: InvKpiCard(
+                label: 'On Hand',
+                value: formatItemQty(qty, null, unit: unit),
+                sub: unit ?? 'units',
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: InvKpiCard(
-              label: 'Value',
-              value: compactINR(value),
-              sub: 'total',
+            const SizedBox(width: 8),
+            Expanded(
+              child: InvKpiCard(
+                label: 'Value',
+                value: compactINR(value),
+                // Say what the figure covers. "Total" over stock that is only
+                // part-priced is the claim that made this tile look broken.
+                sub: uncostedQty > 0.0005
+                    ? 'of ${formatItemQty(costed, null, unit: unit)}$unitLabel'
+                    : 'total',
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: InvKpiCard(
-              label: 'Avg Cost',
-              value: compactINR(avgCost),
-              sub: unit == null ? 'per unit' : 'per ${unit!}',
+            const SizedBox(width: 8),
+            Expanded(
+              child: InvKpiCard(
+                label: 'Avg Cost',
+                value: compactINR(avgCost),
+                sub: unit == null ? 'per unit' : 'per ${unit!}',
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
+      if (uncostedQty > 0.0005) ...[
+        const SizedBox(height: 6),
+        Row(children: [
+          Icon(Icons.info_outline_rounded, size: 13, color: InvColors.amberDeep),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              // Deliberately not milk-specific: any stock can reach the
+              // ledger unpriced, and this screen serves every item class.
+              '${formatItemQty(uncostedQty, null, unit: unit)}$unitLabel carries no '
+              'purchase cost yet, so the value above covers the rest.',
+              style: RunqText.micro.copyWith(color: t.muted),
+            ),
+          ),
+        ]),
+      ],
+    ]);
   }
 }
 
 // ── Per-warehouse allocation row ─────────────────────────────────────────
 
-class _WarehouseRow extends StatelessWidget {
-  const _WarehouseRow({
-    required this.alloc,
-    required this.totalQty,
-    this.unit,
-  });
-  final _WarehouseAlloc alloc;
-  final double totalQty;
-  final String? unit;
+/// What the item's total is actually made of. A raw-material number hides a
+/// pool — yesterday's PM collection, this morning's intake, a part-used
+/// balance, milk poured back out of packets — and a production run has to be
+/// booked against the right one of those. Ordered the way a run should draw:
+/// soonest expiry first (the API sorts it).
+class _BatchPool extends StatelessWidget {
+  const _BatchPool({required this.item, required this.stock});
+  final InvItemDetail item;
+  final List<InvItemStockRow> stock;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final pct = totalQty <= 0 ? 0.0 : (alloc.qty / totalQty).clamp(0.0, 1.0);
+    final batches = stock.where((r) => r.batchNo.isNotEmpty).toList();
+    final warehouses = batches.map((r) => r.warehouseId).toSet();
+    final qty = batches.fold<double>(0, (a, r) => a + r.qty);
+    final value = batches.fold<double>(0, (a, r) => a + r.value);
+
     return InvCard(
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: t.bgWarmer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.warehouse_outlined, size: 16, color: t.muted),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        alloc.name,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                      ),
-                    ),
-                    Text(
-                      formatItemQty(alloc.qty, null, unit: unit),
-                      style: RunqText.bodyStrong.copyWith(color: t.ink),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                LayoutBuilder(
-                  builder: (_, c) => Container(
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: t.hairlineSoft,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        width: c.maxWidth * pct,
-                        color: InvColors.brand(context),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '${(pct * 100).toStringAsFixed(0)}% of total',
-                      style: RunqText.caption.copyWith(color: t.muted),
-                    ),
-                    const Spacer(),
-                    Text(
-                      compactINR(alloc.value),
-                      style: RunqText.caption.copyWith(color: t.muted),
-                    ),
-                  ],
-                ),
-              ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        BatchPoolHeader(
+          count: batches.length,
+          qty: qty,
+          unit: item.unit,
+          value: value,
+        ),
+        Divider(color: t.hairlineSoft, height: 14),
+        for (final b in batches)
+          BatchPoolRow(
+            batchNo: b.batchNo,
+            qty: b.qty,
+            unit: item.unit,
+            origin: b.origin,
+            expiryDate: b.expiryDate,
+            value: b.value,
+            partUsed: b.isPartUsed,
+            onTap: () => showBatchDetailSheet(
+              context,
+              BatchDetailArgs(
+                itemId: item.id,
+                itemName: item.name,
+                batchNo: b.batchNo,
+                qty: b.qty,
+                unit: item.unit,
+                value: b.value,
+                expiryDate: b.expiryDate,
+                // One warehouse is the common case and naming it is noise;
+                // two or more and the sheet has to say where the stock sits.
+                warehouseName: warehouses.length > 1 ? b.warehouseName : null,
+                origin: b.origin,
+              ),
             ),
           ),
-        ],
-      ),
+      ]),
     );
   }
 }

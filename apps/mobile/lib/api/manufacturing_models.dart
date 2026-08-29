@@ -2,6 +2,10 @@
 // packages/types/src/manufacturing/. Decimal fields come as strings from
 // the API and are parsed to double via [_num].
 
+// Batch provenance is shared with inventory rather than re-declared: a batch
+// reads the same whether it is seen as stock or as something to draw from.
+import 'inventory_models.dart' show BatchOrigin;
+
 double _num(Object? v) {
   if (v == null) return 0;
   if (v is num) return v.toDouble();
@@ -566,11 +570,17 @@ class SuggestedBatch {
   final double unitCost;
   final String? expiryDate;
 
+  /// Where the batch came from — see [BatchOrigin]. Consuming against a WO is
+  /// the same decision as a production draw, so the chip names the collection
+  /// rather than only its code.
+  final BatchOrigin? origin;
+
   SuggestedBatch({
     required this.batchNo,
     required this.availableQty,
     required this.unitCost,
     this.expiryDate,
+    this.origin,
   });
 
   factory SuggestedBatch.fromJson(Map<String, dynamic> j) => SuggestedBatch(
@@ -578,6 +588,7 @@ class SuggestedBatch {
         availableQty: _num(j['availableQty']),
         unitCost: _num(j['unitCost']),
         expiryDate: j['expiryDate'] as String?,
+        origin: BatchOrigin.fromRow(j),
       );
 }
 
@@ -1006,6 +1017,10 @@ class InputPoolBatch {
   final double unitCost;
   final String? expiryDate;
 
+  /// Where the batch came from — `Indus CC · 28 Aug PM · A2 cow`. The draw is
+  /// booked against one specific collection, so the row has to name it.
+  final BatchOrigin? origin;
+
   InputPoolBatch({
     required this.itemId,
     required this.itemName,
@@ -1013,7 +1028,14 @@ class InputPoolBatch {
     required this.qty,
     required this.unitCost,
     required this.expiryDate,
+    this.origin,
   });
+
+  /// Part of the batch is already drawn — a balance, not a full can.
+  bool get isPartUsed {
+    final received = origin?.receivedQty;
+    return received != null && qty < received - 0.0005;
+  }
 
   factory InputPoolBatch.fromJson(Map<String, dynamic> j) => InputPoolBatch(
         itemId: (j['itemId'] as String?) ?? '',
@@ -1022,6 +1044,7 @@ class InputPoolBatch {
         qty: _num(j['qty']),
         unitCost: _num(j['unitCost']),
         expiryDate: j['expiryDate'] as String?,
+        origin: BatchOrigin.fromRow(j),
       );
 }
 

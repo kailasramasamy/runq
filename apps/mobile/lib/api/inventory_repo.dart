@@ -118,6 +118,7 @@ class InventoryRepo {
   Future<InvMovementPage> itemMovements(InvMovementQuery q) async {
     final qp = <String, String>{'page': '${q.page}', 'limit': '50'};
     if (q.warehouseId != null) qp['warehouseId'] = q.warehouseId!;
+    if (q.batchNo != null) qp['batchNo'] = q.batchNo!;
     if (q.direction != null) qp['direction'] = q.direction!;
     if (q.group != null) qp['group'] = q.group!;
     if (q.type != null) qp['type'] = q.type!;

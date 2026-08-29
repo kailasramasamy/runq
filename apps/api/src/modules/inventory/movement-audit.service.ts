@@ -81,6 +81,7 @@ export class ItemMovementAuditService {
       eq(stockLedger.itemId, itemId),
     ];
     if (filter.warehouseId) conds.push(eq(stockLedger.warehouseId, filter.warehouseId));
+    if (filter.batchNo) conds.push(eq(stockLedger.batchNo, filter.batchNo));
     if (filter.from) conds.push(gte(stockLedger.movedAt, new Date(filter.from)));
     // End-of-day boundary, not midnight — `to` is inclusive of its own date.
     if (filter.to) conds.push(lte(stockLedger.movedAt, new Date(`${filter.to}T23:59:59.999Z`)));

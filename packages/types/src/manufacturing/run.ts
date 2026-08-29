@@ -1,3 +1,5 @@
+import type { BatchOriginKind } from '../inventory/batch';
+
 /**
  * Manufacturing Phase 2 — Run + costing domain types.
  * Spec: docs/manufacturing-plan.md §4.4–4.6, §8.
@@ -57,6 +59,21 @@ export interface SuggestedBatch {
    * carries no expiry date.
    */
   lastMovementAt?: string | null;
+
+  /**
+   * Where the batch came from — `Indus CC · 28 Aug PM · A2 cow` rather than
+   * `CN-2026-000418`. A planner picking milk for a paneer run is choosing on
+   * shift, centre and freshness; the batch number carries none of that.
+   */
+  originKind?: BatchOriginKind | null;
+  originLabel?: string | null;
+  originDetail?: string | null;
+  /** Everything ever put into the batch. Less than `availableQty` means the
+   *  batch is part-used — yesterday's balance, not a fresh can. */
+  receivedQty?: number | null;
+  /** Stock added from a source other than the one `originLabel` names — see
+   *  `BatchOrigin.addedQty`. Above zero, the label is only part of the story. */
+  addedQty?: number | null;
 }
 
 /** Per-input costing preview computed by `costing.service` while a WO is in_progress. */

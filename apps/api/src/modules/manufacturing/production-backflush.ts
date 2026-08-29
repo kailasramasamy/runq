@@ -219,6 +219,11 @@ export function buildPool(
       unitCost: batch.unitCost,
       expiryDate: batch.expiryDate,
       lastMovementAt: batch.lastMovementAt ?? null,
+      originKind: batch.originKind ?? null,
+      originLabel: batch.originLabel ?? null,
+      originDetail: batch.originDetail ?? null,
+      receivedQty: batch.receivedQty ?? null,
+      addedQty: batch.addedQty ?? null,
     }));
 
     const totalQty = roundQty(batches.reduce((sum, b) => sum + b.qty, 0));
@@ -264,6 +269,11 @@ export function buildAllocations(
       unitCost: batch.unitCost,
       expiryDate: batch.expiryDate,
       lastMovementAt: batch.lastMovementAt ?? null,
+      originKind: batch.originKind ?? null,
+      originLabel: batch.originLabel ?? null,
+      originDetail: batch.originDetail ?? null,
+      receivedQty: batch.receivedQty ?? null,
+      addedQty: batch.addedQty ?? null,
     }));
 
     return {

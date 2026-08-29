@@ -10,6 +10,7 @@ export * from './ap/payment';
 export * from './ap/debit-note';
 export * from './ap/three-way-match';
 export * from './purchase/po';
+export * from './inventory/batch';
 export * from './manufacturing/bom';
 export * from './manufacturing/wo';
 export * from './manufacturing/run';

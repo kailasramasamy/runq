@@ -13,15 +13,20 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
 import type { SuggestedBatch } from '@runq/types';
+import { BatchOriginService } from '../inventory/batch-origin.service';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
 
 export class BatchSuggestService {
+  private readonly origins: BatchOriginService;
+
   constructor(
     private readonly db: Db,
     private readonly tenantId: string,
-  ) {}
+  ) {
+    this.origins = new BatchOriginService(db, tenantId);
+  }
 
   async suggest(
     inputItemId: string,
@@ -126,14 +131,28 @@ export class BatchSuggestService {
     };
 
     const rows = (result as unknown as { rows: Row[] }).rows;
-    return rows.map((r) => ({
-      batchNo: r.batch_no,
-      availableQty: Number(r.available_qty),
-      unitCost: Number(r.unit_cost),
-      expiryDate: r.expiry_date ?? null,
-      lastMovementAt: r.last_movement_at
-        ? new Date(r.last_movement_at).toISOString()
-        : null,
-    }));
+    // Same resolver the inventory on-hand list uses, so a batch reads the same
+    // whether the planner is looking at stock or at a production draw.
+    const origins = await this.origins.resolve(
+      rows.filter((r) => r.batch_no).map((r) => ({ itemId: inputItemId, batchNo: r.batch_no })),
+      db,
+    );
+    return rows.map((r) => {
+      const origin = origins.get(`${inputItemId}|${r.batch_no}`);
+      return {
+        batchNo: r.batch_no,
+        availableQty: Number(r.available_qty),
+        unitCost: Number(r.unit_cost),
+        expiryDate: r.expiry_date ?? null,
+        lastMovementAt: r.last_movement_at
+          ? new Date(r.last_movement_at).toISOString()
+          : null,
+        originKind: origin?.kind ?? null,
+        originLabel: origin?.label ?? null,
+        originDetail: origin?.detail ?? null,
+        receivedQty: origin?.receivedQty ?? null,
+        addedQty: origin?.addedQty ?? null,
+      };
+    });
   }
 }

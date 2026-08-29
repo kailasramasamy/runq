@@ -173,6 +173,9 @@ class InvMovementPage {
 class InvMovementQuery {
   final String itemId;
   final String? warehouseId;
+
+  /// Narrows the trail to one batch — what the batch detail sheet reads.
+  final String? batchNo;
   final String? direction;
 
   /// Coarse movement bucket — receipt | dispatch | production | … Null means
@@ -189,6 +192,7 @@ class InvMovementQuery {
   const InvMovementQuery({
     required this.itemId,
     this.warehouseId,
+    this.batchNo,
     this.direction,
     this.group,
     this.type,
@@ -199,6 +203,7 @@ class InvMovementQuery {
 
   InvMovementQuery copyWith({
     Object? warehouseId = _unset,
+    Object? batchNo = _unset,
     Object? direction = _unset,
     Object? group = _unset,
     Object? type = _unset,
@@ -210,6 +215,7 @@ class InvMovementQuery {
         itemId: itemId,
         warehouseId:
             warehouseId == _unset ? this.warehouseId : warehouseId as String?,
+        batchNo: batchNo == _unset ? this.batchNo : batchNo as String?,
         direction: direction == _unset ? this.direction : direction as String?,
         group: group == _unset ? this.group : group as String?,
         type: type == _unset ? this.type : type as String?,
@@ -225,6 +231,7 @@ class InvMovementQuery {
       other is InvMovementQuery &&
       other.itemId == itemId &&
       other.warehouseId == warehouseId &&
+      other.batchNo == batchNo &&
       other.direction == direction &&
       other.group == group &&
       other.type == type &&
@@ -239,7 +246,7 @@ class InvMovementQuery {
 
   @override
   int get hashCode =>
-      Object.hash(itemId, warehouseId, direction, group, type, from, to, page);
+      Object.hash(itemId, warehouseId, batchNo, direction, group, type, from, to, page);
 }
 
 const invMovementLabels = <String, String>{

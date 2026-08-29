@@ -173,6 +173,82 @@ class InvWarehouse {
   );
 }
 
+
+/// Where a batch came from, resolved server-side from the movement that opened
+/// it. A batch number is opaque on a plant floor — the raw-milk pool is a dozen
+/// consignment codes — so every batch row leads with this instead.
+class BatchOrigin {
+  /// Coarse bucket: mp_receipt / reclaim / grn / production / transfer /
+  /// adjustment / stock_take / opening / unknown. Drives the row's icon.
+  final String kind;
+
+  /// Ready to render, e.g. `Indus CC · 28 Aug PM · A2 cow`.
+  final String label;
+
+  /// Secondary line — tanker, QC readings, document number.
+  final String? detail;
+  final String? date;
+  final String? shift;
+  final String? milkType;
+  final String? refType;
+  final String? refId;
+  final String? refNo;
+
+  /// Everything ever put into the batch. Against on-hand qty this is what
+  /// separates a full batch from yesterday's part-used balance.
+  final double? receivedQty;
+
+  /// Stock added to the batch from something other than [label]'s document —
+  /// 20 litre adjusted into a milk consignment, say. Above zero the label
+  /// only accounts for part of the batch, and the row has to say so rather
+  /// than let the extra hide inside the collection it was added to.
+  final double? addedQty;
+  final String? addedAt;
+
+  /// True when part of the batch came from somewhere the label does not name.
+  bool get hasMixedIntake => (addedQty ?? 0) > 0.0005;
+
+  /// How much of the batch the labelled document actually put in.
+  double get originQtyOrZero => (receivedQty ?? 0) - (addedQty ?? 0);
+
+  const BatchOrigin({
+    required this.kind,
+    required this.label,
+    this.detail,
+    this.date,
+    this.shift,
+    this.milkType,
+    this.refType,
+    this.refId,
+    this.refNo,
+    this.receivedQty,
+    this.addedQty,
+    this.addedAt,
+  });
+
+  /// Reads the flattened `origin*` fields a stock row carries. Null when the
+  /// row has no batch, or when nothing could be resolved behind it.
+  static BatchOrigin? fromRow(Map<String, dynamic> j) {
+    final label = j['originLabel'] as String?;
+    if (label == null || label.isEmpty) return null;
+    final ref = j['originRef'] as Map<String, dynamic>?;
+    return BatchOrigin(
+      kind: (j['originKind'] as String?) ?? 'unknown',
+      label: label,
+      detail: j['originDetail'] as String?,
+      date: j['originDate'] as String?,
+      shift: j['originShift'] as String?,
+      milkType: j['originMilkType'] as String?,
+      refType: ref?['type'] as String?,
+      refId: ref?['id'] as String?,
+      refNo: ref?['no'] as String?,
+      receivedQty: (j['receivedQty'] as num?)?.toDouble(),
+      addedQty: (j['addedQty'] as num?)?.toDouble(),
+      addedAt: j['addedAt'] as String?,
+    );
+  }
+}
+
 class InvOnHandRow {
   final String itemId;
   final String itemName;
@@ -212,6 +288,9 @@ class InvOnHandRow {
   /// received on the same day apart — and the only freshness signal raw milk has
   /// until expiry dates are wired.
   final String? receivedAt;
+
+  /// Provenance for this batch. Null for non-batched stock.
+  final BatchOrigin? origin;
   const InvOnHandRow({
     required this.itemId,
     required this.itemName,
@@ -230,7 +309,15 @@ class InvOnHandRow {
     this.lastMovementAt,
     this.expiryDate,
     this.receivedAt,
+    this.origin,
   });
+
+  /// Stock left over from an earlier intake — yesterday's balance rather than
+  /// a fresh can. Only meaningful once provenance resolved.
+  bool get isPartUsed {
+    final received = origin?.receivedQty;
+    return received != null && qty < received - 0.0005;
+  }
   bool get isLow => reorderLevel != null && qty <= (reorderLevel ?? 0);
   factory InvOnHandRow.fromJson(Map<String, dynamic> j) => InvOnHandRow(
     itemId: j['itemId'] as String,
@@ -250,6 +337,7 @@ class InvOnHandRow {
     lastMovementAt: j['lastMovementAt'] as String?,
     expiryDate: j['expiryDate'] as String?,
     receivedAt: j['receivedAt'] as String?,
+    origin: BatchOrigin.fromRow(j),
   );
 }
 
@@ -1691,6 +1779,12 @@ class InvItemStockRow {
   final double avgCost;
   final double value;
   final String? lastMovementAt;
+  final String? expiryDate;
+  final String? receivedAt;
+
+  /// Provenance for this batch — what the item detail screen shows instead of
+  /// a bare batch number when someone taps a raw material.
+  final BatchOrigin? origin;
   const InvItemStockRow({
     required this.warehouseId,
     required this.warehouseName,
@@ -1699,7 +1793,17 @@ class InvItemStockRow {
     required this.avgCost,
     required this.value,
     this.lastMovementAt,
+    this.expiryDate,
+    this.receivedAt,
+    this.origin,
   });
+
+  /// Part of the batch is already drawn — see `InvOnHandRow.isPartUsed`.
+  bool get isPartUsed {
+    final received = origin?.receivedQty;
+    return received != null && qty < received - 0.0005;
+  }
+
   factory InvItemStockRow.fromJson(Map<String, dynamic> j) => InvItemStockRow(
     warehouseId: j['warehouseId'] as String,
     warehouseName: (j['warehouseName'] as String?) ?? '',
@@ -1708,6 +1812,9 @@ class InvItemStockRow {
     avgCost: (j['avgCost'] as num?)?.toDouble() ?? 0,
     value: (j['value'] as num?)?.toDouble() ?? 0,
     lastMovementAt: j['lastMovementAt'] as String?,
+    expiryDate: j['expiryDate'] as String?,
+    receivedAt: j['receivedAt'] as String?,
+    origin: BatchOrigin.fromRow(j),
   );
 }
 

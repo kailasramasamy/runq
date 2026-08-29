@@ -109,12 +109,33 @@ export function ItemGroupRow({ group: g }: { group: ItemGroup }) {
   );
 }
 
+/** Stock left over from an earlier intake — yesterday's balance rather than a
+ *  full can. Only knowable once the origin says how much went in. */
+function isPartUsed(r: OnHandRow): boolean {
+  return r.receivedQty != null && r.qty < r.receivedQty - 0.0005;
+}
+
 export function StockRow({ row: r, nested }: { row: OnHandRow; nested?: boolean }) {
   return (
     <TableRow className={nested ? 'bg-zinc-50/60 dark:bg-zinc-900/40' : undefined}>
       <TableCell className={nested ? 'pl-8' : undefined}>
         {nested ? (
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">{r.itemName}</span>
+          // The item name is the group heading directly above, so the nested
+          // row spends this cell on the one thing the batch number cannot
+          // say: which collection, shift and centre it came from.
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-zinc-700 dark:text-zinc-300">
+              {r.originLabel ?? r.itemName}
+            </span>
+            {r.originDetail && (
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{r.originDetail}</span>
+            )}
+            {r.addedQty != null && r.addedQty > 0.0005 && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-500">
+                +{formatItemQty(r.addedQty, r.itemClass, r.itemUnit)} added separately
+              </span>
+            )}
+          </div>
         ) : (
           <>
             <div className="flex items-baseline gap-2">
@@ -129,7 +150,14 @@ export function StockRow({ row: r, nested }: { row: OnHandRow; nested?: boolean 
       </TableCell>
       <TableCell className="font-mono text-xs">{r.itemSku ?? '—'}</TableCell>
       <TableCell>{r.warehouseName}</TableCell>
-      <TableCell className="font-mono text-xs">{r.batchNo || '—'}</TableCell>
+      <TableCell className="font-mono text-xs">
+        {r.batchNo || '—'}
+        {isPartUsed(r) && (
+          <span className="ml-1 font-sans text-[11px] text-zinc-500 dark:text-zinc-400">
+            part-used
+          </span>
+        )}
+      </TableCell>
       <TableCell className="whitespace-nowrap text-xs">{formatReceivedAt(r.receivedAt)}</TableCell>
       <TableCell><ExpiryCell date={r.expiryDate} /></TableCell>
       <TableCell className="text-right tabular-nums">{qtyFmt(r.qty, r.itemClass, r.itemUnit)}</TableCell>
