@@ -56,6 +56,19 @@ export const dunningRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // Everything still owing, due or not — what the mobile aging screen shows
+  // so its total reconciles with the Receivables KPI. `/overdue` stays the
+  // chase list that drives reminders.
+  app.get(
+    '/open',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const service = new DunningService(request.server.db, request.tenantId);
+      const invoices = await service.getOpenInvoices();
+      return { data: invoices };
+    },
+  );
+
   app.post(
     '/render',
     { preHandler: [rbacHook([...READ_ROLES])] },

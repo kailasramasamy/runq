@@ -6,6 +6,7 @@ import 'api_client.dart';
 import 'api_config.dart';
 import 'models.dart';
 import 'sales_dispatch_models.dart';
+import 'spends_models.dart';
 import '../services/po_ocr.dart';
 
 // Sentinel for "field not provided" in PATCH bodies — lets a caller pass
@@ -635,6 +636,24 @@ class BankingRepo {
     if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
     final res = await apiClient.get('/banking/accounts/$accountId/transactions?${Uri(queryParameters: qp).query}');
     return PaginatedResponse.fromJson((res as Map).cast<String, dynamic>(), BankTxn.fromJson);
+  }
+
+  /// Every rupee out across all accounts: bank debits plus captured payments
+  /// still awaiting a bank match. Totals cover the whole filtered set, not
+  /// just this page.
+  Future<SpendsPage> spends({
+    int page = 1,
+    int limit = 30,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+  }) async {
+    final qp = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (dateFrom != null) qp['dateFrom'] = dateFrom;
+    if (dateTo != null) qp['dateTo'] = dateTo;
+    if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
+    final res = await apiClient.get('/banking/spends?${Uri(queryParameters: qp).query}');
+    return SpendsPage.fromJson((res as Map).cast<String, dynamic>());
   }
 
   /// GL categories actually used by this account's transactions (plus an

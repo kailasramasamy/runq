@@ -44,7 +44,7 @@ class OverdueInvoice {
   }
 }
 
-/// Overdue invoices grouped by customer for the collections screen.
+/// Open invoices grouped by customer for the collections screen.
 class CustomerArAging {
   final String customerId;
   final String customerName;
@@ -62,6 +62,16 @@ class CustomerArAging {
 
   double get totalDue =>
       invoices.fold<double>(0, (s, i) => s + i.balanceDue);
+
+  /// The chaseable slice. Reminders only ever go out for these, so a customer
+  /// whose invoices are all still within terms offers no chase actions.
+  Iterable<OverdueInvoice> get overdueInvoices =>
+      invoices.where((i) => i.daysOverdue > 0);
+  double get overdueDue =>
+      overdueInvoices.fold<double>(0, (s, i) => s + i.balanceDue);
+  bool get hasOverdue => overdueDue > 0;
+
+  /// 0 when nothing is late — `daysOverdue` runs negative before the due date.
   int get worstDaysOverdue =>
       invoices.fold<int>(0, (m, i) => i.daysOverdue > m ? i.daysOverdue : m);
 
@@ -105,10 +115,12 @@ class ArAgingBuckets {
       current + bucket1to30 + bucket31to60 + bucket61to90 + bucket90plus;
 
   factory ArAgingBuckets.from(List<OverdueInvoice> invoices) {
-    double a = 0, b = 0, c = 0, d = 0;
+    double now = 0, a = 0, b = 0, c = 0, d = 0;
     for (final i in invoices) {
       final days = i.daysOverdue;
-      if (days <= 30) {
+      if (days <= 0) {
+        now += i.balanceDue; // within terms — negative days = days remaining
+      } else if (days <= 30) {
         a += i.balanceDue;
       } else if (days <= 60) {
         b += i.balanceDue;
@@ -119,7 +131,7 @@ class ArAgingBuckets {
       }
     }
     return ArAgingBuckets(
-      current: 0,
+      current: now,
       bucket1to30: a,
       bucket31to60: b,
       bucket61to90: c,

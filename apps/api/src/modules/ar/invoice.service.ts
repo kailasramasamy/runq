@@ -1803,10 +1803,13 @@ export class InvoiceService {
     return and(
       eq(salesInvoices.tenantId, this.tenantId),
       filters.customerId ? eq(salesInvoices.customerId, filters.customerId) : undefined,
+      // `overdue` is also a status value, and an invoice sitting in it is
+      // unpaid by definition — leaving it out dropped such rows from the tab
+      // the Receivables KPI links to while the KPI still counted them.
       isOverdueFilter
-        ? sql`${salesInvoices.dueDate} < CURRENT_DATE AND ${salesInvoices.balanceDue} > 0 AND ${salesInvoices.status} IN ('sent', 'partially_paid')`
+        ? sql`${salesInvoices.dueDate} < CURRENT_DATE AND ${salesInvoices.balanceDue} > 0 AND ${salesInvoices.status} IN ('sent', 'partially_paid', 'overdue')`
         : isUnpaidFilter
-        ? sql`${salesInvoices.balanceDue} > 0 AND ${salesInvoices.status} IN ('sent', 'partially_paid')`
+        ? sql`${salesInvoices.balanceDue} > 0 AND ${salesInvoices.status} IN ('sent', 'partially_paid', 'overdue')`
         : filters.status
         ? eq(salesInvoices.status, filters.status as Exclude<typeof filters.status, 'unpaid'>)
         : undefined,

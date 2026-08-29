@@ -41,6 +41,7 @@ import 'screens/analytics_screen.dart';
 import 'screens/cash_flow_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/collections_screen.dart';
+import 'screens/spends_screen.dart';
 import 'screens/sales/sales_analytics_screen.dart';
 import 'screens/purchase/purchase_analytics_screen.dart';
 import 'screens/pay_runs_screen.dart';
@@ -1117,6 +1118,12 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/money/banking',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const BankingScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/money/spends',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(const SpendsScreen(), key: state.pageKey),
         ),
         GoRoute(
           // Optional query params seed the filters, so a report slice can deep

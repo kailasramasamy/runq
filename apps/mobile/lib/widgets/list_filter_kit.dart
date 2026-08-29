@@ -8,6 +8,10 @@ import 'runq_card.dart';
 
 /// One filter pill. Doubles as a scope chip (leading icon + tappable trailing
 /// clear) and as a status tab (with a count badge).
+/// Standard pill height. Rows of pills size themselves to match; a pill used
+/// on its own gets it from the constraint inside [FilterPill].
+const double _pillHeight = 38;
+
 class FilterPill extends StatelessWidget {
   final String label;
   final bool active;
@@ -42,44 +46,50 @@ class FilterPill extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: EdgeInsets.fromLTRB(leading == null ? 14 : 10, 0, onTrailing != null ? 6 : 12, 0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (leading != null) ...[
-                Icon(leading, size: 14, color: fg),
-                const SizedBox(width: 6),
-              ],
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 200),
-                child: Text(label,
-                    style: RunqText.caption.copyWith(color: fg, fontWeight: FontWeight.w600),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              if (badge > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                  decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
-                  child: Text('$badge',
-                      style: RunqText.tabular(
-                          size: 11, w: FontWeight.w700, color: active ? t.surface : t.muted)),
+          // The pill carries no vertical padding — it used to depend on every
+          // caller wrapping it in a 38px row, and one that didn't collapsed to
+          // text height and read as squeezed. Own the height here instead.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _pillHeight),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (leading != null) ...[
+                  Icon(leading, size: 14, color: fg),
+                  const SizedBox(width: 6),
+                ],
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: Text(label,
+                      style: RunqText.caption.copyWith(color: fg, fontWeight: FontWeight.w600),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
+                if (badge > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                    decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
+                    child: Text('$badge',
+                        style: RunqText.tabular(
+                            size: 11, w: FontWeight.w700, color: active ? t.surface : t.muted)),
+                  ),
+                ],
+                if (trailing != null) ...[
+                  const SizedBox(width: 2),
+                  if (onTrailing != null)
+                    InkWell(
+                      onTap: onTrailing,
+                      customBorder: const CircleBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(trailing, size: 14, color: fg),
+                      ),
+                    )
+                  else
+                    Icon(trailing, size: 16, color: fg),
+                ],
               ],
-              if (trailing != null) ...[
-                const SizedBox(width: 2),
-                if (onTrailing != null)
-                  InkWell(
-                    onTap: onTrailing,
-                    customBorder: const CircleBorder(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(trailing, size: 14, color: fg),
-                    ),
-                  )
-                else
-                  Icon(trailing, size: 16, color: fg),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -93,12 +103,16 @@ class ListStatCard extends StatelessWidget {
   final String label, value;
   /// Brand-tinted variant for the headline amount card.
   final bool tinted;
+  /// Optional drill-down — e.g. the outstanding card filtering the list to
+  /// the rows that add up to it.
+  final VoidCallback? onTap;
   const ListStatCard({
     super.key,
     required this.icon,
     required this.label,
     required this.value,
     this.tinted = false,
+    this.onTap,
   });
 
   @override
@@ -108,6 +122,7 @@ class ListStatCard extends StatelessWidget {
     // saturated light-mode brand reads far too loud on near-black.
     final accent = tinted ? t.brand : t.muted;
     return RunqCard(
+      onTap: onTap,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       color: tinted ? t.brandSubtle : t.surface,
       border: Border.all(

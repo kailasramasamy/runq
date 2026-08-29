@@ -8,9 +8,12 @@ T _watchAuth<T>(Ref ref, T Function() build) {
   return build();
 }
 
-final overdueInvoicesProvider =
+/// All open receivables — due and not yet due — so the aging screen totals
+/// the same figure as the Money hub's Receivables KPI. Reminders are still
+/// sent off the server's overdue-only list.
+final openInvoicesProvider =
     FutureProvider<List<OverdueInvoice>>((ref) async {
-  return _watchAuth(ref, () => dunningRepo.overdue());
+  return _watchAuth(ref, () => dunningRepo.open());
 });
 
 final dunningRulesProvider = FutureProvider<List<DunningRule>>((ref) async {

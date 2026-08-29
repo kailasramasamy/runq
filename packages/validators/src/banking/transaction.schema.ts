@@ -27,3 +27,12 @@ export const bankAccountReportQuerySchema = z
   });
 
 export type BankAccountReportQuery = z.infer<typeof bankAccountReportQuerySchema>;
+
+/** Filters for the cross-account spends ledger (bank debits + open captures). */
+export const spendsFilterSchema = z.object({
+  dateFrom: z.string().date().optional(),
+  dateTo: z.string().date().optional(),
+  search: z.string().optional(),
+});
+
+export type SpendsFilter = z.infer<typeof spendsFilterSchema>;

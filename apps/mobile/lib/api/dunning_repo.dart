@@ -18,8 +18,11 @@ List<Map<String, dynamic>> _dataList(dynamic res) {
 }
 
 class DunningRepo {
-  Future<List<OverdueInvoice>> overdue() async {
-    final res = await apiClient.get('/ar/dunning/overdue');
+  /// Every invoice with a balance, due or not — so the aging screen's total
+  /// reconciles with the Receivables KPI. `daysOverdue` comes back negative
+  /// for the not-yet-due ones.
+  Future<List<OverdueInvoice>> open() async {
+    final res = await apiClient.get('/ar/dunning/open');
     return _dataList(res).map(OverdueInvoice.fromJson).toList();
   }
 

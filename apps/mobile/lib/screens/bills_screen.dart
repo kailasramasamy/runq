@@ -195,7 +195,11 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
     double? pageSum(double Function(Bill) pick) => list.maybeWhen(
         data: (p) => p.data.fold<double>(0, (s, b) => s + pick(b)), orElse: () => null);
     return switch (tabKey) {
-      'pending' => (pageSum((b) => b.balanceDue), 'to pay'),
+      // Pending is exactly the set `totalOutstanding` sums, so use the
+      // tenant-wide figure rather than a 50-row page total — this is the
+      // number the Payables KPI links to and it has to agree with it.
+      'pending' => (summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null), 'to pay'),
+      'draft' => (pageSum((b) => b.balanceDue), 'in draft'),
       'approved' => (pageSum((b) => b.balanceDue), 'to pay'),
       'paid' => (pageSum((b) => b.amountPaid), 'paid'),
       _ => (summary.maybeWhen(data: (s) => s.totalOutstanding, orElse: () => null), 'to pay'),

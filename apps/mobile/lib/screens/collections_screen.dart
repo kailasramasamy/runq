@@ -18,15 +18,15 @@ class CollectionsScreen extends ConsumerWidget {
   const CollectionsScreen({super.key});
 
   Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(overdueInvoicesProvider);
+    ref.invalidate(openInvoicesProvider);
     await ref
-        .read(overdueInvoicesProvider.future)
+        .read(openInvoicesProvider.future)
         .catchError((_) => throw 0);
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final overdue = ref.watch(overdueInvoicesProvider);
+    final open = ref.watch(openInvoicesProvider);
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -34,12 +34,15 @@ class CollectionsScreen extends ConsumerWidget {
           color: RT(context).brand,
           onRefresh: () => _refresh(ref),
           child: AsyncSlot<List<OverdueInvoice>>(
-            value: overdue,
-            onRetry: () => ref.invalidate(overdueInvoicesProvider),
+            value: open,
+            onRetry: () => ref.invalidate(openInvoicesProvider),
             data: (list) {
               final groups = CustomerArAging.group(list);
               final buckets = ArAgingBuckets.from(list);
               final totalDue = list.fold<double>(0, (s, i) => s + i.balanceDue);
+              final overdue = list.where((i) => i.daysOverdue > 0).toList();
+              final overdueDue =
+                  overdue.fold<double>(0, (s, i) => s + i.balanceDue);
               return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 slivers: [
@@ -49,7 +52,9 @@ class CollectionsScreen extends ConsumerWidget {
                     sliver: SliverToBoxAdapter(
                       child: _CollectionsHero(
                         totalDue: totalDue,
-                        invoiceCount: list.length,
+                        overdueDue: overdueDue,
+                        overdueCount: overdue.length,
+                        notDueCount: list.length - overdue.length,
                         customerCount: groups.length,
                         worstDaysOverdue: list.fold<int>(
                             0, (m, i) => i.daysOverdue > m ? i.daysOverdue : m),
@@ -70,7 +75,7 @@ class CollectionsScreen extends ConsumerWidget {
                         child: EmptyState(
                           icon: Icons.celebration_outlined,
                           title: 'All clear',
-                          subtitle: 'No overdue invoices to chase right now.',
+                          subtitle: 'Nothing outstanding from customers.',
                         ),
                       ),
                     )
@@ -136,13 +141,15 @@ class _Header extends StatelessWidget {
 }
 
 class _CollectionsHero extends StatelessWidget {
-  final double totalDue;
-  final int invoiceCount;
+  final double totalDue, overdueDue;
+  final int overdueCount, notDueCount;
   final int customerCount;
   final int worstDaysOverdue;
   const _CollectionsHero({
     required this.totalDue,
-    required this.invoiceCount,
+    required this.overdueDue,
+    required this.overdueCount,
+    required this.notDueCount,
     required this.customerCount,
     required this.worstDaysOverdue,
   });
@@ -161,8 +168,11 @@ class _CollectionsHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Total outstanding, not the overdue slice — this screen is reached
+          // from the Receivables KPI, and showing a smaller number here read
+          // as if receivables had shrunk. The chase figure sits below it.
           Text(
-            'OVERDUE',
+            'OUTSTANDING',
             style: RunqText.label.copyWith(
               color: Colors.white.withValues(alpha: 0.65),
             ),
@@ -173,28 +183,37 @@ class _CollectionsHero extends StatelessWidget {
             style: RunqText.display.copyWith(
                 color: Colors.white, height: 1.05),
           ),
+          const SizedBox(height: 4),
+          Text(
+            customerCount > 1
+                ? 'across $customerCount customers'
+                : '$customerCount customer',
+            style: RunqText.caption.copyWith(
+              color: Colors.white.withValues(alpha: 0.78),
+            ),
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: _HeroChip(
-                  label: 'Invoices',
-                  value: '$invoiceCount',
-                  caption: customerCount > 1
-                      ? 'across $customerCount customers'
-                      : '$customerCount customer',
+                  label: 'Overdue',
+                  value: formatINR(overdueDue, compact: true),
+                  caption: overdueCount == 0
+                      ? 'nothing late'
+                      : '$overdueCount ${overdueCount == 1 ? 'invoice' : 'invoices'}'
+                          ' · worst ${worstDaysOverdue}d',
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _HeroChip(
-                  label: 'Worst overdue',
-                  value: '${worstDaysOverdue}d',
-                  caption: worstDaysOverdue >= 45
-                      ? 'escalation-grade'
-                      : worstDaysOverdue >= 15
-                          ? 'firm reminder due'
-                          : 'gentle reminder',
+                  label: 'Not yet due',
+                  value: formatINR(totalDue - overdueDue, compact: true),
+                  caption: notDueCount == 0
+                      ? 'all past due'
+                      : '$notDueCount ${notDueCount == 1 ? 'invoice' : 'invoices'}'
+                          ' within terms',
                 ),
               ),
             ],
@@ -256,6 +275,7 @@ class _BucketBar extends StatelessWidget {
     if (total <= 0) return const SizedBox.shrink();
 
     final entries = [
+      (label: 'Not due', amount: buckets.current, color: const Color(0xFF34D399)),
       (label: '1–30d', amount: buckets.bucket1to30, color: const Color(0xFFFCD34D)),
       (label: '31–60d', amount: buckets.bucket31to60, color: const Color(0xFFF97316)),
       (label: '61–90d', amount: buckets.bucket61to90, color: const Color(0xFFDC2626)),
@@ -350,7 +370,8 @@ class _CustomerRow extends StatelessWidget {
     if (days >= 90) return const Color(0xFF7F1D1D);
     if (days >= 60) return const Color(0xFFDC2626);
     if (days >= 30) return const Color(0xFFF97316);
-    return const Color(0xFFB45309);
+    if (days > 0) return const Color(0xFFB45309);
+    return const Color(0xFF047857); // nothing late — still within terms
   }
 
   @override
@@ -384,7 +405,7 @@ class _CustomerRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '${worst}d overdue',
+                        worst > 0 ? '${worst}d overdue' : 'Within terms',
                         style: RunqText.label.copyWith(
                           color: _severityColor(worst),
                           fontWeight: FontWeight.w700,
@@ -436,8 +457,13 @@ class _ActionSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final phone = group.customerPhone?.replaceAll(RegExp(r'[^\d+]'), '');
+    // Reminders are rendered server-side from the overdue invoices only, so a
+    // customer still within terms has nothing to render — offering the action
+    // would fail with "no overdue invoices" the moment it's tapped.
+    final chaseable = group.hasOverdue;
     final hasPhone = phone != null && phone.isNotEmpty;
     final hasEmail = (group.customerEmail ?? '').isNotEmpty;
+    const noChase = 'nothing overdue for this customer';
 
     // Don't wrap in SafeArea — that would leave the home-indicator gap as
     // the dim scrim showing through. Extend the Container all the way to
@@ -472,7 +498,9 @@ class _ActionSheet extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
             Text(
-              '${group.invoices.length} ${group.invoices.length == 1 ? 'invoice' : 'invoices'} · ${formatINR(group.totalDue)} due',
+              '${group.invoices.length} ${group.invoices.length == 1 ? 'invoice' : 'invoices'}'
+              ' · ${formatINR(group.totalDue)} outstanding'
+              '${chaseable ? ' · ${formatINR(group.overdueDue)} overdue' : ''}',
               style: RunqText.caption.copyWith(color: t.muted),
             ),
             const SizedBox(height: 18),
@@ -481,11 +509,13 @@ class _ActionSheet extends ConsumerWidget {
               label: 'Send WhatsApp reminder',
               colorBg: const Color(0xFF25D366).withValues(alpha: 0.12),
               colorFg: const Color(0xFF128C7E),
-              enabled: hasPhone,
-              onTap: hasPhone
+              enabled: hasPhone && chaseable,
+              onTap: hasPhone && chaseable
                   ? () => _sendWhatsapp(context, ref, group, phone)
                   : null,
-              caption: hasPhone ? null : 'no phone on customer record',
+              caption: !chaseable
+                  ? noChase
+                  : hasPhone ? null : 'no phone on customer record',
             ),
             const SizedBox(height: 8),
             _ActionButton(
@@ -509,11 +539,13 @@ class _ActionSheet extends ConsumerWidget {
               label: 'Send email reminder',
               colorBg: const Color(0xFFFEF3C7),
               colorFg: const Color(0xFF92400E),
-              enabled: hasEmail,
-              onTap: hasEmail
+              enabled: hasEmail && chaseable,
+              onTap: hasEmail && chaseable
                   ? () => _sendEmail(context, ref, group)
                   : null,
-              caption: hasEmail ? null : 'no email on customer record',
+              caption: !chaseable
+                  ? noChase
+                  : hasEmail ? null : 'no email on customer record',
             ),
           ],
         ),

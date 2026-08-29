@@ -1,4 +1,4 @@
-import { eq, and, lt, inArray, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, lt, inArray, notInArray, gte, lte, sql } from 'drizzle-orm';
 import { dunningRules, dunningLog, salesInvoices, customers, tenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { DunningRule, DunningLogEntry, TenantSettings } from '@runq/types';
@@ -136,7 +136,35 @@ export class DunningService {
     return this.toRule(row);
   }
 
+  /** Invoices still owing money — the chase list. Overdue only. */
   async getOverdueInvoices(): Promise<OverdueInvoice[]> {
+    return this.listOpenInvoices(true);
+  }
+
+  /**
+   * Every invoice with a balance, due or not.
+   *
+   * The Money hub's Receivables KPI is total outstanding, so a screen it
+   * links to that showed only the overdue slice read as if receivables had
+   * shrunk. Dunning itself stays on [getOverdueInvoices] — a reminder must
+   * never go out for an invoice that isn't due yet.
+   */
+  async getOpenInvoices(): Promise<OverdueInvoice[]> {
+    return this.listOpenInvoices(false);
+  }
+
+  /**
+   * `daysOverdue` is negative for an invoice that isn't due yet — days
+   * remaining, which is what the aging buckets need to separate "current"
+   * from "1-30 days late".
+   *
+   * Status filter mirrors the dashboard KPI (everything but draft / paid /
+   * cancelled) rather than naming `sent` and `partially_paid`: the enum also
+   * carries `overdue`, and an invoice sitting in it is precisely the one to
+   * chase — naming statuses would silently drop it from the list while it
+   * still counted on the KPI.
+   */
+  private async listOpenInvoices(overdueOnly: boolean): Promise<OverdueInvoice[]> {
     const today = new Date().toISOString().slice(0, 10);
 
     const rows = await this.db
@@ -156,8 +184,8 @@ export class DunningService {
       .where(
         and(
           eq(salesInvoices.tenantId, this.tenantId),
-          lt(salesInvoices.dueDate, today),
-          inArray(salesInvoices.status, ['sent', 'partially_paid']),
+          notInArray(salesInvoices.status, ['draft', 'paid', 'cancelled']),
+          overdueOnly ? lt(salesInvoices.dueDate, today) : undefined,
         ),
       )
       .orderBy(salesInvoices.dueDate)

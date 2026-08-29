@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/data_providers.dart';
+import '../providers/spends_feed_provider.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
@@ -183,6 +184,7 @@ class _MoneyGrid extends ConsumerWidget {
       data: (s) => s.outstandingReceivables,
       orElse: () => 0.0,
     );
+    final spends = ref.watch(spendsLast30Provider);
     final readiness = ref.watch(gstReadinessProvider);
     final gstMetric = readiness.maybeWhen(
       data: (g) => g == null ? 'Set up' : '${g.score}% ready',
@@ -252,6 +254,19 @@ class _MoneyGrid extends ConsumerWidget {
           caption: 'outstanding from customers',
           captionColor: t.muted,
           onTap: () => context.push('/sales/collections'),
+        ),
+        HubSectionTile(
+          icon: Icons.trending_down_rounded,
+          iconBg: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2),
+          iconFg: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+          title: 'SPENDS',
+          metric: spends.maybeWhen(
+            data: (s) => formatINR(s.grandTotal, compact: true),
+            orElse: () => '—',
+          ),
+          caption: 'paid out · last 30 days',
+          captionColor: t.muted,
+          onTap: () => context.push('/money/spends'),
         ),
         HubSectionTile(
           icon: Icons.receipt_long_outlined,

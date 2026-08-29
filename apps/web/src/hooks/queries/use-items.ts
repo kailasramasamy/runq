@@ -11,10 +11,13 @@ const ITEM_KEYS = {
 
 interface ItemFilters {
   type?: 'product' | 'service';
-  status?: 'active' | 'inactive';
+  /** Omitted = active only (the server default). */
+  status?: 'active' | 'inactive' | 'all';
   search?: string;
   /** Operational bucket — server expands to the matching item_class set. */
   itemClassGroup?: 'finished' | 'inputs' | 'trading' | 'other' | 'bom_inputs' | 'all';
+  /** A single item_class, finer than the bucket above. */
+  itemClass?: ItemClass;
   /** Row order within each class group. Omitted = alphabetical. */
   sort?: 'name' | 'recent' | 'category';
   page?: number;
@@ -137,6 +140,7 @@ export function useItems(filters?: ItemFilters) {
   if (filters?.itemClassGroup && filters.itemClassGroup !== 'all') {
     params.set('itemClassGroup', filters.itemClassGroup);
   }
+  if (filters?.itemClass) params.set('itemClass', filters.itemClass);
   if (filters?.sort) params.set('sort', filters.sort);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));

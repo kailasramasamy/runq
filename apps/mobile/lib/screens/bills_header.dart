@@ -47,13 +47,17 @@ class BillTab {
   const BillTab(this.key, this.label, this.statusFilter);
 }
 
-// "Pending" = every bill that's still owed — i.e., not paid or cancelled.
+// "Pending" = every bill that's still owed, which is the same set the
+// Payables KPI totals: not paid, not cancelled, and not draft. A draft is a
+// capture, not yet a liability — including it here made the tab overshoot the
+// KPI that links to it, so drafts get their own tab (mirrors Invoices).
 // Backend status filter accepts CSV; the schema validates each part.
-const _pendingStatuses = 'draft,pending_match,matched,approved,partially_paid';
+const _pendingStatuses = 'pending_match,matched,approved,partially_paid';
 
 const billTabs = <BillTab>[
   BillTab('all', 'All', null),
   BillTab('pending', 'Pending', _pendingStatuses),
+  BillTab('draft', 'Draft', 'draft'),
   BillTab('approved', 'Approved', 'approved'),
   BillTab('paid', 'Paid', 'paid'),
 ];
@@ -159,6 +163,9 @@ class BillsHeader extends StatelessWidget {
                     label: amountLabel.toUpperCase(),
                     value: amount == null ? '—' : formatINR(amount, compact: true),
                     tinted: true,
+                    // The outstanding card is the one number people try to
+                    // tap: send them to the bills that make it up.
+                    onTap: tabKey == 'pending' ? null : () => onTab('pending'),
                   ),
                 ),
               ],

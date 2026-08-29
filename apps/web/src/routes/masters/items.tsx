@@ -56,6 +56,22 @@ function formatAttributeValue(value: unknown): string {
   }
 }
 
+type ItemStatusFilter = 'active' | 'inactive' | 'all';
+
+/** Active is the default and carries no ?status= in the URL — it mirrors what
+ *  every other screen sees, since the server hides inactive items by default. */
+const STATUS_FILTERS: { key: ItemStatusFilter; label: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'inactive', label: 'Inactive' },
+  { key: 'all', label: 'All' },
+];
+
+const STATUS_TILE_SUB: Record<ItemStatusFilter, string> = {
+  active: 'Active items',
+  inactive: 'Deactivated — hidden from all pickers',
+  all: 'Active and inactive',
+};
+
 function statusVariant(active: boolean) {
   return active ? ('success' as const) : ('default' as const);
 }
@@ -88,10 +104,14 @@ export function ItemsPage() {
   // the filtered list. The previous local-state implementation reset on
   // every route change.
   const params = useSearch({ strict: false }) as {
-    q?: string; page?: number; classGroup?: string; itemClass?: string;
+    q?: string; page?: number; classGroup?: string; itemClass?: string; status?: string;
   };
   const search = params.q ?? '';
   const page = params.page ?? 1;
+  // Deactivated items are hidden everywhere else in the app; this list is
+  // the one place they stay reachable, behind the status pills.
+  const status: ItemStatusFilter =
+    params.status === 'inactive' || params.status === 'all' ? params.status : 'active';
   // Server-side per-bucket counts — feeds the tab badges and lets the
   // fall-through resolver land on the first non-empty bucket when the
   // tenant's catalogue doesn't include the preferred default yet (e.g.
@@ -122,7 +142,7 @@ export function ItemsPage() {
   const nav = navigate as unknown as (opts: any) => void;
 
   function updateSearch(
-    patch: { q?: string; page?: number; classGroup?: string; itemClass?: string },
+    patch: { q?: string; page?: number; classGroup?: string; itemClass?: string; status?: string },
     resetPage = true,
   ) {
     nav({
@@ -147,6 +167,7 @@ export function ItemsPage() {
     ...(search ? { search } : {}),
     ...(classGroup !== 'all' ? { itemClassGroup: classGroup } : {}),
     ...(itemClass ? { itemClass: itemClass as ItemClass } : {}),
+    ...(status !== 'active' ? { status } : {}),
     // Inventory reads the catalogue as a category tree, so rows come back
     // ordered category → subcategory → name and the table sections on the
     // same keys. Finance and purchase stay class-ranked and alphabetical.
@@ -166,7 +187,7 @@ export function ItemsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [page, classGroup, itemClass, search]);
+  }, [page, classGroup, itemClass, search, status]);
 
   // Close export dropdown on outside click
   useEffect(() => {
@@ -254,7 +275,6 @@ export function ItemsPage() {
   }
 
   // KPI computation from current page
-  const activeCount = items.filter((i) => i.isActive).length;
   const productCount = items.filter((i) => i.type === 'product').length;
   const serviceCount = items.filter((i) => i.type === 'service').length;
   const avgMargin = items.length > 0
@@ -309,7 +329,7 @@ export function ItemsPage() {
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Total items" value={total} sub={`${activeCount} active in view`} />
+        <StatTile label="Total items" value={total} sub={STATUS_TILE_SUB[status]} />
         <StatTile label="Products" value={productCount} sub="Stock-keeping units" />
         <StatTile label="Services" value={serviceCount} sub="Non-stock items" />
         <StatTile label="Avg. margin" value={`${avgMargin}%`} sub="Across listed items" tone={avgMargin > 0 ? 'pos' : 'neutral'} />
@@ -349,6 +369,23 @@ export function ItemsPage() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           />
+        </div>
+        <div className="flex items-center gap-1">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => updateSearch({ status: f.key === 'active' ? undefined : f.key })}
+              className="rounded-full border px-2.5 py-1 text-[12px]"
+              style={
+                status === f.key
+                  ? { borderColor: 'var(--accent)', color: 'var(--accent-text)', background: 'var(--accent-soft)' }
+                  : { borderColor: 'var(--border)', color: 'var(--text-3)' }
+              }
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
         <div className="flex-1" />
         <span className="num text-[12px]" style={{ color: 'var(--text-3)' }}>{total} items</span>

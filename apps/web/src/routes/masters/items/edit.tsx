@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
-import { ArrowLeft, Calculator, Copy, History } from 'lucide-react';
+import { ArrowLeft, Calculator, Copy, History, Power } from 'lucide-react';
 import {
   PageHeader,
   Card,
@@ -9,7 +9,7 @@ import {
   ConfirmationDialog,
   useToast,
 } from '@/components/ui';
-import { useItem, useDeleteItem } from '@/hooks/queries/use-items';
+import { useItem, useDeleteItem, useToggleItem } from '@/hooks/queries/use-items';
 import { ItemForm } from './item-form';
 import { SubstitutesCard } from './substitutes-card';
 
@@ -24,6 +24,7 @@ export function ItemEditPage({
   const router = useRouter();
   const { toast } = useToast();
   const remove = useDeleteItem();
+  const toggle = useToggleItem();
   const { data, isLoading } = useItem(itemId);
   const item = data?.data;
   // When duplicating (no itemId, but a duplicateOf source), fetch the source
@@ -31,6 +32,9 @@ export function ItemEditPage({
   const { data: sourceData, isLoading: sourceLoading } = useItem(duplicateOf);
   const source = sourceData?.data;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Deactivating pulls the item out of every picker in the app, so it asks
+  // first. Reactivating is harmless and goes straight through.
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
 
   const isCreate = !itemId;
   const isDuplicate = isCreate && !!duplicateOf;
@@ -64,6 +68,18 @@ export function ItemEditPage({
           : 'Failed to delete item';
       toast(msg, 'error');
       setConfirmingDelete(false);
+    }
+  }
+
+  async function handleToggle() {
+    if (!item) return;
+    try {
+      await toggle.mutateAsync(item.id);
+      toast(item.isActive ? 'Item deactivated' : 'Item activated', 'success');
+      setConfirmingDeactivate(false);
+    } catch {
+      toast('Failed to change item status', 'error');
+      setConfirmingDeactivate(false);
     }
   }
 
@@ -137,6 +153,18 @@ export function ItemEditPage({
               <Button
                 variant="outline"
                 size="sm"
+                loading={toggle.isPending}
+                onClick={() =>
+                  item!.isActive ? setConfirmingDeactivate(true) : handleToggle()
+                }
+              >
+                <Power size={14} /> {item!.isActive ? 'Deactivate' : 'Activate'}
+              </Button>
+            )}
+            {!isCreate && (
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   navigate({
                     to: '/finance/masters/items/$itemId/analysis',
@@ -154,6 +182,18 @@ export function ItemEditPage({
           </div>
         }
       />
+
+      {!isCreate && !item!.isActive && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+          <Power size={14} className="mt-0.5 shrink-0" />
+          <p>
+            This item is <strong>inactive</strong>. It stays out of invoices, bills,
+            BOMs, price lists and every other picker, and shows on the items list
+            only under the Inactive filter. Existing documents that already use it
+            are unaffected.
+          </p>
+        </div>
+      )}
 
       {isDuplicate && source && (
         <div className="flex items-start gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
@@ -194,6 +234,21 @@ export function ItemEditPage({
       {!isCreate && item!.trackInventory && (
         <SubstitutesCard itemId={item!.id} itemName={item!.name} />
       )}
+
+      <ConfirmationDialog
+        open={confirmingDeactivate}
+        onClose={() => setConfirmingDeactivate(false)}
+        onConfirm={handleToggle}
+        title="Deactivate item?"
+        description={
+          item
+            ? `"${item.name}" will stop appearing in invoices, bills, BOMs, price lists and every other item picker. Documents that already reference it keep working, and you can reactivate it any time from the items list Inactive filter.`
+            : ''
+        }
+        confirmLabel="Deactivate"
+        variant="warning"
+        loading={toggle.isPending}
+      />
 
       <ConfirmationDialog
         open={confirmingDelete}
