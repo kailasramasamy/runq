@@ -85,7 +85,13 @@ export class StockAlertNotifier {
         source: SOURCE,
         title,
         body,
-        targetUrl: '/inventory/alerts',
+        // Single-bucket digests open pre-filtered, so the reader isn't
+        // re-applying the filter the notice already expressed.
+        targetUrl: out.length === 0
+          ? '/inventory/alerts?status=low'
+          : low.length === 0
+            ? '/inventory/alerts?status=out'
+            : '/inventory/alerts',
       });
     }
     return userIds.length;

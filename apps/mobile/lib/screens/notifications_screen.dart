@@ -170,12 +170,8 @@ class _NotificationCard extends StatelessWidget {
         'hr_announcement'   => Icons.campaign_outlined,
         'hr_onboarding'     => Icons.how_to_reg_outlined,
         'hr_lifecycle'      => Icons.exit_to_app,
-        'inv_low_stock'     => Icons.error_outline,
-        'inv_transfer'      => Icons.alt_route_outlined,
-        'inv_grn'           => Icons.inventory_2_outlined,
-        'inv_delivery'      => Icons.local_shipping_outlined,
-        'inv_adjustment'    => Icons.tune_rounded,
-        'inv_expiry'        => Icons.event_busy_outlined,
+        'hr_reward'         => Icons.emoji_events_outlined,
+        'inv_stock'         => Icons.error_outline,
         _                   => Icons.notifications_outlined,
       };
 

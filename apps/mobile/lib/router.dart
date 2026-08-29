@@ -172,9 +172,9 @@ String resolveNotificationTarget(String path) {
   // Notification deep links point at a single record (e.g. /hr/rewards/<id>),
   // but mobile has no detail screen for these — only a list. Collapse such a
   // "<base>/<id>" path to its list base. Bases that *do* have a mobile :id
-  // route (e.g. /hr/payroll-runs, /hr/people, /hr/payslips) are excluded on
-  // purpose so their detail deep links still resolve.
-  const detailBases = <String>['/hr/rewards', '/hr/expense-claims'];
+  // route (e.g. /hr/payroll-runs, /hr/people, /hr/payslips, /hr/expense-claims)
+  // are excluded on purpose so their detail deep links still resolve.
+  const detailBases = <String>['/hr/rewards'];
   for (final base in detailBases) {
     if (basePath.startsWith('$base/')) {
       basePath = base;
@@ -210,9 +210,24 @@ void openNotificationTarget(BuildContext context, String targetUrl) {
   final current = router.routerDelegate.currentConfiguration.uri.toString();
   if (current == resolved) {
     router.replace(resolved);
+  } else if (_isShellTarget(router, resolved)) {
+    // Bot-nav destinations (e.g. /inventory/alerts) live inside the
+    // ShellRoute, whose navigator is a GlobalKey. Pushing one on top of a
+    // root-navigator page (the notifications list, or whatever a push tap
+    // interrupted) would put that key in the stack twice and the screen
+    // renders blank. Switching to the tab with go() is the only sound move.
+    router.go(resolved);
   } else {
     router.push(resolved);
   }
+}
+
+/// Whether [location] resolves to a route nested inside the app ShellRoute.
+/// Derived from the router's own match so it can't drift as routes move
+/// between the shell and the root navigator.
+bool _isShellTarget(GoRouter router, String location) {
+  final matches = router.configuration.findMatch(Uri.parse(location)).matches;
+  return matches.any((m) => m is ShellRouteMatch);
 }
 
 /// Mobile route prefixes owned by a backend module code. Mirrors the web
