@@ -1,7 +1,7 @@
 name: runq_mobile
 description: "runQ Mobile — on-the-go companion for runQ ERP."
 publish_to: 'none'
-version: 1.0.35+52
+version: 1.0.36+53
 
 environment:
   sdk: ^3.10.4
