@@ -49,7 +49,9 @@ String indianINR(num v, {int decimals = 0}) {
   }
   final scaled = (abs * scale).round();
   final wholeInt = scaled ~/ scale;
-  final fracStr = decimals > 0 ? '.${(scaled % scale).toString().padLeft(decimals, '0')}' : '';
+  final fracStr = decimals > 0
+      ? '.${(scaled % scale).toString().padLeft(decimals, '0')}'
+      : '';
   final whole = wholeInt.toString();
   if (whole.length <= 3) return '${neg ? '-' : ''}₹$whole$fracStr';
   final last3 = whole.substring(whole.length - 3);
@@ -115,25 +117,44 @@ _StatusStyle _styleFor(String status) {
     case 'posted':
     case 'dispatched':
     case 'received':
-      return _StatusStyle(InvColors.successBg, InvColors.success, _humanize(status));
+      return _StatusStyle(
+        InvColors.successBg,
+        InvColors.success,
+        _humanize(status),
+      );
     case 'cancelled':
       return _StatusStyle(InvColors.errorBg, InvColors.error, 'Cancelled');
     case 'in_transit':
       return _StatusStyle(InvColors.infoBg, InvColors.info, 'In Transit');
     case 'pending_approval':
-      return _StatusStyle(InvColors.amberSubtle, InvColors.amberDeep, 'Pending');
+      return _StatusStyle(
+        InvColors.amberSubtle,
+        InvColors.amberDeep,
+        'Pending',
+      );
     case 'in_progress':
       return _StatusStyle(InvColors.infoBg, InvColors.info, 'In Progress');
     case 'draft':
-      return _StatusStyle(const Color(0xFFF3F4F6), const Color(0xFF6B7280), 'Draft');
+      return _StatusStyle(
+        const Color(0xFFF3F4F6),
+        const Color(0xFF6B7280),
+        'Draft',
+      );
     default:
-      return _StatusStyle(const Color(0xFFF3F4F6), const Color(0xFF6B7280), _humanize(status));
+      return _StatusStyle(
+        const Color(0xFFF3F4F6),
+        const Color(0xFF6B7280),
+        _humanize(status),
+      );
   }
 }
 
 String _humanize(String s) => s.isEmpty
     ? s
-    : s.split('_').map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}').join(' ');
+    : s
+          .split('_')
+          .map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}')
+          .join(' ');
 
 /// Compact status badge — used on GRN, DN, transfer, adjustment, stock take.
 class InvStatusPill extends StatelessWidget {
@@ -145,8 +166,14 @@ class InvStatusPill extends StatelessWidget {
     final s = _styleFor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: s.bg, borderRadius: BorderRadius.circular(99)),
-      child: Text(s.label, style: RunqText.micro.copyWith(color: s.fg, letterSpacing: 0.3)),
+      decoration: BoxDecoration(
+        color: s.bg,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        s.label,
+        style: RunqText.micro.copyWith(color: s.fg, letterSpacing: 0.3),
+      ),
     );
   }
 }
@@ -186,8 +213,14 @@ class InvUrgencyPill extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
-      child: Text(label, style: RunqText.micro.copyWith(color: fg, letterSpacing: 0.3)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: RunqText.micro.copyWith(color: fg, letterSpacing: 0.3),
+      ),
     );
   }
 }
@@ -217,7 +250,13 @@ class InvCard extends StatelessWidget {
         color: t.surface,
         border: Border.all(color: t.hairlineSoft),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 4, offset: Offset(0, 1))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
       ),
       child: child,
     );
@@ -225,7 +264,11 @@ class InvCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(14), child: card),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: card,
+      ),
     );
   }
 }
@@ -262,11 +305,19 @@ class InvSectionHeader extends StatelessWidget {
     // where it did, but the touchable box is more than twice as tall and
     // reaches the screen edge.
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, topPad, hasAction ? 4 : 16, hasAction ? 0 : 8),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        topPad,
+        hasAction ? 4 : 16,
+        hasAction ? 0 : 8,
+      ),
       child: Row(
         children: [
           Expanded(
-            child: Text(title.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
+            child: Text(
+              title.toUpperCase(),
+              style: RunqText.label.copyWith(color: t.muted),
+            ),
           ),
           if (hasAction)
             Material(
@@ -339,7 +390,11 @@ class InvGradientHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [InvColors.amberDarkest, InvColors.amberDeep, InvColors.amber],
+          colors: [
+            InvColors.amberDarkest,
+            InvColors.amberDeep,
+            InvColors.amber,
+          ],
           stops: [0, 0.5, 1],
         ),
       ),
@@ -356,7 +411,13 @@ class InvGradientHeader extends StatelessWidget {
                   Expanded(
                     child:
                         titleWidget ??
-                        Text(title, style: RunqText.h3.copyWith(color: Colors.white, height: 1.2)),
+                        Text(
+                          title,
+                          style: RunqText.h3.copyWith(
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                        ),
                   ),
                   if (trailing != null) trailing!,
                 ],
@@ -365,7 +426,9 @@ class InvGradientHeader extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle!,
-                  style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.72)),
+                  style: RunqText.caption.copyWith(
+                    color: Colors.white.withValues(alpha: 0.72),
+                  ),
                 ),
               ],
               if (child != null) ...[const SizedBox(height: 12), child!],
@@ -483,7 +546,10 @@ class InvKpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final border =
-        borderTint ?? (accent ? InvColors.brand(context).withValues(alpha: 0.33) : t.hairline);
+        borderTint ??
+        (accent
+            ? InvColors.brand(context).withValues(alpha: 0.33)
+            : t.hairline);
     final valueColor = accent ? InvColors.brand(context) : t.ink;
     final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -496,11 +562,18 @@ class InvKpiCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label.toUpperCase(), style: RunqText.label.copyWith(color: t.muted)),
+          Text(
+            label.toUpperCase(),
+            style: RunqText.label.copyWith(color: t.muted),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: RunqText.numberLg.copyWith(color: valueColor, fontSize: 20, height: 1.15),
+            style: RunqText.numberLg.copyWith(
+              color: valueColor,
+              fontSize: 20,
+              height: 1.15,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -515,7 +588,11 @@ class InvKpiCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(14), child: card),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: card,
+      ),
     );
   }
 }
@@ -564,12 +641,18 @@ class InvHeroKpi extends StatelessWidget {
         children: [
           Text(
             label,
-            style: RunqText.caption.copyWith(color: Colors.white.withValues(alpha: 0.72)),
+            style: RunqText.caption.copyWith(
+              color: Colors.white.withValues(alpha: 0.72),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: RunqText.h1.copyWith(color: Colors.white, fontSize: 26, height: 1.15),
+            style: RunqText.h1.copyWith(
+              color: Colors.white,
+              fontSize: 26,
+              height: 1.15,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -579,8 +662,9 @@ class InvHeroKpi extends StatelessWidget {
               footnote!,
               style: RunqText.micro.copyWith(
                 color: footColor,
-                fontWeight:
-                    tone == InvKpiTone.neutral ? FontWeight.w500 : FontWeight.w600,
+                fontWeight: tone == InvKpiTone.neutral
+                    ? FontWeight.w500
+                    : FontWeight.w600,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -634,7 +718,10 @@ class InvMiniStat extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(value, style: RunqText.h4.copyWith(color: t.ink, height: 1.15)),
+                Text(
+                  value,
+                  style: RunqText.h4.copyWith(color: t.ink, height: 1.15),
+                ),
                 Text(label, style: RunqText.caption.copyWith(color: t.muted)),
               ],
             ),
@@ -646,7 +733,11 @@ class InvMiniStat extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(14), child: body),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: body,
+      ),
     );
   }
 }
@@ -676,7 +767,10 @@ class InvActionTile extends StatelessWidget {
     // (not overlaid at alpha) so the fill stays opaque and text keeps contrast.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final washStrength = isDark ? 0.16 : 0.09;
-    final wash = Color.alphaBlend(InvColors.amber.withValues(alpha: washStrength), t.surface);
+    final wash = Color.alphaBlend(
+      InvColors.amber.withValues(alpha: washStrength),
+      t.surface,
+    );
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
@@ -732,9 +826,15 @@ class InvActionTile extends StatelessWidget {
                           // muddy against the washed card.
                           color: t.surface,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: InvColors.amber.withValues(alpha: 0.18)),
+                          border: Border.all(
+                            color: InvColors.amber.withValues(alpha: 0.18),
+                          ),
                         ),
-                        child: Icon(icon, size: 20, color: InvColors.brand(context)),
+                        child: Icon(
+                          icon,
+                          size: 20,
+                          color: InvColors.brand(context),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -744,7 +844,10 @@ class InvActionTile extends StatelessWidget {
                           children: [
                             Text(
                               title,
-                              style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                              style: RunqText.bodyStrong.copyWith(
+                                color: t.ink,
+                                fontSize: 14,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -761,14 +864,20 @@ class InvActionTile extends StatelessWidget {
                       if (badge != null) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: InvColors.error,
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(
                             badge!,
-                            style: RunqText.micro.copyWith(color: Colors.white, letterSpacing: 0.2),
+                            style: RunqText.micro.copyWith(
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
                           ),
                         ),
                       ],
@@ -815,6 +924,11 @@ class InvStockBar extends StatelessWidget {
   /// accidentally ship a bar whose mark is a number-less blip.
   final String? markerLabel;
 
+  /// Threshold tick: a touch wider than a hairline, and standing this far
+  /// proud of the track at each end so it survives being sat on by the fill.
+  static const double _markW = 2.5;
+  static const double _markOvershoot = 3;
+
   /// Label strip under the track. Sized for one line of micro type.
   static const double _labelH = 14;
   // Advance width of RunqText.micro, near enough to place the label before it
@@ -845,30 +959,66 @@ class InvStockBar extends StatelessWidget {
       builder: (_, c) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: SizedBox(
-              height: height,
-              child: Stack(
-                children: [
-                  Positioned.fill(child: ColoredBox(color: t.hairlineSoft)),
-                  if (markerPct != null)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: c.maxWidth * markerPct,
-                      child: ColoredBox(color: zone),
+          // The track sits centred in a taller box so the threshold mark can
+          // overshoot it top and bottom. Inside the track the mark was two
+          // pixels of ink on a five-pixel rail — technically drawn, not
+          // actually seen. Standing proud of the bar it reads as a gate the
+          // fill either clears or falls short of.
+          SizedBox(
+            height: height + _markOvershoot * 2,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: SizedBox(
+                    height: height,
+                    width: c.maxWidth,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ColoredBox(color: t.hairlineSoft),
+                        ),
+                        if (markerPct != null)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: c.maxWidth * markerPct,
+                            child: ColoredBox(color: zone),
+                          ),
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: c.maxWidth * pct,
+                          child: ColoredBox(color: fill),
+                        ),
+                      ],
                     ),
+                  ),
+                ),
+                // The boundary itself, over the fill. The tint alone
+                // disappears the moment stock covers it, and that is exactly
+                // when the reader wants to see by how much it is cleared —
+                // so the threshold keeps a mark of its own at every level.
+                if (markerPct != null)
                   Positioned(
-                    left: 0,
+                    left: (c.maxWidth * markerPct - _markW / 2).clamp(
+                      0.0,
+                      math.max(0.0, c.maxWidth - _markW),
+                    ),
                     top: 0,
                     bottom: 0,
-                    width: c.maxWidth * pct,
-                    child: ColoredBox(color: fill),
+                    width: _markW,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: t.ink,
+                        borderRadius: BorderRadius.circular(_markW / 2),
+                      ),
+                    ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
           if (label != null)
@@ -880,8 +1030,10 @@ class InvStockBar extends StatelessWidget {
                     // Right-aligned on the boundary the tint ends at, so the
                     // figure reads as "the tinted stretch is this deep" rather
                     // than as a caption for the whole row.
-                    left: (c.maxWidth * markerPct! - _labelWidth(label))
-                        .clamp(0.0, math.max(0.0, c.maxWidth - _labelWidth(label))),
+                    left: (c.maxWidth * markerPct! - _labelWidth(label)).clamp(
+                      0.0,
+                      math.max(0.0, c.maxWidth - _labelWidth(label)),
+                    ),
                     top: 2,
                     child: Text(
                       'min $label',
@@ -977,7 +1129,10 @@ class InvFilterPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: icon == null ? 12 : 10, vertical: 6),
+          padding: EdgeInsets.symmetric(
+            horizontal: icon == null ? 12 : 10,
+            vertical: 6,
+          ),
           decoration: BoxDecoration(
             color: active ? ac : t.surface,
             border: Border.all(color: active ? Colors.transparent : t.hairline),
@@ -1003,7 +1158,9 @@ class InvFilterPill extends StatelessWidget {
                 Text(
                   '$count',
                   style: RunqText.caption.copyWith(
-                    color: active ? Colors.white.withValues(alpha: 0.85) : t.muted,
+                    color: active
+                        ? Colors.white.withValues(alpha: 0.85)
+                        : t.muted,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -1045,7 +1202,10 @@ class InvSearchBar extends StatelessWidget {
         hintText: hint,
         hintStyle: RunqText.body.copyWith(color: t.muted2, fontSize: 14),
         prefixIcon: Icon(Icons.search, size: 18, color: t.muted2),
-        prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
         suffixIcon: ValueListenableBuilder<TextEditingValue>(
           valueListenable: controller,
           builder: (_, v, __) => v.text.isEmpty
@@ -1157,7 +1317,11 @@ class InvActivityRow extends StatelessWidget {
               color: icColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(InvActivityIcon.iconFor(type), size: 17, color: icColor),
+            child: Icon(
+              InvActivityIcon.iconFor(type),
+              size: 17,
+              color: icColor,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1167,7 +1331,10 @@ class InvActivityRow extends StatelessWidget {
               children: [
                 Text(
                   refLabel,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                  style: RunqText.bodyStrong.copyWith(
+                    color: t.ink,
+                    fontSize: 14,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1195,7 +1362,13 @@ class InvActivityRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(time, style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0)),
+              Text(
+                time,
+                style: RunqText.micro.copyWith(
+                  color: t.muted2,
+                  letterSpacing: 0,
+                ),
+              ),
             ],
           ),
         ],
@@ -1310,7 +1483,10 @@ class InvDocListTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
+                      style: RunqText.bodyStrong.copyWith(
+                        color: t.ink,
+                        fontSize: 14,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1340,7 +1516,10 @@ class InvDocListTile extends StatelessWidget {
                 child: Wrap(
                   spacing: 12,
                   runSpacing: 4,
-                  children: [for (final m in meta) InvMetaChip(icon: m.icon, label: m.label)],
+                  children: [
+                    for (final m in meta)
+                      InvMetaChip(icon: m.icon, label: m.label),
+                  ],
                 ),
               ),
               const SizedBox(width: 10),
@@ -1350,7 +1529,10 @@ class InvDocListTile extends StatelessWidget {
                 children: [
                   Text(
                     valueLabel.toUpperCase(),
-                    style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.4),
+                    style: RunqText.micro.copyWith(
+                      color: t.muted2,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -1421,7 +1603,10 @@ class InvPrimaryButton extends StatelessWidget {
             ? const SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1480,7 +1665,10 @@ class InvEmptyState extends StatelessWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(color: t.bgWarmer, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: t.bgWarmer,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Icon(icon, size: 26, color: t.muted2),
             ),
             const SizedBox(height: 12),

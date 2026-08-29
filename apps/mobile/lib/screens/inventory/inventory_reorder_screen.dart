@@ -47,14 +47,18 @@ class InventoryReorderScreen extends ConsumerWidget {
           error: (e, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Failed to load: $e',
-                  style: RunqText.caption.copyWith(color: t.muted),
-                  textAlign: TextAlign.center),
+              child: Text(
+                'Failed to load: $e',
+                style: RunqText.caption.copyWith(color: t.muted),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           data: (list) {
             if (list.isEmpty) return const _AllGood();
-            final critical = list.where((a) => a.urgency == 'critical').toList();
+            final critical = list
+                .where((a) => a.urgency == 'critical')
+                .toList();
             final warning = list.where((a) => a.urgency != 'critical').toList();
             return CustomScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -122,7 +126,10 @@ class _CountPill extends StatelessWidget {
       ),
       child: Text(
         '$count items',
-        style: RunqText.micro.copyWith(color: InvColors.error, letterSpacing: 0.3),
+        style: RunqText.micro.copyWith(
+          color: InvColors.error,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
@@ -138,13 +145,17 @@ class _AllGood extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
       children: [
         Container(
-          width: 64, height: 64,
+          width: 64,
+          height: 64,
           decoration: BoxDecoration(
             color: InvColors.successBg,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Icon(Icons.check_circle_outline,
-              size: 30, color: InvColors.success),
+          child: const Icon(
+            Icons.check_circle_outline,
+            size: 30,
+            color: InvColors.success,
+          ),
         ),
         const SizedBox(height: 14),
         Text(
@@ -230,15 +241,26 @@ class _UrgencyCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label.toUpperCase(),
-              style: RunqText.label.copyWith(color: color)),
+          Text(
+            label.toUpperCase(),
+            style: RunqText.label.copyWith(color: color),
+          ),
           const SizedBox(height: 4),
           Text(
             '$value',
-            style: RunqText.numberLg.copyWith(color: color, fontSize: 20, height: 1.15),
+            style: RunqText.numberLg.copyWith(
+              color: color,
+              fontSize: 20,
+              height: 1.15,
+            ),
           ),
           const SizedBox(height: 2),
-          Text(sub, style: RunqText.caption.copyWith(color: color.withValues(alpha: 0.8))),
+          Text(
+            sub,
+            style: RunqText.caption.copyWith(
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
         ],
       ),
     );
@@ -274,9 +296,15 @@ class _AlertTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(alert.itemName,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink, fontSize: 14),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(
+                      alert.itemName,
+                      style: RunqText.bodyStrong.copyWith(
+                        color: t.ink,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       [
@@ -284,7 +312,8 @@ class _AlertTile extends StatelessWidget {
                         alert.warehouseName,
                       ].join(' · '),
                       style: RunqText.caption.copyWith(color: t.muted),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -297,11 +326,21 @@ class _AlertTile extends StatelessWidget {
           // Stock bar with reorder-line marker at 1/3.
           Row(
             children: [
-              Text('ON HAND',
-                  style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3)),
+              Text(
+                'ON HAND',
+                style: RunqText.micro.copyWith(
+                  color: t.muted2,
+                  letterSpacing: 0.3,
+                ),
+              ),
               const Spacer(),
-              Text('REORDER LEVEL',
-                  style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3)),
+              Text(
+                'REORDER LEVEL',
+                style: RunqText.micro.copyWith(
+                  color: t.muted2,
+                  letterSpacing: 0.3,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -310,14 +349,17 @@ class _AlertTile extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${_fmtQty(alert.onHand, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
+                '${_fmtQty(alert.onHand, alert.itemUnit)} ${alert.itemUnit ?? ''}'
+                    .trim(),
                 style: RunqText.caption.copyWith(
-                  color: barColor, fontWeight: FontWeight.w700,
+                  color: barColor,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
               Text(
-                '${_fmtQty(alert.reorderLevel, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
+                '${_fmtQty(alert.reorderLevel, alert.itemUnit)} ${alert.itemUnit ?? ''}'
+                    .trim(),
                 style: RunqText.caption.copyWith(color: t.muted),
               ),
             ],
@@ -333,21 +375,27 @@ class _AlertTile extends StatelessWidget {
               Expanded(
                 child: _Stat(
                   label: 'SHORT BY',
-                  value: '${_fmtQty(alert.shortBy, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
+                  value:
+                      '${_fmtQty(alert.shortBy, alert.itemUnit)} ${alert.itemUnit ?? ''}'
+                          .trim(),
                   color: barColor,
                 ),
               ),
               Expanded(
                 child: _Stat(
                   label: 'ORDER QTY',
-                  value: '${_fmtQty(alert.reorderQty, alert.itemUnit)} ${alert.itemUnit ?? ''}'.trim(),
+                  value:
+                      '${_fmtQty(alert.reorderQty, alert.itemUnit)} ${alert.itemUnit ?? ''}'
+                          .trim(),
                   color: t.ink,
                 ),
               ),
               Expanded(
                 child: _Stat(
                   label: 'LEAD TIME',
-                  value: alert.leadTimeDays != null ? '${alert.leadTimeDays}d' : '—',
+                  value: alert.leadTimeDays != null
+                      ? '${alert.leadTimeDays}d'
+                      : '—',
                   color: t.ink,
                 ),
               ),
@@ -355,9 +403,12 @@ class _AlertTile extends StatelessWidget {
           ),
           if ((alert.supplierName ?? '').isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('Supplier: ${alert.supplierName}',
-                style: RunqText.caption.copyWith(color: t.muted),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              'Supplier: ${alert.supplierName}',
+              style: RunqText.caption.copyWith(color: t.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
@@ -370,42 +421,53 @@ class _AlertTile extends StatelessWidget {
 
 class _MarkedStockBar extends StatelessWidget {
   const _MarkedStockBar({required this.pct, required this.fillColor});
+
   /// Fill ratio 0..1 against the (3× reorder) scale used for marker math.
   final double pct;
   final Color fillColor;
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // The track is centred in a taller box so the reorder mark can stand
+    // proud of it at both ends. Confined to a six-pixel rail the tick was
+    // drawn but not seen, which is the same as not being there.
     return LayoutBuilder(
       builder: (_, c) => SizedBox(
-        height: 6,
+        height: 12,
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: t.bgWarmer,
+            SizedBox(
+              height: 6,
+              width: c.maxWidth,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(99),
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: ColoredBox(color: t.bgWarmer)),
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: c.maxWidth * pct,
+                      child: ColoredBox(color: fillColor),
+                    ),
+                  ],
+                ),
               ),
             ),
-            // Reorder-line marker — vertical bar at 1/3 (qty == reorder).
+            // Reorder-line marker — vertical bar at 1/3 (qty == reorder),
+            // drawn over the fill: a mark hidden under the stock that cleared
+            // it is missing exactly when the reader wants to see the margin.
             Positioned(
-              left: c.maxWidth * (1 / 3),
-              top: 0, bottom: 0,
+              left: c.maxWidth * (1 / 3) - 1.25,
+              top: 0,
+              bottom: 0,
               child: Container(
-                width: 2,
-                color: t.muted2.withValues(alpha: 0.45),
-              ),
-            ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  width: c.maxWidth * pct,
-                  decoration: BoxDecoration(
-                    color: fillColor,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+                width: 2.5,
+                decoration: BoxDecoration(
+                  color: t.ink,
+                  borderRadius: BorderRadius.circular(1.25),
                 ),
               ),
             ),
@@ -428,11 +490,18 @@ class _Stat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3)),
+        Text(
+          label,
+          style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3),
+        ),
         const SizedBox(height: 2),
-        Text(value,
-            style: RunqText.caption.copyWith(color: color, fontWeight: FontWeight.w700)),
+        Text(
+          value,
+          style: RunqText.caption.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }

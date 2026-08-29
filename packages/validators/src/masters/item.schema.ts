@@ -129,6 +129,11 @@ export const updateItemSchema = createItemSchema.partial();
 
 export const itemFilterSchema = z.object({
   search: z.string().optional(),
+  /** Active / inactive. Defaults to 'active' server-side, so a deactivated
+   *  item drops out of every picker that reads this endpoint. 'inactive'
+   *  and 'all' exist for the items list, the one screen that must still
+   *  reach them. */
+  status: z.enum(['active', 'inactive', 'all']).optional(),
   type: z.enum(['product', 'service']).optional(),
   itemClass: itemClassSchema.optional(),
   /** Operational bucket — server expands to the matching item_class set.
@@ -139,6 +144,19 @@ export const itemFilterSchema = z.object({
    *  need this to offer them an "Other" pill that isn't a lie. */
   unclassified: queryBool.optional(),
   categoryId: z.string().uuid().optional(),
+  /** A whole branch of the tree, as a comma-separated id list: the category
+   *  itself plus everything filed below it. `categoryId` matches one node
+   *  exactly, which is right for a leaf and wrong for a parent — picking
+   *  "Dairy" should not hide the items filed under "Dairy › Curd". */
+  categoryIds: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? v.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+        : undefined,
+    )
+    .pipe(z.array(z.string().uuid()).max(200).optional()),
   /** Items filed under no category at all. Without this they are reachable
    *  only from the flat list, and the category browser would hide them. */
   uncategorised: queryBool.optional(),

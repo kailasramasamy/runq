@@ -40,7 +40,8 @@ class OnHandGroup {
 
   /// Low is a position-level judgement: the reorder level compares against
   /// total on-hand, not against whichever batch happens to be smallest.
-  bool get isLow => reorderLevel != null && reorderLevel! > 0 && qty <= reorderLevel!;
+  bool get isLow =>
+      reorderLevel != null && reorderLevel! > 0 && qty <= reorderLevel!;
 
   /// Earliest expiry across the batches — the one the floor must clear first.
   String? get earliestExpiry {
@@ -87,19 +88,19 @@ typedef OnHandSection = ({
 
 /// Bucket for rows with no category at all. Sorted last — an unfiled tail
 /// shouldn't head the list.
-const String _uncategorised = 'Uncategorised';
+const String kUncategorised = 'Uncategorised';
 
 /// Parent category an item is filed under. `categoryGroup` is null when the
 /// item sits directly on a top-level category, in which case the leaf *is*
 /// the parent.
-String _parentOf(InvOnHandRow r) =>
-    r.categoryGroup ?? r.categoryName ?? _uncategorised;
+String onHandCategoryOf(InvOnHandRow r) =>
+    r.categoryGroup ?? r.categoryName ?? kUncategorised;
 
 /// Leaf label, or null when the item sits directly on its parent — repeating
 /// the parent as its own sub-heading says nothing.
-String? _leafOf(InvOnHandRow r) {
+String? onHandSubcategoryOf(InvOnHandRow r) {
   final leaf = r.categoryName;
-  if (leaf == null || leaf == _parentOf(r)) return null;
+  if (leaf == null || leaf == onHandCategoryOf(r)) return null;
   return leaf;
 }
 
@@ -111,12 +112,12 @@ String? _leafOf(InvOnHandRow r) {
 List<OnHandSection> groupOnHandRows(List<OnHandGroup> rows) {
   final byParent = <String, List<OnHandGroup>>{};
   for (final r in rows) {
-    byParent.putIfAbsent(_parentOf(r.lead), () => []).add(r);
+    byParent.putIfAbsent(onHandCategoryOf(r.lead), () => []).add(r);
   }
   final parents = byParent.keys.toList()
     ..sort((a, b) {
-      if (a == _uncategorised) return 1;
-      if (b == _uncategorised) return -1;
+      if (a == kUncategorised) return 1;
+      if (b == kUncategorised) return -1;
       return a.toLowerCase().compareTo(b.toLowerCase());
     });
   return [
@@ -134,7 +135,7 @@ List<OnHandSubSection> _leafBands(List<OnHandGroup> rows) {
   final direct = <OnHandGroup>[];
   final byLeaf = <String, List<OnHandGroup>>{};
   for (final r in rows) {
-    final leaf = _leafOf(r.lead);
+    final leaf = onHandSubcategoryOf(r.lead);
     if (leaf == null) {
       direct.add(r);
     } else {
@@ -199,7 +200,9 @@ class InvSubGroupHeader extends StatelessWidget {
         children: [
           Text(label, style: RunqText.caption.copyWith(color: t.ink2)),
           const SizedBox(width: 8),
-          Expanded(child: Divider(height: 1, thickness: 0.5, color: t.hairline)),
+          Expanded(
+            child: Divider(height: 1, thickness: 0.5, color: t.hairline),
+          ),
           const SizedBox(width: 8),
           Text(
             '${rows.length} · ${compactINR(value)}',

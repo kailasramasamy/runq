@@ -171,14 +171,27 @@ export class ItemService {
       ? [...ITEM_CLASS_GROUP_MEMBERS[filters.itemClassGroup]]
       : null;
 
+    // Active-only unless the caller asks otherwise. Deactivating an item is
+    // how a tenant retires a SKU, so it must vanish from every picker that
+    // reads this endpoint — invoice / bill lines, BOM components, GRN,
+    // delivery, price lists. Only the items list itself passes a status.
+    const statusClause =
+      filters.status === 'all'
+        ? undefined
+        : eq(items.isActive, filters.status !== 'inactive');
+
     const baseWhere = and(
       eq(items.tenantId, this.tenantId),
+      statusClause,
       searchClause,
       filters.type ? eq(items.type, filters.type) : undefined,
       filters.itemClass ? eq(items.itemClass, filters.itemClass) : undefined,
       groupClasses && groupClasses.length > 0 ? inArray(items.itemClass, groupClasses) : undefined,
       filters.unclassified ? isNull(items.itemClass) : undefined,
       filters.categoryId ? eq(items.categoryId, filters.categoryId) : undefined,
+      filters.categoryIds && filters.categoryIds.length > 0
+        ? inArray(items.categoryId, filters.categoryIds)
+        : undefined,
       filters.uncategorised ? isNull(items.categoryId) : undefined,
       legacyCategoryFilterId ? eq(items.categoryId, legacyCategoryFilterId) : undefined,
     );

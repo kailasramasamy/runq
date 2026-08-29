@@ -225,14 +225,27 @@ class InventoryRepo {
     /// subtree — the browser drills to a leaf before it asks for items.
     String? categoryId,
 
+    /// A whole branch: the category and everything filed below it. Sent when
+    /// the picker narrows to a parent, where an exact match would hide every
+    /// item filed one level down.
+    List<String>? categoryIds,
+
     /// Items filed under no category at all.
     bool uncategorised = false,
     bool withStock = false,
     String? sort,
+
+    /// 'active' (server default when omitted), 'inactive' or 'all'.
+    /// Deactivated items are hidden from every other screen, so only the
+    /// items list passes anything here.
+    String? status,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (unclassified) qp['unclassified'] = 'true';
     if (categoryId != null) qp['categoryId'] = categoryId;
+    if (categoryIds != null && categoryIds.isNotEmpty) {
+      qp['categoryIds'] = categoryIds.join(',');
+    }
     if (uncategorised) qp['uncategorised'] = 'true';
     if (withStock) qp['withStock'] = 'true';
     if (sort != null) qp['sort'] = sort;
@@ -241,6 +254,7 @@ class InventoryRepo {
       qp['itemClassGroup'] = itemClassGroup;
     }
     if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
+    if (status != null && status.isNotEmpty) qp['status'] = status;
     final res = await apiClient.get('/masters/items${_qs(qp)}');
     return InvItemPage.fromResponse(res);
   }
