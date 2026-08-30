@@ -18,7 +18,6 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../utils/format_qty.dart';
 import 'widgets/inv_colors.dart';
-import 'widgets/inv_category_filter.dart';
 import 'widgets/item_category_browser.dart';
 import 'widgets/inv_primitives.dart';
 
@@ -113,14 +112,6 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   int _uncategorised = 0;
   bool _treeLoading = false;
 
-  /// Quick category filter on the flat list — the browser's drill-down
-  /// without leaving the list. Holds category ids, except for
-  /// [_uncategorisedCrumbId], which is the no-category bucket no id can name.
-  /// Independent of [_pickedCategoryId]: that one belongs to the tree pane,
-  /// and the two are never in play at the same time.
-  String? _filterCatId;
-  String? _filterSubId;
-
   /// Set when the list is showing one category picked out of the browser.
   /// [_pickedUncategorised] is the no-category bucket, which is a filter the
   /// category id cannot express. The name is carried by the last breadcrumb,
@@ -191,9 +182,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         unclassified: kind == _FilterKind.unclassified,
         status: kind == _FilterKind.inactive ? 'inactive' : null,
         categoryId: _pickedCategoryId,
-        categoryIds: _filterCategoryIds(),
-        uncategorised:
-            _pickedUncategorised || _filterCatId == _uncategorisedCrumbId,
+        uncategorised: _pickedUncategorised,
         // Balance is the headline number on the tile, so the list needs it.
         withStock: true,
         // Ordered category → subcategory → name so the list can section by
@@ -278,80 +267,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   void _clearPick({bool reload = true}) {
     _pickedCategoryId = null;
     _pickedUncategorised = false;
-    _filterCatId = null;
-    _filterSubId = null;
     if (reload) _load(reset: true);
-  }
-
-  /// Category ids the flat-list pickers narrow to: the picked node plus
-  /// everything below it. `categoryId` on the API matches one node exactly,
-  /// which is right for a leaf and wrong for a parent — picking "Dairy" must
-  /// not hide the items filed under "Dairy › Curd".
-  List<String>? _filterCategoryIds() {
-    final leaf = _filterSubId;
-    if (leaf != null) return _subtreeIds(_findCategory(leaf));
-    final root = _filterCatId;
-    if (root == null || root == _uncategorisedCrumbId) return null;
-    return _subtreeIds(_findCategory(root));
-  }
-
-  InvCategory? _findCategory(String id, [List<InvCategory>? within]) {
-    for (final c in within ?? _tree) {
-      if (c.id == id) return c;
-      final hit = _findCategory(id, c.subcategories);
-      if (hit != null) return hit;
-    }
-    return null;
-  }
-
-  static List<String>? _subtreeIds(InvCategory? root) {
-    if (root == null) return null;
-    final ids = <String>[];
-    void walk(InvCategory c) {
-      ids.add(c.id);
-      c.subcategories.forEach(walk);
-    }
-
-    walk(root);
-    return ids;
-  }
-
-  /// Top-level categories, plus the no-category bucket when it holds
-  /// anything. Counts come off the tree, which already totals a whole subtree.
-  List<InvCatOption> get _catOptions => [
-    for (final c in _tree) (key: c.id, label: c.name, count: c.itemCount ?? 0),
-    if (_uncategorised > 0)
-      (
-        key: _uncategorisedCrumbId,
-        label: 'Uncategorised',
-        count: _uncategorised,
-      ),
-  ];
-
-  /// Leaves under the picked category. Empty until one is picked — across the
-  /// whole tree the leaf names alone are ambiguous ("Curd" under which brand?),
-  /// so the second picker stays inert rather than listing them all.
-  List<InvCatOption> get _subOptions {
-    final root = _filterCatId == null ? null : _findCategory(_filterCatId!);
-    if (root == null) return const [];
-    return [
-      for (final c in root.subcategories)
-        (key: c.id, label: c.name, count: c.itemCount ?? 0),
-    ];
-  }
-
-  void _onFilterCat(String? id) {
-    setState(() {
-      _filterCatId = id;
-      // A new parent invalidates a leaf that lived under the old one.
-      _filterSubId = null;
-    });
-    _load(reset: true);
-  }
-
-  void _onFilterSub(String? id) {
-    setState(() => _filterSubId = id);
-    _load(reset: true);
   }
 
   Future<void> _loadTree() async {
@@ -469,22 +385,6 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
             counts: _classCounts,
             onChanged: _onClass,
           ),
-          // Flat list only. In the tree pane the breadcrumb already says where
-          // you are, and a second category control beside it would be two
-          // answers to the same question.
-          if (!_browse && _tree.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 10, 6),
-              child: InvCategoryFilter(
-                categories: _catOptions,
-                subcategories: _subOptions,
-                category: _filterCatId,
-                subcategory: _filterSubId,
-                onCategory: _onFilterCat,
-                onSubcategory: _onFilterSub,
-                onClear: () => _onFilterCat(null),
-              ),
-            ),
           if (!_browse && !_loading && _error == null)
             _CountLine(loaded: _rows.length, total: _total),
           Expanded(child: _browse ? _browseBody(t) : _body(t)),
