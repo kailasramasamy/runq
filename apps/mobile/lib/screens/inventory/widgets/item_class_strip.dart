@@ -6,6 +6,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../api/inventory_models.dart';
+
 import 'inv_primitives.dart';
 
 // Class filters shown as a pill strip, each with its live count.
@@ -34,9 +36,28 @@ const itemClassFilters = <({String key, String label, ItemFilterKind kind})>[
   ),
   (key: 'spare_part', label: 'Spare part', kind: ItemFilterKind.itemClass),
   (key: 'other', label: 'Other', kind: ItemFilterKind.unclassified),
+  // Not an item_class — a property of the SKU's BOM. It shares the strip
+  // because to the person looking at the list it answers the same kind of
+  // question ("show me only these"), and because these rows sit permanently
+  // at zero and are the ones most often misread.
+  (
+    key: 'made_on_dispatch',
+    label: 'Made on dispatch',
+    kind: ItemFilterKind.madeOnDispatch,
+  ),
+  // Deactivated items are hidden from every picker in the app, so this is
+  // the only place left to find one — and the only way to reactivate it.
+  (key: 'inactive', label: 'Inactive', kind: ItemFilterKind.inactive),
 ];
 
-enum ItemFilterKind { all, group, itemClass, unclassified, inactive }
+enum ItemFilterKind {
+  all,
+  group,
+  itemClass,
+  unclassified,
+  inactive,
+  madeOnDispatch,
+}
 
 /// The item_class values a group pill stands for. Mirrors the server's
 /// ITEM_CLASS_GROUP_MEMBERS — a locally-filtered list must select exactly
@@ -54,6 +75,7 @@ typedef ItemClassQuery = ({
   String? itemClass,
   bool unclassified,
   String? status,
+  bool? madeOnDispatch,
 });
 
 ItemClassQuery itemClassQuery(String filterKey) {
@@ -63,6 +85,7 @@ ItemClassQuery itemClassQuery(String filterKey) {
     itemClass: kind == ItemFilterKind.itemClass ? filterKey : null,
     unclassified: kind == ItemFilterKind.unclassified,
     status: kind == ItemFilterKind.inactive ? 'inactive' : null,
+    madeOnDispatch: kind == ItemFilterKind.madeOnDispatch ? true : null,
   );
 }
 
@@ -83,7 +106,21 @@ bool itemClassMatches(String? itemClass, String filterKey) {
       // Inactive items are never in the cached catalogue, so this pill can
       // only be answered by the server.
       return false;
+    case ItemFilterKind.madeOnDispatch:
+      // Not a class question at all — [itemMatchesFilter] handles it, since
+      // it needs the whole row rather than just the class.
+      return true;
   }
+}
+
+/// Whether [row] belongs under [filterKey]. Wraps [itemClassMatches] so the
+/// one pill that asks about something other than item_class has somewhere to
+/// live, and so callers filtering in memory have a single entry point.
+bool itemMatchesFilter(InvItemListRow row, String filterKey) {
+  if (itemFilterKindOf(filterKey) == ItemFilterKind.madeOnDispatch) {
+    return row.madeOnDispatch;
+  }
+  return itemClassMatches(row.itemClass, filterKey);
 }
 
 /// Bucket keys that other screens still deep-link with (`?classGroup=`), mapped
@@ -113,8 +150,9 @@ int itemClassCount(String key, Map<String, int> byClass) {
     case ItemFilterKind.unclassified:
       return byClass['unclassified'] ?? 0;
     case ItemFilterKind.inactive:
-      // The counts aggregate covers active items only, so this pill has no
-      // number to show. A bare pill beats a wrong one.
+    case ItemFilterKind.madeOnDispatch:
+      // Neither is an item_class, so the class-counts aggregate has no number
+      // for them. A bare pill beats a wrong one.
       return -1;
   }
 }

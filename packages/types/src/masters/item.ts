@@ -93,6 +93,13 @@ export interface Item {
    *  when the list endpoint is called with `withStock=true`; undefined
    *  everywhere else so the masters reads stay a single-table query. */
   stockQty?: number;
+  /** True when the item is only made at the moment it ships — an active BOM
+   *  flagged `allow_auto_repack` backfills it out of a pool item on dispatch.
+   *  Such a SKU holds no standing stock, so a zero balance is its normal
+   *  state and must not be read as a shortage. Derived, never stored: the
+   *  BOM flag is the single source of truth. Populated on the list endpoint
+   *  only when `withStock=true`, which is the only place it is displayed. */
+  madeOnDispatch?: boolean;
   createdAt: string;
   updatedAt: string;
 }

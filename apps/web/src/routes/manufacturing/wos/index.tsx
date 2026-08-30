@@ -47,7 +47,7 @@ export function WorkOrderListPage() {
   const [bomId, setBomId] = useState('');
   const [scheduledFrom, setScheduledFrom] = useState('');
   const [scheduledTo, setScheduledTo] = useState('');
-  const [unplannedOnly, setUnplannedOnly] = useState(false);
+  const [entryModeOnly, setEntryModeOnly] = useState<'' | 'unplanned' | 'auto_repack'>('');
   const [page, setPage] = useState(1);
 
   const { data: bomsData } = useBoms({ limit: 200 });
@@ -73,7 +73,7 @@ export function WorkOrderListPage() {
   // page that a client-side pass is fine for "what did the floor make while
   // I was away."
   const allRows = data?.data ?? [];
-  const rows = unplannedOnly ? allRows.filter((wo) => wo.entryMode === 'unplanned') : allRows;
+  const rows = entryModeOnly ? allRows.filter((wo) => wo.entryMode === entryModeOnly) : allRows;
 
   return (
     <div>
@@ -139,17 +139,32 @@ export function WorkOrderListPage() {
         />
       </div>
 
-      {/* Unplanned filter — how a returning manager reviews what got made
-          off-plan while they were away. */}
-      <label className="mb-3 flex w-fit items-center gap-2 text-[12px]" style={{ color: 'var(--text-2)' }}>
-        <input
-          type="checkbox"
-          checked={unplannedOnly}
-          onChange={(e) => { setUnplannedOnly(e.target.checked); setPage(1); }}
-          className="h-3.5 w-3.5 rounded border-zinc-300 text-[#E11D48] focus:ring-[#E11D48]"
-        />
-        Unplanned runs only
-      </label>
+      {/* Off-plan filter. Two different questions: "what did the floor make
+          while I was away" (unplanned, a person to ask) and "what did
+          dispatch make for itself" (auto-repack, nobody to ask). Splitting
+          them is the whole point — lumped together, the repacks buried the
+          handful of entries actually worth reviewing. */}
+      <div className="mb-3 flex w-fit items-center gap-1.5 text-[12px]">
+        {([
+          { key: '', label: 'All runs' },
+          { key: 'unplanned', label: 'Unplanned only' },
+          { key: 'auto_repack', label: 'Auto-repack only' },
+        ] as const).map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => { setEntryModeOnly(opt.key); setPage(1); }}
+            className="rounded-full px-2.5 py-1 text-[11.5px] font-medium"
+            style={
+              entryModeOnly === opt.key
+                ? { background: 'rgba(225, 29, 72, 0.10)', color: '#E11D48' }
+                : { color: 'var(--text-2)' }
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
 
       {isLoading ? (
         <p className="px-2 py-6 text-center text-[12px]" style={{ color: 'var(--text-3)' }}>Loading…</p>
@@ -196,6 +211,15 @@ export function WorkOrderListPage() {
                           style={{ background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }}
                         >
                           Unplanned
+                        </span>
+                      )}
+                      {wo.entryMode === 'auto_repack' && (
+                        <span
+                          className="inline-flex rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide"
+                          title="Posted by dispatch to cover a delivery line — no floor entry"
+                          style={{ background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' }}
+                        >
+                          Repack
                         </span>
                       )}
                     </div>

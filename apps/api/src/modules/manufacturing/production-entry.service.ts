@@ -146,11 +146,15 @@ export class ProductionEntryService {
    * own transaction this way inherits the WO-number retry, because only it can
    * restart the transaction — DeliveryNoteService.dispatch does exactly that.
    */
+  /** [entryMode] says who is posting, which is a caller concern rather than
+   *  part of the production payload — a dispatch repack runs this exact path
+   *  but must not read back as a technician's floor entry. */
   async recordInTx(
     tx: Tx,
     input: RecordProductionInput,
     warnings: string[],
     userId?: string,
+    entryMode: 'unplanned' | 'auto_repack' = 'unplanned',
   ): Promise<string> {
     // Recomputed inside the transaction so the allocation reflects stock as it
     // is at posting time, not as it was when the technician opened the screen.
@@ -163,7 +167,7 @@ export class ProductionEntryService {
     }
 
     const producedOn = input.producedOn ?? new Date().toISOString().slice(0, 10);
-    const woId = await this.insertWo(tx, preview, input, producedOn, userId);
+    const woId = await this.insertWo(tx, preview, input, producedOn, userId, entryMode);
 
     await this.lifecycle.startInTx(tx, woId);
     await this.postConsumption(tx, woId, preview, userId);
@@ -237,6 +241,7 @@ export class ProductionEntryService {
     input: RecordProductionInput,
     producedOn: string,
     userId?: string,
+    entryMode: 'unplanned' | 'auto_repack' = 'unplanned',
   ): Promise<string> {
     const [row] = await tx
       .insert(workOrders)
@@ -250,7 +255,7 @@ export class ProductionEntryService {
         shift: input.shift ?? null,
         scheduledFor: producedOn,
         status: 'draft',
-        entryMode: 'unplanned',
+        entryMode,
         idempotencyKey: input.idempotencyKey ?? null,
         createdBy: userId ?? null,
       })

@@ -1621,6 +1621,12 @@ class InvItemListRow {
   /// False for items the ledger doesn't track (services, expensed buys) —
   /// their balance is meaningless, so they carry no availability mark.
   final bool trackInventory;
+
+  /// The SKU is only made at the moment it ships — an auto-repack BOM
+  /// backfills it out of a pool item when a dispatch line comes up short. It
+  /// therefore holds no standing stock, so a zero balance is its normal state
+  /// rather than a shortage.
+  final bool madeOnDispatch;
   const InvItemListRow({
     required this.id,
     required this.name,
@@ -1636,6 +1642,7 @@ class InvItemListRow {
     this.stockQty,
     this.reorderLevel,
     this.trackInventory = true,
+    this.madeOnDispatch = false,
   });
   factory InvItemListRow.fromJson(Map<String, dynamic> j) => InvItemListRow(
     id: j['id'] as String,
@@ -1652,6 +1659,7 @@ class InvItemListRow {
     stockQty: (j['stockQty'] as num?)?.toDouble(),
     reorderLevel: (j['reorderLevel'] as num?)?.toDouble(),
     trackInventory: j['trackInventory'] as bool? ?? true,
+    madeOnDispatch: j['madeOnDispatch'] as bool? ?? false,
   );
 }
 

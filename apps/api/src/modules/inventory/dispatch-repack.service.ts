@@ -144,6 +144,7 @@ export class DispatchRepackService {
       },
       warnings,
       userId,
+      'auto_repack',
     );
 
     return {

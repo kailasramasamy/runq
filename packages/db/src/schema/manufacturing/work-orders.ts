@@ -27,11 +27,20 @@ export const woStatusEnum = pgEnum('wo_status', [
 /**
  * How the run reached the system.
  *
- * `planned`   — a manager authored the WO up front, then the floor ran it.
- * `unplanned` — a technician recorded finished goods after the fact and the
- *               inputs were backflushed from the BOM (no manager present).
+ * `planned`     — a manager authored the WO up front, then the floor ran it.
+ * `unplanned`   — a technician recorded finished goods after the fact and the
+ *                 inputs were backflushed from the BOM (no manager present).
+ * `auto_repack` — no person at all: a dispatch line for a late-differentiation
+ *                 SKU came up short, so DispatchRepackService backflushed it
+ *                 out of the pool item to cover the delivery. Same mechanics
+ *                 as `unplanned`, but nobody to ask about it, so the lists
+ *                 must not present it as something a technician did.
  */
-export const woEntryModeEnum = pgEnum('wo_entry_mode', ['planned', 'unplanned']);
+export const woEntryModeEnum = pgEnum('wo_entry_mode', [
+  'planned',
+  'unplanned',
+  'auto_repack',
+]);
 
 export const qcStatusEnum = pgEnum('qc_status', [
   'pending',

@@ -60,8 +60,18 @@ String mfgPrettyDate(String iso) {
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final now = DateTime.now();
   final base = '${dt.day} ${months[dt.month - 1]}';
@@ -258,10 +268,7 @@ class MfgPlainAppBar extends StatelessWidget implements PreferredSizeWidget {
             else
               const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                title,
-                style: RunqText.h2.copyWith(color: t.ink),
-              ),
+              child: Text(title, style: RunqText.h2.copyWith(color: t.ink)),
             ),
             ...actions,
           ],
@@ -393,7 +400,9 @@ class MfgMetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final text = meta.value == null ? meta.label : '${meta.label} · ${meta.value}';
+    final text = meta.value == null
+        ? meta.label
+        : '${meta.label} · ${meta.value}';
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -406,6 +415,33 @@ class MfgMetaChip extends StatelessWidget {
 }
 
 /// Document-style list tile — shared chrome for BOM list and WO list.
+/// A tag on a document row: what to say, and the colour that says it.
+typedef MfgDocTag = ({String label, Color colour});
+
+class _MfgTagChip extends StatelessWidget {
+  const _MfgTagChip({required this.tag});
+  final MfgDocTag tag;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tag.colour.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        tag.label,
+        style: RunqText.micro.copyWith(
+          color: tag.colour,
+          letterSpacing: 0.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class MfgDocListTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -415,6 +451,11 @@ class MfgDocListTile extends StatelessWidget {
   final bool? bomIsActive;
   final String? rightValue;
   final String? productLabel;
+
+  /// Small qualifier beside the reference line — how a run *reached* the
+  /// system, when that is not the ordinary way. Distinct from [status],
+  /// which says how far along it is.
+  final MfgDocTag? tag;
 
   /// Promotes a domain headline above the document number. Work orders use this
   /// for the product being made: on a shop-floor list "Farm Fresh Cow Milk ·
@@ -464,6 +505,7 @@ class MfgDocListTile extends StatelessWidget {
     this.bomIsActive,
     this.rightValue,
     this.productLabel,
+    this.tag,
     this.headline,
     this.headlineValue,
     this.reference,
@@ -501,12 +543,19 @@ class MfgDocListTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (leadingShift != null && leadingShift!.isNotEmpty)
-                Opacity(opacity: cancelled ? 0.45 : 1, child: MfgShiftBlock(shift: leadingShift!))
+                Opacity(
+                  opacity: cancelled ? 0.45 : 1,
+                  child: MfgShiftBlock(shift: leadingShift!),
+                )
               else if (leadingDate != null)
-                Opacity(opacity: cancelled ? 0.45 : 1, child: MfgDateBlock(isoDate: leadingDate!))
+                Opacity(
+                  opacity: cancelled ? 0.45 : 1,
+                  child: MfgDateBlock(isoDate: leadingDate!),
+                )
               else
                 Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: MfgColors.roseSubtle,
                     borderRadius: BorderRadius.circular(10),
@@ -529,14 +578,15 @@ class MfgDocListTile extends StatelessWidget {
                                 child: Text(
                                   headline ?? title,
                                   style: RunqText.bodyStrong.copyWith(
-                                      color: cancelled ? t.muted2 : t.ink,
-                                      decoration: cancelled
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      decorationColor: t.muted2,
-                                      fontWeight: headline != null
-                                          ? FontWeight.w700
-                                          : null),
+                                    color: cancelled ? t.muted2 : t.ink,
+                                    decoration: cancelled
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                    decorationColor: t.muted2,
+                                    fontWeight: headline != null
+                                        ? FontWeight.w700
+                                        : null,
+                                  ),
                                   maxLines: headline != null ? 2 : 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -545,9 +595,12 @@ class MfgDocListTile extends StatelessWidget {
                               // stacked under the numeral on the far right.
                               if (rightUnit != null) ...[
                                 const SizedBox(width: 6),
-                                Text(rightUnit!,
-                                    style: RunqText.caption
-                                        .copyWith(color: t.muted)),
+                                Text(
+                                  rightUnit!,
+                                  style: RunqText.caption.copyWith(
+                                    color: t.muted,
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -566,7 +619,9 @@ class MfgDocListTile extends StatelessWidget {
                       Text(
                         headlineValue!,
                         style: RunqText.bodyStrong.copyWith(
-                            color: brand, fontWeight: FontWeight.w700),
+                          color: brand,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                     // Document number drops to a muted reference line once a
@@ -577,20 +632,26 @@ class MfgDocListTile extends StatelessWidget {
                       // line: the number is what identifies the row, the status
                       // qualifies it. Flexible (not Expanded) keeps the pill
                       // hugging the number instead of floating to the edge.
-                      Row(children: [
-                        Flexible(
-                          child: Text(
-                            reference!,
-                            style: RunqText.caption.copyWith(color: t.muted2),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              reference!,
+                              style: RunqText.caption.copyWith(color: t.muted2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        if (rightValue != null && status != null) ...[
-                          const SizedBox(width: 6),
-                          MfgStatusPill(status: status!),
+                          if (tag != null) ...[
+                            const SizedBox(width: 6),
+                            _MfgTagChip(tag: tag!),
+                          ],
+                          if (rightValue != null && status != null) ...[
+                            const SizedBox(width: 6),
+                            MfgStatusPill(status: status!),
+                          ],
                         ],
-                      ]),
+                      ),
                       if (metaLine != null) ...[
                         const SizedBox(height: 3),
                         Text(
@@ -626,16 +687,25 @@ class MfgDocListTile extends StatelessWidget {
                         children: [
                           if (productLabel != null)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
                               decoration: BoxDecoration(
                                 color: MfgColors.roseTint,
                                 borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: MfgColors.roseHairline),
+                                border: Border.all(
+                                  color: MfgColors.roseHairline,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.factory_outlined, size: 13, color: brand),
+                                  Icon(
+                                    Icons.factory_outlined,
+                                    size: 13,
+                                    color: brand,
+                                  ),
                                   const SizedBox(width: 5),
                                   Text(
                                     productLabel!,
@@ -664,15 +734,18 @@ class MfgDocListTile extends StatelessWidget {
                     Text(
                       rightValue!,
                       style: rightUnit == null
-                          ? RunqText.bodyStrong
-                              .copyWith(color: cancelled ? t.muted2 : t.ink)
+                          ? RunqText.bodyStrong.copyWith(
+                              color: cancelled ? t.muted2 : t.ink,
+                            )
                           : RunqText.h2.copyWith(
                               color: cancelled ? t.muted2 : t.ink,
-                              decoration:
-                                  cancelled ? TextDecoration.lineThrough : null,
+                              decoration: cancelled
+                                  ? TextDecoration.lineThrough
+                                  : null,
                               decorationColor: t.muted2,
                               fontWeight: FontWeight.w800,
-                              height: 1),
+                              height: 1,
+                            ),
                     ),
                   ],
                 ),
@@ -725,15 +798,22 @@ class MfgPrimaryButton extends StatelessWidget {
                 children: [
                   if (loading) ...[
                     const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 10),
                   ] else if (icon != null) ...[
                     Icon(icon, size: 16, color: Colors.white),
                     const SizedBox(width: 8),
                   ],
-                  Text(label, style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+                  Text(
+                    label,
+                    style: RunqText.bodyStrong.copyWith(color: Colors.white),
+                  ),
                 ],
               ),
             ),
@@ -767,7 +847,8 @@ class MfgEmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 56, height: 56,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: MfgColors.roseSubtle,
               borderRadius: BorderRadius.circular(16),
@@ -775,15 +856,20 @@ class MfgEmptyState extends StatelessWidget {
             child: Icon(icon, color: MfgColors.brand(context), size: 26),
           ),
           const SizedBox(height: 12),
-          Text(title, style: RunqText.bodyStrong.copyWith(color: t.ink), textAlign: TextAlign.center),
+          Text(
+            title,
+            style: RunqText.bodyStrong.copyWith(color: t.ink),
+            textAlign: TextAlign.center,
+          ),
           if (description != null) ...[
             const SizedBox(height: 4),
-            Text(description!, style: RunqText.caption.copyWith(color: t.muted), textAlign: TextAlign.center),
+            Text(
+              description!,
+              style: RunqText.caption.copyWith(color: t.muted),
+              textAlign: TextAlign.center,
+            ),
           ],
-          if (action != null) ...[
-            const SizedBox(height: 16),
-            action!,
-          ],
+          if (action != null) ...[const SizedBox(height: 16), action!],
         ],
       ),
     );

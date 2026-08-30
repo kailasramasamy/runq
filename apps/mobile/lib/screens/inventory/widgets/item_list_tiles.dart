@@ -343,7 +343,15 @@ class ItemTile extends StatelessWidget {
     // of the pool when a delivery needs it. Red would report the normal
     // state as a fault. Once it does hold stock the usual colours apply,
     // because then the balance means what it always means.
-    if (qty <= 0) return InvColors.error;
+    // Blue, not green and not amber: green would promise it can ship, which
+    // depends on the pool this row cannot see, and the module amber sits a
+    // shade away from orangeAlert — on a 3px rail the two are the same
+    // colour, so a made-on-dispatch SKU read as low stock. Blue is the one
+    // signal that means neither, and it matches the REPACK tag the work
+    // order list puts on the runs these SKUs produce.
+    if (qty <= 0) {
+      return row.madeOnDispatch ? InvColors.info : InvColors.error;
+    }
     final level = row.reorderLevel;
     final low = level != null && level > 0 && qty <= level;
     return low ? InvColors.orangeAlert : InvColors.success;
@@ -396,7 +404,10 @@ class ItemTile extends StatelessWidget {
                   ),
                   // Says why the rail is green on a row carrying no
                   // quantity — an untracked item never runs out.
-                  if (_isUntracked(row)) ...[
+                  if (row.madeOnDispatch) ...[
+                    const SizedBox(width: 6),
+                    const _MadeOnDispatchPill(),
+                  ] else if (_isUntracked(row)) ...[
                     const SizedBox(width: 6),
                     const _AlwaysAvailablePill(),
                   ],
@@ -432,11 +443,7 @@ class ItemTile extends StatelessWidget {
                 // should read as "none left", so it prints as a dash.
                 row.madeOnDispatch && row.stockQty! <= 0
                     ? '—'
-                    : formatItemQty(
-                        row.stockQty,
-                        row.itemClass,
-                        unit: row.unit,
-                      ),
+                    : formatItemQty(row.stockQty, row.itemClass, unit: row.unit),
                 style: RunqText.bodyStrong.copyWith(
                   color: row.stockQty! <= 0 ? t.muted2 : t.ink,
                 ),
@@ -451,6 +458,32 @@ class ItemTile extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Says the SKU has no standing stock by design — it is labelled out of a
+/// pool item at dispatch. Without it a permanent zero reads as a shortage
+/// nobody is fixing.
+class _MadeOnDispatchPill extends StatelessWidget {
+  const _MadeOnDispatchPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: InvColors.info.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Made on dispatch',
+        style: RunqText.micro.copyWith(
+          color: InvColors.info,
+          letterSpacing: 0.2,
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,6 @@
 import { eq, and, ilike, or, sql, gte, lte, isNull, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { items, categories, priceListItems, salesInvoices, salesInvoiceItems, tenants, stockOnHand } from '@runq/db';
+import { items, categories, priceListItems, salesInvoices, salesInvoiceItems, tenants, stockOnHand, boms } from '@runq/db';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 
 // Joined view of an item row + category leaf + parent. We compose this
@@ -193,6 +193,9 @@ export class ItemService {
         ? inArray(items.categoryId, filters.categoryIds)
         : undefined,
       filters.uncategorised ? isNull(items.categoryId) : undefined,
+      filters.madeOnDispatch === undefined
+        ? undefined
+        : this.madeOnDispatchClause(filters.madeOnDispatch),
       legacyCategoryFilterId ? eq(items.categoryId, legacyCategoryFilterId) : undefined,
     );
 
@@ -219,13 +222,50 @@ export class ItemService {
     const total = countResult[0]?.count ?? 0;
     const data = rows.map((r) => this.toItem(r));
     if (filters.withStock && data.length > 0) {
-      const qtyById = await this.onHandQtyByItem(data.map((d) => d.id));
-      for (const d of data) d.stockQty = qtyById.get(d.id) ?? 0;
+      const ids = data.map((d) => d.id);
+      const [qtyById, repackIds] = await Promise.all([
+        this.onHandQtyByItem(ids),
+        this.madeOnDispatchIds(ids),
+      ]);
+      for (const d of data) {
+        d.stockQty = qtyById.get(d.id) ?? 0;
+        d.madeOnDispatch = repackIds.has(d.id);
+      }
     }
     return {
       data,
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
+  }
+
+  /** Items whose SKU is only made at dispatch — an active BOM flagged
+   *  `allow_auto_repack` backfills them out of a pool item when a delivery
+   *  line comes up short. Covered by idx_bom_auto_repack. Kept as its own
+   *  query for the same reason as the stock aggregate: every other masters
+   *  read stays a plain single-table fetch. */
+  private async madeOnDispatchIds(itemIds: string[]): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ itemId: boms.outputItemId })
+      .from(boms)
+      .where(and(
+        eq(boms.tenantId, this.tenantId),
+        eq(boms.isActive, true),
+        eq(boms.allowAutoRepack, true),
+        inArray(boms.outputItemId, itemIds),
+      ));
+    return new Set(rows.map((r) => r.itemId));
+  }
+
+  /** Restrict to (or exclude) items backed by an auto-repack BOM. */
+  private madeOnDispatchClause(wanted: boolean) {
+    const repackable = sql`EXISTS (
+      SELECT 1 FROM boms b
+      WHERE b.tenant_id = ${this.tenantId}
+        AND b.output_item_id = ${items.id}
+        AND b.is_active = true
+        AND b.allow_auto_repack = true
+    )`;
+    return wanted ? repackable : sql`NOT ${repackable}`;
   }
 
   /** Total on-hand qty per item for the given ids. Kept as its own query

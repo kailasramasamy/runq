@@ -1,0 +1,14 @@
+-- Telling a repack apart from a floor entry.
+--
+-- Late-differentiation SKUs (Farm Fresh Paneer 200g, A2 Desi Cow Paneer 200g)
+-- hold no standing stock: DispatchRepackService backflushes them out of the
+-- unpacked pool at the moment a delivery line comes up short. Those runs post
+-- through the same path as a technician's Record Production, so both landed as
+-- `unplanned` and the work order list could not tell a machine-made repack
+-- from something a person did on the floor.
+--
+-- They are different events. A repack is the system covering a dispatch and
+-- needs no follow-up; an unplanned entry is a human recording production after
+-- the fact, which a manager may want to check. Giving the repack its own entry
+-- mode is what lets the list say so.
+ALTER TYPE wo_entry_mode ADD VALUE IF NOT EXISTS 'auto_repack';

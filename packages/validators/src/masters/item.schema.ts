@@ -165,6 +165,11 @@ export const itemFilterSchema = z.object({
   /** Attach each row's total on-hand qty. Opt-in — it costs an extra
    *  aggregate query, and only the inventory item screens display it. */
   withStock: queryBool.optional(),
+  /** Only items made at dispatch (an active BOM with allow_auto_repack), or
+   *  only items that are not. These SKUs sit permanently at zero, so the
+   *  items list offers them as their own pill rather than leaving them to
+   *  read as out of stock among the rest. */
+  madeOnDispatch: queryBool.optional(),
   /** Row order within each class group. 'name' (default) is alphabetical;
    *  'recent' puts the most recently active items first — last stock
    *  movement, falling back to the item's own updated_at when it has never

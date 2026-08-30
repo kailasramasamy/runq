@@ -241,11 +241,17 @@ class WorkOrderListRow {
   final double consumedValue;
   final double outputValue;
   final String? qcStatus;
+
+  /// How the run reached the system: 'planned', 'unplanned', or
+  /// 'auto_repack' — the last posted by dispatch to cover a delivery line,
+  /// with nobody on the floor involved.
+  final String entryMode;
   final String createdAt;
 
   WorkOrderListRow({
     required this.id,
     required this.woNumber,
+    this.entryMode = 'planned',
     required this.bomId,
     required this.bomCode,
     required this.bomName,
@@ -271,6 +277,7 @@ class WorkOrderListRow {
   factory WorkOrderListRow.fromJson(Map<String, dynamic> j) => WorkOrderListRow(
         id: j['id'] as String,
         woNumber: j['woNumber'] as String,
+        entryMode: j['entryMode'] as String? ?? 'planned',
         bomId: j['bomId'] as String,
         bomCode: (j['bomCode'] as String?) ?? '',
         bomName: (j['bomName'] as String?) ?? '',

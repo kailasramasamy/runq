@@ -5,6 +5,7 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
@@ -101,8 +102,9 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
             Expanded(
               child: listAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) =>
-                    Center(child: Text('Failed to load: $e', style: RunqText.body)),
+                error: (e, _) => Center(
+                  child: Text('Failed to load: $e', style: RunqText.body),
+                ),
                 data: (res) {
                   if (res.data.isEmpty) {
                     return MfgEmptyState(
@@ -173,9 +175,11 @@ String _dayLabel(String iso) {
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
   final now = DateTime.now();
-  final days = DateTime(dt.year, dt.month, dt.day)
-      .difference(DateTime(now.year, now.month, now.day))
-      .inDays;
+  final days = DateTime(
+    dt.year,
+    dt.month,
+    dt.day,
+  ).difference(DateTime(now.year, now.month, now.day)).inDays;
   if (days == 0) return 'Today';
   if (days == -1) return 'Yesterday';
   if (days == 1) return 'Tomorrow';
@@ -200,6 +204,14 @@ class _WoTile extends StatelessWidget {
       rightValue: _qty(wo.plannedQty),
       rightUnit: wo.outputUom,
       reference: wo.woNumber,
+      // Two different off-plan runs, and they need different reactions: an
+      // unplanned entry has a person behind it a manager may want to ask
+      // about, a repack has nobody — dispatch made it to cover a delivery.
+      tag: switch (wo.entryMode) {
+        'unplanned' => (label: 'UNPLANNED', colour: MfgColors.orangeAlert),
+        'auto_repack' => (label: 'REPACK', colour: MfgColors.info),
+        _ => null,
+      },
       metaLine: wo.warehouseName,
       onTap: () => context.push('/manufacturing/wos/${wo.id}'),
     );

@@ -17,7 +17,10 @@ export type QcStatus = 'pending' | 'passed' | 'failed' | 'conditional';
  * `unplanned` — technician recorded finished goods after the fact; inputs were
  *               backflushed from the BOM. See production-entry.service.
  */
-export type WoEntryMode = 'planned' | 'unplanned';
+/** How the run reached the system. `auto_repack` is the machine's own: a
+ *  dispatch line for a late-differentiation SKU came up short and the pool
+ *  item was backflushed to cover it, with nobody on the floor involved. */
+export type WoEntryMode = 'planned' | 'unplanned' | 'auto_repack';
 
 export interface WorkOrder {
   id: string;

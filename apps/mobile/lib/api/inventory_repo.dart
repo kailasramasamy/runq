@@ -234,6 +234,10 @@ class InventoryRepo {
     /// Items filed under no category at all.
     bool uncategorised = false,
     bool withStock = false,
+
+    /// Only SKUs made at dispatch, or only those that are not. Null asks for
+    /// both, which is what every screen but the items list wants.
+    bool? madeOnDispatch,
     String? sort,
 
     /// 'active' (server default when omitted), 'inactive' or 'all'.
@@ -249,6 +253,7 @@ class InventoryRepo {
     }
     if (uncategorised) qp['uncategorised'] = 'true';
     if (withStock) qp['withStock'] = 'true';
+    if (madeOnDispatch != null) qp['madeOnDispatch'] = '$madeOnDispatch';
     if (sort != null) qp['sort'] = sort;
     if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
     if (itemClassGroup != null && itemClassGroup != 'all') {

@@ -139,7 +139,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   List<InvItemListRow> get _localRows {
     final matching = [
       for (final r in _catalogue!)
-        if (itemClassMatches(r.itemClass, _classGroup)) r,
+        if (itemMatchesFilter(r, _classGroup)) r,
     ];
     return rankedItemMatches(
       matching,
@@ -209,6 +209,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         itemClass: q.itemClass,
         unclassified: q.unclassified,
         status: q.status,
+        madeOnDispatch: q.madeOnDispatch,
         categoryId: _pickedCategoryId,
         uncategorised: _pickedUncategorised,
         // Balance is the headline number on the tile, so the list needs it.
