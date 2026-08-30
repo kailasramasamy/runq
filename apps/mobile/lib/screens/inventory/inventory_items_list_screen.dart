@@ -1,7 +1,20 @@
-// Items — the inventory item master. Searchable, class-group filtered,
-// load-more paginated list of every catalog item. Mirrors the web
-// /inventory/items page: tap a row to open the item, or "+ New item" to
-// add one. Search + class filter run server-side (GET /masters/items).
+// Items — the inventory item master. Mirrors the web /inventory/items page:
+// tap a row to open the item, or "+ New item" to add one.
+//
+// Getting to a *particular* item is the job, and there are three ways in,
+// ordered by how little they cost:
+//
+//   1. Recently opened — the same handful of SKUs get worked all day, so the
+//      shortcut row above the list usually ends the search before it starts.
+//   2. Search — answered from memory when the catalogue fits in one page
+//      (see [_catalogue]), which turns every keystroke from a round trip
+//      into a rebuild, and lets results come back *ranked* rather than
+//      filed by category.
+//   3. The category rail and the tree — for "what do we even carry", where
+//      the user has a shape in mind rather than a name.
+//
+// Big tenants fall back to the paginated server list; nothing below changes
+// shape, only where the rows come from.
 
 library;
 
@@ -13,75 +26,20 @@ import 'package:go_router/go_router.dart';
 
 import '../../api/inventory_models.dart';
 import '../../api/inventory_repo.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/inventory_providers.dart';
-import '../../theme/runq_theme.dart';
+import '../../services/item_catalogue.dart';
+import '../../services/item_recents.dart';
 import '../../theme/runq_tokens.dart';
-import '../../utils/format_qty.dart';
-import 'widgets/inv_colors.dart';
-import 'widgets/item_category_browser.dart';
+import '../../utils/item_search.dart';
 import 'widgets/inv_primitives.dart';
-
-// Class filters shown as a pill strip, each with its live count.
-//
-// One pill per item_class rather than the 4 operational buckets: the buckets
-// hid exactly the distinctions the floor works in — raw material vs packaging
-// vs consumable are stored, counted and reordered by different people, and
-// 'Inputs' collapsed the first two into one number nobody could act on. The
-// only group left is Finished, which stays a group so packed goods lead the
-// strip; semi-finished gets its own pill right after the classes it is made
-// from.
-//
-// 'other' is the leftover pill: items carrying no item_class at all (services,
-// and products created before classification shipped).
-const _classFilters = <({String key, String label, _FilterKind kind})>[
-  (key: 'all', label: 'All', kind: _FilterKind.all),
-  (key: 'finished', label: 'Finished', kind: _FilterKind.group),
-  (key: 'trading_good', label: 'Trading', kind: _FilterKind.itemClass),
-  (key: 'raw_material', label: 'Raw material', kind: _FilterKind.itemClass),
-  (key: 'packaging', label: 'Packaging', kind: _FilterKind.itemClass),
-  (key: 'consumable', label: 'Consumable', kind: _FilterKind.itemClass),
-  (key: 'semi_finished', label: 'Semi-packaged', kind: _FilterKind.itemClass),
-  (key: 'spare_part', label: 'Spare part', kind: _FilterKind.itemClass),
-  (key: 'other', label: 'Other', kind: _FilterKind.unclassified),
-  // Deactivated items are hidden from every picker in the app, so this is
-  // the only place left to find one — and the only way to reactivate it.
-  (key: 'inactive', label: 'Inactive', kind: _FilterKind.inactive),
-];
-
-enum _FilterKind { all, group, itemClass, unclassified, inactive }
-
-/// Bucket keys that other screens still deep-link with (`?classGroup=`), mapped
-/// to the pill that now carries that stock. 'inputs' lands on Raw material —
-/// the Home "raw material available" strip is what sends it.
-const Map<String, String> _legacyGroupAliases = {
-  'inputs': 'raw_material',
-  'trading': 'trading_good',
-};
-
-_FilterKind _kindOf(String key) => _classFilters
-    .firstWhere((f) => f.key == key, orElse: () => _classFilters.first)
-    .kind;
-
-/// Count shown on a pill. Groups sum their member classes; 'All' sums
-/// everything including the unclassified leftovers.
-int _countFor(String key, Map<String, int> byClass) {
-  switch (_kindOf(key)) {
-    case _FilterKind.all:
-      return byClass.values.fold(0, (a, b) => a + b);
-    case _FilterKind.group:
-      // 'finished' is the only group left, and it means packed goods —
-      // semi-finished has its own pill, so it must not be counted twice.
-      return byClass['finished_good'] ?? 0;
-    case _FilterKind.itemClass:
-      return byClass[key] ?? 0;
-    case _FilterKind.unclassified:
-      return byClass['unclassified'] ?? 0;
-    case _FilterKind.inactive:
-      // The counts aggregate covers active items only, so this pill has no
-      // number to show. A bare pill beats a wrong one.
-      return -1;
-  }
-}
+import 'widgets/item_browse_pane.dart';
+import 'widgets/item_category_browser.dart'
+    show InvCategoryPick, InvItemViewToggle;
+import 'widgets/item_class_strip.dart';
+import 'widgets/item_list_tiles.dart';
+import 'widgets/item_sectioned_list.dart';
+import 'widgets/item_recents_strip.dart';
 
 class InventoryItemsListScreen extends ConsumerStatefulWidget {
   const InventoryItemsListScreen({super.key, this.initialClassGroup});
@@ -118,6 +76,9 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   /// not held here.
   String? _pickedCategoryId;
   bool _pickedUncategorised = false;
+
+  /// Server-paginated rows — the fallback path, used whenever [_catalogue]
+  /// is null or the current view asks something it cannot answer.
   final List<InvItemListRow> _rows = [];
   int _page = 1;
   int _totalPages = 1;
@@ -125,6 +86,12 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
+
+  /// Every active item, held once. Null while it is still loading, and left
+  /// null for tenants past [itemCatalogueCap] — see [_isLocal].
+  List<InvItemListRow>? _catalogue;
+
+  List<RecentItem> _recents = const [];
 
   /// item_class → active-item count, plus an 'unclassified' key. Drives the
   /// pill badges; refreshed alongside a reset load so a reclassify shows up.
@@ -135,11 +102,12 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     super.initState();
     final requested = widget.initialClassGroup;
     if (requested != null) {
-      final key = _legacyGroupAliases[requested] ?? requested;
-      if (_classFilters.any((f) => f.key == key)) _classGroup = key;
+      final key = legacyItemGroupAliases[requested] ?? requested;
+      if (itemClassFilters.any((f) => f.key == key)) _classGroup = key;
     }
     _scroll.addListener(_onScroll);
-    _load(reset: true);
+    _reload();
+    _loadRecents();
     // The pickers need the tree whether or not the browser is open, and its
     // counts are what make an option worth offering.
     _loadTree();
@@ -153,8 +121,69 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------- loading
+
+  /// True when the flat list can be answered from memory. A picked category
+  /// and the browse pane still go to the server: both key off category ids,
+  /// which the cached rows carry only by name. So does any pill that asks
+  /// for a status — the cached catalogue holds active items only.
+  bool get _isLocal =>
+      _catalogue != null &&
+      !_browse &&
+      !_showingItems &&
+      itemClassQuery(_classGroup).status == null;
+
+  /// Rows for the flat list under the current class pill and search box.
+  /// Ranked while searching — the whole point of holding the catalogue is
+  /// that "gh" can put Ghee first instead of wherever it is filed.
+  List<InvItemListRow> get _localRows {
+    final matching = [
+      for (final r in _catalogue!)
+        if (itemClassMatches(r.itemClass, _classGroup)) r,
+    ];
+    return rankedItemMatches(
+      matching,
+      _search,
+      name: (r) => r.name,
+      sku: (r) => r.sku,
+    );
+  }
+
+  List<InvItemListRow> get _visibleRows => _isLocal ? _localRows : _rows;
+
+  Future<void> _loadCatalogue() async {
+    final rows = await ItemCatalogue.fetchAll();
+    if (mounted) setState(() => _catalogue = rows);
+  }
+
+  /// Pull fresh data for whichever path the current view is on.
+  Future<void> _reload() async {
+    setState(() => _loading = true);
+    _loadCounts();
+    await _loadCatalogue();
+    if (!mounted) return;
+    if (_isLocal) {
+      setState(() {
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    await _load(reset: true);
+  }
+
+  /// Re-answer the current query. In local mode that is a rebuild and costs
+  /// nothing — which is what makes the class pills feel instant too.
+  void _refreshRows() {
+    if (_isLocal) {
+      setState(() {});
+      return;
+    }
+    _load(reset: true);
+  }
+
   void _onScroll() {
-    if (_loadingMore || _loading) return;
+    if (_isLocal || _loadingMore || _loading) return;
     if (_page >= _totalPages) return;
     if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 300) {
       _load(reset: false);
@@ -172,15 +201,14 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
       }
     });
     try {
-      final next = reset ? 1 : _page + 1;
-      final kind = _kindOf(_classGroup);
+      final q = itemClassQuery(_classGroup);
       final res = await inventoryRepo.items(
-        page: next,
+        page: reset ? 1 : _page + 1,
         search: _search,
-        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
-        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
-        unclassified: kind == _FilterKind.unclassified,
-        status: kind == _FilterKind.inactive ? 'inactive' : null,
+        itemClassGroup: q.itemClassGroup,
+        itemClass: q.itemClass,
+        unclassified: q.unclassified,
+        status: q.status,
         categoryId: _pickedCategoryId,
         uncategorised: _pickedUncategorised,
         // Balance is the headline number on the tile, so the list needs it.
@@ -210,14 +238,6 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     }
   }
 
-  void _onSearch(String v) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      _search = v;
-      _load(reset: true);
-    });
-  }
-
   /// Counts are a separate aggregate — fetched once per reset load and left
   /// alone on paging, where nothing about the catalogue has changed.
   Future<void> _loadCounts() async {
@@ -229,10 +249,79 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     }
   }
 
+  Future<void> _loadTree() async {
+    setState(() => _treeLoading = true);
+    try {
+      final res = await ItemCatalogue.fetchTree(_classGroup);
+      if (!mounted) return;
+      setState(() {
+        _tree = res.tree;
+        _uncategorised = res.uncategorised;
+        _treeLoading = false;
+      });
+    } on Exception {
+      if (mounted) setState(() => _treeLoading = false);
+    }
+  }
+
+  // ---------------------------------------------------------------- recents
+
+  ItemRecentsStore get _recentsStore =>
+      ItemRecentsStore(ref.read(authProvider).user?.id);
+
+  Future<void> _loadRecents() async {
+    final list = await _recentsStore.load();
+    if (mounted) setState(() => _recents = list);
+  }
+
+  /// Recents earn their space only on the unfiltered list — once the user is
+  /// narrowing, the narrowing is the answer and a shortcut row is noise.
+  List<RecentItem> get _liveRecents => reconcileRecents(_recents, _catalogue);
+
+  bool get _showRecents =>
+      !_browse &&
+      !_showingItems &&
+      _search.trim().isEmpty &&
+      _classGroup == 'all' &&
+      _liveRecents.isNotEmpty;
+
+  Future<void> _openItem(RecentItem item) async {
+    final next = await _recentsStore.remember(item);
+    if (!mounted) return;
+    setState(() => _recents = next);
+    context.push('/inventory/items/${item.id}');
+  }
+
+  Future<void> _clearRecents() async {
+    await _recentsStore.clear();
+    if (mounted) setState(() => _recents = const []);
+  }
+
+  // --------------------------------------------------------------- filters
+
+  void _onSearch(String v) {
+    _debounce?.cancel();
+    // In-memory filtering costs a rebuild, so it can keep up with typing; the
+    // server path still needs a gap to avoid a request per keystroke.
+    final wait = _isLocal ? 120 : 350;
+    _debounce = Timer(Duration(milliseconds: wait), () {
+      if (!mounted) return;
+      setState(() => _search = v);
+      if (!_isLocal) _load(reset: true);
+    });
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchCtrl.clear();
+    setState(() => _search = '');
+    _refreshRows();
+  }
+
   void _onClass(String g) {
     if (g == _classGroup) return;
     setState(() => _classGroup = g);
-    _load(reset: true);
+    _refreshRows();
     // Counts on the tree are computed under the class filter, so they go
     // stale the moment it changes — and the flat list's pickers read the
     // same tree, so this is no longer browse-only.
@@ -249,57 +338,15 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
       // re-entering the tree opens at the root rather than resuming a trail
       // the user has since stopped thinking about.
       _path = const [];
-      _clearPick(reload: false);
+      _pickedCategoryId = null;
+      _pickedUncategorised = false;
     });
-    if (on) {
-      _loadTree();
-      // The tree pane shows no items, but returning to a leaf must not
-      // surface the previous category's rows — reload unfiltered.
-      _load(reset: true);
-    } else {
-      _load(reset: true);
-    }
+    if (on) _loadTree();
+    _refreshRows();
   }
 
   /// Stand-in id for the no-category crumb, which has no category behind it.
   static const _uncategorisedCrumbId = '__uncategorised__';
-
-  void _clearPick({bool reload = true}) {
-    _pickedCategoryId = null;
-    _pickedUncategorised = false;
-    if (reload) _load(reset: true);
-  }
-
-  Future<void> _loadTree() async {
-    setState(() => _treeLoading = true);
-    try {
-      final kind = _kindOf(_classGroup);
-      final tree = await inventoryRepo.categoryTree(
-        withCounts: true,
-        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
-        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
-        unclassified: kind == _FilterKind.unclassified,
-      );
-      // The tree cannot carry a bucket for items filed under nothing, so it
-      // is counted separately — one row, and only when it is non-empty.
-      final orphans = await inventoryRepo.items(
-        limit: 1,
-        uncategorised: true,
-        itemClassGroup: kind == _FilterKind.group ? _classGroup : null,
-        itemClass: kind == _FilterKind.itemClass ? _classGroup : null,
-        unclassified: kind == _FilterKind.unclassified,
-        status: kind == _FilterKind.inactive ? 'inactive' : null,
-      );
-      if (!mounted) return;
-      setState(() {
-        _tree = tree;
-        _uncategorised = orphans.total;
-        _treeLoading = false;
-      });
-    } on Exception {
-      if (mounted) setState(() => _treeLoading = false);
-    }
-  }
 
   /// Showing items for a picked category rather than the tree beneath it.
   bool get _showingItems => _pickedCategoryId != null || _pickedUncategorised;
@@ -324,7 +371,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
         ];
       }
     });
-    _load(reset: true);
+    _refreshRows();
   }
 
   /// Drop [levels] crumbs. Any pick goes with them: the level above a list of
@@ -335,13 +382,15 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
       _pickedCategoryId = null;
       _pickedUncategorised = false;
     });
-    _load(reset: true);
+    _refreshRows();
   }
 
   Future<void> _openNew() async {
     final created = await context.push('/inventory/items/new');
-    if (created == true) _load(reset: true);
+    if (created == true) _reload();
   }
+
+  // ----------------------------------------------------------------- build
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +401,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
     // this screen is still mounted underneath, so the balance is already
     // right when the user walks back.
     ref.listen(invStockRevisionProvider, (_, _) {
-      if (mounted) _load(reset: true);
+      if (mounted) _reload();
     });
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -366,7 +415,7 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             InvItemViewToggle(browse: _browse, onChanged: _setBrowse),
-            _AddBtn(onTap: _openNew),
+            NewItemButton(onTap: _openNew),
           ],
         ),
       ),
@@ -380,554 +429,70 @@ class _State extends ConsumerState<InventoryItemsListScreen> {
               hint: 'Search by name or SKU…',
             ),
           ),
-          _ClassStrip(
+          ItemClassStrip(
             selected: _classGroup,
             counts: _classCounts,
             onChanged: _onClass,
           ),
-          if (!_browse && !_loading && _error == null)
-            _CountLine(loaded: _rows.length, total: _total),
-          Expanded(child: _browse ? _browseBody(t) : _body(t)),
+          if (_showRecents)
+            ItemRecentsStrip(
+              items: _liveRecents,
+              onTap: _openItem,
+              onClear: _clearRecents,
+            ),
+          if (!_browse && !_loading && _error == null) _countLine(),
+          Expanded(child: _browse ? _browsePane(t) : _body(t)),
         ],
       ),
     );
   }
 
-  Widget _browseBody(RunqTokens t) {
-    // A search spans the catalogue, so it cannot be answered by a tree: the
-    // match is usually in some *other* branch. Results take over the pane
-    // until the box is cleared, which drops the user back exactly where they
-    // were standing.
-    //
-    // Scoped to the picked category once there is one — a category filter
-    // matches one category exactly, so narrowing works at a leaf but has no
-    // meaning part-way down a branch.
+  Widget _countLine() => ItemCountLine(
+    loaded: _visibleRows.length,
+    total: _isLocal ? _visibleRows.length : _total,
+  );
+
+  Widget _browsePane(RunqTokens t) {
     final searching = _search.trim().isNotEmpty;
     if (_treeLoading && _tree.isEmpty && !searching) {
       return const Center(child: CircularProgressIndicator());
     }
-    final showItems = _showingItems || searching;
-    return Column(
-      children: [
-        if (searching && !_showingItems)
-          _SearchScopeNote(path: _path, onClear: _clearSearch)
-        else if (_path.isNotEmpty)
-          InvCategoryBreadcrumb(path: _path, onUp: _onUp),
-        if (showItems && !_loading && _error == null)
-          _CountLine(loaded: _rows.length, total: _total),
-        // Items when a category is picked or a search is running, the tree
-        // beneath the current level otherwise.
-        Expanded(child: showItems ? _body(t) : _treePane()),
-      ],
+    return ItemBrowsePane(
+      tree: _tree,
+      path: _path,
+      uncategorisedCount: _uncategorised,
+      searching: searching,
+      showingItems: _showingItems,
+      header: _loading || _error != null ? null : _countLine(),
+      itemsPane: _body(t),
+      onDrill: (c) => setState(() => _path = [..._path, c]),
+      onPick: _onPick,
+      onUp: _onUp,
+      onClearSearch: _clearSearch,
+      onRefreshTree: _loadTree,
     );
   }
-
-  void _clearSearch() {
-    _debounce?.cancel();
-    _searchCtrl.clear();
-    setState(() => _search = '');
-    _load(reset: true);
-  }
-
-  Widget _treePane() => RefreshIndicator(
-    color: InvColors.brand(context),
-    onRefresh: _loadTree,
-    child: ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      children: [
-        InvCategoryBrowser(
-          tree: _tree,
-          path: _path,
-          uncategorisedCount: _uncategorised,
-          onDrill: (c) => setState(() => _path = [..._path, c]),
-          onPick: _onPick,
-        ),
-      ],
-    ),
-  );
 
   Widget _body(RunqTokens t) {
-    if (_loading && _rows.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null && _rows.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Failed to load items: $_error',
-            style: RunqText.caption.copyWith(color: t.muted),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-    if (_rows.isEmpty) {
-      return InvEmptyState(
-        icon: Icons.inventory_2_outlined,
-        title: _search.isNotEmpty ? 'No items match' : 'No items yet',
-        subtitle: _search.isNotEmpty
-            ? 'Try a different search or filter'
-            : 'Add your first catalog item',
-        actionLabel: 'New item',
-        onAction: _openNew,
-      );
-    }
-    final entries = _sectionedEntries(_rows);
-    return RefreshIndicator(
-      color: InvColors.brand(context),
-      onRefresh: () => _load(reset: true),
-      child: ListView.separated(
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        itemCount: entries.length + (_page < _totalPages ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, i) {
-          if (i >= entries.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          final e = entries[i];
-          return e is _SectionLabel
-              ? _SectionHeader(label: e.label, count: e.count, nested: e.nested)
-              : _ItemTile(row: e as InvItemListRow);
-        },
-      ),
+    final rows = _visibleRows;
+    final placeholder = itemListPlaceholder(
+      context,
+      loading: _loading,
+      error: _error,
+      isEmpty: rows.isEmpty,
+      searching: _search.isNotEmpty,
+      onNew: _openNew,
     );
-  }
-}
-
-/// Marker entry in the flat list — a section title plus its row count.
-/// [nested] marks the subcategory header sitting under its category.
-/// Says why the tree has been replaced by a list, and offers the way back.
-/// Without it a search reads as "the categories disappeared".
-class _SearchScopeNote extends StatelessWidget {
-  const _SearchScopeNote({required this.path, required this.onClear});
-  final List<InvCategory> path;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final where = path.isEmpty ? null : path.last.name;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, size: 14, color: t.muted2),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              'Searching all categories',
-              style: RunqText.caption.copyWith(color: t.muted),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          InkWell(
-            onTap: onClear,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Text(
-                where == null ? 'Back to categories' : 'Back to $where',
-                style: RunqText.caption.copyWith(
-                  color: InvColors.brand(context),
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel {
-  const _SectionLabel(this.label, this.count, {this.nested = false});
-  final String label;
-  final int count;
-  final bool nested;
-}
-
-const _uncategorised = 'Uncategorised';
-
-/// Flatten rows into [category, subcategory?, ...rows, …]. Buckets are filled
-/// from the whole loaded set on every build, so load-more appends into the
-/// section a row belongs to instead of restarting the sequence. Rows filed
-/// straight on a root category carry no subcategory and render right under
-/// the category header.
-List<Object> _sectionedEntries(List<InvItemListRow> rows) {
-  final byCategory = <String, Map<String, List<InvItemListRow>>>{};
-  for (final r in rows) {
-    final cat = (r.category?.trim().isNotEmpty == true)
-        ? r.category!.trim()
-        : _uncategorised;
-    final sub = r.subcategory?.trim() ?? '';
-    byCategory.putIfAbsent(cat, () => {}).putIfAbsent(sub, () => []).add(r);
-  }
-  return [
-    for (final entry in byCategory.entries) ...[
-      _SectionLabel(
-        entry.key,
-        entry.value.values.fold(0, (n, list) => n + list.length),
-      ),
-      for (final sub in entry.value.entries) ...[
-        if (sub.key.isNotEmpty)
-          _SectionLabel(sub.key, sub.value.length, nested: true),
-        ...sub.value,
-      ],
-    ],
-  ];
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.label,
-    required this.count,
-    this.nested = false,
-  });
-  final String label;
-  final int count;
-  final bool nested;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Padding(
-      padding: nested
-          ? const EdgeInsets.fromLTRB(10, 4, 2, 0)
-          : const EdgeInsets.fromLTRB(2, 8, 2, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: nested
-                ? Text(label, style: RunqText.caption.copyWith(color: t.muted2))
-                : Text(
-                    label.toUpperCase(),
-                    style: RunqText.label.copyWith(color: t.muted),
-                  ),
-          ),
-          Text('$count', style: RunqText.caption.copyWith(color: t.muted2)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClassStrip extends StatelessWidget {
-  const _ClassStrip({
-    required this.selected,
-    required this.counts,
-    required this.onChanged,
-  });
-  final String selected;
-  final Map<String, int> counts;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        itemCount: _classFilters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final f = _classFilters[i];
-          return InvFilterPill(
-            label: f.label,
-            // Counts arrive a beat after the first frame; until then the
-            // pills render bare rather than claiming everything is empty.
-            count: counts.isEmpty || _countFor(f.key, counts) < 0
-                ? null
-                : _countFor(f.key, counts),
-            active: selected == f.key,
-            onTap: () => onChanged(f.key),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CountLine extends StatelessWidget {
-  const _CountLine({required this.loaded, required this.total});
-  final int loaded;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final label = total == 0
-        ? ''
-        : (loaded < total
-              ? 'Showing $loaded of $total items'
-              : '$total item${total == 1 ? '' : 's'}');
-    if (label.isEmpty) return const SizedBox(height: 4);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 2, 16, 6),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(label, style: RunqText.caption.copyWith(color: t.muted2)),
-      ),
-    );
-  }
-}
-
-class _ItemTile extends StatelessWidget {
-  const _ItemTile({required this.row});
-  final InvItemListRow row;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final meta = [
-      if (row.sku?.isNotEmpty == true) row.sku!,
-      if (classLabel(row.itemClass, row.type) != null)
-        classLabel(row.itemClass, row.type)!,
-      if (row.category?.isNotEmpty == true) row.category!,
-    ].join(' · ');
-    final mark = _availabilityColour(row);
-    return InvCard(
-      onTap: () => context.push('/inventory/items/${row.id}'),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Availability as a colour rail, the same signal the alert rows
-          // carry: red out of stock, orange at or below the reorder level,
-          // green otherwise. Untracked items keep the rail's width as blank
-          // space so every card's text starts on the same line.
-          Container(
-            width: 3,
-            height: 34,
-            margin: const EdgeInsets.only(right: 10, top: 1),
-            decoration: BoxDecoration(
-              color: mark ?? Colors.transparent,
-              borderRadius: BorderRadius.circular(99),
-            ),
-          ),
-          Expanded(child: _content(t, meta)),
-        ],
-      ),
-    );
-  }
-
-  /// Colour for the availability rail, or null when the list was fetched
-  /// without stock and there is no balance to speak of.
-  ///
-  /// Untracked items — services and anything the ledger doesn't carry — read
-  /// green: they have no balance to run out of.
-  static Color? _availabilityColour(InvItemListRow row) {
-    if (_isUntracked(row)) return InvColors.success;
-    final qty = row.stockQty;
-    if (qty == null) return null;
-    if (qty <= 0) return InvColors.error;
-    final level = row.reorderLevel;
-    final low = level != null && level > 0 && qty <= level;
-    return low ? InvColors.orangeAlert : InvColors.success;
-  }
-
-  static bool _isUntracked(InvItemListRow row) =>
-      row.type == 'service' || !row.trackInventory;
-
-  Widget _content(RunqTokens t, String meta) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: t.bgWarmer,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.inventory_2_outlined, size: 17, color: t.muted),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // UOM trails the name in muted type — it qualifies the
-                  // product ("Milk, sold in 500ml") and belongs with it,
-                  // not stacked under the balance where it read as a
-                  // second number.
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        text: row.name,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink),
-                        children: [
-                          if (row.unit?.isNotEmpty == true)
-                            TextSpan(
-                              text: '  ${row.unit}',
-                              style: RunqText.caption.copyWith(color: t.muted2),
-                            ),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  // Says why the rail is green on a row carrying no
-                  // quantity — an untracked item never runs out.
-                  if (_isUntracked(row)) ...[
-                    const SizedBox(width: 6),
-                    const _AlwaysAvailablePill(),
-                  ],
-                  if (!row.isActive) ...[
-                    const SizedBox(width: 6),
-                    _InactivePill(),
-                  ],
-                ],
-              ),
-              if (meta.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  meta,
-                  style: RunqText.caption.copyWith(color: t.muted),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        // Balance on hand is the headline figure — on an inventory screen
-        // "how much is left" outranks "what we sell it for", so price drops
-        // to the muted second line.
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (row.stockQty != null)
-              Text(
-                formatItemQty(row.stockQty, row.itemClass, unit: row.unit),
-                style: RunqText.bodyStrong.copyWith(
-                  color: row.stockQty! <= 0 ? t.muted2 : t.ink,
-                ),
-              ),
-            if (row.defaultSellingPrice != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                compactINR(row.defaultSellingPrice!),
-                style: RunqText.caption.copyWith(color: t.muted2),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Green counterpart to [_InactivePill] for items the ledger doesn't track.
-class _AlwaysAvailablePill extends StatelessWidget {
-  const _AlwaysAvailablePill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 1),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: InvColors.successBg,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'Always available',
-        style: RunqText.micro.copyWith(
-          color: InvColors.success,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}
-
-class _InactivePill extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 1),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: t.bgWarmer,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        'Inactive',
-        style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.2),
-      ),
-    );
-  }
-}
-
-/// Human-readable label for an item_class value. Services get a flat
-/// 'Service' label; products show their class. Null when there's nothing
-/// useful to show.
-String? classLabel(String? itemClass, String? type) {
-  if (type == 'service') return 'Service';
-  switch (itemClass) {
-    case 'raw_material':
-      return 'Raw material';
-    case 'packaging':
-      return 'Packaging';
-    case 'finished_good':
-      return 'Finished good';
-    case 'semi_finished':
-      return 'Semi-finished';
-    case 'trading_good':
-      return 'Trading good';
-    case 'consumable':
-      return 'Consumable';
-    case 'spare_part':
-      return 'Spare part';
-    default:
-      return null;
-  }
-}
-
-/// Brand square with a plus — the module's standard app-bar add button.
-class _AddBtn extends StatelessWidget {
-  const _AddBtn({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Tooltip(
-        message: 'New item',
-        child: Material(
-          color: InvColors.brand(context),
-          borderRadius: BorderRadius.circular(8),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: onTap,
-            child: const SizedBox(
-              width: 32,
-              height: 32,
-              child: Icon(Icons.add, color: Colors.white, size: 18),
-            ),
-          ),
-        ),
-      ),
+    if (placeholder != null) return placeholder;
+    return ItemSectionedList(
+      rows: rows,
+      // Ranked results go flat: headers over a ranked list would scatter the
+      // best answers down the page.
+      sectioned: _search.trim().isEmpty,
+      controller: _scroll,
+      onOpen: (r) => _openItem(RecentItem(id: r.id, name: r.name, sku: r.sku)),
+      onRefresh: _reload,
+      showFooterSpinner: !_isLocal && _page < _totalPages,
     );
   }
 }

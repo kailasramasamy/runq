@@ -19,7 +19,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'batch_detail_sheet.dart';
 import 'inventory_adjust_stock_screen.dart';
-import 'inventory_items_list_screen.dart' show classLabel;
+import 'widgets/item_list_tiles.dart' show classLabel;
 import '../../utils/format_qty.dart';
 import 'widgets/batch_pool.dart';
 import 'widgets/item_warehouse_breakdown.dart';
