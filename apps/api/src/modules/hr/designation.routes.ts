@@ -10,7 +10,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { DesignationService } from './designation.service';
 import { suggestDesignations } from './ai-suggest.service';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 export const designationRoutes: FastifyPluginAsync = async (app) => {

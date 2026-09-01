@@ -23,7 +23,7 @@ import { resolveSelfEmployee } from './self-employee';
 import { runHrAgentInBackground } from '../agent/agent';
 import { publishHelpdeskEvent } from '../agent/realtime';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 // Company-wide admin lists (all tickets / appraisal cycles, goals,
 // reviews) — viewer excluded; employees use the /me/* routes.

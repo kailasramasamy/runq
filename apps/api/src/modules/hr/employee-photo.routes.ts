@@ -15,7 +15,7 @@ import { getStorageProvider } from '../../utils/storage';
  */
 
 const WRITE_ROLES = ['owner', 'accountant', 'hr'] as const;
-const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const idParamSchema = z.object({ id: z.string().uuid() });
 
 const PHOTO_MIMES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'] as const;

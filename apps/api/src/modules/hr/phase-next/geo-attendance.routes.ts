@@ -23,7 +23,7 @@ const SELFIE_MIMES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'] as c
 const SELFIE_MAX_BYTES = 6 * 1024 * 1024;
 const SELFIE_SIZE_PX = 512;
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 // Company-wide punch log — viewer excluded; employees see their own via
 // the /me/punches route. (Geo-fences GET stays open: mobile punch needs it.)
@@ -377,7 +377,7 @@ export const geoAttendanceRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/regularizations/:id/review', {
-    preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer'])],
+    preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer', 'technician'])],
   }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = reviewRegularizationSchema.parse(req.body);

@@ -22,7 +22,7 @@ import { HrNotifier } from './hr-notifier';
 import { suggestRewardCitation } from './ai-suggest.service';
 
 // Everyone authenticated reads (service scopes a manager/viewer down).
-const ALL_ROLES = ['owner', 'accountant', 'hr', 'viewer'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'hr', 'viewer', 'technician'] as const;
 // A manager initiates; HR decides. Approval excludes bare viewers.
 const APPROVE_ROLES = ['owner', 'accountant', 'hr'] as const;
 // GL post + payout move money — accountant / owner only.

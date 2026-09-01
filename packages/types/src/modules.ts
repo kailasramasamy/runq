@@ -11,11 +11,16 @@
  *   - roleAllowedModules()   → what the role may hold at all (hr → HR,
  *                              farmer → Milk Procurement, technician →
  *                              Manufacturing + Inventory, field_operator →
- *                              Milk Procurement + plant modules + HR)
+ *                              Milk Procurement + plant modules), each with
+ *                              the HR floor added for employee roles
  *   - user_tenants.modules   → the per-user grant; null means "role default"
  *                              (see defaultModulesForRole), NOT "everything"
- *   - effective = enabled ∩ roleAllowed ∩ (grant ?? roleDefault)
+ *   - effective = (enabled ∩ roleAllowed ∩ (grant ?? roleDefault)) ∪ HR floor
  *     …with owner/client_owner short-circuiting to all enabled.
+ *
+ * The HR floor (see withHrFloor) is the one part that is *not* grantable:
+ * every employee holds HR self-service, so it survives a grant that omits it.
+ * Farmers are excluded — they are suppliers, not staff.
  * Computed in the API's tenant-context plugin; that function is the contract
  * this file documents, so keep the two in step.
  *
@@ -83,13 +88,40 @@ const PLANT_MODULES = new Set<string>(['manufacturing', 'inventory']);
 // field_operator as a viewer, which is the role an ordinary employee logs in as.
 const OPERATOR_ROLES = new Set<string>(['field_operator']);
 const OPERATOR_MODULES = new Set<string>(['milk_procurement', 'manufacturing', 'inventory', 'hr']);
+// Roles that are not employees of the tenant. A farmer supplies milk under their
+// own Dhenu credentials and has no employment relationship, so the HR floor
+// below must never reach them. Every other role is somebody on the payroll.
+const NON_EMPLOYEE_ROLES = new Set<string>(['farmer']);
+
+/**
+ * HR self-service (own attendance, leave, payslip) is a floor, not a grant:
+ * every employee holds it regardless of role or per-user grant, because they
+ * are an employee before they are an operator or a technician. Privileged HR
+ * work — payroll runs, salary structures, statutory challans — is gated
+ * separately by role inside the HR module's own rbac lists, so widening the
+ * module here confers self-service only.
+ *
+ * Still bounded by the tenant ceiling: a tenant without HR enabled grants
+ * nobody HR. Applied to defaults, role ceilings and stored grants alike, so a
+ * grant that predates this rule (or simply omits `hr`) still resolves to HR
+ * access without needing a backfill.
+ */
+export function withHrFloor(
+  role: string | null | undefined,
+  enabled: readonly ModuleCode[],
+  codes: readonly ModuleCode[],
+): ModuleCode[] {
+  if (NON_EMPLOYEE_ROLES.has(role ?? '')) return [...codes];
+  if (!enabled.includes('hr') || codes.includes('hr')) return [...codes];
+  return sanitizeModuleCodes([...codes, 'hr']);
+}
 
 /**
  * Which enabled modules a role is *permitted* to access at all — the ceiling
  * for any explicit per-user grant. `hr` is limited to HR & Payroll; `farmer`
  * to Milk Procurement; `technician` to the plant modules; `field_operator` to
- * Milk Procurement plus the plant modules plus HR self-service. Every other
- * role may be granted any
+ * Milk Procurement plus the plant modules. Every employee role additionally
+ * carries the non-grantable HR floor. Every other role may be granted any
  * enabled module (read access is open to owner/accountant/viewer across all
  * modules at the rbac layer). Keeps the per-user grant in lockstep with API
  * rbac so a granted module never 403s — widening a ceiling here without adding
@@ -101,29 +133,38 @@ export function roleAllowedModules(
 ): ModuleCode[] {
   if (HR_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'hr');
   if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
-  if (PLANT_ROLES.has(role ?? '')) return enabled.filter((code) => PLANT_MODULES.has(code));
-  if (OPERATOR_ROLES.has(role ?? '')) return enabled.filter((code) => OPERATOR_MODULES.has(code));
-  return [...enabled];
+  const ceiling = PLANT_ROLES.has(role ?? '')
+    ? enabled.filter((code) => PLANT_MODULES.has(code))
+    : OPERATOR_ROLES.has(role ?? '')
+      ? enabled.filter((code) => OPERATOR_MODULES.has(code))
+      : [...enabled];
+  return withHrFloor(role, enabled, ceiling);
 }
 
 /**
  * Default module access for a user with no explicit grant (`null`):
- *   owner/client_owner → all enabled · accountant → finance ·
- *   hr & viewer → HR & Payroll only.
- * Viewers start with just HR checked; an owner ticks on any other module
- * the role is allowed (see `roleAllowedModules`) per user.
+ *   owner/client_owner → all enabled · accountant → finance + HR ·
+ *   field_operator → Milk Procurement + HR · technician → plant + HR ·
+ *   farmer → Milk Procurement · hr & viewer → HR & Payroll only.
+ * Every employee starts with HR checked and keeps it; an owner ticks on any
+ * other module the role is allowed (see `roleAllowedModules`) per user.
  */
 export function defaultModulesForRole(
   role: string | null | undefined,
   enabled: readonly ModuleCode[],
 ): ModuleCode[] {
   if (role === 'owner' || role === 'client_owner') return [...enabled];
-  if (role === 'accountant') return enabled.filter((code) => code === 'finance');
-  // Operators default to milk procurement only. The plant modules sit inside
-  // their ceiling but never their default — an owner grants those per person.
-  if (MILK_ONLY_ROLES.has(role ?? '') || OPERATOR_ROLES.has(role ?? '')) {
-    return enabled.filter((code) => code === 'milk_procurement');
-  }
-  if (PLANT_ROLES.has(role ?? '')) return enabled.filter((code) => PLANT_MODULES.has(code));
-  return enabled.filter((code) => code === 'hr');
+  // Farmers are not employees, so they never pick up the HR floor.
+  if (MILK_ONLY_ROLES.has(role ?? '')) return enabled.filter((code) => code === 'milk_procurement');
+  // Every branch below is an employee, so each carries HR on top of its own
+  // default. The plant modules sit inside an operator's ceiling but never their
+  // default — an owner grants those per person.
+  const base = role === 'accountant'
+    ? enabled.filter((code) => code === 'finance')
+    : OPERATOR_ROLES.has(role ?? '')
+      ? enabled.filter((code) => code === 'milk_procurement')
+      : PLANT_ROLES.has(role ?? '')
+        ? enabled.filter((code) => PLANT_MODULES.has(code))
+        : [];
+  return withHrFloor(role, enabled, base);
 }

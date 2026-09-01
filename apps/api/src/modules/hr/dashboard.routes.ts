@@ -5,7 +5,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { HrDashboardService } from './dashboard.service';
 import { applyHrScope, resolveHrAccessScope } from './access-scope';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);

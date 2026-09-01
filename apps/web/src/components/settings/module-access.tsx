@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
-import { MODULES, MODULE_CODES, defaultModulesForRole, roleAllowedModules, type ModuleCode } from '@runq/types';
+import { MODULES, MODULE_CODES, defaultModulesForRole, roleAllowedModules, withHrFloor, type ModuleCode } from '@runq/types';
 import { Card, CardContent, Badge, useToast } from '@/components/ui';
 import {
   useEnabledModules,
@@ -87,12 +87,21 @@ export function ModuleGrantEditor({
   // Modules this role may access at all — the toggleable set.
   const allowed = roleAllowedModules(user.role, enabledModules);
   // What the user effectively has, for display: role default when ungranted,
-  // else the explicit grant clamped to what the role allows.
+  // else the explicit grant clamped to what the role allows — then the HR
+  // floor, mirroring the server's computeEffectiveModules so the ticks match
+  // the access the user actually gets.
   const selected = new Set<ModuleCode>(
-    isDefault
-      ? defaultModulesForRole(user.role, enabledModules)
-      : allowed.filter((c) => user.modules!.includes(c)),
+    withHrFloor(
+      user.role,
+      enabledModules,
+      isDefault
+        ? defaultModulesForRole(user.role, enabledModules)
+        : allowed.filter((c) => user.modules!.includes(c)),
+    ),
   );
+  // HR self-service is a floor, not a grant: the server re-adds it whatever we
+  // store, so it must not read as toggleable here.
+  const locked = (code: ModuleCode) => code === 'hr' && selected.has(code);
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +125,7 @@ export function ModuleGrantEditor({
   // Toggling a module makes the grant explicit (array); "Use role default"
   // clears it back to null so it tracks the role automatically.
   function toggle(code: ModuleCode) {
+    if (locked(code)) return;
     const next = new Set(selected);
     if (next.has(code)) next.delete(code);
     else next.add(code);
@@ -157,10 +167,15 @@ export function ModuleGrantEditor({
                 key={code}
                 type="button"
                 onClick={() => toggle(code)}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                disabled={locked(code)}
+                title={locked(code) ? 'Every employee has HR self-service' : undefined}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs hover:bg-zinc-50 disabled:cursor-default disabled:hover:bg-transparent dark:hover:bg-zinc-800 dark:disabled:hover:bg-transparent"
               >
-                <span className="text-zinc-700 dark:text-zinc-300">{moduleLabel(code)}</span>
-                {selected.has(code) && <Check size={14} className="text-indigo-500" />}
+                <span className={locked(code) ? 'text-zinc-500 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-300'}>
+                  {moduleLabel(code)}
+                  {locked(code) && <span className="ml-1 text-[10px] uppercase tracking-wide">always on</span>}
+                </span>
+                {selected.has(code) && <Check size={14} className={locked(code) ? 'text-zinc-400' : 'text-indigo-500'} />}
               </button>
             ))
           )}

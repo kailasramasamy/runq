@@ -294,7 +294,7 @@ export const hrRoutes: FastifyPluginAsync = async (app) => {
   // org-wide approval rights.
   app.put(
     '/expense-claims/:id/approve',
-    { preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer'])] },
+    { preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer', 'technician'])] },
     async (request) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = approveClaimSchema.parse(request.body);

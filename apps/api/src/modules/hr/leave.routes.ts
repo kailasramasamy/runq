@@ -37,7 +37,7 @@ export async function fetchLeaveNoticeData(
   return { fullName, leaveTypeName: lt?.name ?? 'leave' };
 }
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const carryForwardSchema = z.object({
@@ -168,7 +168,7 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
   // `viewer` is allowed at the route level so a reporting manager can
   // approve their team's leave; the service then scope-checks (subtree
   // only) and blocks self-approval. Owner/accountant/hr review org-wide.
-  app.put('/leave-requests/:id/review', { preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer'])] }, async (req) => {
+  app.put('/leave-requests/:id/review', { preHandler: [rbacHook(['owner', 'accountant', 'hr', 'viewer', 'technician'])] }, async (req) => {
     const { id } = uuidParamSchema.parse(req.params);
     const input = reviewLeaveRequestSchema.parse(req.body);
     // Review goes through scope — a manager can only approve their team.

@@ -29,7 +29,7 @@ import { renderLetterPdf } from './letter-pdf';
 import { renderTemplate, buildLetterheadTokens } from './letter-render';
 import { Readable } from 'node:stream';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 // Company-wide admin lists (everyone's F&F, letters, onboarding) — viewer
 // excluded; employees use the /me/* routes for their own records.

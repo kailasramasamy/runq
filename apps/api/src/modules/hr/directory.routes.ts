@@ -25,7 +25,7 @@ const directoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(25),
 });
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr', 'client_owner'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'client_owner', 'technician'] as const;
 
 export const hrDirectoryRoutes: FastifyPluginAsync = async (app) => {
   app.get(

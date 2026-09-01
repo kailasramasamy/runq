@@ -10,12 +10,12 @@ import { resolveHrAccessScope } from './access-scope';
 import { HrNotifier } from './hr-notifier';
 import { fetchLeaveNoticeData } from './leave.routes';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 // Viewers (employees) can stamp their own attendance only — guarded
 // in-handler against the resolved employee.id. Admin write-roles can
 // stamp anyone.
-const SELF_OR_WRITE = ['owner', 'accountant', 'hr', 'viewer'] as const;
+const SELF_OR_WRITE = ['owner', 'accountant', 'hr', 'viewer', 'technician'] as const;
 
 const dateOnlyQuery = z.object({ date: z.string().date() });
 const clearDayQuery = z.object({
@@ -23,22 +23,28 @@ const clearDayQuery = z.object({
   date: z.string().date(),
 });
 
-/// Viewers are gated to their access scope on any attendance write:
+/// Rank-and-file employees are gated to their access scope on any attendance
+/// write:
+///   - kind:'all'    → admin write-roles; unrestricted
 ///   - kind:'self'   → only their own row
 ///   - kind:'subset' → anyone in their reporting subtree (a manager
 ///                     marking for their team)
-///   - kind:'all'    → never reached; admin write-roles skip this check
+///   - kind:'none'   → no employee row; nothing to write
 /// Returns the refusal message, or null when the write is allowed.
+///
+/// Gated on the resolved scope rather than the role string: `activeRole` is
+/// 'field_operator' or 'technician' for most employees, so a literal
+/// `!== 'viewer'` test let them stamp anybody's attendance.
 async function refuseOutOfScope(
   req: FastifyRequest, employeeId: string,
 ): Promise<string | null> {
-  if (req.activeRole !== 'viewer') return null;
   const scope = await resolveHrAccessScope(req);
+  if (scope.kind === 'all') return null;
   if (scope.kind === 'self' && scope.selfEmployeeId === employeeId) return null;
   if (scope.kind === 'subset' && scope.ids.has(employeeId)) return null;
   return scope.kind === 'subset'
     ? 'You can only change attendance for yourself or your team'
-    : 'Viewers can only change their own attendance';
+    : 'You can only change your own attendance';
 }
 
 export const attendanceRoutes: FastifyPluginAsync = async (app) => {

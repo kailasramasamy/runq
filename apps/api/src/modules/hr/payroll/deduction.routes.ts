@@ -20,7 +20,7 @@ import { ConflictError } from '../../../utils/errors';
 // their own via /me/*.
 const MANAGE = ['owner', 'accountant', 'hr'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 // Disbursement moves cash, so it stays with the money roles.
 const PAY = ['owner', 'accountant'] as const;
 

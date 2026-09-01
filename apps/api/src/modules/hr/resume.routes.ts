@@ -13,7 +13,7 @@ import { ResumeProfileService, extractAndSaveResumeProfile } from './resume-prof
 
 // Viewing the resume profile is open to anyone who can see the employee —
 // a manager sees their team (scoped), HR/owner see everyone.
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 // Uploading on someone else's behalf + correcting the extracted data is an
 // HR-admin action. Employees upload their own via the /me routes below.
 const MANAGE = ['owner', 'accountant', 'hr'] as const;

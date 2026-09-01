@@ -59,7 +59,7 @@ const payslipParams = z.object({ id: z.string().uuid(), payslipId: z.string().uu
 const selfPayslipParams = z.object({ payslipId: z.string().uuid() });
 // Payroll writes stay admin-only; these are the roles allowed to read their
 // OWN payslip, which is every role a person can log in as.
-const SELF = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const SELF = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 
 /** Render one payslip as HTML, or as a PDF download when `?format=pdf`. */
 async function sendPayslipDocument(

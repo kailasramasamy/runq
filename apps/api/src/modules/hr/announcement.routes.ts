@@ -7,14 +7,36 @@ import { rbacHook } from '../../hooks/rbac';
 import { AppError, NotFoundError } from '../../utils/errors';
 import { getStorageProvider } from '../../utils/storage';
 import { HrNotifier } from './hr-notifier';
+import { employeeMatchesUser, isSelfServiceRole } from './access-scope';
+
+/// The caller's department, or null when no employee row backs this user.
+/// Matches on email OR phone via [employeeMatchesUser]: a mobile OTP login
+/// has a synthesised `phone-…@runq.local` address, so an email-only join
+/// silently returns nothing and strands every phone-registered employee.
+async function callerDepartmentId(req: {
+  server: { db: any }; tenantId: string; user: { userId: string } | undefined;
+}): Promise<string | null> {
+  const [userRow] = await req.server.db
+    .select({ email: users.email, phone: users.phone })
+    .from(users)
+    .where(eq(users.id, req.user!.userId))
+    .limit(1);
+  if (!userRow) return null;
+  const [emp] = await req.server.db
+    .select({ deptId: employees.departmentId })
+    .from(employees)
+    .where(employeeMatchesUser(req.tenantId, userRow))
+    .limit(1);
+  return emp?.deptId ?? null;
+}
 
 // Anyone in the HR module can read announcements.
-const READ_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const READ_ROLES = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 // Owner + accountant + HR have org-wide write. Viewers (employees / line
 // managers) are allowed at the route level but the handler narrows them
 // further: only managers (subset scope) can post, and only into their own
 // department. Plain self-scope employees are rejected.
-const POST_ROLES = ['owner', 'accountant', 'hr', 'viewer'] as const;
+const POST_ROLES = ['owner', 'accountant', 'hr', 'viewer', 'technician'] as const;
 
 const ANNOUNCEMENT_CATEGORIES = [
   'general', 'policy', 'holiday', 'event',
@@ -78,16 +100,7 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
       const nowSql = sql`NOW()`;
 
       // Resolve caller's department (NULL for admins without an emp row).
-      const [me] = await req.server.db
-        .select({ deptId: employees.departmentId })
-        .from(users)
-        .innerJoin(employees, and(
-          eq(employees.tenantId, req.tenantId),
-          sql`lower(${employees.email}) = lower(${users.email})`,
-        ))
-        .where(eq(users.id, req.user!.userId))
-        .limit(1);
-      const callerDeptId = me?.deptId ?? null;
+      const callerDeptId = await callerDepartmentId(req);
       const isOrgWideViewer = ['owner', 'accountant', 'hr', 'client_owner']
         .includes(req.activeRole);
 
@@ -157,22 +170,14 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
       // posts to the company.
       let dept = body.departmentId ?? null;
       let audience = body.audience;
-      if (req.activeRole === 'viewer') {
-        const [me] = await req.server.db
-          .select({ deptId: employees.departmentId })
-          .from(users)
-          .innerJoin(employees, and(
-            eq(employees.tenantId, req.tenantId),
-            sql`lower(${employees.email}) = lower(${users.email})`,
-          ))
-          .where(eq(users.id, req.user!.userId))
-          .limit(1);
-        if (!me?.deptId) {
+      if (isSelfServiceRole(req.activeRole)) {
+        const myDeptId = await callerDepartmentId(req);
+        if (!myDeptId) {
           return reply.status(403).send({
             message: 'Only managers in a department can post announcements',
           });
         }
-        dept = me.deptId;
+        dept = myDeptId;
         audience = 'all';
         // Policy is HR's lane — line managers can pick any other tag.
         if (body.category === 'policy') {
@@ -239,7 +244,7 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
       if (!existing) {
         return reply.status(404).send({ message: 'Announcement not found' });
       }
-      if (req.activeRole === 'viewer') {
+      if (isSelfServiceRole(req.activeRole)) {
         if (existing.postedById !== req.user!.userId) {
           return reply.status(403).send({ message: 'You can only edit your own posts' });
         }
@@ -295,7 +300,7 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
       if (!existing) {
         return reply.status(404).send({ message: 'Announcement not found' });
       }
-      if (req.activeRole === 'viewer' && existing.postedById !== req.user!.userId) {
+      if (isSelfServiceRole(req.activeRole) && existing.postedById !== req.user!.userId) {
         return reply.status(403).send({ message: 'You can only delete your own posts' });
       }
       await req.server.db
@@ -337,7 +342,7 @@ export const hrAnnouncementRoutes: FastifyPluginAsync = async (app) => {
         .limit(1);
       if (!row) throw new NotFoundError('Announcement');
       // Managers can only attach images to posts they own.
-      if (req.activeRole === 'viewer' && row.postedById !== req.user!.userId) {
+      if (isSelfServiceRole(req.activeRole) && row.postedById !== req.user!.userId) {
         throw new AppError(403, 'You can only attach images to your own posts');
       }
 

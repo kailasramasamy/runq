@@ -7,7 +7,7 @@ import { EmployeeService } from './employee.service';
 import { resolveHrAccessScope } from './access-scope';
 
 // `viewer` covers regular employees; `hr` is People Ops with tenant-wide read.
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 // `hr` can also create/update employees — they're the People Ops persona.
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 

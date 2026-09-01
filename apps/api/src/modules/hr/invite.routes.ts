@@ -169,7 +169,7 @@ export const hrInviteRoutes: FastifyPluginAsync = async (app) => {
   // GET /hr/employees/:id/invite-status — for the UI's chip + button label.
   app.get(
     '/employees/:id/invite-status',
-    { preHandler: [rbacHook(['owner', 'client_owner', 'accountant', 'hr', 'viewer'])] },
+    { preHandler: [rbacHook(['owner', 'client_owner', 'accountant', 'hr', 'viewer', 'technician'])] },
     async (req) => {
       if (!req.tenantId) throw new UnauthorizedError('Authentication required');
       const { id } = uuidParamSchema.parse(req.params);

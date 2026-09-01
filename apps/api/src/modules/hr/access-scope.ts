@@ -12,9 +12,10 @@
 //   - { kind: 'none' }           — bare viewer with no employee row (e.g.
 //                                  a CA login). No HR rows visible.
 //
-// "viewer" here means viewer *or* field_operator: `rbacHook` treats a
-// collection-centre operator as a viewer, because they are an employee of the
-// dairy too and self-service is the same surface for both.
+// "viewer" here means any rank-and-file employee: viewer, field_operator or
+// technician. `rbacHook` aliases field_operator to viewer, and the HR routes
+// name technician explicitly — all three are employees of the dairy, and
+// self-service is the same surface for each.
 //
 // Use [applyHrScope] for the common `WHERE … IN (…)` decoration; callers
 // that need the raw set (counts, joins, multi-table filters) read [.ids].
@@ -31,6 +32,18 @@ export type HrAccessScope =
   | { kind: 'none' };
 
 const ORG_WIDE_ROLES = new Set(['owner', 'accountant', 'client_owner', 'hr']);
+
+/// True when the role is rank-and-file — `viewer`, `field_operator` or
+/// `technician` — rather than an org-wide HR admin.
+///
+/// Always prefer this to comparing `activeRole` against the literal 'viewer'.
+/// Operators and technicians are employees with exactly the same self-service
+/// rights, but they carry their own role string, so a literal check reads them
+/// as "not a viewer" and silently *exempts* them from the very restrictions it
+/// exists to apply — the failure is open, not closed.
+export function isSelfServiceRole(role: string): boolean {
+  return !ORG_WIDE_ROLES.has(role);
+}
 
 /// Per-request memoisation key — recomputing the recursive CTE for every
 /// HR route on a single request would be wasteful. Attached to the
@@ -93,8 +106,8 @@ async function compute(req: FastifyRequest): Promise<HrAccessScope> {
   const role = req.activeRole;
   if (ORG_WIDE_ROLES.has(role)) return { kind: 'all' };
 
-  // Below this point the role is `viewer` or `field_operator`. Match them to
-  // an employee row; if there's no match, they have no HR access.
+  // Below this point the role is `viewer`, `field_operator` or `technician`.
+  // Match them to an employee row; if there's no match, they have no HR access.
   const db = req.server.db;
   const tenantId = req.tenantId;
   const userId = req.user!.userId;

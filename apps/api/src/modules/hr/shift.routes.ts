@@ -5,7 +5,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { ShiftService } from './shift.service';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 export const shiftRoutes: FastifyPluginAsync = async (app) => {

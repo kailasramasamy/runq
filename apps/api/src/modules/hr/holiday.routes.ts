@@ -10,7 +10,7 @@ import { isAIEnabled } from '../../utils/ai/claude.service';
 import { HolidayService } from './holiday.service';
 import { generateHolidaysForYear } from './holiday-generator';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 
 const yearQuery = z.object({ year: z.coerce.number().int().min(2000).max(2100).optional() });

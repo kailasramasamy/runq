@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { userTenants, tenants } from '@runq/db';
 import type { UserRole, ModuleCode } from '@runq/types';
-import { sanitizeModuleCodes, defaultModulesForRole, roleAllowedModules } from '@runq/types';
+import { sanitizeModuleCodes, defaultModulesForRole, roleAllowedModules, withHrFloor } from '@runq/types';
 import { ForbiddenError } from '../utils/errors';
 
 declare module 'fastify' {
@@ -35,10 +35,14 @@ export interface Membership {
 /**
  * Effective module access:
  *   - owner/client_owner → all enabled (never lock the owner out)
- *   - no explicit grant (null) → role-based default (accountant→finance,
- *     hr→hr, viewer→none)
+ *   - no explicit grant (null) → role-based default (accountant→finance+HR,
+ *     field_operator→milk+HR, viewer→HR)
  *   - explicit grant → enabled ∩ grant, bounded by what the role may access
  *     (so a granted module never 403s its own data)
+ *   - …then the HR floor is unioned in for every employee role, because HR
+ *     self-service is not a grantable privilege. This is what lets a stored
+ *     grant that omits `hr` (every operator row written before the floor
+ *     existed) resolve correctly with no data backfill.
  */
 export function computeEffectiveModules(m: Membership): ModuleCode[] {
   const enabled = sanitizeModuleCodes(m.enabledModules ?? []);
@@ -46,7 +50,7 @@ export function computeEffectiveModules(m: Membership): ModuleCode[] {
   if (m.userModules == null) return defaultModulesForRole(m.role, enabled);
   const allowed = new Set(roleAllowedModules(m.role, enabled));
   const granted = new Set(sanitizeModuleCodes(m.userModules));
-  return enabled.filter((code) => allowed.has(code) && granted.has(code));
+  return withHrFloor(m.role, enabled, enabled.filter((code) => allowed.has(code) && granted.has(code)));
 }
 
 /**

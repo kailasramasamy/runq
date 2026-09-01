@@ -18,7 +18,7 @@ import { resolveSelfEmployee } from './self-employee';
 import { EmployeeLoanService } from '../payroll/loan.service';
 import { HrNotifier } from '../hr-notifier';
 
-const ALL = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 const WRITE = ['owner', 'accountant', 'hr'] as const;
 const REVIEW = ['owner', 'accountant', 'hr'] as const;
 // Company-wide admin lists (everyone's tax declarations / loans) — viewer

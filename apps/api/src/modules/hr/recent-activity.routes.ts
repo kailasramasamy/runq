@@ -7,7 +7,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { applyHrScope, resolveHrAccessScope } from './access-scope';
 
-const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr'] as const;
+const ALL_ROLES = ['owner', 'accountant', 'viewer', 'hr', 'technician'] as const;
 
 type ActivityKind =
   | 'employee_added'
