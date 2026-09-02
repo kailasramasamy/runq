@@ -77,6 +77,7 @@ import 'screens/inventory/inventory_more_screen.dart';
 import 'screens/inventory/warehouse_values_screen.dart';
 import 'screens/inventory/inventory_on_hand_screen.dart';
 import 'screens/inventory/inventory_moves_screen.dart';
+import 'screens/inventory/inventory_day_summary_screen.dart';
 import 'screens/inventory/inventory_grn_screen.dart';
 import 'screens/inventory/inventory_grn_new_screen.dart';
 import 'screens/inventory/inventory_grn_detail_screen.dart';
@@ -553,6 +554,16 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(
             InventoryItemDetailScreen(itemId: state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(
+          // ?date=YYYY-MM-DD (IST). One plant day — received, produced,
+          // dispatched, and every input item's opening → closing.
+          path: '/inventory/day',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            InventoryDaySummaryScreen(initialDate: state.uri.queryParameters['date']),
             key: state.pageKey,
           ),
         ),

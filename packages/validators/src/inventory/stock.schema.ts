@@ -163,3 +163,16 @@ export const movementFeedQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type MovementFeedQuery = z.infer<typeof movementFeedQuerySchema>;
+
+// ── Day summary (mobile "Day summary" screen) ─────────────────────────────
+/**
+ * One IST calendar day of plant activity: what came in, what was made, what
+ * went out. `date` defaults to today server-side — the client sends an
+ * explicit IST date the moment the user steps backwards, because the phone's
+ * idea of "today" and the plant's must not diverge on a night shift.
+ */
+export const daySummaryQuerySchema = z.object({
+  date: dateString.optional(),
+  warehouseId: z.string().uuid().optional(),
+});
+export type DaySummaryQuery = z.infer<typeof daySummaryQuerySchema>;

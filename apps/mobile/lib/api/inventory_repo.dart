@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'api_client.dart';
 import 'inventory_models.dart';
+import 'inventory_day_models.dart';
 import 'inventory_movement_models.dart';
 
 Map<String, dynamic> _data(dynamic res) {
@@ -52,6 +53,16 @@ class InventoryRepo {
       'limit': '$limit',
     })}');
     return InvMovementFeed.fromJson(_data(res));
+  }
+
+  /// One IST day of plant activity — received / produced / dispatched, plus
+  /// every input item's opening → closing. Drives the Day summary screen.
+  Future<InvDaySummary> daySummary({String? date, String? warehouseId}) async {
+    final res = await apiClient.get('/inventory/dashboard/day-summary${_qs({
+      if (date != null) 'date': date,
+      if (warehouseId != null) 'warehouseId': warehouseId,
+    })}');
+    return InvDaySummary.fromJson(_data(res));
   }
 
   /// Most-recently-moved stock in one class bucket. Drives the Home

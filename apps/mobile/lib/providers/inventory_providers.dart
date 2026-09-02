@@ -3,6 +3,7 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/inventory_day_models.dart';
 import '../api/inventory_models.dart';
 import '../api/inventory_movement_models.dart';
 import '../api/inventory_repo.dart';
@@ -23,6 +24,13 @@ final invRecentActivityProvider =
 final invMovementFeedProvider = FutureProvider.autoDispose
     .family<InvMovementFeed, InvMovementFilter>((ref, filter) async {
   return inventoryRepo.movementFeed(filter);
+});
+
+/// Day summary, keyed by (IST date, warehouse). A record key gives value
+/// equality, so stepping back a day and forward again is instant.
+final invDaySummaryProvider = FutureProvider.autoDispose
+    .family<InvDaySummary, ({String date, String? warehouseId})>((ref, k) async {
+  return inventoryRepo.daySummary(date: k.date, warehouseId: k.warehouseId);
 });
 
 final invWarehouseValuesProvider =

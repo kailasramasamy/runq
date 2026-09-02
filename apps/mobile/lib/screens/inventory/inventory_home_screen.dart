@@ -819,7 +819,15 @@ class _Movement extends ConsumerWidget {
     ];
 
     return Column(children: [
-      const InvSectionHeader(title: 'Movement'),
+      // The tiles answer "how much moved today"; the day summary answers
+      // "what moved" — same question at the next level of detail, so it
+      // belongs on this header rather than three taps away under More.
+      InvSectionHeader(
+        title: 'Movement',
+        action: 'Day summary',
+        actionIcon: Icons.today_outlined,
+        onAction: () => context.push('/inventory/day'),
+      ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(children: [

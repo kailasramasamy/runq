@@ -7,7 +7,7 @@ import {
   bulkDispatchSchema, waiveDispatchSchema, salesReturnSchema,
   itemSubstitutesSchema, shortageFilterSchema, substituteDraftLineSchema,
   stockOnHandFilterSchema, stockLedgerFilterSchema, stockHighlightsQuerySchema,
-  movementFeedQuerySchema,
+  movementFeedQuerySchema, daySummaryQuerySchema,
   itemMovementFilterSchema,
   uuidParamSchema,
   createTransferSchema, updateTransferSchema, cancelTransferSchema,
@@ -38,6 +38,7 @@ import { ShortageService } from './shortage.service';
 import { StockQueryService } from './stock-query.service';
 import { ItemMovementAuditService } from './movement-audit.service';
 import { InventoryDashboardService } from './dashboard.service';
+import { DaySummaryService } from './day-summary.service';
 import { TransferService } from './transfer.service';
 import { AdjustmentService } from './adjustment.service';
 import { StockResetService } from './stock-reset.service';
@@ -623,6 +624,13 @@ export const inventoryRoutes: FastifyPluginAsync = async (app) => {
     const { group, limit } = stockHighlightsQuerySchema.parse(req.query);
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
     return { data: await svc.stockHighlights(group, limit) };
+  });
+  // One IST day of plant activity — received / produced / dispatched, with
+  // every input item's opening → closing. Drives the mobile Day summary.
+  app.get('/dashboard/day-summary', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
+    const q = daySummaryQuerySchema.parse(req.query);
+    const svc = new DaySummaryService(req.server.db, req.tenantId);
+    return { data: await svc.summary(q) };
   });
   app.get('/dashboard/warehouse-breakdown', { preHandler: [rbacHook([...READ_ROLES])] }, async (req) => {
     const svc = new InventoryDashboardService(req.server.db, req.tenantId);
