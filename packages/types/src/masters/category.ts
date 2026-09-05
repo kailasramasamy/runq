@@ -9,6 +9,11 @@ export interface Category {
   /** Default GST rate (%) inherited by items in this category when blank. */
   defaultGstRate: number | null;
   sortOrder: number;
+  /**
+   * Whether Manufacturing's home screen leads with items filed under this
+   * category. Inherited by child categories, so flagging a group is enough.
+   */
+  isPrimaryInput: boolean;
   isActive: boolean;
   subcategories?: Category[];
   /**

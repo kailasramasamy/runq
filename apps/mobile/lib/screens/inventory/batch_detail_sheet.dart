@@ -242,7 +242,12 @@ class _BalanceCard extends StatelessWidget {
           value: formatItemQty(args.qty, null, unit: unit),
           unit: unit,
           tone: InvColors.success,
-          sub: args.value != null && args.value! > 0 ? compactINR(args.value!) : 'not costed',
+          // Absent value means the caller does not deal in money — the
+          // Manufacturing pool opens this sheet for provenance, and a
+          // "not costed" line there is an answer to a question nobody asked.
+          sub: args.value == null
+              ? null
+              : (args.value! > 0 ? compactINR(args.value!) : 'not costed'),
         ),
       ]),
     );

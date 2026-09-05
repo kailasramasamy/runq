@@ -49,6 +49,14 @@ export const workOrderFilterSchema = z.object({
    * this morning is today's work, and filtering on scheduled_for alone hid it.
    */
   activeOn: z.string().date().optional(),
+  /**
+   * Comma-separated `entry_mode` values to keep. Exists so the shop floor can
+   * be shown the runs a person entered without the auto-repacks dispatch posts
+   * to cover a short delivery line — on this plant those outnumber real runs.
+   * Filtered in SQL rather than by the caller so paging and counts still
+   * describe the list the reader is looking at.
+   */
+  entryMode: z.string().optional(),
   search: z.string().optional(),
 });
 

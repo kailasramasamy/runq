@@ -4,11 +4,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/manufacturing_models.dart';
 import '../api/manufacturing_repo.dart';
+import 'auth_provider.dart';
 
 export '../api/manufacturing_repo.dart' show manufacturingRepo;
 export '../api/manufacturing_models.dart'
     show WoConsumptionRow, WoOutputRow, SuggestedBatch, WoCostingPreview, WoCloseResult,
         MfgDashboard, MfgTopBom, WoSummaryRow, YieldTrendPoint;
+
+/// Whether this user is shown money inside Manufacturing.
+///
+/// A technician on the floor is deciding which can of milk to open and how
+/// many kilos came out — a rupee figure on those screens is a number they
+/// cannot act on and one more thing to read past. Input cost, yield value and
+/// variance are the owner's questions, so they stay for the roles that own
+/// the books and disappear for everyone else.
+///
+/// Stock value never shows in this module for anyone: what a batch is worth
+/// is Inventory's answer, and asking it here only invited two modules to
+/// disagree about it.
+final mfgShowsCostProvider = Provider<bool>((ref) {
+  final role = ref.watch(authProvider).user?.role;
+  return role == 'owner' || role == 'accountant';
+});
 
 // ── BOM providers ─────────────────────────────────────────────────────────
 
@@ -60,6 +77,13 @@ final bomDetailProvider =
 
 // ── Work Order providers ──────────────────────────────────────────────────
 
+/// The runs a person entered. Dispatch posts an `auto_repack` WO whenever a
+/// delivery line comes up short of a packed SKU — real stock movement, but no
+/// one on the floor was involved, and mixed into the run list they bury the
+/// work the plant actually did. Reachable through the WO list's Repacks
+/// filter, which passes `'auto_repack'` instead.
+const String woHumanEntryModes = 'planned,unplanned';
+
 class WoListParams {
   final String? status;
   final String? bomId;
@@ -71,6 +95,12 @@ class WoListParams {
   /// completed / closed on it. Wider than scheduledFrom/To by design: a run
   /// scheduled yesterday and finished this morning is today's work.
   final String? activeOn;
+
+  /// Comma-separated `entryMode` values to keep. Defaults to
+  /// [woHumanEntryModes] at every call site the floor sees: an `auto_repack`
+  /// run is dispatch covering a short delivery line, not plant work, and on
+  /// this plant they outnumber the runs somebody actually made.
+  final String? entryMode;
   final String? search;
   const WoListParams({
     this.status,
@@ -79,6 +109,7 @@ class WoListParams {
     this.scheduledFrom,
     this.scheduledTo,
     this.activeOn,
+    this.entryMode = woHumanEntryModes,
     this.search,
   });
 
@@ -91,12 +122,14 @@ class WoListParams {
         other.scheduledFrom == scheduledFrom &&
         other.scheduledTo == scheduledTo &&
         other.activeOn == activeOn &&
+        other.entryMode == entryMode &&
         other.search == search;
   }
 
   @override
   int get hashCode =>
-      Object.hash(status, bomId, warehouseId, scheduledFrom, scheduledTo, activeOn, search);
+      Object.hash(status, bomId, warehouseId, scheduledFrom, scheduledTo, activeOn,
+          entryMode, search);
 }
 
 class WoListResult {
@@ -115,6 +148,7 @@ final workOrderListProvider =
     scheduledFrom: p.scheduledFrom,
     scheduledTo: p.scheduledTo,
     activeOn: p.activeOn,
+    entryMode: p.entryMode,
     search: p.search,
   );
   return WoListResult(r.data, r.total, r.totalPages);

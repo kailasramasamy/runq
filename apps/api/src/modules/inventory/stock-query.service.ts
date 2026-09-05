@@ -85,6 +85,11 @@ export class StockQueryService {
         // back to the leaf when the two are equal.
         categoryName: category.name,
         categoryGroup: parentCategory.name,
+        // Set on the category the shop floor works out of, and inherited one
+        // level down so flagging the group covers its leaves. Manufacturing's
+        // home card leads with these and hides the rest behind "See all".
+        categoryIsPrimaryInput: sql<boolean>`COALESCE(${category.isPrimaryInput}, false)
+          OR COALESCE(${parentCategory.isPrimaryInput}, false)`,
       })
       .from(stockOnHand)
       .innerJoin(items, eq(items.id, stockOnHand.itemId))

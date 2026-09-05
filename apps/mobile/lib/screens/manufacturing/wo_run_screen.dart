@@ -207,8 +207,11 @@ class _WoRunScreenState extends ConsumerState<WoRunScreen>
                   ],
                 ),
               ),
-              // Costing strip
-              WoRunCostingStrip(woId: widget.woId, outputUom: wo.outputUom),
+              // Costing strip — consumed value against yield variance. The
+              // floor's job ends at litres in and kilos out; the money is the
+              // owner's read on the same run.
+              if (ref.watch(mfgShowsCostProvider))
+                WoRunCostingStrip(woId: widget.woId, outputUom: wo.outputUom),
               // Bottom action bar
               if (!isClosed) _ActionBar(wo: wo, busy: _busy, onStart: _startWo, onComplete: _completeWo, onClose: () => _closeWo(wo)),
             ],

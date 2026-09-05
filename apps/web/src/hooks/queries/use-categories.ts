@@ -17,6 +17,8 @@ export interface Category {
   defaultHsnSac: string | null;
   defaultGstRate: number | null;
   sortOrder: number;
+  /** Lead with this category's items on the Manufacturing home screen. */
+  isPrimaryInput: boolean;
   isActive: boolean;
   subcategories?: Category[];
   createdAt: string;
@@ -29,6 +31,7 @@ export interface CreateCategoryInput {
   defaultHsnSac?: string | null;
   defaultGstRate?: number | null;
   sortOrder?: number;
+  isPrimaryInput?: boolean;
 }
 
 interface CategoryFilters {

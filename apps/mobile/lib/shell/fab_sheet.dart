@@ -213,27 +213,30 @@ List<FabAction> purchaseFabActions() => [
       ),
     ];
 
+// Recording production leads: it is how every run this plant has ever logged
+// reached the system, and it sat at the bottom under two actions the floor has
+// never used.
 List<FabAction> manufacturingFabActions() => [
+      FabAction(
+        icon: Icons.bolt_rounded,
+        title: 'Record Production',
+        sub: 'Log what was made',
+        tint: const Color(0xFF9F1239),
+        onTap: (ctx) => ctx.push('/manufacturing/production/new'),
+      ),
+      FabAction(
+        icon: Icons.playlist_add_rounded,
+        title: 'New Work Order',
+        sub: 'Schedule a run for later',
+        tint: const Color(0xFFBE123C),
+        onTap: (ctx) => ctx.push('/manufacturing/wos/new'),
+      ),
       FabAction(
         icon: Icons.add_chart_outlined,
         title: 'New BOM',
         sub: 'Define an input recipe',
         tint: const Color(0xFFE11D48), // manufacturing rose
         onTap: (ctx) => ctx.push('/manufacturing/boms/new'),
-      ),
-      FabAction(
-        icon: Icons.playlist_add_rounded,
-        title: 'New Work Order',
-        sub: 'Schedule a production run',
-        tint: const Color(0xFFBE123C),
-        onTap: (ctx) => ctx.push('/manufacturing/wos/new'),
-      ),
-      FabAction(
-        icon: Icons.bolt_rounded,
-        title: 'Record Production',
-        sub: 'No WO yet — pick a BOM and log what was made',
-        tint: const Color(0xFF9F1239),
-        onTap: (ctx) => ctx.push('/manufacturing/production/new'),
       ),
     ];
 

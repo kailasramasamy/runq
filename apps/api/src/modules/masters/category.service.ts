@@ -120,6 +120,7 @@ export class CategoryService {
         defaultHsnSac: input.defaultHsnSac ?? null,
         defaultGstRate: input.defaultGstRate?.toString() ?? null,
         sortOrder: input.sortOrder ?? 0,
+        isPrimaryInput: input.isPrimaryInput ?? false,
       })
       .returning();
 
@@ -135,6 +136,7 @@ export class CategoryService {
       set.defaultGstRate = input.defaultGstRate?.toString() ?? null;
     }
     if (input.sortOrder !== undefined) set.sortOrder = input.sortOrder;
+    if (input.isPrimaryInput !== undefined) set.isPrimaryInput = input.isPrimaryInput;
 
     const [row] = await this.db
       .update(categories)
@@ -176,6 +178,7 @@ export class CategoryService {
       defaultHsnSac: row.defaultHsnSac,
       defaultGstRate: row.defaultGstRate ? toNumber(row.defaultGstRate) : null,
       sortOrder: row.sortOrder,
+      isPrimaryInput: row.isPrimaryInput,
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

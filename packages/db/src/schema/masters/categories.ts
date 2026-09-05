@@ -17,6 +17,11 @@ export const categories = pgTable(
     defaultHsnSac: varchar('default_hsn_sac', { length: 8 }),
     defaultGstRate: decimal('default_gst_rate', { precision: 5, scale: 2 }),
     sortOrder: integer('sort_order').notNull().default(0),
+    // The inputs the shop floor works out of. Manufacturing's home screen
+    // leads with items filed under a flagged category (or under a flagged
+    // parent) and pushes the rest behind "See all" — a dairy opens the app
+    // for milk, not for the drum of oil next to it.
+    isPrimaryInput: boolean('is_primary_input').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

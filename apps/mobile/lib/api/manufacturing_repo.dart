@@ -103,6 +103,7 @@ class ManufacturingRepo {
     String? scheduledFrom,
     String? scheduledTo,
     String? activeOn,
+    String? entryMode,
     String? search,
     int page = 1,
     int limit = 25,
@@ -114,6 +115,7 @@ class ManufacturingRepo {
     if (scheduledFrom != null && scheduledFrom.isNotEmpty) qp['scheduledFrom'] = scheduledFrom;
     if (scheduledTo != null && scheduledTo.isNotEmpty) qp['scheduledTo'] = scheduledTo;
     if (activeOn != null && activeOn.isNotEmpty) qp['activeOn'] = activeOn;
+    if (entryMode != null && entryMode.isNotEmpty) qp['entryMode'] = entryMode;
     if (search != null && search.isNotEmpty) qp['search'] = search;
     final qs = qp.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')

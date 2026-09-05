@@ -41,6 +41,7 @@ function CategoryForm({ category, parentId, onClose }: {
   const [sortOrder, setSortOrder] = useState(
     category?.sortOrder != null ? String(category.sortOrder) : '0',
   );
+  const [isPrimaryInput, setIsPrimaryInput] = useState(category?.isPrimaryInput ?? false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,6 +51,7 @@ function CategoryForm({ category, parentId, onClose }: {
       defaultHsnSac: defaultHsnSac || null,
       defaultGstRate: parseNum(defaultGstRate),
       sortOrder: Number(sortOrder) || 0,
+      isPrimaryInput,
     };
     try {
       if (isEdit) {
@@ -113,6 +115,22 @@ function CategoryForm({ category, parentId, onClose }: {
           placeholder="e.g. 5"
         />
       </div>
+      <label className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+          checked={isPrimaryInput}
+          onChange={(e) => setIsPrimaryInput(e.target.checked)}
+        />
+        <span>
+          Lead with this on the Manufacturing home screen
+          <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+            The shop floor's raw materials. Items here (and under any subcategory)
+            appear on the Manufacturing home card; everything else moves behind
+            &ldquo;See all&rdquo;. Leave every category unticked to show them all.
+          </span>
+        </span>
+      </label>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
         Items created under this category inherit HSN &amp; GST when left blank.
         Leaf nodes override parent defaults; otherwise the parent's values cascade.
@@ -192,6 +210,12 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
         {category.defaultGstRate != null && (
           <span className="hidden rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 sm:inline dark:bg-zinc-800 dark:text-zinc-300">
             GST {category.defaultGstRate}%
+          </span>
+        )}
+
+        {category.isPrimaryInput && (
+          <span className="hidden rounded bg-rose-100 px-1.5 py-0.5 text-[11px] text-rose-700 sm:inline dark:bg-rose-950 dark:text-rose-300">
+            Shop floor
           </span>
         )}
 

@@ -122,6 +122,7 @@ class _BomLineCard extends ConsumerWidget {
     final excessQty = isOver ? actualSoFar - expected : 0.0;
     final avgUnitCost = actualSoFar > 0 ? actualValue / actualSoFar : 0.0;
     final excessValue = excessQty * avgUnitCost;
+    final showCost = ref.watch(mfgShowsCostProvider);
 
     return MfgCard(
       padding: const EdgeInsets.all(0),
@@ -202,7 +203,10 @@ class _BomLineCard extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    '+${_qty(excessQty, line.inputUom)} ${line.inputUom}  ·  ${mfgIndianINR(excessValue, decimals: 2)} loss',
+                    showCost
+                        ? '+${_qty(excessQty, line.inputUom)} ${line.inputUom}'
+                            '  ·  ${mfgIndianINR(excessValue, decimals: 2)} loss'
+                        : '+${_qty(excessQty, line.inputUom)} ${line.inputUom} over recipe',
                     style: RunqText.caption.copyWith(
                       color: MfgColors.orangeAlert,
                       fontWeight: FontWeight.w600,
@@ -420,24 +424,28 @@ class _ConsumedRowTileState extends ConsumerState<_ConsumedRowTile> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Right — value + unit cost
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                mfgIndianINR(row.value, decimals: 2),
-                style: RunqText.bodyStrong.copyWith(color: t.ink),
-              ),
-              if (row.unitCost > 0) ...[
-                const SizedBox(height: 2),
+          // Right — value + unit cost, for the roles that own the books. The
+          // quantity already leads the row, so the floor loses nothing it was
+          // reading.
+          if (ref.watch(mfgShowsCostProvider)) ...[
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
                 Text(
-                  '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
-                  style: RunqText.caption.copyWith(color: t.muted),
+                  mfgIndianINR(row.value, decimals: 2),
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
                 ),
+                if (row.unitCost > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                  ),
+                ],
               ],
-            ],
-          ),
+            ),
+          ],
           if (widget.isEditable)
             TextButton(
               onPressed: _busy ? null : _reverse,

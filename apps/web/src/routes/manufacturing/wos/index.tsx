@@ -47,7 +47,11 @@ export function WorkOrderListPage() {
   const [bomId, setBomId] = useState('');
   const [scheduledFrom, setScheduledFrom] = useState('');
   const [scheduledTo, setScheduledTo] = useState('');
-  const [entryModeOnly, setEntryModeOnly] = useState<'' | 'unplanned' | 'auto_repack'>('');
+  // Defaults to hiding auto-repacks: dispatch posts one every time a delivery
+  // line comes up short of a packed SKU, and on a repacking dairy they
+  // outnumber the runs a person actually entered. Now a server-side filter, so
+  // paging and totals describe the list being read.
+  const [entryMode, setEntryMode] = useState<string>('planned,unplanned');
   const [page, setPage] = useState(1);
 
   const { data: bomsData } = useBoms({ limit: 200 });
@@ -65,15 +69,12 @@ export function WorkOrderListPage() {
     bomId: bomId || undefined,
     scheduledFrom: scheduledFrom || undefined,
     scheduledTo: scheduledTo || undefined,
+    entryMode,
     page,
     limit: 25,
   });
 
-  // entryMode has no server-side filter yet — the list is small enough per
-  // page that a client-side pass is fine for "what did the floor make while
-  // I was away."
-  const allRows = data?.data ?? [];
-  const rows = entryModeOnly ? allRows.filter((wo) => wo.entryMode === entryModeOnly) : allRows;
+  const rows = data?.data ?? [];
 
   return (
     <div>
@@ -141,22 +142,22 @@ export function WorkOrderListPage() {
 
       {/* Off-plan filter. Two different questions: "what did the floor make
           while I was away" (unplanned, a person to ask) and "what did
-          dispatch make for itself" (auto-repack, nobody to ask). Splitting
-          them is the whole point — lumped together, the repacks buried the
-          handful of entries actually worth reviewing. */}
+          dispatch make for itself" (auto-repack, nobody to ask). Repacks are
+          out of the default view entirely — lumped in, they buried the handful
+          of entries actually worth reviewing. */}
       <div className="mb-3 flex w-fit items-center gap-1.5 text-[12px]">
         {([
-          { key: '', label: 'All runs' },
+          { key: 'planned,unplanned', label: 'Runs' },
           { key: 'unplanned', label: 'Unplanned only' },
           { key: 'auto_repack', label: 'Auto-repack only' },
         ] as const).map((opt) => (
           <button
             key={opt.key}
             type="button"
-            onClick={() => { setEntryModeOnly(opt.key); setPage(1); }}
+            onClick={() => { setEntryMode(opt.key); setPage(1); }}
             className="rounded-full px-2.5 py-1 text-[11.5px] font-medium"
             style={
-              entryModeOnly === opt.key
+              entryMode === opt.key
                 ? { background: 'rgba(225, 29, 72, 0.10)', color: '#E11D48' }
                 : { color: 'var(--text-2)' }
             }

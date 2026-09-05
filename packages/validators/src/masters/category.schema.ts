@@ -7,6 +7,8 @@ export const createCategorySchema = z.object({
   defaultHsnSac: hsnSacCodeSchema.nullish(),
   defaultGstRate: z.number().min(0).max(100).nullish(),
   sortOrder: z.number().int().min(0).optional(),
+  /** Lead this category's items on the Manufacturing home raw-material card. */
+  isPrimaryInput: z.boolean().optional(),
 });
 
 export const updateCategorySchema = createCategorySchema.partial();

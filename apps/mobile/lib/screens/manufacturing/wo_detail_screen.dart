@@ -235,11 +235,14 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
                       WoOutputCard(wo: wo),
                       const SizedBox(height: 12),
                     ],
-                    WoCostingStrip(wo: wo),
-                    if (wo.consumedValue != 0 ||
-                        wo.outputValue != 0 ||
-                        wo.yieldVariance != 0)
-                      const SizedBox(height: 12),
+                    // Money on the run, for the roles that own the books.
+                    if (ref.watch(mfgShowsCostProvider)) ...[
+                      WoCostingStrip(wo: wo),
+                      if (wo.consumedValue != 0 ||
+                          wo.outputValue != 0 ||
+                          wo.yieldVariance != 0)
+                        const SizedBox(height: 12),
+                    ],
                     WoProgressStrip(wo: wo),
                   ],
                 ),

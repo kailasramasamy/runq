@@ -27,11 +27,13 @@ List<MenuItem> _items(WidgetRef ref) {
     const MenuItem(Icons.layers_outlined, 'Input pool', Color(0xFF2563EB),
         '/manufacturing/input-pool'),
     const MenuItem(Icons.inventory_2_outlined, 'Raw materials',
-        Color(0xFF0891B2), '/manufacturing/raw-materials'),
+        Color(0xFF0891B2), '/manufacturing/raw-materials', isTab: true),
     const MenuItem(Icons.recycling_rounded, 'Reclaim stock',
         Color(0xFF16A34A), '/manufacturing/reclaims/new'),
+    // BOMs gave up its bottom-nav slot to raw materials — recipes are set up
+    // once and revised twice a year, so the Menu is where they belong.
     const MenuItem(Icons.account_tree_outlined, 'Bills of materials',
-        MfgColors.rose, '/manufacturing/boms', isTab: true),
+        MfgColors.rose, '/manufacturing/boms'),
     const MenuItem(Icons.precision_manufacturing_outlined, 'Work orders',
         MfgColors.roseDeep, '/manufacturing/wos', isTab: true),
     const MenuItem(Icons.summarize_outlined, 'Work-order summary',

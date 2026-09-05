@@ -11,8 +11,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/manufacturing_models.dart';
+import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '_record_production_pool_row.dart';
@@ -209,7 +211,7 @@ class _ShortageCard extends StatelessWidget {
 
 // ── Costing strip ────────────────────────────────────────────────────────────
 
-class _CostingStrip extends StatelessWidget {
+class _CostingStrip extends ConsumerWidget {
   final ProductionPreview preview;
   final Map<String, TextEditingController> drawControllers;
   const _CostingStrip({required this.preview, required this.drawControllers});
@@ -226,8 +228,12 @@ class _CostingStrip extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
+    // What the run costs is the owner's question. The operator entering it is
+    // deciding litres and kilos, and a rupee figure they cannot act on is one
+    // more thing between them and the submit button.
+    final showCost = ref.watch(mfgShowsCostProvider);
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
@@ -245,13 +251,15 @@ class _CostingStrip extends StatelessWidget {
               value: '${_trim(preview.producedQty)} ${preview.outputUom}',
             ),
           ),
-          _StripDivider(),
-          Expanded(
-            child: _StripCell(
-              label: 'Est. input cost',
-              value: mfgIndianINR(_drawnValue, decimals: 2),
+          if (showCost) ...[
+            _StripDivider(),
+            Expanded(
+              child: _StripCell(
+                label: 'Est. input cost',
+                value: mfgIndianINR(_drawnValue, decimals: 2),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

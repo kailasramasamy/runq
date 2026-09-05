@@ -37,6 +37,14 @@ function defaultTo(filter: { to?: string }): string {
   return filter.to ?? new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Runs a person entered. `auto_repack` work orders are posted by dispatch to
+ * cover a short delivery line — nobody on the floor is involved, and on a
+ * repacking dairy they outnumber real runs, which made every dashboard tile
+ * read as plant activity that never happened.
+ */
+const humanEntry = sql`${workOrders.entryMode} <> 'auto_repack'`;
+
 // ─── Service ───────────────────────────────────────────────────────────────
 
 export class ManufacturingReportsService {
@@ -102,6 +110,7 @@ export class ManufacturingReportsService {
         and(
           eq(workOrders.tenantId, tid),
           sql`${workOrders.status} = ${status}`,
+          humanEntry,
         ),
       );
     return r?.count ?? 0;
@@ -116,6 +125,7 @@ export class ManufacturingReportsService {
           eq(workOrders.tenantId, tid),
           sql`${istDate(workOrders.completedAt)} = ${istToday()}`,
           sql`${workOrders.status} <> 'cancelled'`,
+          humanEntry,
         ),
       );
     return row?.c ?? 0;
@@ -130,6 +140,7 @@ export class ManufacturingReportsService {
           eq(workOrders.tenantId, tid),
           sql`${workOrders.scheduledFor} = ${istToday()}`,
           sql`${workOrders.status} <> 'cancelled'`,
+          humanEntry,
         ),
       );
     return r?.count ?? 0;
@@ -148,6 +159,7 @@ export class ManufacturingReportsService {
         and(
           eq(workOrders.tenantId, tid),
           sql`${workOrders.scheduledFor} = ${istToday()}`,
+          humanEntry,
         ),
       );
     return { planned: r?.planned ?? null, actual: r?.actual ?? null };
@@ -166,6 +178,7 @@ export class ManufacturingReportsService {
           eq(workOrders.tenantId, tid),
           sql`${workOrders.status} = 'closed'`,
           sql`${workOrders.closedAt} >= NOW() - INTERVAL '7 days'`,
+          humanEntry,
         ),
       );
     return r?.avg ?? null;
@@ -187,6 +200,7 @@ export class ManufacturingReportsService {
         and(
           eq(workOrders.tenantId, tid),
           sql`${workOrders.createdAt} >= NOW() - INTERVAL '7 days'`,
+          humanEntry,
         ),
       )
       .groupBy(boms.id, boms.bomCode, boms.name)

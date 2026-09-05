@@ -4,15 +4,30 @@
 
 part of 'manufacturing_home_screen.dart';
 
-// ── Hero card (Active BOMs / Draft WOs / Scheduled today / In-progress) ──
+// ── Hero card ─────────────────────────────────────────────────────────────
+//
+// The tiles used to read "Active BOMs" and "Draft WOs" — a recipe count that
+// changes twice a year, and a queue this plant has never once put anything
+// in. Both sat at the top of the screen answering nothing.
+//
+// What the floor walks in asking is how much milk is here and what has been
+// made since the shift started, so those lead; the pending-close count is the
+// one thing on the card that is a job rather than a fact.
 
-class _HeroCard extends StatelessWidget {
+class _HeroCard extends ConsumerWidget {
   final AsyncValue<MfgDashboard> dashboard;
   const _HeroCard({required this.dashboard});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final d = dashboard.maybeWhen(data: (v) => v, orElse: () => null);
+    final inputs = ref
+            .watch(invOnHandProvider(
+                (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')))
+            .asData
+            ?.value ??
+        const <InvOnHandRow>[];
+    final onHand = _onHandHeadline(inputs);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Container(
@@ -37,15 +52,15 @@ class _HeroCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _HeroBigKpi(
-                      label: 'Active BOMs',
-                      value: d == null ? '–' : '${d.activeBomCount}',
+                      label: onHand.label,
+                      value: onHand.value,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _HeroBigKpi(
-                      label: 'Draft WOs',
-                      value: d == null ? '–' : '${d.draftWoCount}',
+                      label: 'Made today',
+                      value: d == null ? '–' : '${d.completedTodayCount}',
                     ),
                   ),
                 ],
@@ -58,21 +73,18 @@ class _HeroCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _HeroMiniKpi(
-                      label: 'Scheduled',
-                      value: d == null ? '–' : '${d.scheduledTodayCount}',
-                      sub: 'today',
-                      onTap: () {
-                        final today = DateTime.now().toIso8601String().substring(0, 10);
-                        context.push('/manufacturing/wos?scheduledFrom=$today&scheduledTo=$today');
-                      },
+                      label: 'In progress',
+                      value: d == null ? '–' : '${d.inProgressCount}',
+                      sub: 'running now',
+                      onTap: () => context.push('/manufacturing/wos?status=in_progress'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _HeroMiniKpi(
-                      label: 'Completed',
-                      value: d == null ? '–' : '${d.completedTodayCount}',
-                      sub: 'today',
+                      label: 'Pending close',
+                      value: d == null ? '–' : '${d.wosCompletedPendingClose}',
+                      sub: 'finish these',
                       onTap: () => context.push('/manufacturing/wos?status=completed'),
                     ),
                   ),
@@ -93,6 +105,33 @@ class _HeroCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// The headline stock figure: everything on hand of whatever the tenant
+  /// flagged as the shop floor's inputs, summed. Labelled by the category
+  /// group behind it — "Milk & Dairy on hand" beats a bare "On hand" when the
+  /// number is the reason the app was opened.
+  ///
+  /// Mixed units would be a lie, so a pool spanning more than one unit falls
+  /// back to counting items instead of adding litres to kilos.
+  static ({String label, String value}) _onHandHeadline(List<InvOnHandRow> rows) {
+    final inputs = primaryInputs(rows);
+    if (inputs.isEmpty) return (label: 'On hand', value: '–');
+
+    final groups = inputs.map((r) => r.categoryGroup).whereType<String>().toSet();
+    final label = groups.length == 1 ? '${groups.first} on hand' : 'Inputs on hand';
+
+    final units = inputs.map((r) => r.itemUnit ?? '').toSet();
+    if (units.length > 1) {
+      final items = inputs.map((r) => r.itemId).toSet().length;
+      return (label: label, value: '$items items');
+    }
+    final unit = units.first;
+    final qty = inputs.fold<double>(0, (s, r) => s + r.qty);
+    return (
+      label: label,
+      value: '${formatItemQty(qty, null, unit: unit)}${unit.isEmpty ? '' : ' $unit'}',
     );
   }
 

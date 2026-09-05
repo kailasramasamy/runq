@@ -9,14 +9,26 @@ import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_doc_list.dart';
 import 'widgets/mfg_primitives.dart';
 
+/// Status pills. The last one is not a status at all — see [_repacksKey].
 const _woTabs = <({String? key, String label})>[
   (key: null, label: 'All'),
-  (key: 'draft', label: 'Draft'),
   (key: 'in_progress', label: 'In Progress'),
   (key: 'completed', label: 'Completed'),
   (key: 'closed', label: 'Closed'),
+  (key: 'draft', label: 'Draft'),
   (key: 'cancelled', label: 'Cancelled'),
+  (key: _repacksKey, label: 'Repacks'),
 ];
+
+/// The escape hatch for the runs the list hides.
+///
+/// Dispatch posts an `auto_repack` work order every time a delivery line comes
+/// up short of a packed SKU — real stock movement with nobody on the floor
+/// behind it, and on this plant they outnumber the runs somebody actually
+/// made. They stay out of every other view; this pill is where you go to audit
+/// one. Filtered server-side, so the day counts under each header describe the
+/// list being read.
+const String _repacksKey = '__repacks__';
 
 class WoListScreen extends ConsumerStatefulWidget {
   /// Pre-filter — set from the router's queryParameters for deep-links.
@@ -58,8 +70,10 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final showingRepacks = _statusKey == _repacksKey;
     final params = WoListParams(
-      status: _statusKey,
+      status: showingRepacks ? null : _statusKey,
+      entryMode: showingRepacks ? 'auto_repack' : woHumanEntryModes,
       search: _search.isEmpty ? null : _search,
       scheduledFrom: _scheduledFrom,
       scheduledTo: _scheduledTo,
@@ -109,8 +123,10 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                   if (res.data.isEmpty) {
                     return MfgEmptyState(
                       icon: Icons.precision_manufacturing_outlined,
-                      title: 'No work orders yet',
-                      description: 'Create your first WO to schedule a run.',
+                      title: showingRepacks ? 'No repacks' : 'No work orders yet',
+                      description: showingRepacks
+                          ? 'Dispatch has not had to repack anything to cover a delivery.'
+                          : 'Record production, and the run shows up here.',
                     );
                   }
                   // A card per day under its own header. Inside a day the
@@ -197,11 +213,13 @@ class _WoTile extends StatelessWidget {
       icon: Icons.precision_manufacturing_outlined,
       leadingDate: wo.scheduledFor,
       leadingShift: wo.shift,
-      title: wo.woNumber,
+      // The product identifies the run on a shop floor; the WO number is a
+      // reference you only need once you are inside it, so it drops to the
+      // muted line at the bottom.
+      title: wo.outputItemName,
       subtitle: '${wo.bomCode} v${wo.bomVersion}',
       status: wo.status,
-      headline: wo.outputItemName,
-      rightValue: _qty(wo.plannedQty),
+      rightValue: _qty(wo.outputQty > 0 ? wo.outputQty : wo.plannedQty),
       rightUnit: wo.outputUom,
       reference: wo.woNumber,
       // Two different off-plan runs, and they need different reactions: an

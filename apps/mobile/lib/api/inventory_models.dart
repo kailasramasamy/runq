@@ -266,6 +266,13 @@ class InvOnHandRow {
   /// when the item sits directly on a top-level category.
   final String? categoryName;
   final String? categoryGroup;
+
+  /// The category (or its parent) is flagged as the shop floor's own inputs.
+  /// Manufacturing's home card leads with these and pushes everything else
+  /// behind "See all" — a dairy opens the app for milk, not for the drum of
+  /// oil beside it. False for every row when the tenant has flagged nothing,
+  /// which is the signal to show them all.
+  final bool categoryIsPrimaryInput;
   final String warehouseId;
   final String warehouseName;
   final String batchNo;
@@ -299,6 +306,7 @@ class InvOnHandRow {
     this.itemClass,
     this.categoryName,
     this.categoryGroup,
+    this.categoryIsPrimaryInput = false,
     required this.warehouseId,
     required this.warehouseName,
     required this.batchNo,
@@ -327,6 +335,7 @@ class InvOnHandRow {
     itemClass: j['itemClass'] as String?,
     categoryName: j['categoryName'] as String?,
     categoryGroup: j['categoryGroup'] as String?,
+    categoryIsPrimaryInput: j['categoryIsPrimaryInput'] == true,
     warehouseId: j['warehouseId'] as String,
     warehouseName: j['warehouseName'] as String,
     batchNo: (j['batchNo'] as String?) ?? '',

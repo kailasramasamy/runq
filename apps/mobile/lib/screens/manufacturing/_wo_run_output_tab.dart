@@ -410,18 +410,22 @@ class _OutputRowCardState extends ConsumerState<_OutputRowCard> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                row.value > 0 ? mfgIndianINR(row.value, decimals: 2) : '—',
-                style: RunqText.bodyStrong.copyWith(
-                  color: row.value > 0 ? t.ink : t.muted,
-                ),
-              ),
-              if (row.unitCost > 0) ...[
-                const SizedBox(height: 2),
+              // What the output is worth belongs to whoever owns the books —
+              // the operator recording it is counting packets.
+              if (ref.watch(mfgShowsCostProvider)) ...[
                 Text(
-                  '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
-                  style: RunqText.caption.copyWith(color: t.muted),
+                  row.value > 0 ? mfgIndianINR(row.value, decimals: 2) : '—',
+                  style: RunqText.bodyStrong.copyWith(
+                    color: row.value > 0 ? t.ink : t.muted,
+                  ),
                 ),
+                if (row.unitCost > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '@ ${mfgIndianINR(row.unitCost, decimals: 2)}/${row.uom}',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                  ),
+                ],
               ],
               if (widget.isEditable)
                 TextButton(

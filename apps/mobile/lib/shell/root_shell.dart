@@ -109,20 +109,24 @@ const _purchaseTabs = <_Tab>[
   _Tab('/purchase/match', 'Match', Icons.link_rounded, Icons.link_rounded),
 ];
 
-// Manufacturing module tabs. Home is the dashboard; BOMs is the recipe
-// list; WOs is the work order list; Menu is the hub for everything that
-// doesn't earn a tab (input pool, reclaims, write-offs, reports).
+// Manufacturing module tabs, in the order the floor needs them: the
+// dashboard, what there is to make things out of, and what has been made.
+//
+// BOMs held this second slot and has moved into the Menu. Writing a recipe is
+// setup work done once and revised twice a year; checking how much milk is
+// left happens every shift, and it was the one thing in the module with no
+// tab of its own.
 const _manufacturingTabs = <_Tab>[
   _Tab('/manufacturing', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab(
-    '/manufacturing/boms',
-    'BOMs',
-    Icons.add_chart_outlined,
-    Icons.add_chart_rounded,
+    '/manufacturing/raw-materials',
+    'Materials',
+    Icons.inventory_2_outlined,
+    Icons.inventory_2_rounded,
   ),
   _Tab(
     '/manufacturing/wos',
-    'WOs',
+    'Runs',
     Icons.precision_manufacturing_outlined,
     Icons.precision_manufacturing_rounded,
   ),

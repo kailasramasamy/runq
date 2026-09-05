@@ -314,6 +314,9 @@ export class WorkOrderService {
     const statusParts = filters.status
       ? filters.status.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
+    const entryModeParts = filters.entryMode
+      ? filters.entryMode.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
 
     return and(
       eq(workOrders.tenantId, this.tenantId),
@@ -322,6 +325,9 @@ export class WorkOrderService {
         : statusParts.length > 1
           ? inArray(workOrders.status, statusParts as WorkOrderStatus[])
           : undefined,
+      entryModeParts.length > 0
+        ? inArray(workOrders.entryMode, entryModeParts as WoEntryMode[])
+        : undefined,
       filters.bomId ? eq(workOrders.bomId, filters.bomId) : undefined,
       filters.warehouseId ? eq(workOrders.warehouseId, filters.warehouseId) : undefined,
       filters.scheduledFrom ? gte(workOrders.scheduledFor, filters.scheduledFrom) : undefined,

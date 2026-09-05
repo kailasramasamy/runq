@@ -10,6 +10,8 @@ interface WorkOrderListFilters {
   warehouseId?: string;
   scheduledFrom?: string;
   scheduledTo?: string;
+  /** Comma-separated entry_mode values to keep, e.g. 'planned,unplanned'. */
+  entryMode?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -28,6 +30,7 @@ export function useWorkOrders(filters?: WorkOrderListFilters) {
   if (filters?.warehouseId) params.set('warehouseId', filters.warehouseId);
   if (filters?.scheduledFrom) params.set('scheduledFrom', filters.scheduledFrom);
   if (filters?.scheduledTo) params.set('scheduledTo', filters.scheduledTo);
+  if (filters?.entryMode) params.set('entryMode', filters.entryMode);
   if (filters?.search) params.set('search', filters.search);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
