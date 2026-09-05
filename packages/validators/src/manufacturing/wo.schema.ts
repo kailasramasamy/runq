@@ -60,7 +60,18 @@ export const workOrderFilterSchema = z.object({
   search: z.string().optional(),
 });
 
+/**
+ * "What did this lot become?" — one raw material, the lots of it you are
+ * looking at. `batchNos` is comma-separated so the pool sheet can ask about
+ * every lot on screen in one call rather than one call per card.
+ */
+export const batchUsageQuerySchema = z.object({
+  itemId: z.string().uuid(),
+  batchNos: z.string().min(1),
+});
+
 export type CreateWorkOrderInput = z.infer<typeof createWorkOrderSchema>;
 export type UpdateWorkOrderInput = z.infer<typeof updateWorkOrderSchema>;
 export type CancelWorkOrderInput = z.infer<typeof cancelWorkOrderSchema>;
 export type WorkOrderFilter = z.infer<typeof workOrderFilterSchema>;
+export type BatchUsageQuery = z.infer<typeof batchUsageQuerySchema>;

@@ -91,3 +91,34 @@ export interface WoCostingPreview {
   /** varianceQty × perUnitOutputCost. */
   varianceValue: number;
 }
+
+/** One product a run put out, as a lot's usage trail reports it. */
+export interface BatchUsageOutput {
+  itemName: string;
+  qty: number;
+  uom: string;
+}
+
+/**
+ * One run that drew on a raw-material lot, and what it made.
+ *
+ * [drawnQty] is what came out of *this* lot, not the run's whole input — a run
+ * usually draws from several. [outputs] is the run's full output, so a lot that
+ * fed a run alongside two others still names the product truthfully without
+ * claiming the quantity.
+ */
+export interface BatchUsageRun {
+  woId: string;
+  woNumber: string;
+  drawnQty: number;
+  drawnUom: string;
+  /**
+   * Everything the run drew of this input, across every lot. Equal to
+   * [drawnQty] when the run took the whole draw from this one lot — which is
+   * what says whether [outputs] can be read as this lot's own output or only
+   * as the run's.
+   */
+  runDrewQty: number;
+  producedAt: string | null;
+  outputs: BatchUsageOutput[];
+}

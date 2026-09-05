@@ -1324,3 +1324,66 @@ class ReclaimDestination {
         itemName: (j['itemName'] as String?) ?? '',
       );
 }
+
+/// One product a run put out, as a lot's usage trail reports it.
+class BatchUsageOutput {
+  final String itemName;
+  final double qty;
+  final String uom;
+  const BatchUsageOutput({required this.itemName, required this.qty, required this.uom});
+
+  factory BatchUsageOutput.fromJson(Map<String, dynamic> j) => BatchUsageOutput(
+        itemName: (j['itemName'] as String?) ?? '',
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        uom: (j['uom'] as String?) ?? '',
+      );
+}
+
+/// One run that drew on a raw-material lot, and what it made.
+///
+/// [drawnQty] is what came out of *this* lot, not the run's whole input — a
+/// run usually draws from several. [outputs] is the run's full output, so a
+/// lot that fed a run alongside two others still names the product without
+/// claiming the quantity.
+class BatchUsageRun {
+  final String woId;
+  final String woNumber;
+  final double drawnQty;
+  final String drawnUom;
+
+  /// Everything the run drew of this input, across every lot. When it matches
+  /// [drawnQty] the run took the lot and nothing else, and [outputs] is this
+  /// lot's own output rather than the run's.
+  final double runDrewQty;
+  final String? producedAt;
+  final List<BatchUsageOutput> outputs;
+
+  const BatchUsageRun({
+    required this.woId,
+    required this.woNumber,
+    required this.drawnQty,
+    required this.drawnUom,
+    required this.runDrewQty,
+    required this.producedAt,
+    required this.outputs,
+  });
+
+  /// True when nothing but this lot went into the run, so its output count can
+  /// be read as what this lot made.
+  bool get isWholeRun => (runDrewQty - drawnQty).abs() < 0.0005;
+
+  factory BatchUsageRun.fromJson(Map<String, dynamic> j) => BatchUsageRun(
+        woId: (j['woId'] as String?) ?? '',
+        woNumber: (j['woNumber'] as String?) ?? '',
+        drawnQty: (j['drawnQty'] as num?)?.toDouble() ?? 0,
+        drawnUom: (j['drawnUom'] as String?) ?? '',
+        runDrewQty: (j['runDrewQty'] as num?)?.toDouble() ??
+            (j['drawnQty'] as num?)?.toDouble() ??
+            0,
+        producedAt: j['producedAt'] as String?,
+        outputs: ((j['outputs'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BatchUsageOutput.fromJson)
+            .toList(),
+      );
+}

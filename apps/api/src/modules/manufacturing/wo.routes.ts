@@ -10,9 +10,11 @@ import {
   recordOutputSchema,
   closeWorkOrderSchema,
   suggestBatchesQuerySchema,
+  batchUsageQuerySchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { WorkOrderService } from './wo.service';
+import { BatchUsageService } from './batch-usage.service';
 import { WoConsumptionService } from './consumption.service';
 import { WoOutputService } from './output.service';
 import { BatchSuggestService } from './batch-suggest.service';
@@ -41,6 +43,22 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
       const filters = workOrderFilterSchema.parse(request.query);
       const service = new WorkOrderService(request.server.db, request.tenantId);
       return service.list(filters, { page: pagination.page, limit: pagination.limit });
+    },
+  );
+
+  // What each lot of a raw material was made into. Mounted above /:id so the
+  // literal path is not swallowed by the uuid param route.
+  app.get(
+    '/batch-usage',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const { itemId, batchNos } = batchUsageQuerySchema.parse(request.query);
+      const service = new BatchUsageService(request.server.db, request.tenantId);
+      const data = await service.byBatch(
+        itemId,
+        batchNos.split(',').map((b) => b.trim()).filter(Boolean),
+      );
+      return { data };
     },
   );
 

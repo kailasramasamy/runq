@@ -9,7 +9,8 @@ import 'auth_provider.dart';
 export '../api/manufacturing_repo.dart' show manufacturingRepo;
 export '../api/manufacturing_models.dart'
     show WoConsumptionRow, WoOutputRow, SuggestedBatch, WoCostingPreview, WoCloseResult,
-        MfgDashboard, MfgTopBom, WoSummaryRow, YieldTrendPoint;
+        MfgDashboard, MfgTopBom, WoSummaryRow, YieldTrendPoint,
+        BatchUsageRun, BatchUsageOutput;
 
 /// Whether this user is shown money inside Manufacturing.
 ///
@@ -302,4 +303,29 @@ final yieldTrendProvider =
     from: p.from,
     to: p.to,
   ),
+);
+
+/// The lots of one raw material whose usage trail is being asked about.
+class BatchUsageParams {
+  final String itemId;
+  final List<String> batchNos;
+  const BatchUsageParams({required this.itemId, required this.batchNos});
+
+  @override
+  bool operator ==(Object other) =>
+      other is BatchUsageParams &&
+      other.itemId == itemId &&
+      other.batchNos.length == batchNos.length &&
+      other.batchNos.join(',') == batchNos.join(',');
+
+  @override
+  int get hashCode => Object.hash(itemId, batchNos.join(','));
+}
+
+/// What each lot became, keyed by batch number. Lots nothing has drawn on are
+/// simply absent from the map.
+final batchUsageProvider = FutureProvider.autoDispose
+    .family<Map<String, List<BatchUsageRun>>, BatchUsageParams>(
+  (ref, p) async =>
+      manufacturingRepo.batchUsage(itemId: p.itemId, batchNos: p.batchNos),
 );

@@ -495,6 +495,28 @@ class ManufacturingRepo {
   ///     recipe can legitimately consume a sub-assembly; finished and trading
   ///     goods are sold as-is and never belong on an input line.
   /// `itemClassGroup='all'`      → no class filter (ad-hoc searches).
+  /// What each of [batchNos] of [itemId] was made into, keyed by batch number.
+  /// One call for every lot on screen — asking per lot would be a request per
+  /// card in the raw-material pool.
+  Future<Map<String, List<BatchUsageRun>>> batchUsage({
+    required String itemId,
+    required List<String> batchNos,
+  }) async {
+    final wanted = batchNos.where((b) => b.isNotEmpty).toList();
+    if (wanted.isEmpty) return const {};
+    final qs = 'itemId=${Uri.encodeQueryComponent(itemId)}'
+        '&batchNos=${Uri.encodeQueryComponent(wanted.join(','))}';
+    final res = await apiClient.get('/manufacturing/wos/batch-usage?$qs');
+    final data = (res['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return data.map((batch, runs) => MapEntry(
+          batch,
+          ((runs as List?) ?? const [])
+              .cast<Map<String, dynamic>>()
+              .map(BatchUsageRun.fromJson)
+              .toList(),
+        ));
+  }
+
   Future<List<MfgItemRow>> searchItems(
     String query, {
     String? itemClass,

@@ -14,9 +14,11 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../api/inventory_models.dart';
+import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../utils/format_expiry.dart';
@@ -42,13 +44,13 @@ Future<void> showMfgMaterialSheet(
   );
 }
 
-class MfgMaterialSheet extends StatelessWidget {
+class MfgMaterialSheet extends ConsumerWidget {
   const MfgMaterialSheet({super.key, required this.rows});
 
   final List<InvOnHandRow> rows;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final first = rows.first;
     // Freshest first. The floor draws FEFO, but it reads newest-down: "what
@@ -57,6 +59,17 @@ class MfgMaterialSheet extends StatelessWidget {
     // about draw order is lost by ordering on arrival.
     final ordered = [...rows]..sort(_byArrivalDesc);
     final total = rows.fold<double>(0, (s, r) => s + r.qty);
+    // What each lot has already gone into. One call for every lot on screen —
+    // the cards render without it and fill in when it lands, so a slow trail
+    // never holds up the quantity somebody opened the sheet to read.
+    final usage = ref
+            .watch(batchUsageProvider(BatchUsageParams(
+              itemId: first.itemId,
+              batchNos: ordered.map((r) => r.batchNo).toList(),
+            )))
+            .asData
+            ?.value ??
+        const <String, List<BatchUsageRun>>{};
 
     // Sized to its contents, capped at most of the screen. A fixed fraction
     // left a milk with one lot floating above half a screen of empty warm
@@ -85,7 +98,10 @@ class MfgMaterialSheet extends StatelessWidget {
                 for (final r in ordered)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _LotCard(row: r),
+                    child: _LotCard(
+                      row: r,
+                      madeInto: usage[r.batchNo] ?? const <BatchUsageRun>[],
+                    ),
                   ),
               ],
             ),
@@ -181,9 +197,13 @@ class _Header extends StatelessWidget {
 /// how much is left, how long it has. The consignment code is the last line —
 /// present for anyone reconciling, invisible to anyone deciding.
 class _LotCard extends StatelessWidget {
-  const _LotCard({required this.row});
+  const _LotCard({required this.row, required this.madeInto});
 
   final InvOnHandRow row;
+
+  /// The runs this lot has already fed. Empty until the trail loads, and for
+  /// a lot nothing has drawn on yet.
+  final List<BatchUsageRun> madeInto;
 
   @override
   Widget build(BuildContext context) {
@@ -224,22 +244,20 @@ class _LotCard extends StatelessWidget {
             style: RunqText.bodyStrong.copyWith(color: t.ink),
           ),
         ]),
-        if (expiry != null || row.isPartUsed) ...[
+        if (expiry != null) ...[
           const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 4, children: [
-            if (expiry != null)
-              _Chip(
-                label: 'Expires $expiry',
-                tone: _expiryTone(row.expiryDate),
-              ),
-            if (row.isPartUsed)
-              _Chip(
-                label: 'part-used · '
-                    '${formatItemQty((o?.receivedQty ?? row.qty) - row.qty, null, unit: row.itemUnit)}'
-                    '${unit.isEmpty ? '' : ' $unit'} drawn',
-                tone: _Tone.neutral,
-              ),
-          ]),
+          _Chip(label: 'Expires $expiry', tone: _expiryTone(row.expiryDate)),
+        ],
+        // What this lot has already become. "part-used · 577.9 litre drawn"
+        // used to sit here, which says something left without saying what —
+        // and the one thing worth knowing about a half-empty can of milk is
+        // which product it went into.
+        if (madeInto.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('MADE FROM THIS LOT',
+              style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3)),
+          const SizedBox(height: 4),
+          for (final run in madeInto) _MadeRow(run: run),
         ],
         const SizedBox(height: 8),
         // The audit handle. Deliberately the smallest, quietest thing on the
@@ -326,6 +344,96 @@ String? arrivalStamp(String? iso, {DateTime? now}) {
   if (days == -1) return 'Yesterday $time';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return '${at.day} ${months[at.month - 1]}, $time';
+}
+
+/// One run this lot fed: what came out and how much of it, and how much of
+/// *this* lot went in.
+///
+/// The output count sits next to the product name because that is the sentence
+/// being read — "A2 Desi Cow Milk · 1,041 × 500ml". When the run drew from
+/// other lots as well the draw line says so ("525.8 of 1,050 litre"), because
+/// the count is then the run's and not this lot's, and printing it bare would
+/// credit one can of milk with packets that came from three.
+class _MadeRow extends StatelessWidget {
+  const _MadeRow({required this.run});
+  final BatchUsageRun run;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final brand = MfgColors.brand(context);
+    final uom = run.drawnUom.isEmpty ? '' : ' ${run.drawnUom}';
+    final when = run.producedAt == null ? null : arrivalStamp(run.producedAt);
+    // How much of this lot went in — and, when the run took more from
+    // elsewhere, what that was a part of.
+    final draw = run.isWholeRun
+        ? '${formatItemQty(run.drawnQty, null, unit: run.drawnUom)}$uom from this lot'
+        : '${formatItemQty(run.drawnQty, null, unit: run.drawnUom)} of '
+            '${formatItemQty(run.runDrewQty, null, unit: run.drawnUom)}$uom drawn';
+
+    return InkWell(
+      onTap: () => context.push('/manufacturing/wos/${run.woId}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(Icons.precision_manufacturing_outlined, size: 13, color: brand),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (run.outputs.isEmpty)
+                Text(
+                  'Output not recorded yet',
+                  style: RunqText.caption.copyWith(color: t.muted),
+                )
+              else
+                for (final o in run.outputs)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: Text.rich(
+                      TextSpan(children: [
+                        // The UoM belongs to the product, not to the number —
+                        // "A2 Desi Cow Milk 500ml" is the SKU's name on the
+                        // floor, and 1,041 is how many of it came out.
+                        TextSpan(
+                          text: o.uom.isEmpty ? o.itemName : '${o.itemName} ${o.uom}',
+                          style: RunqText.caption
+                              .copyWith(color: t.ink, fontWeight: FontWeight.w600),
+                        ),
+                        TextSpan(
+                          text: ' - ',
+                          style: RunqText.caption.copyWith(color: t.muted2),
+                        ),
+                        TextSpan(
+                          text: formatItemQty(o.qty, null, unit: o.uom),
+                          style: RunqText.caption
+                              .copyWith(color: brand, fontWeight: FontWeight.w700),
+                        ),
+                      ]),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              const SizedBox(height: 1),
+              Text(
+                [run.woNumber, ?when, draw].join('  ·  '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: RunqText.micro.copyWith(color: t.muted2),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(Icons.chevron_right_rounded, size: 14, color: t.muted2),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 // ── Bits ──────────────────────────────────────────────────────────────────
