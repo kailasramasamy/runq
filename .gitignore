@@ -43,3 +43,7 @@ apps/api/fix-*.ts
 apps/api/verify-*.ts
 apps/api/*.tmp.ts
 apps/collect/test/_*probe*
+
+# Local DB scratch query helper (reads .env directly)
+packages/db/q.mjs
+apps/api/origin-check.ts

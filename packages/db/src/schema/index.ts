@@ -124,6 +124,7 @@ export * from './milk-procurement/pours';
 export * from './milk-procurement/shift-closures';
 export * from './milk-procurement/consignments';
 export * from './milk-procurement/qc-tests';
+export * from './milk-procurement/rejections';
 export * from './milk-procurement/payouts';
 export * from './milk-procurement/farmer-sales';
 export * from './milk-procurement/operations';

@@ -27,6 +27,7 @@ import 'vmcc_dispatch_entry.dart';
 import '../../widgets/shift_grouped_pours.dart';
 import '../../widgets/shift_toggle.dart';
 import '../../widgets/sheet_grabber.dart';
+import '../shared/reject_sheet.dart';
 import 'farmer_picker.dart';
 import 'pending_duplicate_sheet.dart';
 
@@ -673,6 +674,30 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
   AvailabilityDateArgs get _availArgs =>
       (nodeId: widget.node.id, date: _date, shift: widget.node.isPooledDispatch ? null : _shift.name);
 
+  /// Record milk refused at the can. Deliberately not a pour with a flag: a
+  /// pour is a promise to pay, and this milk is going home with the farmer.
+  Future<void> _rejectAtGate() async {
+    final farmer = _farmer;
+    if (farmer == null) return;
+    final l = AppLocalizations.of(context);
+    var refused = 0.0;
+    final done = await showRejectSheet(context, onSubmit: (d) async {
+      await mpRepo.rejectAtGate({
+        ...d.toBody(),
+        'nodeId': widget.node.id,
+        'farmerId': farmer.id,
+        'collectionDate': _date,
+        'shift': _shift.name,
+        'milkType': milkTypeToApi(_milkType),
+      });
+      refused = d.qtyLitres;
+    });
+    if (!done || !mounted) return;
+    ref.invalidate(nodeRejectionsProvider(widget.node.id));
+    showDhenuToast(context, l.rejectDoneToast(litres(refused, unit: true)),
+        type: DhenuToastType.success);
+  }
+
   Future<void> _closeShift() async {
     if (_hasPendingForClose()) {
       showDhenuToast(context, AppLocalizations.of(context).collectCloseBlockedPending,
@@ -807,6 +832,27 @@ class _RecordCollectionScreenState extends ConsumerState<RecordCollectionScreen>
         ],
           ),
         ),
+        // Refusing milk at the gate is the cheapest place in the network to
+        // catch it, and the only point where the refusal traces to one farmer
+        // beyond argument. No pour is written for these litres, so nothing
+        // accrues and there is nothing to claw back later.
+        if (!closed && _farmer != null)
+          SafeArea(
+            top: false,
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.screen),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _saving ? null : _rejectAtGate,
+                  icon: Icon(DhenuIcons.warning, size: 16, color: t.gradeC),
+                  label: Text(l.rejectAction,
+                      style: DhenuText.label.copyWith(color: t.gradeC)),
+                ),
+              ),
+            ),
+          ),
         SafeArea(
           top: false,
           child: Padding(

@@ -3492,4 +3492,109 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get dispatchSentTitle => 'ಈಗಾಗಲೇ ರವಾನಿಸಲಾಗಿದೆ';
+
+  @override
+  String get rejectAction => 'ಹಾಲು ತಿರಸ್ಕರಿಸಿ';
+
+  @override
+  String get rejectTitle => 'ಹಾಲು ತಿರಸ್ಕರಿಸಿ';
+
+  @override
+  String get rejectQtyLabel => 'ತಿರಸ್ಕರಿಸಿದ ಲೀಟರ್';
+
+  @override
+  String get rejectReasonLabel => 'ಕಾರಣ?';
+
+  @override
+  String get rejectNotesLabel => 'ಏನು ತೊಂದರೆ?';
+
+  @override
+  String get rejectDispositionLabel => 'ಹಾಲು ಎಲ್ಲಿ ಹೋಯಿತು?';
+
+  @override
+  String get rejectReturned => 'ಹಿಂತಿರುಗಿಸಲಾಗಿದೆ';
+
+  @override
+  String get rejectDestroyed => 'ನಾಶಪಡಿಸಲಾಗಿದೆ';
+
+  @override
+  String get rejectReasonSour => 'ಹುಳಿ';
+
+  @override
+  String get rejectReasonTemperature => 'ಹೆಚ್ಚು ಬಿಸಿ';
+
+  @override
+  String get rejectReasonAdulterated => 'ಕಲಬೆರಕೆ';
+
+  @override
+  String get rejectReasonCob => 'COB ಪಾಸಿಟಿವ್';
+
+  @override
+  String get rejectReasonAntibiotic => 'ಔಷಧ ಅಂಶ';
+
+  @override
+  String get rejectReasonForeign => 'ಹೊರಗಿನ ವಸ್ತು';
+
+  @override
+  String get rejectReasonOther => 'ಇತರೆ';
+
+  @override
+  String get rejectSubmit => 'ತಿರಸ್ಕಾರ ದಾಖಲಿಸಿ';
+
+  @override
+  String rejectDoneToast(Object qty) {
+    return '$qty ತಿರಸ್ಕೃತ ಎಂದು ದಾಖಲಾಗಿದೆ';
+  }
+
+  @override
+  String rejectMaxHint(Object qty) {
+    return '$qty ವರೆಗೆ ಸ್ವೀಕರಿಸಲಾಗಿದೆ';
+  }
+
+  @override
+  String get rejectNeedsReason => 'ಹಾಲಿನಲ್ಲಿ ಏನು ತೊಂದರೆ ಎಂದು ಬರೆಯಿರಿ';
+
+  @override
+  String get rejectNotAccepted => 'ಸ್ವೀಕರಿಸಿಲ್ಲ';
+
+  @override
+  String rejectedChip(Object qty) {
+    return '$qty ತಿರಸ್ಕೃತ';
+  }
+
+  @override
+  String get rejectUndo => 'ತಿರಸ್ಕಾರ ರದ್ದುಗೊಳಿಸಿ';
+
+  @override
+  String rejectUndoConfirm(Object qty) {
+    return 'ತಿರಸ್ಕರಿಸಿದ $qty ಈ ಸಾಗಣೆಗೆ ಮರಳುತ್ತದೆ, ಮತ್ತು ಕಡಿತ ರದ್ದಾಗುತ್ತದೆ.';
+  }
+
+  @override
+  String get rejectNoneTitle => 'ಯಾವುದೇ ಹಾಲು ತಿರಸ್ಕರಿಸಿಲ್ಲ';
+
+  @override
+  String rejectNoneSubtitle(Object days) {
+    return 'ಕಳೆದ $days ದಿನಗಳಲ್ಲಿ ಏನೂ ತಿರಸ್ಕೃತವಾಗಿಲ್ಲ';
+  }
+
+  @override
+  String get rejectBySourceTitle => 'ಮೂಲದ ಪ್ರಕಾರ ತಿರಸ್ಕಾರ ಪ್ರಮಾಣ';
+
+  @override
+  String get rejectByReasonTitle => 'ಹಾಲು ಏಕೆ ತಿರಸ್ಕರಿಸಲಾಯಿತು';
+
+  @override
+  String rejectEventsLine(num count, Object qty) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ತಿರಸ್ಕಾರಗಳು',
+      one: '$count ತಿರಸ್ಕಾರ',
+    );
+    return '$_temp0 · $qty';
+  }
+
+  @override
+  String get rejectScope => 'ತಿರಸ್ಕಾರ';
 }

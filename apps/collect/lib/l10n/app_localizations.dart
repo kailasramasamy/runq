@@ -6021,6 +6021,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Already dispatched'**
   String get dispatchSentTitle;
+
+  /// No description provided for @rejectAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject milk'**
+  String get rejectAction;
+
+  /// No description provided for @rejectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject milk'**
+  String get rejectTitle;
+
+  /// No description provided for @rejectQtyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Litres refused'**
+  String get rejectQtyLabel;
+
+  /// No description provided for @rejectReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Why?'**
+  String get rejectReasonLabel;
+
+  /// No description provided for @rejectNotesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What was wrong?'**
+  String get rejectNotesLabel;
+
+  /// No description provided for @rejectDispositionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Where did it go?'**
+  String get rejectDispositionLabel;
+
+  /// No description provided for @rejectReturned.
+  ///
+  /// In en, this message translates to:
+  /// **'Returned'**
+  String get rejectReturned;
+
+  /// No description provided for @rejectDestroyed.
+  ///
+  /// In en, this message translates to:
+  /// **'Destroyed'**
+  String get rejectDestroyed;
+
+  /// No description provided for @rejectReasonSour.
+  ///
+  /// In en, this message translates to:
+  /// **'Sour'**
+  String get rejectReasonSour;
+
+  /// No description provided for @rejectReasonTemperature.
+  ///
+  /// In en, this message translates to:
+  /// **'Too warm'**
+  String get rejectReasonTemperature;
+
+  /// No description provided for @rejectReasonAdulterated.
+  ///
+  /// In en, this message translates to:
+  /// **'Adulterated'**
+  String get rejectReasonAdulterated;
+
+  /// No description provided for @rejectReasonCob.
+  ///
+  /// In en, this message translates to:
+  /// **'COB positive'**
+  String get rejectReasonCob;
+
+  /// No description provided for @rejectReasonAntibiotic.
+  ///
+  /// In en, this message translates to:
+  /// **'Antibiotic'**
+  String get rejectReasonAntibiotic;
+
+  /// No description provided for @rejectReasonForeign.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreign matter'**
+  String get rejectReasonForeign;
+
+  /// No description provided for @rejectReasonOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get rejectReasonOther;
+
+  /// No description provided for @rejectSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Record rejection'**
+  String get rejectSubmit;
+
+  /// No description provided for @rejectDoneToast.
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} recorded as rejected'**
+  String rejectDoneToast(Object qty);
+
+  /// No description provided for @rejectMaxHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {qty} received'**
+  String rejectMaxHint(Object qty);
+
+  /// No description provided for @rejectNeedsReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Say what was wrong with the milk'**
+  String get rejectNeedsReason;
+
+  /// No description provided for @rejectNotAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Not accepted'**
+  String get rejectNotAccepted;
+
+  /// No description provided for @rejectedChip.
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} rejected'**
+  String rejectedChip(Object qty);
+
+  /// No description provided for @rejectUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo rejection'**
+  String get rejectUndo;
+
+  /// No description provided for @rejectUndoConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'The {qty} refused will go back onto this load, and any deduction is cancelled.'**
+  String rejectUndoConfirm(Object qty);
+
+  /// No description provided for @rejectNoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No milk refused'**
+  String get rejectNoneTitle;
+
+  /// No description provided for @rejectNoneSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing has been rejected in the last {days} days'**
+  String rejectNoneSubtitle(Object days);
+
+  /// No description provided for @rejectBySourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rejection rate by source'**
+  String get rejectBySourceTitle;
+
+  /// No description provided for @rejectByReasonTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Why milk was refused'**
+  String get rejectByReasonTitle;
+
+  /// No description provided for @rejectEventsLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} rejection} other{{count} rejections}} · {qty}'**
+  String rejectEventsLine(num count, Object qty);
+
+  /// No description provided for @rejectScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Rejections'**
+  String get rejectScope;
 }
 
 class _AppLocalizationsDelegate

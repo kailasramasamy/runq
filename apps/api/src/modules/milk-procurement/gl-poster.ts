@@ -19,6 +19,13 @@ const DEFAULT_CODES = {
   feedLoans: '1151',
   saleReceivable: '1152',
   saleIncome: '4006',
+  // Contra-expense. Milk poured but later refused for quality still debits
+  // 5050 at gross — it was collected, and the pour says so — and the rejected
+  // share is credited back here instead of to the farmer's payable. 5050 then
+  // reads "all milk poured", 5070 "what we refused", and the difference is what
+  // we actually bought. Netting it out of 5050 silently would leave no figure
+  // anywhere for how much milk is being rejected.
+  qualityRejections: '5070',
   bank: '1101',
 } as const;
 
@@ -109,12 +116,14 @@ export class MpGlPoster {
     p: {
       cycleId: string; cycleNo: string; date: string;
       net: number; advance: number; feedLoan: number; farmerSale: number;
+      qualityRejection?: number;
     },
   ): Promise<string> {
     const c = await this.resolveCodes(tx);
     const net = round2(p.net), advance = round2(p.advance), feedLoan = round2(p.feedLoan);
     const farmerSale = round2(p.farmerSale);
-    const gross = round2(net + advance + feedLoan + farmerSale);
+    const rejection = round2(p.qualityRejection ?? 0);
+    const gross = round2(net + advance + feedLoan + farmerSale + rejection);
     const lines: Line[] = [
       { accountCode: c.milkPurchases, debit: gross, description: `Milk purchases — ${p.cycleNo}` },
     ];
@@ -123,6 +132,12 @@ export class MpGlPoster {
     if (feedLoan > 0) lines.push({ accountCode: c.feedLoans, credit: feedLoan, description: 'Feed loan recovered' });
     if (farmerSale > 0) {
       lines.push({ accountCode: c.saleReceivable, credit: farmerSale, description: 'Milk sold to farmer recovered' });
+    }
+    if (rejection > 0) {
+      lines.push({
+        accountCode: c.qualityRejections, credit: rejection,
+        description: 'Milk rejected for quality',
+      });
     }
     return this.post(tx, {
       date: p.date, description: `Milk procurement payout — ${p.cycleNo}`,
@@ -141,6 +156,7 @@ export class MpGlPoster {
     p: {
       cycleId: string; cycleNo: string; date: string;
       gross: number; net: number; advance: number; feedLoan: number; farmerSale: number;
+      qualityRejection?: number;
     },
   ): Promise<string | null> {
     const c = await this.resolveCodes(tx);
@@ -156,6 +172,7 @@ export class MpGlPoster {
     put(c.farmerAdvances, p.advance, false, 'Advance recovered adjustment');
     put(c.feedLoans, p.feedLoan, false, 'Feed loan recovered adjustment');
     put(c.saleReceivable, p.farmerSale, false, 'Milk sold to farmer recovered adjustment');
+    put(c.qualityRejections, p.qualityRejection ?? 0, false, 'Milk rejected for quality adjustment');
     if (!lines.length) return null;
     return this.post(tx, {
       date: p.date, description: `Milk payout adjustment — ${p.cycleNo}`,
@@ -329,6 +346,9 @@ export class MpGlPoster {
       feedLoans: pick(s?.feed, DEFAULT_CODES.feedLoans),
       saleReceivable: pick(s?.saleReceivable, DEFAULT_CODES.saleReceivable),
       saleIncome: pick(s?.saleIncome, DEFAULT_CODES.saleIncome),
+      // No mp_gl_settings override yet — 5070 is a fixed dairy account, the
+      // same way bank is. Add a column here if a tenant ever needs its own.
+      qualityRejections: DEFAULT_CODES.qualityRejections,
       bank: DEFAULT_CODES.bank,
     };
   }

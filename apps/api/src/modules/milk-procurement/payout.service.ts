@@ -392,12 +392,13 @@ export class PayoutService {
       // advances/loans. A via_vmcc-only CC cycle has no farmer lines — that milk is
       // GL'd through the per-VMCC bills, not here — so there's nothing to accrue.
       // Skip the JE then (a single zero line would fail the ≥2-lines rule).
-      const accrue = totals.net + recovered.advance + recovered.feedLoan + recovered.farmerSale > 0;
+      const accrue = totals.net + recovered.advance + recovered.feedLoan
+        + recovered.farmerSale + recovered.qualityRejection > 0;
       const journalEntryId = accrue
         ? await new MpGlPoster(this.tenantId).postAccrual(tx, {
             cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
             net: totals.net, advance: recovered.advance, feedLoan: recovered.feedLoan,
-            farmerSale: recovered.farmerSale,
+            farmerSale: recovered.farmerSale, qualityRejection: recovered.qualityRejection,
           })
         : null;
       const [updated] = await tx.update(mpPayoutCycles).set({
@@ -521,10 +522,12 @@ export class PayoutService {
       const dAdvance = round2(recovered.advance - oldRecovered.advance);
       const dFeed = round2(recovered.feedLoan - oldRecovered.feedLoan);
       const dSale = round2(recovered.farmerSale - oldRecovered.farmerSale);
+      const dRejection = round2(recovered.qualityRejection - oldRecovered.qualityRejection);
       await new MpGlPoster(this.tenantId, userId).postAccrualDelta(tx, {
         cycleId: cycle.id, cycleNo: cycle.cycleNo, date: cycle.periodEnd,
-        gross: round2(dNet + dAdvance + dFeed + dSale),
+        gross: round2(dNet + dAdvance + dFeed + dSale + dRejection),
         net: dNet, advance: dAdvance, feedLoan: dFeed, farmerSale: dSale,
+        qualityRejection: dRejection,
       });
       await this.updateCycleTotals(tx, cycleId);
     });
@@ -546,7 +549,7 @@ export class PayoutService {
     return line!;
   }
 
-  /** Sum recovered advance / feed-loan / milk-sale across a set of payout lines' deductions. */
+  /** Sum recovered rejection / milk-sale / advance / feed-loan across a set of payout lines' deductions. */
   private async recoveredByType(db: Db | Tx, lineIds: string[]): Promise<Outstanding> {
     const recovered = zeroOutstanding();
     if (!lineIds.length) return recovered;

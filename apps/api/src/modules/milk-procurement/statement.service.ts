@@ -1,6 +1,7 @@
 import { and, eq, gte, isNull, lte, ne } from 'drizzle-orm';
 import {
   tenants, items, mpFarmerLedger, mpFarmerSales, mpPayoutCycles, mpPayoutDeductions, mpPayoutLines,
+  mpRejections, mpRejectionCharges,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { FarmerService } from './farmer.service';
@@ -9,6 +10,7 @@ import { DEDUCTION_TYPES, foldOutstanding, waterfall } from './farmer-ledger';
 import type { MpPrincipal } from './access-scope';
 import type {
   PourStatementData, StatementPour, StatementDeduction, StatementSettlement,
+  StatementRejection,
 } from './statement-template';
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
@@ -99,10 +101,43 @@ export class StatementService {
       period: { from, to, label: label ?? null },
       pours,
       byType: computeByType(pours),
+      rejections: await this.rejections(farmerId, from, to),
       totals,
       settlement: await this.settlement(farmerId, from, to, totals.amount),
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Milk this farmer brought that was refused, whichever tier caught it — the
+   * gate rows have no pour behind them, the downstream ones are their share of
+   * a rejected load. Listed so the deduction below has something to point at.
+   */
+  private async rejections(
+    farmerId: string, from: string, to: string,
+  ): Promise<StatementRejection[]> {
+    const rows = await this.db.select({
+      collectionDate: mpRejections.collectionDate,
+      shift: mpRejections.shift,
+      milkType: mpRejections.milkType,
+      qty: mpRejectionCharges.qtyLitres,
+      reason: mpRejections.reason,
+    }).from(mpRejectionCharges)
+      .innerJoin(mpRejections, eq(mpRejectionCharges.rejectionId, mpRejections.id))
+      .where(and(
+        eq(mpRejectionCharges.tenantId, this.tenantId),
+        eq(mpRejectionCharges.farmerId, farmerId),
+        isNull(mpRejectionCharges.reversedAt),
+        isNull(mpRejections.reversedAt),
+        gte(mpRejections.collectionDate, from),
+        lte(mpRejections.collectionDate, to),
+      ));
+    return rows
+      .map((r) => ({
+        collectionDate: r.collectionDate, shift: r.shift, milkType: r.milkType,
+        qtyLitres: Number(r.qty), reason: r.reason,
+      }))
+      .sort((a, b) => a.collectionDate.localeCompare(b.collectionDate));
   }
 
   /**

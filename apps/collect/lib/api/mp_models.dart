@@ -952,6 +952,78 @@ typedef MpFarmerLedger = ({
   List<MpLedgerEntry> entries,
 });
 
+/// Milk refused for quality — recorded beside the pour or receipt it came from,
+/// never in place of it. Erasing the entry would withhold the money but destroy
+/// the reading that justified the refusal.
+class MpRejection {
+  final String id, stage, collectionDate, reason, disposition, borneBy;
+  final String? shift, notes, fromNodeId, reversedAt;
+  final MilkType? milkType;
+  final double qtyLitres;
+
+  MpRejection({
+    required this.id,
+    required this.stage,
+    required this.collectionDate,
+    required this.reason,
+    required this.disposition,
+    required this.borneBy,
+    required this.qtyLitres,
+    this.shift,
+    this.notes,
+    this.fromNodeId,
+    this.milkType,
+    this.reversedAt,
+  });
+
+  factory MpRejection.fromJson(Map<String, dynamic> j) => MpRejection(
+        id: j['id'] as String,
+        stage: (j['stage'] as String?) ?? 'gate',
+        collectionDate: j['collectionDate'] as String,
+        reason: (j['reason'] as String?) ?? 'other',
+        disposition: (j['disposition'] as String?) ?? 'returned',
+        borneBy: (j['borneBy'] as String?) ?? 'company',
+        qtyLitres: double.tryParse('${j['qtyLitres']}') ?? 0,
+        shift: j['shift'] as String?,
+        notes: j['notes'] as String?,
+        fromNodeId: j['fromNodeId'] as String?,
+        milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
+        reversedAt: j['reversedAt'] as String?,
+      );
+
+  bool get isReversed => reversedAt != null;
+  bool get atGate => stage == 'gate';
+}
+
+/// One row of the rejection-rate report: a source node, a farmer, or a reason.
+class MpRejectionStat {
+  final String? key;
+  final double rejectedQty, amount;
+  final int events;
+  MpRejectionStat({required this.key, required this.rejectedQty, required this.amount, required this.events});
+
+  factory MpRejectionStat.fromJson(Map<String, dynamic> j) => MpRejectionStat(
+        key: j['key'] as String?,
+        rejectedQty: double.tryParse('${j['rejectedQty']}') ?? 0,
+        amount: double.tryParse('${j['amount']}') ?? 0,
+        events: (j['events'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// Why milk was refused. Ordered as an operator would reach for them — the
+/// senses first, the lab tests after.
+enum RejectionReason { sour, temperature, adulterated, cobPositive, antibiotic, foreignMatter, other }
+
+const rejectionReasonApi = <RejectionReason, String>{
+  RejectionReason.sour: 'sour',
+  RejectionReason.temperature: 'temperature',
+  RejectionReason.adulterated: 'adulterated',
+  RejectionReason.cobPositive: 'cob_positive',
+  RejectionReason.antibiotic: 'antibiotic',
+  RejectionReason.foreignMatter: 'foreign_matter',
+  RejectionReason.other: 'other',
+};
+
 /// Goods the farmer BOUGHT from us — bulk milk a trader resells, or a product
 /// (ghee, curd, paneer) off the counter. Recovered from their next payment.
 class MpFarmerSale {

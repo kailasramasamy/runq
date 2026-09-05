@@ -58,13 +58,32 @@ export const mpBillStatus = pgEnum('mp_bill_status', ['generated', 'paid', 'reve
 // `farmer_sale` — goods the farmer BOUGHT from us: bulk milk a trader resells,
 // or ghee/curd/paneer off the counter. Recovered before advances — it is the
 // freshest receivable and, unlike a loan, was never meant to sit on the books.
-export const mpDeduction = pgEnum('mp_deduction', ['advance', 'cattle_feed_loan', 'farmer_sale', 'other']);
+// `quality_rejection` — milk that failed QC and went back. Recovered alongside
+// `farmer_sale`, ahead of advances: it is not a debt the farmer took on, it is
+// milk we never got, so it comes off the top of what we owe for the milk we did.
+export const mpDeduction = pgEnum('mp_deduction', [
+  'advance', 'cattle_feed_loan', 'farmer_sale', 'quality_rejection', 'other',
+]);
+// Where a rejection was made. Attribution does NOT follow this — milk caught at
+// the plant can still trace to one farmer's pour (see MpRejectionService).
+export const mpRejectionStage = pgEnum('mp_rejection_stage', ['gate', 'cc_receipt', 'pp_receipt']);
+export const mpRejectionReason = pgEnum('mp_rejection_reason', [
+  'sour', 'adulterated', 'temperature', 'cob_positive', 'antibiotic', 'foreign_matter', 'other',
+]);
+// Where the milk physically went. `returned` is the norm; `destroyed` matters
+// to anyone later asking what happened to the litres.
+export const mpRejectionDisposition = pgEnum('mp_rejection_disposition', ['returned', 'destroyed']);
+// Who is out of pocket. Quality-rejected milk is not paid for, and the supplier
+// who sent it carries it: a farmer when the milk traces to their pour, the VMCC
+// when it arrived as a direct receipt with no pours behind it. `company` is an
+// owner override for milk that traces to neither, never a default.
+export const mpRejectionBearer = pgEnum('mp_rejection_bearer', ['farmer', 'vmcc', 'company']);
 // What the farmer bought: bulk milk off the centre's pool, or a finished
 // product (ghee, curd, paneer) from the item master. Only `raw_milk` draws
 // down what the centre can still dispatch.
 export const mpSaleKind = pgEnum('mp_sale_kind', ['raw_milk', 'product']);
 export const mpLedgerEntry = pgEnum('mp_ledger_entry', [
-  'advance_given', 'feed_loan_given', 'farmer_sale', 'repayment', 'adjustment',
+  'advance_given', 'feed_loan_given', 'farmer_sale', 'quality_rejection', 'repayment', 'adjustment',
 ]);
 export const mpOperatorRole = pgEnum('mp_operator_role', ['operator', 'owner']);
 export const mpCompType = pgEnum('mp_comp_type', ['per_litre_commission', 'fixed_salary']);

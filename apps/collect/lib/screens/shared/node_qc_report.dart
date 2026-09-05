@@ -13,9 +13,14 @@ import '../../widgets/node_picker.dart';
 import '../../utils/friendly_error.dart';
 import 'qc_report_view.dart';
 import 'qc_source_ranking.dart';
+import 'rejection_report.dart';
 import 'receive_leg.dart';
 
-enum _Scope { all, source, ranking }
+// `rejections` is deliberately a peer of the quality scopes rather than a
+// column inside them: what was refused and what was accepted are measured on
+// different denominators, and cramming a rate into the FAT/SNF table invited
+// reading it as just another quality average.
+enum _Scope { all, source, ranking, rejections }
 
 /// Inbound QC report — three scopes over the same windowed receipts: all source
 /// nodes pooled, one selected source, or every source ranked side by side. The
@@ -110,6 +115,9 @@ class _NodeQcReportState extends ConsumerState<NodeQcReport> {
           bands: bands,
           milkType: milkType,
         );
+      case _Scope.rejections:
+        return RejectionReport(
+            node: widget.node, days: _days, rows: rows, sources: sources);
       case _Scope.ranking:
         return QcSourceRanking(
             rows: rows, sources: sources, leg: leg, days: _days, bands: bands, milkType: milkType);
@@ -150,6 +158,7 @@ class _NodeQcReportState extends ConsumerState<NodeQcReport> {
           _scopeSeg(t, _Scope.all, l.ccQcScopeAll),
           _scopeSeg(t, _Scope.source, leg.scopeBySource),
           _scopeSeg(t, _Scope.ranking, l.ccQcScopeRanking),
+          _scopeSeg(t, _Scope.rejections, l.rejectScope),
         ]),
       );
 

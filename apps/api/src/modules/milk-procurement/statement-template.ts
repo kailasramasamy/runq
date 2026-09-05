@@ -15,6 +15,15 @@ export interface StatementPour {
   receiptNo?: string | null;
 }
 
+/** One refusal on the statement — litres brought that were not kept. */
+export interface StatementRejection {
+  collectionDate: string;
+  shift: 'am' | 'pm' | null;
+  milkType: string | null;
+  qtyLitres: number;
+  reason: string;
+}
+
 /** Per-milk-type subtotal for the breakup section. Quality is litres-weighted. */
 export interface MilkTypeBreakdown {
   milkType: string;
@@ -60,6 +69,8 @@ export interface PourStatementData {
   /** One row per milk type the farmer supplied this cycle. Shown only when the
    *  farmer poured more than one type (otherwise it just restates the totals). */
   byType: MilkTypeBreakdown[];
+  /** Litres brought this cycle that were refused. Empty for most farmers. */
+  rejections: StatementRejection[];
   totals: {
     litres: number; amount: number; count: number;
     amLitres: number; pmLitres: number;
@@ -130,7 +141,39 @@ function byTypeSection(rows: MilkTypeBreakdown[]): string {
     </table>`;
 }
 
+/** What was refused, and why. Sits above the settlement block so the farmer
+ *  reads "this is what wasn't kept" before "this is what you're paid" — a
+ *  silent reduction in a milk cheque is how a supplier is lost. */
+export function rejectionsSection(rows: StatementRejection[]): string {
+  if (!rows.length) return '';
+  const total = rows.reduce((s, r) => s + r.qtyLitres, 0);
+  return `
+    <h2>Milk not accepted</h2>
+    <table class="grid">
+      <thead><tr><th>Date</th><th>Shift</th><th>Type</th>
+        <th class="r">Litres</th><th>Reason</th></tr></thead>
+      <tbody>
+        ${rows.map((r) => `<tr>
+          <td>${fmtDate(r.collectionDate)}</td>
+          <td>${esc((r.shift ?? '').toUpperCase())}</td>
+          <td>${esc(milkLabel(r.milkType ?? ''))}</td>
+          <td class="r">${num(r.qtyLitres, 1)}</td>
+          <td>${esc(REJECTION_LABEL[r.reason] ?? r.reason)}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td colspan="3">Total not accepted</td>
+        <td class="r">${num(total, 1)}</td><td></td></tr></tfoot>
+    </table>`;
+}
+
+const REJECTION_LABEL: Record<string, string> = {
+  sour: 'Sour', adulterated: 'Adulterated', temperature: 'Too warm',
+  cob_positive: 'COB positive', antibiotic: 'Antibiotic residue',
+  foreign_matter: 'Foreign matter', other: 'Other',
+};
+
 const DEDUCTION_LABEL: Record<string, string> = {
+  quality_rejection: 'Less: milk rejected for quality',
   farmer_sale: 'Less: purchased from us',
   advance: 'Less: advance recovered',
   cattle_feed_loan: 'Less: cattle-feed loan recovered',
@@ -234,6 +277,7 @@ export function renderPourStatementHTML(d: PourStatementData): string {
       ${summaryCard('Avg Water %', num(d.totals.avgWater, 1))}
     </div>
     ${byTypeSection(d.byType)}
+    ${rejectionsSection(d.rejections)}
     ${settlementSection(d.settlement)}
     ${d.byType.length > 1 || d.settlement ? '<div class="section-title">Daily detail</div>' : ''}
     <table>

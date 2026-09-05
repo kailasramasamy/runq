@@ -3505,4 +3505,109 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dispatchSentTitle => 'Already dispatched';
+
+  @override
+  String get rejectAction => 'Reject milk';
+
+  @override
+  String get rejectTitle => 'Reject milk';
+
+  @override
+  String get rejectQtyLabel => 'Litres refused';
+
+  @override
+  String get rejectReasonLabel => 'Why?';
+
+  @override
+  String get rejectNotesLabel => 'What was wrong?';
+
+  @override
+  String get rejectDispositionLabel => 'Where did it go?';
+
+  @override
+  String get rejectReturned => 'Returned';
+
+  @override
+  String get rejectDestroyed => 'Destroyed';
+
+  @override
+  String get rejectReasonSour => 'Sour';
+
+  @override
+  String get rejectReasonTemperature => 'Too warm';
+
+  @override
+  String get rejectReasonAdulterated => 'Adulterated';
+
+  @override
+  String get rejectReasonCob => 'COB positive';
+
+  @override
+  String get rejectReasonAntibiotic => 'Antibiotic';
+
+  @override
+  String get rejectReasonForeign => 'Foreign matter';
+
+  @override
+  String get rejectReasonOther => 'Other';
+
+  @override
+  String get rejectSubmit => 'Record rejection';
+
+  @override
+  String rejectDoneToast(Object qty) {
+    return '$qty recorded as rejected';
+  }
+
+  @override
+  String rejectMaxHint(Object qty) {
+    return 'Up to $qty received';
+  }
+
+  @override
+  String get rejectNeedsReason => 'Say what was wrong with the milk';
+
+  @override
+  String get rejectNotAccepted => 'Not accepted';
+
+  @override
+  String rejectedChip(Object qty) {
+    return '$qty rejected';
+  }
+
+  @override
+  String get rejectUndo => 'Undo rejection';
+
+  @override
+  String rejectUndoConfirm(Object qty) {
+    return 'The $qty refused will go back onto this load, and any deduction is cancelled.';
+  }
+
+  @override
+  String get rejectNoneTitle => 'No milk refused';
+
+  @override
+  String rejectNoneSubtitle(Object days) {
+    return 'Nothing has been rejected in the last $days days';
+  }
+
+  @override
+  String get rejectBySourceTitle => 'Rejection rate by source';
+
+  @override
+  String get rejectByReasonTitle => 'Why milk was refused';
+
+  @override
+  String rejectEventsLine(num count, Object qty) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count rejections',
+      one: '$count rejection',
+    );
+    return '$_temp0 · $qty';
+  }
+
+  @override
+  String get rejectScope => 'Rejections';
 }

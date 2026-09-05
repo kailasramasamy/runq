@@ -21,6 +21,7 @@ import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment
 import { MpNotifier } from './mp-notifier';
 import { RateChartService } from './rate-chart.service';
 import { RawMilkCostService } from './raw-milk-cost';
+import { MpRejectionService } from './rejection.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type MilkType = NonNullable<MpConsignmentRow['milkType']>;
@@ -318,7 +319,12 @@ export class ConsignmentService {
     if (c.status !== 'received') throw new ConflictError('Only a received consignment can be corrected');
     assertNodeAccess(principal, c.toNodeId);
     const dispatched = Number(c.dispatchQty ?? 0);
-    const varianceQty = round3(Number(input.receiptQty) - dispatched);
+    // Refused litres arrived — they were just not kept. Adding them back before
+    // measuring variance keeps a rejection from reading as a short delivery,
+    // which is the figure a CC uses to police its VMCCs.
+    const refused = await new MpRejectionService(this.db, this.tenantId)
+      .rejectedLitres(this.db, id);
+    const varianceQty = round3(Number(input.receiptQty) + refused - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
     return this.db.transaction(async (tx) => {
       const [row] = await tx.update(mpConsignments).set({
@@ -390,6 +396,15 @@ export class ConsignmentService {
     const c = await this.getById(id, principal);
     assertNodeAccess(principal, c.toNodeId);
     if (c.status !== 'received') throw new ConflictError('Only a received load can be un-received');
+    // A rejection describes this receipt. Un-receiving underneath it would
+    // leave litres refused off a load the system says never arrived, so the
+    // judgement call has to be withdrawn first — deliberately not cascaded:
+    // reversing someone's quality decision as a side effect of an unrelated
+    // correction is not a thing this should do quietly.
+    if (await new MpRejectionService(this.db, this.tenantId).hasLiveRejection(id)) {
+      throw new ConflictError(
+        'This load has a quality rejection recorded — reverse that first.');
+    }
     if (c.directReceive) return this.deleteManualReceipt(id, principal);
     await this.assertBatchUnconsumed(c);
     await this.assertNoOnwardDispatch(c);

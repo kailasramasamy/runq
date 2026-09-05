@@ -3520,4 +3520,109 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get dispatchSentTitle => 'ஏற்கனவே அனுப்பப்பட்டது';
+
+  @override
+  String get rejectAction => 'பாலை நிராகரி';
+
+  @override
+  String get rejectTitle => 'பாலை நிராகரி';
+
+  @override
+  String get rejectQtyLabel => 'நிராகரித்த லிட்டர்';
+
+  @override
+  String get rejectReasonLabel => 'காரணம்?';
+
+  @override
+  String get rejectNotesLabel => 'என்ன பிரச்சினை?';
+
+  @override
+  String get rejectDispositionLabel => 'பால் எங்கே போனது?';
+
+  @override
+  String get rejectReturned => 'திருப்பி அனுப்பப்பட்டது';
+
+  @override
+  String get rejectDestroyed => 'அழிக்கப்பட்டது';
+
+  @override
+  String get rejectReasonSour => 'புளித்தது';
+
+  @override
+  String get rejectReasonTemperature => 'அதிக வெப்பம்';
+
+  @override
+  String get rejectReasonAdulterated => 'கலப்படம்';
+
+  @override
+  String get rejectReasonCob => 'COB பாசிட்டிவ்';
+
+  @override
+  String get rejectReasonAntibiotic => 'மருந்து எச்சம்';
+
+  @override
+  String get rejectReasonForeign => 'வெளிப்பொருள்';
+
+  @override
+  String get rejectReasonOther => 'மற்றவை';
+
+  @override
+  String get rejectSubmit => 'நிராகரிப்பைப் பதிவு செய்';
+
+  @override
+  String rejectDoneToast(Object qty) {
+    return '$qty நிராகரிக்கப்பட்டதாக பதிவாகியது';
+  }
+
+  @override
+  String rejectMaxHint(Object qty) {
+    return '$qty வரை பெறப்பட்டது';
+  }
+
+  @override
+  String get rejectNeedsReason => 'பாலில் என்ன பிரச்சினை என எழுதுங்கள்';
+
+  @override
+  String get rejectNotAccepted => 'ஏற்கப்படவில்லை';
+
+  @override
+  String rejectedChip(Object qty) {
+    return '$qty நிராகரிப்பு';
+  }
+
+  @override
+  String get rejectUndo => 'நிராகரிப்பை ரத்து செய்';
+
+  @override
+  String rejectUndoConfirm(Object qty) {
+    return 'நிராகரித்த $qty இந்த சரக்குக்குத் திரும்பும், கழிவும் ரத்தாகும்.';
+  }
+
+  @override
+  String get rejectNoneTitle => 'பால் எதுவும் நிராகரிக்கப்படவில்லை';
+
+  @override
+  String rejectNoneSubtitle(Object days) {
+    return 'கடந்த $days நாட்களில் எதுவும் நிராகரிக்கப்படவில்லை';
+  }
+
+  @override
+  String get rejectBySourceTitle => 'மூலவாரியாக நிராகரிப்பு விகிதம்';
+
+  @override
+  String get rejectByReasonTitle => 'பால் ஏன் நிராகரிக்கப்பட்டது';
+
+  @override
+  String rejectEventsLine(num count, Object qty) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count நிராகரிப்புகள்',
+      one: '$count நிராகரிப்பு',
+    );
+    return '$_temp0 · $qty';
+  }
+
+  @override
+  String get rejectScope => 'நிராகரிப்பு';
 }

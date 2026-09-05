@@ -613,6 +613,57 @@ class MpRepo {
   /// receive that isn't yet locked for dispatch).
   Future<void> deleteReceipt(String id) => _api.delete('$_base/consignments/$id');
 
+  // ── rejections ────────────────────────────────────────────────────────────
+  /// Refuse a farmer's milk at the gate. No pour is created for these litres,
+  /// so nothing accrues and there is nothing to deduct later.
+  Future<MpRejection?> rejectAtGate(Map<String, dynamic> body) async {
+    final res = await _api.post('$_base/rejections/gate', body);
+    final m = _one(res);
+    return m == null ? null : MpRejection.fromJson(m);
+  }
+
+  /// Refuse part of a load already taken in. The receipt drops to what was
+  /// kept, so the litres never join the pool or the plant's raw-milk stock.
+  Future<MpRejection?> rejectConsignment(String id, Map<String, dynamic> body) async {
+    final res = await _api.post('$_base/rejections/consignment/$id', body);
+    final m = _one(res);
+    return m == null ? null : MpRejection.fromJson(m);
+  }
+
+  Future<List<MpRejection>> rejections({
+    String? nodeId,
+    String? fromNodeId,
+    String? collectionDate,
+    String? from,
+    String? to,
+  }) async {
+    final res = await _api.get(
+      '$_base/rejections${_qs({'nodeId': nodeId, 'fromNodeId': fromNodeId, 'collectionDate': collectionDate, 'from': from, 'to': to})}',
+    );
+    return _list(res).map(MpRejection.fromJson).toList();
+  }
+
+  /// Rejection rate over a window, grouped by source node, farmer or reason.
+  Future<List<MpRejectionStat>> rejectionStats({
+    required String from,
+    required String to,
+    String? nodeId,
+    String groupBy = 'node',
+  }) async {
+    final res = await _api.get(
+      '$_base/rejections/stats${_qs({'from': from, 'to': to, 'nodeId': nodeId, 'groupBy': groupBy})}',
+    );
+    return _list(res).map(MpRejectionStat.fromJson).toList();
+  }
+
+  /// Take a rejection back: litres return to the receipt and every charge is
+  /// contra'd on its farmer's ledger.
+  Future<MpRejection?> reverseRejection(String id) async {
+    final res = await _api.post('$_base/rejections/$id/reverse', const {});
+    final m = _one(res);
+    return m == null ? null : MpRejection.fromJson(m);
+  }
+
   // ── single-site fast track ────────────────────────────────────────────────
   /// Preview the whole VMCC→CC→plant chain without writing anything. Only
   /// returns centres whose plant is flagged single-site and that this operator

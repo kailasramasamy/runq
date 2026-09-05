@@ -10,19 +10,19 @@ describe('foldOutstanding', () => {
       row('advance_given', 1000),
       row('feed_loan_given', 500),
       row('farmer_sale', 200),
-    ])).toEqual({ farmerSale: 200, advance: 1000, feedLoan: 500 });
+    ])).toEqual({ qualityRejection: 0, farmerSale: 200, advance: 1000, feedLoan: 500 });
   });
 
   it('pays each bucket down by the repayment that names it', () => {
     expect(foldOutstanding([
       row('farmer_sale', 200), row('advance_given', 1000),
       row('repayment', 200, 'farmer_sale'), row('repayment', 400, 'advance'),
-    ])).toEqual({ farmerSale: 0, advance: 600, feedLoan: 0 });
+    ])).toEqual({ qualityRejection: 0, farmerSale: 0, advance: 600, feedLoan: 0 });
   });
 
   it('sends an unlabelled repayment to advances, as it did before milk sales', () => {
     expect(foldOutstanding([row('advance_given', 300), row('repayment', 100)]))
-      .toEqual({ farmerSale: 0, advance: 200, feedLoan: 0 });
+      .toEqual({ qualityRejection: 0, farmerSale: 0, advance: 200, feedLoan: 0 });
   });
 
   it('contras a reversed sale but leaves other adjustments on the balance alone', () => {
@@ -32,6 +32,18 @@ describe('foldOutstanding', () => {
     expect(foldOutstanding([
       row('advance_given', 500), row('adjustment', 100),
     ]).advance).toBe(500);
+  });
+
+  // Rejected milk is a debt like any other until the next cycle recovers it,
+  // and an operator who takes the rejection back must not leave it standing.
+  it('grows on a rejection and contras when the rejection is reversed', () => {
+    expect(foldOutstanding([row('quality_rejection', 6350.5)]).qualityRejection).toBe(6350.5);
+    expect(foldOutstanding([
+      row('quality_rejection', 6350.5), row('adjustment', 6350.5, 'quality_rejection'),
+    ]).qualityRejection).toBe(0);
+    expect(foldOutstanding([
+      row('quality_rejection', 6350.5), row('repayment', 6350.5, 'quality_rejection'),
+    ]).qualityRejection).toBe(0);
   });
 
   it('never reports a negative bucket', () => {
@@ -54,19 +66,27 @@ describe('ledgerBalance', () => {
 });
 
 describe('waterfall', () => {
-  it('recovers milk sales first, then advances, then feed loans', () => {
-    const out = { farmerSale: 200, advance: 1000, feedLoan: 500 };
-    expect(waterfall(out, 5000)).toEqual({ farmerSale: 200, advance: 1000, feedLoan: 500, total: 1700 });
+  it('recovers rejected milk first, then sales, then advances, then feed loans', () => {
+    const out = { qualityRejection: 300, farmerSale: 200, advance: 1000, feedLoan: 500 };
+    expect(waterfall(out, 5000))
+      .toEqual({ qualityRejection: 300, farmerSale: 200, advance: 1000, feedLoan: 500, total: 2000 });
   });
 
   it('stops at the gross, leaving the rest to carry forward', () => {
     // 900 covers the sale in full and part of the advance; the feed loan waits.
-    expect(waterfall({ farmerSale: 200, advance: 1000, feedLoan: 500 }, 900))
-      .toEqual({ farmerSale: 200, advance: 700, feedLoan: 0, total: 900 });
+    expect(waterfall({ qualityRejection: 0, farmerSale: 200, advance: 1000, feedLoan: 500 }, 900))
+      .toEqual({ qualityRejection: 0, farmerSale: 200, advance: 700, feedLoan: 0, total: 900 });
   });
 
   it('takes nothing from a cycle with no milk', () => {
-    expect(waterfall({ farmerSale: 200, advance: 100, feedLoan: 0 }, 0))
+    expect(waterfall({ qualityRejection: 0, farmerSale: 200, advance: 100, feedLoan: 0 }, 0))
       .toEqual({ ...zeroOutstanding(), total: 0 });
+  });
+
+  // Rejected milk comes off the top: it is not a debt the farmer took on, it is
+  // milk we never got. A short cycle recovers it before anything else.
+  it('recovers a rejection ahead of an advance when gross is short', () => {
+    expect(waterfall({ qualityRejection: 300, farmerSale: 0, advance: 1000, feedLoan: 0 }, 400))
+      .toEqual({ qualityRejection: 300, farmerSale: 0, advance: 100, feedLoan: 0, total: 400 });
   });
 });

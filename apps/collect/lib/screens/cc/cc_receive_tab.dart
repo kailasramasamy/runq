@@ -23,6 +23,7 @@ import 'cc_dispatch_tab.dart';
 import '../../widgets/primary_action.dart';
 import '../shared/cancel_leg.dart';
 import '../../widgets/slot_pill.dart';
+import '../shared/reject_sheet.dart';
 
 /// CC Receive — in-transit consignments (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards: source and
@@ -359,6 +360,15 @@ class CcReceiveTab extends ConsumerWidget {
                 _actionRow(t, DhenuIcons.edit, l.ccReceiveEditReceipt, t.brand, () {
                   Navigator.pop(ctx);
                   _openReceive(context, ref, c, name, editable: true);
+                }),
+                // Refusing part of a load is a receiving decision, so it sits
+                // with the other two: correct the figures, hand it back, or
+                // refuse some of it.
+                const SizedBox(height: DhenuSpacing.sm),
+                _actionRow(t, DhenuIcons.warning, l.rejectAction, t.gradeC, () {
+                  Navigator.pop(ctx);
+                  rejectConsignment(context, consignment: c,
+                      onDone: () async => _invalidateAfterReceipt(ref));
                 }),
                 if (canDelete) ...[
                   const SizedBox(height: DhenuSpacing.sm),

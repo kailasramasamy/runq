@@ -17,6 +17,7 @@ import '../cc/receive_consignment_screen.dart';
 import 'pp_manual_receive_screen.dart';
 import '../shared/cancel_leg.dart';
 import '../../widgets/slot_pill.dart';
+import '../shared/reject_sheet.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards — source,
@@ -333,7 +334,16 @@ class PpReceiveTab extends ConsumerWidget {
         // own data arrives; a dispatched tanker goes back to in-transit for the
         // CC to cancel. Either way the server refuses once production has drawn
         // on the batch.
+        // Refusing part of a tanker is not the same as un-receiving it: the
+        // load did arrive, and the litres that failed have to stay on record
+        // against whoever sent them.
         const SizedBox(width: DhenuSpacing.xs),
+        IconButton(
+          icon: Icon(DhenuIcons.warning, size: 18, color: t.gradeC),
+          tooltip: l.rejectAction,
+          onPressed: () => rejectConsignment(context, consignment: c,
+              onDone: () => _refresh(ref)),
+        ),
         CancelReceiptButton(
           consignment: c,
           sourceName: name,

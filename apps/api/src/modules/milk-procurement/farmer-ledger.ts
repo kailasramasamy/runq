@@ -6,13 +6,16 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type LedgerRow = typeof mpFarmerLedger.$inferSelect;
 
 /**
- * The farmer's running debt to us, split by what it is owed against. The three
+ * The farmer's running debt to us, split by what it is owed against. The four
  * buckets are recovered by the payout cycle in the order they appear here (see
- * `waterfall`): milk we sold him first — it is the freshest receivable and,
- * unlike a loan, was never meant to sit on the books — then advances, then
- * cattle-feed loans, which are the ones deliberately spread over cycles.
+ * `waterfall`): quality-rejected milk first — it is not a debt he took on but
+ * milk we never got, so it comes off the top of what we owe for the milk we
+ * did — then milk we sold him, which is the freshest receivable and, unlike a
+ * loan, was never meant to sit on the books, then advances, then cattle-feed
+ * loans, which are the ones deliberately spread over cycles.
  */
 export interface Outstanding {
+  qualityRejection: number;
   farmerSale: number;
   advance: number;
   feedLoan: number;
@@ -20,17 +23,19 @@ export interface Outstanding {
 
 /** Bucket ↔ mp_deduction value, in recovery order. */
 export const DEDUCTION_TYPES = [
+  ['qualityRejection', 'quality_rejection'],
   ['farmerSale', 'farmer_sale'],
   ['advance', 'advance'],
   ['feedLoan', 'cattle_feed_loan'],
 ] as const satisfies ReadonlyArray<readonly [keyof Outstanding, string]>;
 
 export const BUCKET_BY_DEDUCTION: Record<string, keyof Outstanding | undefined> = {
+  quality_rejection: 'qualityRejection',
   farmer_sale: 'farmerSale', advance: 'advance', cattle_feed_loan: 'feedLoan',
 };
 
 export function zeroOutstanding(): Outstanding {
-  return { farmerSale: 0, advance: 0, feedLoan: 0 };
+  return { qualityRejection: 0, farmerSale: 0, advance: 0, feedLoan: 0 };
 }
 
 type FoldRow = { entryType: string; refType: string | null; amount: string };
@@ -48,10 +53,13 @@ export function foldOutstanding(rows: FoldRow[]): Outstanding {
     if (r.entryType === 'advance_given') out.advance += amt;
     else if (r.entryType === 'feed_loan_given') out.feedLoan += amt;
     else if (r.entryType === 'farmer_sale') out.farmerSale += amt;
+    else if (r.entryType === 'quality_rejection') out.qualityRejection += amt;
     else if (r.entryType === 'repayment') out[BUCKET_BY_DEDUCTION[r.refType ?? ''] ?? 'advance'] -= amt;
-    // A reversed milk sale contras itself. Other adjustments are left alone —
-    // they moved the running balance without ever naming a bucket.
+    // A reversed milk sale contras itself, and so does a rejection an operator
+    // took back. Other adjustments are left alone — they moved the running
+    // balance without ever naming a bucket.
     else if (r.entryType === 'adjustment' && r.refType === 'farmer_sale') out.farmerSale -= amt;
+    else if (r.entryType === 'adjustment' && r.refType === 'quality_rejection') out.qualityRejection -= amt;
   }
   for (const k of Object.keys(out) as (keyof Outstanding)[]) out[k] = Math.max(0, round2(out[k]));
   return out;
@@ -70,7 +78,8 @@ export function ledgerBalance(rows: FoldRow[]): number {
   for (const r of rows) {
     const amt = Number(r.amount);
     const grows = r.entryType === 'advance_given'
-      || r.entryType === 'feed_loan_given' || r.entryType === 'farmer_sale';
+      || r.entryType === 'feed_loan_given' || r.entryType === 'farmer_sale'
+      || r.entryType === 'quality_rejection';
     owed += grows ? amt : -amt;
   }
   return round2(owed);
@@ -104,7 +113,8 @@ export async function appendLedgerEntry(
     .where(and(eq(mpFarmerLedger.tenantId, tenantId), eq(mpFarmerLedger.farmerId, v.farmerId)))
     .orderBy(desc(mpFarmerLedger.createdAt)).limit(1);
   const prev = last ? Number(last.b) : 0;
-  const owed = v.entryType === 'advance_given' || v.entryType === 'feed_loan_given' || v.entryType === 'farmer_sale';
+  const owed = v.entryType === 'advance_given' || v.entryType === 'feed_loan_given'
+    || v.entryType === 'farmer_sale' || v.entryType === 'quality_rejection';
   const [row] = await tx.insert(mpFarmerLedger).values({
     tenantId,
     farmerId: v.farmerId,

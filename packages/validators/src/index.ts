@@ -97,6 +97,7 @@ export * from './milk-procurement/pour.schema';
 export * from './milk-procurement/shift-closure.schema';
 export * from './milk-procurement/consignment.schema';
 export * from './milk-procurement/qc-test.schema';
+export * from './milk-procurement/rejection.schema';
 export * from './milk-procurement/payout.schema';
 export * from './milk-procurement/farmer-sale.schema';
 export * from './milk-procurement/operator.schema';

@@ -160,6 +160,24 @@ void refreshPendingWork(WidgetRef ref) {
   ref.invalidate(nodePendingInboundProvider);
 }
 
+/// Milk refused at or into a node today. Small list, read by the collection
+/// screen after a gate rejection and by the receive screens' rejected chips.
+final nodeRejectionsProvider =
+    FutureProvider.family<List<MpRejection>, String>((ref, nodeId) async {
+  return mpRepo.rejections(nodeId: nodeId, collectionDate: todayIso());
+});
+
+/// Rejection rate at a node over the last [days], grouped by source or reason.
+typedef RejectionStatsArgs = ({String nodeId, int days, String groupBy});
+
+final rejectionStatsProvider =
+    FutureProvider.family<List<MpRejectionStat>, RejectionStatsArgs>((ref, args) async {
+  return mpRepo.rejectionStats(
+    from: isoDaysAgo(args.days - 1), to: todayIso(),
+    nodeId: args.nodeId, groupBy: args.groupBy,
+  );
+});
+
 /// Which shifts are closed for collection at a node today. Drives the close
 /// banner on Record Collection and the hard dispatch gate. Key: nodeId.
 final shiftStatusProvider =

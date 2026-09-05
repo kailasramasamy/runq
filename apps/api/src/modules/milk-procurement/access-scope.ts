@@ -16,6 +16,7 @@ import { FastifyRequest } from 'fastify';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   users, mpNodeOperators, mpFarmers, mpFarmerMemberships, mpNodes, mpPours, mpConsignments,
+  mpRejections,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { ForbiddenError } from '../../utils/errors';
@@ -149,6 +150,18 @@ export function scopeConsignments(p: MpPrincipal) {
     if (!p.nodeIds.size) return sql`false`;
     const ids = [...p.nodeIds];
     return or(inArray(mpConsignments.fromNodeId, ids), inArray(mpConsignments.toNodeId, ids));
+  }
+  return sql`false`;
+}
+
+/** A rejection belongs to the node that made the call and the one that sent the
+ *  milk, so an operator sees the refusals at either end of their own legs. */
+export function scopeRejections(p: MpPrincipal) {
+  if (p.kind === 'all') return undefined;
+  if (p.kind === 'operator') {
+    if (!p.nodeIds.size) return sql`false`;
+    const ids = [...p.nodeIds];
+    return or(inArray(mpRejections.nodeId, ids), inArray(mpRejections.fromNodeId, ids));
   }
   return sql`false`;
 }
