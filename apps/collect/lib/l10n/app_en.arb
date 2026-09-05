@@ -2563,5 +2563,16 @@
   "cycleBillDue": "Due",
   "@cycleBillDue": {
     "description": "Cycle detail — an unpaid centre bill"
-  }
+  },
+  "cancelDispatchAction": "Cancel dispatch",
+  "cancelDispatchTitle": "Cancel this dispatch?",
+  "cancelDispatchBody": "{qty} sent to {name} will be cancelled. The milk goes back to this centre's available stock.",
+  "@cancelDispatchBody": {"description": "Cancel-dispatch confirm dialog body", "placeholders": {"qty": {}, "name": {}}},
+  "cancelReceiptAction": "Cancel receipt",
+  "cancelReceiptTitle": "Cancel this receipt?",
+  "cancelReceiptBody": "{qty} received from {name} will go back to in-transit. The sender can then cancel the dispatch.",
+  "@cancelReceiptBody": {"description": "Cancel-receipt confirm dialog body", "placeholders": {"qty": {}, "name": {}}},
+  "cancelDispatchReceivedHint": "Received at {name}. Cancel the receipt there first, then this dispatch can be cancelled.",
+  "@cancelDispatchReceivedHint": {"description": "Why a received leg can't be cancelled here", "placeholders": {"name": {}}},
+  "dispatchSentTitle": "Already dispatched"
 }

@@ -3462,4 +3462,34 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get cycleBillDue => 'ಬಾಕಿ';
+
+  @override
+  String get cancelDispatchAction => 'ರವಾನೆ ರದ್ದುಗೊಳಿಸಿ';
+
+  @override
+  String get cancelDispatchTitle => 'ಈ ರವಾನೆಯನ್ನು ರದ್ದುಗೊಳಿಸಬೇಕೆ?';
+
+  @override
+  String cancelDispatchBody(Object qty, Object name) {
+    return '$name ಗೆ ಕಳುಹಿಸಿದ $qty ರದ್ದಾಗುತ್ತದೆ. ಹಾಲು ಈ ಕೇಂದ್ರದ ಲಭ್ಯ ದಾಸ್ತಾನಿಗೆ ಮರಳುತ್ತದೆ.';
+  }
+
+  @override
+  String get cancelReceiptAction => 'ಸ್ವೀಕೃತಿ ರದ್ದುಗೊಳಿಸಿ';
+
+  @override
+  String get cancelReceiptTitle => 'ಈ ಸ್ವೀಕೃತಿಯನ್ನು ರದ್ದುಗೊಳಿಸಬೇಕೆ?';
+
+  @override
+  String cancelReceiptBody(Object qty, Object name) {
+    return '$name ಇಂದ ಸ್ವೀಕರಿಸಿದ $qty ಮತ್ತೆ ಸಾಗಣೆಯಲ್ಲಿ ಎಂದು ಗುರುತಾಗುತ್ತದೆ. ನಂತರ ಕಳುಹಿಸಿದವರು ರವಾನೆಯನ್ನು ರದ್ದುಗೊಳಿಸಬಹುದು.';
+  }
+
+  @override
+  String cancelDispatchReceivedHint(Object name) {
+    return '$name ನಲ್ಲಿ ಸ್ವೀಕರಿಸಲಾಗಿದೆ. ಮೊದಲು ಅಲ್ಲಿ ಸ್ವೀಕೃತಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ, ನಂತರ ಈ ರವಾನೆಯನ್ನು ರದ್ದುಗೊಳಿಸಬಹುದು.';
+  }
+
+  @override
+  String get dispatchSentTitle => 'ಈಗಾಗಲೇ ರವಾನಿಸಲಾಗಿದೆ';
 }

@@ -14,7 +14,7 @@ import { StockLedgerService } from '../inventory/stock-ledger.service';
 import { nextDocNo } from './numbering';
 import { isShiftClosed } from './shift-closure.queries';
 import {
-  ccReceiveWindow, poolSlots, isPooled, type Slot, type DispatchMode,
+  ccReceiveWindow, poolSlots, isPooled, nextDay, type Slot, type DispatchMode,
 } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
@@ -353,6 +353,84 @@ export class ConsignmentService {
       }
       return row!;
     });
+  }
+
+  /**
+   * Cancel a dispatch that hasn't been received yet. The litres go straight back
+   * onto the source's availability, so the operator can correct the shift and
+   * send it again. Once the destination has taken it in, the receipt has to be
+   * undone first — otherwise the milk would exist at the far end with nothing
+   * behind it.
+   */
+  async cancelDispatch(id: string, principal: MpPrincipal): Promise<MpConsignmentRow> {
+    const c = await this.getById(id, principal);
+    assertNodeAccess(principal, c.fromNodeId);
+    if (c.status === 'reversed') throw new ConflictError('This dispatch is already cancelled');
+    if (c.status !== 'in_transit') {
+      throw new ConflictError('This load has been received — cancel the receipt at the destination first.');
+    }
+    const [row] = await this.db.update(mpConsignments)
+      .set({ status: 'reversed', updatedAt: new Date() })
+      .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+    return row!;
+  }
+
+  /**
+   * Undo a receipt: the load goes back to in_transit, waiting at the
+   * destination's door to be received again or cancelled by its sender. A
+   * manual receipt has no dispatch to return to, so it is withdrawn outright.
+   *
+   * Refused while the milk has moved on — sent onward from here, or drawn into
+   * production — which is what makes the whole chain unwindable in order and
+   * only in order.
+   */
+  async cancelReceipt(
+    id: string, userId: string | undefined, principal: MpPrincipal,
+  ): Promise<MpConsignmentRow> {
+    const c = await this.getById(id, principal);
+    assertNodeAccess(principal, c.toNodeId);
+    if (c.status !== 'received') throw new ConflictError('Only a received load can be un-received');
+    if (c.directReceive) return this.deleteManualReceipt(id, principal);
+    await this.assertBatchUnconsumed(c);
+    await this.assertNoOnwardDispatch(c);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.update(mpConsignments).set({
+        receiptQty: null, receiptFat: null, receiptSnf: null, receiptWater: null,
+        receivedAt: null, receivedBy: null, varianceQty: null, variancePct: null,
+        stockLedgerId: null, status: 'in_transit', updatedAt: new Date(),
+      }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
+      // Back out the raw-milk batch this receipt posted. The link is cleared
+      // above, so receiving again posts a fresh movement rather than adjusting
+      // a batch that is no longer this consignment's.
+      if (c.stockLedgerId) {
+        await this.adjustRawMilkStock(tx, c.stockLedgerId, c.id, -Number(c.receiptQty ?? 0), userId);
+      }
+      return row!;
+    });
+  }
+
+  /** Reject if the destination has already sent this milk onward. Undoing the
+   * receipt would pull the litres out from under a tanker that has left, driving
+   * the node's availability negative. Measured against the same pool the
+   * dispatch path checks, so the two can't disagree about what is on hand. */
+  private async assertNoOnwardDispatch(c: MpConsignmentRow): Promise<void> {
+    const [to] = await this.db.select({ nodeType: mpNodes.nodeType, dispatchMode: mpNodes.dispatchMode })
+      .from(mpNodes).where(and(eq(mpNodes.tenantId, this.tenantId), eq(mpNodes.id, c.toNodeId)));
+    if (!to) return;
+    const milkType = c.milkType ?? undefined;
+    // An overnight node pools yesterday's PM with today's AM, so a PM receipt is
+    // measured against the NEXT day's pool — the one it was actually dispatched in.
+    const available = to.dispatchMode === 'overnight'
+      ? await this.overnightPoolAvailable(
+        c.toNodeId, to.nodeType,
+        c.shift === 'pm' ? nextDay(c.collectionDate) : c.collectionDate, milkType)
+      : await this.availableToDispatch(
+        c.toNodeId, c.collectionDate, to.nodeType,
+        isPooled(to.dispatchMode) ? undefined : c.shift ?? undefined, milkType);
+    if (Number(c.receiptQty ?? 0) - available > 1e-6) {
+      throw new ConflictError(
+        'This milk has already been dispatched onward — cancel that dispatch first.');
+    }
   }
 
   /** Delete a manually-entered (directReceive) mis-entry. Only a manual receipt

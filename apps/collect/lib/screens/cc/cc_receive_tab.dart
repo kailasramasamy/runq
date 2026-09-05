@@ -21,6 +21,8 @@ import 'manual_receive_screen.dart';
 import 'receive_consignment_screen.dart';
 import 'cc_dispatch_tab.dart';
 import '../../widgets/primary_action.dart';
+import '../shared/cancel_leg.dart';
+import '../../widgets/slot_pill.dart';
 
 /// CC Receive — in-transit consignments (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards: source and
@@ -316,8 +318,9 @@ class CcReceiveTab extends ConsumerWidget {
     return c.shift != null && st.closedFor(c.shift!.name);
   }
 
-  /// Edit / Delete sheet for a receipt. Delete shows only for an unlocked manual
-  /// receipt; a locked manual receipt shows why it can't be removed.
+  /// Edit / undo sheet for a receipt. Delete shows only for an unlocked manual
+  /// receipt; a dispatched load offers Cancel receipt instead (it has somewhere
+  /// to go back to); a locked manual receipt shows why it can't be removed.
   Future<void> _openActions(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l,
       MpConsignment c, String name, bool canDelete) {
     return showModalBottomSheet<void>(
@@ -363,7 +366,17 @@ class CcReceiveTab extends ConsumerWidget {
                     Navigator.pop(ctx);
                     _confirmDelete(context, ref, l, c, name);
                   }),
-                ] else if (c.directReceive) ...[
+                ] else if (!c.directReceive) ...[
+                  // A dispatched load can always be handed back: it returns to
+                  // in-transit, and the VMCC then cancels its own dispatch. The
+                  // server refuses if this milk has already gone on to the plant.
+                  const SizedBox(height: DhenuSpacing.sm),
+                  _actionRow(t, DhenuIcons.undo, l.cancelReceiptAction, t.gradeC, () {
+                    Navigator.pop(ctx);
+                    confirmCancelReceipt(context, c, name,
+                        () async => _invalidateAfterReceipt(ref));
+                  }),
+                ] else ...[
                   const SizedBox(height: DhenuSpacing.md),
                   Row(children: [
                     Icon(DhenuIcons.lock, size: 15, color: t.inkSoft),
@@ -451,9 +464,9 @@ class CcReceiveTab extends ConsumerWidget {
   /// grey where it can be cut.
   Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {required String id}) =>
       Row(children: [
-        _slotPill(t, l, c.shift),
+        SlotPill(shift: c.shift),
         const SizedBox(width: DhenuSpacing.sm),
-        Text(_dateLabel(c.collectionDate),
+        Text(slotDateLabel(c.collectionDate),
             style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
         const SizedBox(width: DhenuSpacing.sm),
         Expanded(
@@ -464,37 +477,7 @@ class CcReceiveTab extends ConsumerWidget {
       ]);
 
   /// AM / PM / Pooled, in that slot's own colour.
-  Widget _slotPill(DhenuTokens t, AppLocalizations l, Shift? shift) {
-    final color = switch (shift) {
-      Shift.am => t.amText,
-      Shift.pm => t.pm,
-      null => t.inkSoft,
-    };
-    final icon = switch (shift) {
-      Shift.am => DhenuIcons.sun,
-      Shift.pm => DhenuIcons.moon,
-      null => DhenuIcons.calendar,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(consignmentSlotL10n(l, shift), style: DhenuText.label.copyWith(color: color)),
-      ]),
-    );
-  }
 
-  /// "16 Aug" for this year, full "16 Aug 2025" once the year differs — a
-  /// back-dated receipt from last season must not read as a recent one.
-  String _dateLabel(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d != null && d.year == DateTime.now().year ? shortDate(iso) : prettyDate(iso);
-  }
 
   Future<void> _openReceive(
       BuildContext context, WidgetRef ref, MpConsignment c, String name,

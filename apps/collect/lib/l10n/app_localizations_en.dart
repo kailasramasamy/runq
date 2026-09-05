@@ -3475,4 +3475,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cycleBillDue => 'Due';
+
+  @override
+  String get cancelDispatchAction => 'Cancel dispatch';
+
+  @override
+  String get cancelDispatchTitle => 'Cancel this dispatch?';
+
+  @override
+  String cancelDispatchBody(Object qty, Object name) {
+    return '$qty sent to $name will be cancelled. The milk goes back to this centre\'s available stock.';
+  }
+
+  @override
+  String get cancelReceiptAction => 'Cancel receipt';
+
+  @override
+  String get cancelReceiptTitle => 'Cancel this receipt?';
+
+  @override
+  String cancelReceiptBody(Object qty, Object name) {
+    return '$qty received from $name will go back to in-transit. The sender can then cancel the dispatch.';
+  }
+
+  @override
+  String cancelDispatchReceivedHint(Object name) {
+    return 'Received at $name. Cancel the receipt there first, then this dispatch can be cancelled.';
+  }
+
+  @override
+  String get dispatchSentTitle => 'Already dispatched';
 }

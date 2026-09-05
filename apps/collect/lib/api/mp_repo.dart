@@ -592,6 +592,23 @@ class MpRepo {
     return m == null ? null : MpConsignment.fromJson(m);
   }
 
+  /// Undo a dispatch that hasn't been received — the litres go back onto the
+  /// source node's availability. Server refuses once the load has landed.
+  Future<MpConsignment?> cancelDispatch(String id) async {
+    final res = await _api.post('$_base/consignments/$id/cancel-dispatch', const {});
+    final m = _one(res);
+    return m == null ? null : MpConsignment.fromJson(m);
+  }
+
+  /// Undo a receipt — the load returns to in-transit at this node's door. A
+  /// manual receipt is withdrawn outright. Server refuses once the milk has
+  /// been sent onward or used in production.
+  Future<MpConsignment?> cancelReceipt(String id) async {
+    final res = await _api.post('$_base/consignments/$id/cancel-receipt', const {});
+    final m = _one(res);
+    return m == null ? null : MpConsignment.fromJson(m);
+  }
+
   /// Delete a manually-entered receipt (server rejects unless it's a direct
   /// receive that isn't yet locked for dispatch).
   Future<void> deleteReceipt(String id) => _api.delete('$_base/consignments/$id');

@@ -11,8 +11,14 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/status_glyph.dart';
+import '../../widgets/slot_pill.dart';
+import '../../widgets/quality_badge.dart';
 
-/// PP Tankers tab — all cc_to_pp consignments to this plant today (any status).
+/// PP Tankers tab — cc_to_pp loads to this plant today, plus anything still on
+/// the road from an earlier date. Cancelled legs are filtered out upstream by
+/// [nodeInboundConsignmentsProvider]; the badge below still asks for
+/// `inTransit` by name rather than inferring it, so one is never painted as a
+/// tanker on its way.
 class PpTankersTab extends ConsumerWidget {
   const PpTankersTab({super.key, required this.node});
   final MpNode node;
@@ -110,6 +116,27 @@ class PpTankersTab extends ConsumerWidget {
           Text(names[c.fromNodeId] ?? 'CC',
               style: DhenuText.caption.copyWith(color: t.inkSoft),
               maxLines: 1, overflow: TextOverflow.ellipsis),
+          // Which milking this load is, and which day. The list carries loads
+          // still on the road from earlier dates alongside today's, so two
+          // tankers from the same CC for the same litres are otherwise
+          // indistinguishable — and the slot is what the plant matches a
+          // physical can against.
+          const SizedBox(height: DhenuSpacing.xs),
+          // Wrapped, not a Row: slot + date + a long type name ("Cow A1
+          // (regular)") overflows the column left by the litres and status,
+          // so the type drops to its own line instead of being clipped.
+          Wrap(
+            spacing: DhenuSpacing.sm, runSpacing: 3,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SlotPill(shift: c.shift),
+              Text(slotDateLabel(c.collectionDate),
+                  style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+              // The type decides which raw-milk stock this load lands in, so it
+              // is what tells two same-size tankers from one CC apart.
+              if (c.milkType != null) MilkTypePill(milkType: c.milkType!),
+            ],
+          ),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -122,6 +149,10 @@ class PpTankersTab extends ConsumerWidget {
   }
 
   Widget _statusBadge(AppLocalizations l, DhenuTokens t, MpConsignment c) {
+    if (c.isReversed) {
+      return Text(l.dispatchHistoryReversed,
+          style: DhenuText.caption.copyWith(color: t.gradeC));
+    }
     final isReceived = c.received;
     return Container(
       padding: const EdgeInsets.symmetric(

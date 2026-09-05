@@ -6,9 +6,17 @@ import '../utils/format.dart';
 /// Today's inbound consignments to a node (all statuses).
 /// Key: nodeId. Callers filter by kind/status client-side to avoid
 /// multi-key families (per Wave B4 architecture note).
+/// Cancelled legs are dropped here rather than at each screen. Every consumer
+/// is a day view of what came in — home gauges, tanker lists, receive queues —
+/// and a reversed consignment is milk that never arrived. Leaving them in had
+/// the plant's Tankers list showing three cancelled loads badged "transit" and
+/// its home screen counting 568 L against 235 L actually on the way, because
+/// each screen inferred transit from `!received` and a reversed leg is neither.
 final nodeInboundConsignmentsProvider =
     FutureProvider.family<List<MpConsignment>, String>((ref, nodeId) async {
-  return mpRepo.consignments(toNodeId: nodeId, collectionDate: todayIso(), limit: 200);
+  final rows = await mpRepo.consignments(
+      toNodeId: nodeId, collectionDate: todayIso(), limit: 200);
+  return rows.where((c) => !c.isReversed).toList();
 });
 
 /// Everything still in transit to a node, whatever its collection date. This is

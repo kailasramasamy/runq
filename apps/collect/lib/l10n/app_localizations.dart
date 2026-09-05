@@ -5973,6 +5973,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Due'**
   String get cycleBillDue;
+
+  /// No description provided for @cancelDispatchAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel dispatch'**
+  String get cancelDispatchAction;
+
+  /// No description provided for @cancelDispatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel this dispatch?'**
+  String get cancelDispatchTitle;
+
+  /// Cancel-dispatch confirm dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} sent to {name} will be cancelled. The milk goes back to this centre\'s available stock.'**
+  String cancelDispatchBody(Object qty, Object name);
+
+  /// No description provided for @cancelReceiptAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel receipt'**
+  String get cancelReceiptAction;
+
+  /// No description provided for @cancelReceiptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel this receipt?'**
+  String get cancelReceiptTitle;
+
+  /// Cancel-receipt confirm dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} received from {name} will go back to in-transit. The sender can then cancel the dispatch.'**
+  String cancelReceiptBody(Object qty, Object name);
+
+  /// Why a received leg can't be cancelled here
+  ///
+  /// In en, this message translates to:
+  /// **'Received at {name}. Cancel the receipt there first, then this dispatch can be cancelled.'**
+  String cancelDispatchReceivedHint(Object name);
+
+  /// No description provided for @dispatchSentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Already dispatched'**
+  String get dispatchSentTitle;
 }
 
 class _AppLocalizationsDelegate

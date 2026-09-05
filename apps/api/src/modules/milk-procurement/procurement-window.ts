@@ -8,6 +8,13 @@ export function prevDay(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** ISO `yyyy-mm-dd` for the day after `iso`. */
+export function nextDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * The (date, shift) slots that make up a CC's current dispatch pool, anchored on
  * `anchorDate` (today):

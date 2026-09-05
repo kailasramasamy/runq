@@ -96,6 +96,9 @@ class PpHome extends ConsumerWidget {
   Map<String, _Flow> _flowByNode(List<MpConsignment> cons) {
     final m = <String, _Flow>{};
     for (final c in cons) {
+      // A cancelled leg is neither received nor on the road, so it must be
+      // named out explicitly — `!received` would count it as in transit.
+      if (c.isReversed) continue;
       final cur = m[c.fromNodeId] ?? (transit: 0.0, received: 0.0, tankers: 0);
       m[c.fromNodeId] = c.received
           ? (transit: cur.transit, received: cur.received + (c.receiptQty ?? 0), tankers: cur.tankers + 1)

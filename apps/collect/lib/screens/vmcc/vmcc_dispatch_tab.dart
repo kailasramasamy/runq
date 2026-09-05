@@ -23,6 +23,7 @@ import '../../widgets/source_row.dart';
 import '../../widgets/tank_gauge.dart';
 import '../dispatch_history.dart';
 import '../../widgets/status_glyph.dart';
+import '../shared/cancel_leg.dart';
 
 /// VMCC Dispatch tab — today's availability + dispatch-to-CC form + outbound.
 /// Mirrors the CC→PP dispatch flow; here the leg is `vmcc_to_cc`.
@@ -349,8 +350,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
           // Everything the removed Outbound list carried — destination,
           // consignment no, status — now lives on this card, so the day's
           // dispatch is stated once instead of twice.
-          _dispatchedCard(t, l, availAsync, outboundAsync, ccNames, slotQty),
+          _dispatchedCard(t, l, availAsync, slotQty),
         ],
+        // Outside the branch on purpose: what has already gone out stays
+        // readable — and cancellable — whether or not there is milk left to send.
+        _sentLegsCard(t, l, outboundAsync, ccNames),
         const SizedBox(height: DhenuSpacing.xl),
         _seeDispatchHistoryLink(context, t, l),
       ],
@@ -376,19 +380,23 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
 
   /// Shown in place of the form once availability is exhausted: how much was
   /// sent out this shift, with the container number for each leg.
+  /// Re-read this date's outbound and availability after a leg was cancelled:
+  /// the litres are back on the pool, so both figures moved.
+  Future<void> _refreshLegs() async {
+    ref.invalidate(nodeOutboundForDateProvider);
+    ref.invalidate(nodeAvailabilityForDateProvider);
+    ref.invalidate(nodeOutboundConsignmentsProvider(widget.node.id));
+    ref.invalidate(nodeAvailabilityProvider);
+    refreshPendingWork(ref);
+  }
+
   Widget _dispatchedCard(
     DhenuTokens t,
     AppLocalizations l,
     AsyncValue<MpAvailability?> availAsync,
-    AsyncValue<List<MpConsignment>> outAsync,
-    Map<String, String> ccNames,
     Map<String, double> slotQty,
   ) {
     final dispatched = availAsync.asData?.value?.dispatched ?? 0;
-    var legs = (outAsync.asData?.value ?? const <MpConsignment>[])
-        .where((c) => c.kind == 'vmcc_to_cc')
-        .toList();
-    if (_perShift) legs = legs.where((c) => c.shift == _shift).toList();
     return DhenuCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -428,43 +436,80 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
             ),
           ]),
         ],
-        for (final c in legs) ...[
-          const SizedBox(height: DhenuSpacing.md),
-          Divider(height: 1, color: t.hairline),
-          const SizedBox(height: DhenuSpacing.md),
-          Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Destination first — it is what the removed Outbound list led
-                // with, and answers "where did it go" before "which one was it".
-                Text(ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
-                    style: DhenuText.label.copyWith(color: t.ink)),
-                // Each milk type leaves as its own consignment, so the type is
-                // what tells two otherwise identical legs apart — and at the
-                // far end it decides which raw-milk stock the load lands in.
-                if (c.milkType != null) ...[
-                  const SizedBox(height: 3),
-                  MilkTypePill(milkType: c.milkType!),
-                ],
-                const SizedBox(height: DhenuSpacing.xs),
-                Text(
-                  '${c.consignmentNo} · '
-                  '${(c.containerNo?.isNotEmpty ?? false) ? l.dispatchContainerLabel(c.containerNo!) : l.dispatchNoContainerNo}',
-                  style: DhenuText.caption.copyWith(color: t.inkSoft),
-                ),
-              ]),
-            ),
-            const SizedBox(width: DhenuSpacing.sm),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(litres(c.dispatchQty ?? 0, unit: true),
-                  style: DhenuText.number(size: 16, color: t.ink)),
-              const SizedBox(height: 2),
-              _legStatus(t, l, c),
-            ]),
-          ]),
-        ],
       ]),
     );
+  }
+
+  /// The legs already sent for this slot, each with its own undo.
+  ///
+  /// Its own card, rendered whenever legs exist, because it used to live inside
+  /// the all-sent card — which shows only once availability is exhausted.
+  /// Cancelling one leg freed availability, the dispatch form took the card's
+  /// place, and every remaining leg went off screen mid-correction with no way
+  /// back to it.
+  Widget _sentLegsCard(
+    DhenuTokens t, AppLocalizations l,
+    AsyncValue<List<MpConsignment>> outAsync, Map<String, String> ccNames,
+  ) {
+    var legs = (outAsync.asData?.value ?? const <MpConsignment>[])
+        .where((c) => c.kind == 'vmcc_to_cc' && !c.isReversed)
+        .toList();
+    if (_perShift) legs = legs.where((c) => c.shift == _shift).toList();
+    if (legs.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: DhenuSpacing.xl),
+      Text(l.dispatchSentTitle, style: DhenuText.title.copyWith(color: t.ink)),
+      const SizedBox(height: DhenuSpacing.md),
+      DhenuCard(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final c in legs) ...[
+            if (c != legs.first) ...[
+              const SizedBox(height: DhenuSpacing.md),
+              Divider(height: 1, color: t.hairline),
+              const SizedBox(height: DhenuSpacing.md),
+            ],
+            Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Destination first — it answers "where did it go" before
+                  // "which one was it".
+                  Text(ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
+                      style: DhenuText.label.copyWith(color: t.ink)),
+                  // Each milk type leaves as its own consignment, so the type is
+                  // what tells two otherwise identical legs apart — and at the
+                  // far end it decides which raw-milk stock the load lands in.
+                  if (c.milkType != null) ...[
+                    const SizedBox(height: 3),
+                    MilkTypePill(milkType: c.milkType!),
+                  ],
+                  const SizedBox(height: DhenuSpacing.xs),
+                  Text(
+                    '${c.consignmentNo} · '
+                    '${(c.containerNo?.isNotEmpty ?? false) ? l.dispatchContainerLabel(c.containerNo!) : l.dispatchNoContainerNo}',
+                    style: DhenuText.caption.copyWith(color: t.inkSoft),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                ]),
+              ),
+              const SizedBox(width: DhenuSpacing.sm),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(litres(c.dispatchQty ?? 0, unit: true),
+                    style: DhenuText.number(size: 16, color: t.ink)),
+                const SizedBox(height: 2),
+                _legStatus(t, l, c),
+              ]),
+              // Undo a load that hasn't landed. Once the CC has taken it in this
+              // turns into a hint naming who must cancel the receipt first.
+              CancelDispatchButton(
+                consignment: c,
+                destinationName: ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
+                onDone: _refreshLegs,
+              ),
+            ]),
+          ],
+        ]),
+      ),
+    ]);
   }
 
   /// Status chip for one dispatched leg.

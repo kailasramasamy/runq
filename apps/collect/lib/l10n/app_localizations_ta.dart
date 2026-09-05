@@ -3490,4 +3490,34 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get cycleBillDue => 'நிலுவை';
+
+  @override
+  String get cancelDispatchAction => 'அனுப்புதலை ரத்து செய்';
+
+  @override
+  String get cancelDispatchTitle => 'இந்த அனுப்புதலை ரத்து செய்யவா?';
+
+  @override
+  String cancelDispatchBody(Object qty, Object name) {
+    return '$name க்கு அனுப்பிய $qty ரத்து செய்யப்படும். பால் இந்த மையத்தின் கையிருப்புக்கு திரும்பும்.';
+  }
+
+  @override
+  String get cancelReceiptAction => 'பெறுதலை ரத்து செய்';
+
+  @override
+  String get cancelReceiptTitle => 'இந்தப் பெறுதலை ரத்து செய்யவா?';
+
+  @override
+  String cancelReceiptBody(Object qty, Object name) {
+    return '$name இடமிருந்து பெற்ற $qty மீண்டும் வழியில் உள்ளது எனக் குறிக்கப்படும். பிறகு அனுப்பியவர் அனுப்புதலை ரத்து செய்யலாம்.';
+  }
+
+  @override
+  String cancelDispatchReceivedHint(Object name) {
+    return '$name இல் பெறப்பட்டது. முதலில் அங்கு பெறுதலை ரத்து செய்யுங்கள், பிறகு இந்த அனுப்புதலை ரத்து செய்யலாம்.';
+  }
+
+  @override
+  String get dispatchSentTitle => 'ஏற்கனவே அனுப்பப்பட்டது';
 }

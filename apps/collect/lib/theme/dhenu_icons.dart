@@ -81,6 +81,7 @@ abstract final class DhenuIcons {
   static const close = LucideIcons.x;
   static const upload = LucideIcons.upload;
   static const trash = LucideIcons.trash_2;
+  static const undo = LucideIcons.undo_2;
   static const filterOff = LucideIcons.funnel_x;
   static const listAdd = LucideIcons.list_plus;
   static const minusCircle = LucideIcons.circle_minus;

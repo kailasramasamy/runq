@@ -98,6 +98,22 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.editReceipt(id, input, request.user?.userId, principal) };
   });
 
+  // Undo a dispatch that hasn't landed — litres return to the source's pool.
+  app.post('/:id/cancel-dispatch', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ConsignmentService(request.server.db, request.tenantId);
+    return { data: await service.cancelDispatch(id, principal) };
+  });
+
+  // Undo a receipt — puts the load back in transit (or withdraws a manual entry).
+  app.post('/:id/cancel-receipt', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    const service = new ConsignmentService(request.server.db, request.tenantId);
+    return { data: await service.cancelReceipt(id, request.user?.userId, principal) };
+  });
+
   app.post('/:id/reverse', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
     const { id } = uuidParamSchema.parse(request.params);
     const principal = await resolveMpPrincipal(request);

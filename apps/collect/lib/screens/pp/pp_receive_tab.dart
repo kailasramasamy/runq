@@ -3,7 +3,6 @@ import '../../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/mp_models.dart';
 import '../../l10n/app_localizations.dart';
-import '../../l10n/l10n_helpers.dart';
 import '../../providers/transfer_providers.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
@@ -11,13 +10,13 @@ import '../../utils/format.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/quality_badge.dart';
 import '../../widgets/dhenu_states.dart';
-import '../../api/mp_repo.dart';
 import '../../utils/friendly_error.dart';
-import '../../widgets/dhenu_toast.dart';
 import '../shared/receive_history.dart';
 import '../shared/receive_leg.dart';
 import '../cc/receive_consignment_screen.dart';
 import 'pp_manual_receive_screen.dart';
+import '../shared/cancel_leg.dart';
+import '../../widgets/slot_pill.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards — source,
@@ -325,47 +324,23 @@ class PpReceiveTab extends ConsumerWidget {
           Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
-        // Only a manual receipt can be withdrawn — it's the entry with no
-        // dispatch behind it, and the one to drop when the CC's own data
-        // arrives. The server still refuses once production has drawn on it.
-        if (c.directReceive) ...[
-          const SizedBox(width: DhenuSpacing.xs),
-          IconButton(
-            icon: Icon(DhenuIcons.trash, size: 18, color: t.gradeC),
-            tooltip: l.ccReceiveDeleteReceipt,
-            onPressed: () => _deleteManual(context, ref, l, c, name),
-          ),
-        ] else if (editable) ...[
+        if (editable && !c.directReceive) ...[
           const SizedBox(width: DhenuSpacing.sm),
           Icon(DhenuIcons.edit, size: 16, color: t.brand),
         ],
+        // Undo the intake. A manual receipt is withdrawn outright — it's the
+        // entry with no dispatch behind it, and the one to drop when the CC's
+        // own data arrives; a dispatched tanker goes back to in-transit for the
+        // CC to cancel. Either way the server refuses once production has drawn
+        // on the batch.
+        const SizedBox(width: DhenuSpacing.xs),
+        CancelReceiptButton(
+          consignment: c,
+          sourceName: name,
+          onDone: () => _refresh(ref),
+        ),
       ]),
     );
-  }
-
-  Future<void> _deleteManual(BuildContext context, WidgetRef ref, AppLocalizations l,
-      MpConsignment c, String name) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: Text(l.ccReceiveDeleteConfirmTitle),
-        content: Text(l.ppReceiveDeleteManualConfirm(
-            litres(c.receiptQty ?? 0, unit: true), name, prettyDate(c.collectionDate))),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l.commonCancel)),
-          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l.syncDelete)),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await mpRepo.deleteReceipt(c.id);
-      await _refresh(ref);
-    } catch (e) {
-      if (context.mounted) {
-        showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
-      }
-    }
   }
 
   Widget _cardHeader(DhenuTokens t, AppLocalizations l, MpConsignment c, String name) =>
@@ -387,9 +362,9 @@ class PpReceiveTab extends ConsumerWidget {
   /// trails behind them in caption grey.
   Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {required String id}) =>
       Row(children: [
-        _slotPill(t, l, c.shift),
+        SlotPill(shift: c.shift),
         const SizedBox(width: DhenuSpacing.sm),
-        Text(_dateLabel(c.collectionDate),
+        Text(slotDateLabel(c.collectionDate),
             style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
         const SizedBox(width: DhenuSpacing.sm),
         Expanded(
@@ -401,37 +376,7 @@ class PpReceiveTab extends ConsumerWidget {
 
   /// AM / PM / Pooled, in that slot's own colour — same pill the CC receive
   /// tab uses, so a slot reads identically on both legs of the journey.
-  Widget _slotPill(DhenuTokens t, AppLocalizations l, Shift? shift) {
-    final color = switch (shift) {
-      Shift.am => t.amText,
-      Shift.pm => t.pm,
-      null => t.inkSoft,
-    };
-    final icon = switch (shift) {
-      Shift.am => DhenuIcons.sun,
-      Shift.pm => DhenuIcons.moon,
-      null => DhenuIcons.calendar,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(consignmentSlotL10n(l, shift), style: DhenuText.label.copyWith(color: color)),
-      ]),
-    );
-  }
 
-  /// "16 Aug" for this year, full "16 Aug 2025" once the year differs — a
-  /// back-dated receipt from last season must not read as a recent one.
-  String _dateLabel(String iso) {
-    final d = DateTime.tryParse(iso);
-    return d != null && d.year == DateTime.now().year ? shortDate(iso) : prettyDate(iso);
-  }
 
   Widget _pill(DhenuTokens t, String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.md, vertical: DhenuSpacing.xs),
