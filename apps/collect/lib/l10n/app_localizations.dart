@@ -6213,6 +6213,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Milk rejected'**
   String get farmerPaymentsRejected;
+
+  /// No description provided for @unwindTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo this load'**
+  String get unwindTitle;
+
+  /// No description provided for @unwindNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to undo on this load'**
+  String get unwindNothing;
+
+  /// No description provided for @unwindConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Undo {count} step} other{Undo all {count} steps}}'**
+  String unwindConfirm(num count);
+
+  /// No description provided for @unwindIncludePours.
+  ///
+  /// In en, this message translates to:
+  /// **'Also remove the farmer entries'**
+  String get unwindIncludePours;
+
+  /// No description provided for @unwindIncludePoursHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Reopens the shift and reverses the pours behind this load. The farmers will not be paid for them.'**
+  String get unwindIncludePoursHint;
+
+  /// No description provided for @unwindDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Load undone'**
+  String get unwindDone;
+
+  /// No description provided for @unwindOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo the whole chain'**
+  String get unwindOpen;
 }
 
 class _AppLocalizationsDelegate

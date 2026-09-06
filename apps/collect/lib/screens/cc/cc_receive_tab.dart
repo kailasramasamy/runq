@@ -25,6 +25,7 @@ import '../shared/cancel_leg.dart';
 import '../../widgets/slot_pill.dart';
 import '../shared/reject_sheet.dart';
 import '../shared/rejection_report.dart';
+import '../shared/unwind_sheet.dart';
 
 /// CC Receive — in-transit consignments (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards: source and
@@ -371,6 +372,15 @@ class CcReceiveTab extends ConsumerWidget {
                 // with the other two: correct the figures, hand it back, or
                 // refuse some of it. Hidden once it is ALL refused — there
                 // would be nothing left to take.
+                // Undo the whole chain from here, in the order the guards
+                // require, rather than sending the operator to find each screen.
+                const SizedBox(height: DhenuSpacing.sm),
+                _actionRow(t, DhenuIcons.undo, l.unwindOpen, t.gradeC, () {
+                  Navigator.pop(ctx);
+                  showUnwindSheet(context,
+                      consignmentId: c.id, title: '${c.consignmentNo} · $name',
+                      onDone: () async => _invalidateAfterReceipt(ref));
+                }),
                 if ((c.receiptQty ?? 0) > 0) ...[
                   const SizedBox(height: DhenuSpacing.sm),
                   _actionRow(t, DhenuIcons.warning, l.rejectAction, t.gradeC, () {

@@ -1050,6 +1050,54 @@ class MpRejectionStat {
       );
 }
 
+/// One thing an end-to-end undo will do, in the order it must happen.
+class MpUnwindStep {
+  final String kind, label, detail;
+  final double qtyLitres;
+  final String? blocked;
+
+  MpUnwindStep({
+    required this.kind,
+    required this.label,
+    required this.detail,
+    required this.qtyLitres,
+    this.blocked,
+  });
+
+  factory MpUnwindStep.fromJson(Map<String, dynamic> j) => MpUnwindStep(
+        kind: (j['kind'] as String?) ?? '',
+        label: (j['label'] as String?) ?? '',
+        detail: (j['detail'] as String?) ?? '',
+        qtyLitres: double.tryParse('${j['qtyLitres']}') ?? 0,
+        blocked: j['blocked'] as String?,
+      );
+
+  bool get isBlocked => blocked != null;
+}
+
+/// What undoing a load will do, shown before anything is committed.
+class MpUnwindPlan {
+  final List<MpUnwindStep> steps;
+  final double totalQty;
+  final bool blocked, includePours;
+
+  MpUnwindPlan({
+    required this.steps,
+    required this.totalQty,
+    required this.blocked,
+    required this.includePours,
+  });
+
+  factory MpUnwindPlan.fromJson(Map<String, dynamic> j) => MpUnwindPlan(
+        steps: ((j['steps'] as List?) ?? const [])
+            .map((e) => MpUnwindStep.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        totalQty: double.tryParse('${j['totalQty']}') ?? 0,
+        blocked: j['blocked'] == true,
+        includePours: j['includePours'] == true,
+      );
+}
+
 /// One refusal charged to a farmer, as their payment breakdown lists it.
 class MpRejectionLine {
   final String collectionDate, reason;

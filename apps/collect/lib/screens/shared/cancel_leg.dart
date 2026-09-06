@@ -8,6 +8,7 @@ import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_toast.dart';
+import 'unwind_sheet.dart';
 
 /// Undoing a leg of the journey, shared by both ends of both legs.
 ///
@@ -46,12 +47,20 @@ class CancelDispatchButton extends StatelessWidget {
     if (consignment.isReversed) return const SizedBox.shrink();
     final t = DT(context);
     final l = AppLocalizations.of(context);
+    // A received leg used to render a lock and a hint naming the centre that
+    // had to act first — true, but it left the operator to go and find that
+    // screen, in another mode, often date-scoped to today. The undo now starts
+    // from here and walks the whole chain in the order the guards require.
     if (consignment.received) {
-      final hint = l.cancelDispatchReceivedHint(destinationName);
       return IconButton(
-        icon: Icon(DhenuIcons.lock, size: 16, color: t.inkSoft),
-        tooltip: hint,
-        onPressed: () => showDhenuToast(context, hint, type: DhenuToastType.info),
+        icon: Icon(DhenuIcons.undo, size: 18, color: t.gradeC),
+        tooltip: l.unwindOpen,
+        onPressed: () => showUnwindSheet(
+          context,
+          consignmentId: consignment.id,
+          title: '${consignment.consignmentNo} · $destinationName',
+          onDone: onDone,
+        ),
       );
     }
     return IconButton(

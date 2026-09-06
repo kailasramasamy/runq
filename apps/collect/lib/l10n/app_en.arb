@@ -2614,5 +2614,13 @@
   "@rejectRefusedLater": {"description": "On a leg whose milk was refused further down the chain", "placeholders": {"qty": {}}},
   "rejectNotPaid": "{qty} rejected · not paid",
   "@rejectNotPaid": {"description": "Farmer-facing: rejected litres they are not paid for", "placeholders": {"qty": {}}},
-  "farmerPaymentsRejected": "Milk rejected"
+  "farmerPaymentsRejected": "Milk rejected",
+  "unwindTitle": "Undo this load",
+  "unwindNothing": "Nothing to undo on this load",
+  "unwindConfirm": "{count, plural, one{Undo {count} step} other{Undo all {count} steps}}",
+  "@unwindConfirm": {"placeholders": {"count": {}}},
+  "unwindIncludePours": "Also remove the farmer entries",
+  "unwindIncludePoursHint": "Reopens the shift and reverses the pours behind this load. The farmers will not be paid for them.",
+  "unwindDone": "Load undone",
+  "unwindOpen": "Undo the whole chain"
 }

@@ -3623,4 +3623,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get farmerPaymentsRejected => 'Milk rejected';
+
+  @override
+  String get unwindTitle => 'Undo this load';
+
+  @override
+  String get unwindNothing => 'Nothing to undo on this load';
+
+  @override
+  String unwindConfirm(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Undo all $count steps',
+      one: 'Undo $count step',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get unwindIncludePours => 'Also remove the farmer entries';
+
+  @override
+  String get unwindIncludePoursHint =>
+      'Reopens the shift and reverses the pours behind this load. The farmers will not be paid for them.';
+
+  @override
+  String get unwindDone => 'Load undone';
+
+  @override
+  String get unwindOpen => 'Undo the whole chain';
 }

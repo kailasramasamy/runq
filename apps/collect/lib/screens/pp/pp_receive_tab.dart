@@ -21,6 +21,7 @@ import '../shared/reject_sheet.dart';
 import '../../l10n/l10n_helpers.dart';
 import '../../widgets/sheet_grabber.dart';
 import '../shared/rejection_report.dart';
+import '../shared/unwind_sheet.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards — source,
@@ -417,6 +418,12 @@ class PpReceiveTab extends ConsumerWidget {
         }),
         const SizedBox(height: DhenuSpacing.sm),
       ],
+      _actionRow(t, DhenuIcons.undo, l.unwindOpen, t.gradeC, () {
+        Navigator.pop(ctx);
+        showUnwindSheet(context,
+            consignmentId: c.id, title: '${c.consignmentNo} · $name', onDone: () => _refresh(ref));
+      }),
+      const SizedBox(height: DhenuSpacing.sm),
       if (rejected)
         _actionRow(t, DhenuIcons.undo, l.rejectUndo, t.brand, () {
           Navigator.pop(ctx);

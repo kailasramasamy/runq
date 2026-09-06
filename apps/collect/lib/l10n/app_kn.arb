@@ -1165,5 +1165,12 @@
   "rejectScope": "ತಿರಸ್ಕಾರ",
   "rejectRefusedLater": "{qty} ನಂತರ ತಿರಸ್ಕೃತ",
   "rejectNotPaid": "{qty} ತಿರಸ್ಕೃತ · ಪಾವತಿ ಇಲ್ಲ",
-  "farmerPaymentsRejected": "ತಿರಸ್ಕೃತ ಹಾಲು"
+  "farmerPaymentsRejected": "ತಿರಸ್ಕೃತ ಹಾಲು",
+  "unwindTitle": "ಈ ಸಾಗಣೆಯನ್ನು ರದ್ದುಗೊಳಿಸಿ",
+  "unwindNothing": "ಈ ಸಾಗಣೆಯಲ್ಲಿ ರದ್ದುಗೊಳಿಸಲು ಏನೂ ಇಲ್ಲ",
+  "unwindConfirm": "{count, plural, one{{count} ಹಂತ ರದ್ದುಗೊಳಿಸಿ} other{ಎಲ್ಲಾ {count} ಹಂತಗಳನ್ನು ರದ್ದುಗೊಳಿಸಿ}}",
+  "unwindIncludePours": "ರೈತರ ನಮೂದುಗಳನ್ನೂ ತೆಗೆದುಹಾಕಿ",
+  "unwindIncludePoursHint": "ಪಾಳಿಯನ್ನು ಮತ್ತೆ ತೆರೆದು ಈ ಸಾಗಣೆಯ ಹಿಂದಿನ ಸಂಗ್ರಹಗಳನ್ನು ಹಿಂತೆಗೆಯುತ್ತದೆ. ಆ ರೈತರಿಗೆ ಪಾವತಿ ಆಗುವುದಿಲ್ಲ.",
+  "unwindDone": "ಸಾಗಣೆ ರದ್ದಾಗಿದೆ",
+  "unwindOpen": "ಪೂರ್ಣ ಸರಪಳಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ"
 }

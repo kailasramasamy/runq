@@ -7,6 +7,7 @@ import {
   consignmentAvailabilitySchema,
   fastTrackSchema,
   pendingDispatchSchema,
+  unwindSchema,
   paginationSchema,
   uuidParamSchema,
 } from '@runq/validators';
@@ -14,6 +15,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { ConsignmentService } from './consignment.service';
 import { PendingDispatchService } from './pending-dispatch.service';
 import { MpFastTrackService } from './fast-track.service';
+import { MpUnwindService } from './unwind.service';
 import { resolveMpPrincipal } from './access-scope';
 
 // field_operator dispatches/receives at their node; reads are node-scoped
@@ -56,6 +58,23 @@ export const consignmentRoutes: FastifyPluginAsync = async (app) => {
     const input = fastTrackSchema.parse(request.body);
     const principal = await resolveMpPrincipal(request);
     const service = new MpFastTrackService(request.server.db, request.tenantId);
+    return { data: await service.run(input, request.user?.userId, principal) };
+  });
+
+  // Undo a load end to end. Preview first, then commit — the same shape the
+  // forward fast track uses, because the operator needs to see what a chain
+  // action will do before it does it.
+  app.post('/unwind/plan', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = unwindSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new MpUnwindService(request.server.db, request.tenantId);
+    return { data: await service.plan(input, principal) };
+  });
+
+  app.post('/unwind/run', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const input = unwindSchema.parse(request.body);
+    const principal = await resolveMpPrincipal(request);
+    const service = new MpUnwindService(request.server.db, request.tenantId);
     return { data: await service.run(input, request.user?.userId, principal) };
   });
 

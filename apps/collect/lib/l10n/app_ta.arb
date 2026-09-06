@@ -1165,5 +1165,12 @@
   "rejectScope": "நிராகரிப்பு",
   "rejectRefusedLater": "{qty} பின்னர் நிராகரிக்கப்பட்டது",
   "rejectNotPaid": "{qty} நிராகரிப்பு · பணம் இல்லை",
-  "farmerPaymentsRejected": "நிராகரிக்கப்பட்ட பால்"
+  "farmerPaymentsRejected": "நிராகரிக்கப்பட்ட பால்",
+  "unwindTitle": "இந்தச் சரக்கை ரத்து செய்",
+  "unwindNothing": "இந்தச் சரக்கில் ரத்து செய்ய ஏதுமில்லை",
+  "unwindConfirm": "{count, plural, one{{count} படியை ரத்து செய்} other{{count} படிகளையும் ரத்து செய்}}",
+  "unwindIncludePours": "விவசாயிப் பதிவுகளையும் நீக்கு",
+  "unwindIncludePoursHint": "ஷிப்டைத் திறந்து இந்தச் சரக்கின் பின்னுள்ள பால் பதிவுகளை ரத்து செய்யும். அந்த விவசாயிகளுக்குப் பணம் வழங்கப்படாது.",
+  "unwindDone": "சரக்கு ரத்து செய்யப்பட்டது",
+  "unwindOpen": "முழுச் சங்கிலியையும் ரத்து செய்"
 }

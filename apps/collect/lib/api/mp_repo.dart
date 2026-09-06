@@ -613,6 +613,21 @@ class MpRepo {
   /// receive that isn't yet locked for dispatch).
   Future<void> deleteReceipt(String id) => _api.delete('$_base/consignments/$id');
 
+  // ── end-to-end undo ───────────────────────────────────────────────────────
+  /// What undoing this load would do — every step, in order, with anything
+  /// that would block it. Nothing is written.
+  Future<MpUnwindPlan> unwindPlan(String consignmentId, {bool includePours = false}) async {
+    final res = await _api.post('$_base/consignments/unwind/plan',
+        {'consignmentId': consignmentId, 'includePours': includePours});
+    return MpUnwindPlan.fromJson(_one(res) ?? const {});
+  }
+
+  /// Commit it. The server re-plans first, so what runs is the state now — not
+  /// what the preview showed. All or nothing.
+  Future<void> unwindRun(String consignmentId, {bool includePours = false}) =>
+      _api.post('$_base/consignments/unwind/run',
+          {'consignmentId': consignmentId, 'includePours': includePours});
+
   // ── rejections ────────────────────────────────────────────────────────────
   /// Refuse a farmer's milk at the gate. No pour is created for these litres,
   /// so nothing accrues and there is nothing to deduct later.

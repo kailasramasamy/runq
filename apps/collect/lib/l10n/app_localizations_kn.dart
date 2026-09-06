@@ -3610,4 +3610,34 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get farmerPaymentsRejected => 'ತಿರಸ್ಕೃತ ಹಾಲು';
+
+  @override
+  String get unwindTitle => 'ಈ ಸಾಗಣೆಯನ್ನು ರದ್ದುಗೊಳಿಸಿ';
+
+  @override
+  String get unwindNothing => 'ಈ ಸಾಗಣೆಯಲ್ಲಿ ರದ್ದುಗೊಳಿಸಲು ಏನೂ ಇಲ್ಲ';
+
+  @override
+  String unwindConfirm(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ಎಲ್ಲಾ $count ಹಂತಗಳನ್ನು ರದ್ದುಗೊಳಿಸಿ',
+      one: '$count ಹಂತ ರದ್ದುಗೊಳಿಸಿ',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get unwindIncludePours => 'ರೈತರ ನಮೂದುಗಳನ್ನೂ ತೆಗೆದುಹಾಕಿ';
+
+  @override
+  String get unwindIncludePoursHint =>
+      'ಪಾಳಿಯನ್ನು ಮತ್ತೆ ತೆರೆದು ಈ ಸಾಗಣೆಯ ಹಿಂದಿನ ಸಂಗ್ರಹಗಳನ್ನು ಹಿಂತೆಗೆಯುತ್ತದೆ. ಆ ರೈತರಿಗೆ ಪಾವತಿ ಆಗುವುದಿಲ್ಲ.';
+
+  @override
+  String get unwindDone => 'ಸಾಗಣೆ ರದ್ದಾಗಿದೆ';
+
+  @override
+  String get unwindOpen => 'ಪೂರ್ಣ ಸರಪಳಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ';
 }

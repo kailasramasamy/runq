@@ -100,3 +100,20 @@ export type ConsignmentFilter = z.infer<typeof consignmentFilterSchema>;
 export type FastTrackInput = z.infer<typeof fastTrackSchema>;
 export type ConsignmentAvailabilityQuery = z.infer<typeof consignmentAvailabilitySchema>;
 export type PendingDispatchQuery = z.infer<typeof pendingDispatchSchema>;
+
+/**
+ * Walk a load's whole chain back — plant receipt, CC dispatch, CC receipt,
+ * VMCC dispatch — from one place, instead of hopping between modes and finding
+ * half the screens scoped to today.
+ */
+export const unwindSchema = z.object({
+  consignmentId: z.string().uuid(),
+  /**
+   * Also reopen the VMCC's shift and reverse the pours behind the load.
+   * Off by default and never implied: reversing a pour takes a farmer's
+   * payment away, which is a different decision from removing a duplicate leg.
+   */
+  includePours: z.boolean().default(false),
+});
+
+export type UnwindInput = z.infer<typeof unwindSchema>;

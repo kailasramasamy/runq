@@ -3638,4 +3638,34 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get farmerPaymentsRejected => 'நிராகரிக்கப்பட்ட பால்';
+
+  @override
+  String get unwindTitle => 'இந்தச் சரக்கை ரத்து செய்';
+
+  @override
+  String get unwindNothing => 'இந்தச் சரக்கில் ரத்து செய்ய ஏதுமில்லை';
+
+  @override
+  String unwindConfirm(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count படிகளையும் ரத்து செய்',
+      one: '$count படியை ரத்து செய்',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get unwindIncludePours => 'விவசாயிப் பதிவுகளையும் நீக்கு';
+
+  @override
+  String get unwindIncludePoursHint =>
+      'ஷிப்டைத் திறந்து இந்தச் சரக்கின் பின்னுள்ள பால் பதிவுகளை ரத்து செய்யும். அந்த விவசாயிகளுக்குப் பணம் வழங்கப்படாது.';
+
+  @override
+  String get unwindDone => 'சரக்கு ரத்து செய்யப்பட்டது';
+
+  @override
+  String get unwindOpen => 'முழுச் சங்கிலியையும் ரத்து செய்';
 }
