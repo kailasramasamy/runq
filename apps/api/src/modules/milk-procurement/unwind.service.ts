@@ -64,7 +64,7 @@ export class MpUnwindService {
 
     // Downstream first: milk cannot be taken off a node that has already sent
     // it on, so anything this load became has to go before the load itself.
-    for (const leg of await this.downstreamOf(anchor)) {
+    for (const leg of await this.downstreamOf(anchor, principal)) {
       steps.push(...this.legSteps(leg, names, await this.blockerFor(leg)));
     }
     steps.push(...this.legSteps(anchor, names, await this.blockerFor(anchor)));
@@ -133,8 +133,19 @@ export class MpUnwindService {
    * it to remove one VMCC's duplicate would throw away everyone else's milk
    * too, and no automated flow should make that call.
    */
-  private async downstreamOf(anchor: MpConsignmentRow): Promise<MpConsignmentRow[]> {
-    if (anchor.kind !== 'vmcc_to_cc') return [];
+  private async downstreamOf(
+    anchor: MpConsignmentRow, principal: MpPrincipal,
+  ): Promise<MpConsignmentRow[]> {
+    if (anchor.kind !== 'vmcc_to_cc' || anchor.status !== 'received') return [];
+    // Only what actually stands in the way. Cancelling a receipt needs the
+    // destination to still hold those litres, and a CC holding two loads of a
+    // type but forwarding one has the headroom already — taking its onward
+    // tanker down as well cancelled a delivery nobody asked to cancel, and the
+    // operator had to notice and re-dispatch it.
+    const avail = await new ConsignmentService(this.db, this.tenantId).availability(
+      anchor.toNodeId, anchor.collectionDate, principal,
+      anchor.shift ?? undefined, anchor.milkType ?? undefined);
+    if (avail.available - Number(anchor.receiptQty ?? 0) >= -1e-6) return [];
     return this.db.select().from(mpConsignments).where(and(
       eq(mpConsignments.tenantId, this.tenantId),
       eq(mpConsignments.kind, 'cc_to_pp'),
@@ -221,6 +232,21 @@ export class MpUnwindService {
     ));
     if (!rows.length) return [];
     const node = names.get(anchor.fromNodeId) ?? '—';
+    // A slot holding more milk than this leg carried cannot say which pours
+    // were "behind" it — nothing links a pour to a consignment. Reversing the
+    // lot took a farmer's real morning delivery along with the duplicate, so
+    // the option is refused rather than guessed at.
+    const slotQty = round3(rows.reduce((sum, r) => sum + Number(r.qty), 0));
+    const legQty = round3(Number(anchor.dispatchQty ?? 0));
+    if (Math.abs(slotQty - legQty) > 1e-6) {
+      return [{
+        kind: 'reverse_pour', label: node,
+        detail: `Remove the farmer entries at ${node}`,
+        qtyLitres: slotQty,
+        blocked: `This slot holds ${slotQty} L but the load carried ${legQty} L`
+          + ' — remove the extra entries from the collection screen instead',
+      }];
+    }
     return [
       {
         kind: 'reopen_shift', label: node, detail: anchor.collectionDate,
