@@ -495,6 +495,12 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                   // under a green tick — the sender is the last to find out
                   // about their own milk.
                   RejectedChip(consignment: c),
+                  // A VMCC's own leg is almost never the one refused: the plant
+                  // rejects the CC's tanker, and the charge lands back on these
+                  // pours. Showing only RejectedChip left that refusal invisible
+                  // at the one tier that can act on it — the receive screens
+                  // already pair the two chips for exactly this reason.
+                  RefusedLaterChip(consignment: c),
                 ]),
               ),
               const SizedBox(width: DhenuSpacing.sm),
