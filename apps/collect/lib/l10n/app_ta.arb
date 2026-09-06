@@ -1162,5 +1162,8 @@
   "rejectBySourceTitle": "மூலவாரியாக நிராகரிப்பு விகிதம்",
   "rejectByReasonTitle": "பால் ஏன் நிராகரிக்கப்பட்டது",
   "rejectEventsLine": "{count, plural, one{{count} நிராகரிப்பு} other{{count} நிராகரிப்புகள்}} · {qty}",
-  "rejectScope": "நிராகரிப்பு"
+  "rejectScope": "நிராகரிப்பு",
+  "rejectRefusedLater": "{qty} பின்னர் நிராகரிக்கப்பட்டது",
+  "rejectNotPaid": "{qty} நிராகரிப்பு · பணம் இல்லை",
+  "farmerPaymentsRejected": "நிராகரிக்கப்பட்ட பால்"
 }

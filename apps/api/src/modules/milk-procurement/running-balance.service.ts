@@ -230,7 +230,14 @@ export class RunningBalanceService {
         // What is still owed AFTER this cycle's recovery — the repayment rows
         // are already in the ledger, so the fold reflects the post-cycle state.
         outstanding: owed.get(r.farmerId) ?? zeroOutstanding(),
-        deductions: { ...ded, total: round2(ded.farmerSale + ded.advance + ded.feedLoan) },
+        // Summed over every bucket rather than three named ones: a total that
+        // hand-lists them silently drops each new kind of deduction, and the
+        // quality-rejection bucket went missing from this figure the day it
+        // was added.
+        deductions: {
+          ...ded,
+          total: round2(Object.values(ded).reduce((sum, v) => sum + v, 0)),
+        },
         netPayable: round2(Number(r.net)),
       };
     }).sort((a, b) => a.farmerName.localeCompare(b.farmerName));

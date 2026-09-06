@@ -14,6 +14,7 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
 import '../../utils/friendly_error.dart';
 import 'receive_leg.dart';
+import 'rejection_report.dart';
 
 /// Qty-weighted roll-up of one source node's receipts on a day (its AM+PM legs).
 typedef _Agg = ({double qty, double? fat, double? snf, double? water});
@@ -480,6 +481,8 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
           const SizedBox(width: DhenuSpacing.sm),
           Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 18, color: t.ink)),
         ]),
+        RejectedChip(consignment: c),
+        RefusedLaterChip(consignment: c),
         const SizedBox(height: DhenuSpacing.sm),
         Row(children: [
           if (c.receiptFat != null)

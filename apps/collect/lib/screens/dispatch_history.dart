@@ -168,7 +168,12 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
   /// dispatch they made and forgot, which is the one thing this list is for.
   String _subtitle(AppLocalizations l, MpConsignment c) {
     final base = '${consignmentSlotL10n(l, c.shift)} · ${c.consignmentNo}';
-    return c.directReceive ? '$base · ${l.dispatchHistoryRecordedOnArrival}' : base;
+    final sent = c.directReceive ? '$base · ${l.dispatchHistoryRecordedOnArrival}' : base;
+    // What the far end refused. A load thrown away on arrival otherwise sits in
+    // the sender's own history as delivered.
+    return c.rejectedQty > 0
+        ? '$sent · ${l.rejectedChip(litres(c.rejectedQty, unit: true))}'
+        : sent;
   }
 
   Widget _status(DhenuTokens t, AppLocalizations l, MpConsignment c) {

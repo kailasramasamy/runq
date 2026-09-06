@@ -257,6 +257,14 @@ final farmerPurchasesProvider =
       farmerId: ref.watch(_farmerScopeId), from: p.start, to: p.end);
 });
 
+/// Milk of this farmer's refused over a cycle. Drives the named deduction on
+/// the payments breakdown, so the farmer sees what was taken off and why.
+final farmerRejectionLinesProvider =
+    FutureProvider.family<List<MpRejectionLine>, MpCyclePeriod>((ref, p) async {
+  return mpRepo.farmerRejectionLines(
+      farmerId: ref.watch(_farmerScopeId), from: p.start, to: p.end);
+});
+
 /// The current (in-progress) cycle window — null until cadence resolves.
 final farmerCurrentCyclePeriodProvider = FutureProvider<MpCyclePeriod?>((ref) async {
   final periods = await ref.watch(farmerCyclePeriodsProvider.future);

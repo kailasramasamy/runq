@@ -24,6 +24,7 @@ import '../../widgets/primary_action.dart';
 import '../shared/cancel_leg.dart';
 import '../../widgets/slot_pill.dart';
 import '../shared/reject_sheet.dart';
+import '../shared/rejection_report.dart';
 
 /// CC Receive — in-transit consignments (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards: source and
@@ -295,7 +296,9 @@ class CcReceiveTab extends ConsumerWidget {
             if (mixed && c.milkType != null) MilkTypePill(milkType: c.milkType!),
           ]),
           const SizedBox(height: DhenuSpacing.xs),
-          _whenLine(t, l, c, id: c.consignmentNo),
+          _whenLine(t, l, c),
+          RejectedChip(consignment: c),
+          RefusedLaterChip(consignment: c),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -305,7 +308,10 @@ class CcReceiveTab extends ConsumerWidget {
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
         const SizedBox(width: DhenuSpacing.sm),
-        Icon(DhenuIcons.chevronRight, size: 18, color: t.inkSoft),
+        // Not a chevron: that promises a detail screen, and tapping here opens
+        // a sheet of actions instead. An ellipsis says "there are things you
+        // can do to this", which is what actually happens.
+        Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
       ]),
     );
   }
@@ -363,14 +369,28 @@ class CcReceiveTab extends ConsumerWidget {
                 }),
                 // Refusing part of a load is a receiving decision, so it sits
                 // with the other two: correct the figures, hand it back, or
-                // refuse some of it.
-                const SizedBox(height: DhenuSpacing.sm),
-                _actionRow(t, DhenuIcons.warning, l.rejectAction, t.gradeC, () {
-                  Navigator.pop(ctx);
-                  rejectConsignment(context, consignment: c,
-                      onDone: () async => _invalidateAfterReceipt(ref));
-                }),
-                if (canDelete) ...[
+                // refuse some of it. Hidden once it is ALL refused — there
+                // would be nothing left to take.
+                if ((c.receiptQty ?? 0) > 0) ...[
+                  const SizedBox(height: DhenuSpacing.sm),
+                  _actionRow(t, DhenuIcons.warning, l.rejectAction, t.gradeC, () {
+                    Navigator.pop(ctx);
+                    rejectConsignment(context, consignment: c,
+                        onDone: () async => _invalidateAfterReceipt(ref));
+                  }),
+                ],
+                // Undoing the refusal is the one thing an operator looking at a
+                // rejected load actually wants, and it replaces handing the load
+                // back — the server refuses to un-receive while a rejection
+                // stands, so offering that could only earn an error.
+                if (c.rejectedQty > 0) ...[
+                  const SizedBox(height: DhenuSpacing.sm),
+                  _actionRow(t, DhenuIcons.undo, l.rejectUndo, t.brand, () {
+                    Navigator.pop(ctx);
+                    undoRejection(context, consignment: c,
+                        onDone: () async => _invalidateAfterReceipt(ref));
+                  }),
+                ] else if (canDelete) ...[
                   const SizedBox(height: DhenuSpacing.sm),
                   _actionRow(t, DhenuIcons.trash, l.ccReceiveDeleteReceipt, t.gradeC, () {
                     Navigator.pop(ctx);
@@ -464,7 +484,7 @@ class CcReceiveTab extends ConsumerWidget {
           if (mixed && c.milkType != null) MilkTypePill(milkType: c.milkType!),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
-        _whenLine(t, l, c, id: c.consignmentNo),
+        _whenLine(t, l, c, id: c.containerNo),
       ]);
 
   /// Slot and date, the two facts a can is matched on. They used to share one
@@ -472,18 +492,26 @@ class CcReceiveTab extends ConsumerWidget {
   /// took the eye first and pushed the date to the ellipsis. Now the slot is a
   /// coloured pill, the date reads in full ink, and the id trails in caption
   /// grey where it can be cut.
-  Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {required String id}) =>
+  Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {String? id}) =>
       Row(children: [
         SlotPill(shift: c.shift),
         const SizedBox(width: DhenuSpacing.sm),
-        Text(slotDateLabel(c.collectionDate),
-            style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-        const SizedBox(width: DhenuSpacing.sm),
-        Expanded(
-          child: Text(id,
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
+        // Flexible, not a bare Text: the slot pill has a fixed width and the id
+        // an Expanded, so an un-shrinkable date is the one thing here that can
+        // overflow a narrow card.
+        Flexible(
+          child: Text(slotDateLabel(c.collectionDate),
+              style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
+        if (id != null && id.isNotEmpty) ...[
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(
+            child: Text(id,
+                style: DhenuText.caption.copyWith(color: t.inkSoft),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ]);
 
   /// AM / PM / Pooled, in that slot's own colour.

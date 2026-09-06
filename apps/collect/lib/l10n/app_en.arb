@@ -2609,5 +2609,10 @@
   "rejectByReasonTitle": "Why milk was refused",
   "rejectEventsLine": "{count, plural, one{{count} rejection} other{{count} rejections}} · {qty}",
   "@rejectEventsLine": {"placeholders": {"count": {}, "qty": {}}},
-  "rejectScope": "Rejections"
+  "rejectScope": "Rejections",
+  "rejectRefusedLater": "{qty} refused later",
+  "@rejectRefusedLater": {"description": "On a leg whose milk was refused further down the chain", "placeholders": {"qty": {}}},
+  "rejectNotPaid": "{qty} rejected · not paid",
+  "@rejectNotPaid": {"description": "Farmer-facing: rejected litres they are not paid for", "placeholders": {"qty": {}}},
+  "farmerPaymentsRejected": "Milk rejected"
 }

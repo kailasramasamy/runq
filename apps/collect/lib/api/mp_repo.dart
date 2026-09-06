@@ -656,6 +656,24 @@ class MpRepo {
     return _list(res).map(MpRejectionStat.fromJson).toList();
   }
 
+  /// A farmer's refused milk over a window, charge by charge — what their
+  /// payment breakdown lists under the deduction.
+  Future<List<MpRejectionLine>> farmerRejectionLines({
+    String? farmerId,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _api.get(
+      '$_base/rejections/farmer-lines${_qs({'farmerId': farmerId, 'from': from, 'to': to})}',
+    );
+    return _list(res).map(MpRejectionLine.fromJson).toList();
+  }
+
+  /// Undo everything refused off one load — the unit the operator sees on the
+  /// card, rather than the individual rejection rows behind it.
+  Future<void> undoConsignmentRejections(String id) =>
+      _api.post('$_base/rejections/consignment/$id/reverse', const {});
+
   /// Take a rejection back: litres return to the receipt and every charge is
   /// contra'd on its farmer's ledger.
   Future<MpRejection?> reverseRejection(String id) async {

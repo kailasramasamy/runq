@@ -3625,4 +3625,17 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get rejectScope => 'நிராகரிப்பு';
+
+  @override
+  String rejectRefusedLater(Object qty) {
+    return '$qty பின்னர் நிராகரிக்கப்பட்டது';
+  }
+
+  @override
+  String rejectNotPaid(Object qty) {
+    return '$qty நிராகரிப்பு · பணம் இல்லை';
+  }
+
+  @override
+  String get farmerPaymentsRejected => 'நிராகரிக்கப்பட்ட பால்';
 }

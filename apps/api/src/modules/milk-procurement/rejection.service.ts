@@ -15,6 +15,18 @@ import { RateChartService } from './rate-chart.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
+/** One refusal charged to a farmer, as their payment breakdown shows it. */
+export interface RejectionLine {
+  collectionDate: string;
+  shift: string | null;
+  milkType: string | null;
+  reason: string;
+  notes: string | null;
+  qtyLitres: number;
+  ratePerLitre: number;
+  amount: number;
+}
+
 /** One row of the rejection-rate report: a source, a reason, or a farmer. */
 export interface RejectionStat {
   key: string | null;
@@ -237,6 +249,70 @@ export class MpRejectionService {
     }));
   }
 
+  /**
+   * Undo every live rejection on one load. The card is the unit an operator
+   * thinks in — "un-reject this tanker" — not the individual rejection rows
+   * behind it, which they never see and cannot name.
+   */
+  async reverseForConsignment(
+    consignmentId: string, userId: string | undefined, principal: MpPrincipal,
+  ): Promise<MpRejectionRow[]> {
+    const live = await this.db.select({ id: mpRejections.id }).from(mpRejections)
+      .where(and(
+        eq(mpRejections.tenantId, this.tenantId),
+        eq(mpRejections.subjectType, 'consignment'),
+        eq(mpRejections.subjectId, consignmentId),
+        isNull(mpRejections.reversedAt),
+      ));
+    if (!live.length) throw new NotFoundError('No rejection to undo on this load');
+    const out: MpRejectionRow[] = [];
+    for (const r of live) out.push(await this.reverse(r.id, userId, principal));
+    return out;
+  }
+
+  /**
+   * One farmer's refused milk over a window, charge by charge.
+   *
+   * The deduction on their payment is otherwise a bare number under whichever
+   * bucket label the app guessed — it showed as "Advance recovery", which is
+   * both wrong and the most alarming thing it could have said. A farmer looking
+   * at money taken off their milk cheque is owed the date, the litres and the
+   * reason.
+   */
+  async farmerLines(farmerId: string, from: string, to: string): Promise<RejectionLine[]> {
+    const rows = await this.db.select({
+      collectionDate: mpRejections.collectionDate,
+      shift: mpRejections.shift,
+      milkType: mpRejections.milkType,
+      reason: mpRejections.reason,
+      notes: mpRejections.notes,
+      qtyLitres: mpRejectionCharges.qtyLitres,
+      ratePerLitre: mpRejectionCharges.ratePerLitre,
+      amount: mpRejectionCharges.amount,
+    }).from(mpRejectionCharges)
+      .innerJoin(mpRejections, eq(mpRejectionCharges.rejectionId, mpRejections.id))
+      .where(and(
+        eq(mpRejectionCharges.tenantId, this.tenantId),
+        eq(mpRejectionCharges.farmerId, farmerId),
+        isNull(mpRejectionCharges.reversedAt),
+        isNull(mpRejections.reversedAt),
+        gte(mpRejections.collectionDate, from),
+        lte(mpRejections.collectionDate, to),
+      ));
+    return rows
+      .map((r) => ({
+        collectionDate: r.collectionDate,
+        shift: r.shift,
+        milkType: r.milkType,
+        reason: r.reason,
+        notes: r.notes,
+        qtyLitres: Number(r.qtyLitres),
+        ratePerLitre: Number(r.ratePerLitre),
+        amount: Number(r.amount),
+      }))
+      .sort((a, b) => a.collectionDate.localeCompare(b.collectionDate));
+  }
+
   /** Litres refused against one consignment, so callers that recompute variance
    *  can add them back — the milk arrived, it just wasn't kept. */
   async rejectedLitres(db: Db | Tx, consignmentId: string): Promise<number> {
@@ -330,7 +406,11 @@ export class MpRejectionService {
           eq(mpConsignments.toNodeId, c.fromNodeId), eq(mpConsignments.collectionDate, c.collectionDate),
           eq(mpConsignments.status, 'received'), eq(mpConsignments.directReceive, false),
         ));
-    const out: SourcePour[] = [];
+    // Keyed by pour id, not appended: a CC that took in cow AND buffalo from
+    // one VMCC has two legs from the same node and shift, and filtering each by
+    // the tanker's milk type hands back the SAME pour once per leg. Appending
+    // split one farmer's rejection across two identical charges.
+    const byPour = new Map<string, SourcePour>();
     for (const leg of legs) {
       if (leg.directReceive) continue;
       const rows = await this.db.select({
@@ -342,12 +422,14 @@ export class MpRejectionService {
         ...(leg.shift ? [eq(mpPours.shift, leg.shift)] : []),
         ...(c.milkType ? [eq(mpPours.milkType, c.milkType)] : []),
       ));
-      out.push(...rows.map((r) => ({
-        pourId: r.id, farmerId: r.farmerId,
-        qtyLitres: Number(r.qty), ratePerLitre: Number(r.rate),
-      })));
+      for (const r of rows) {
+        byPour.set(r.id, {
+          pourId: r.id, farmerId: r.farmerId,
+          qtyLitres: Number(r.qty), ratePerLitre: Number(r.rate),
+        });
+      }
     }
-    return out;
+    return [...byPour.values()];
   }
 
   /** What a direct-receive VMCC's milk was priced at, so the charge matches the

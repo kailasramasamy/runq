@@ -415,6 +415,9 @@ class MpPour {
   final Grade qualityGrade;
   final String? receiptNo;
   final String status; // recorded | reversed
+  /// Litres off this pour later refused, wherever it was caught. The pour
+  /// itself stays recorded and correct — this is what happened to it after.
+  final double rejectedQty;
 
   MpPour({
     required this.id,
@@ -435,6 +438,7 @@ class MpPour {
     this.qualityGrade = Grade.unknown,
     this.receiptNo,
     this.status = 'recorded',
+    this.rejectedQty = 0,
   });
 
   factory MpPour.fromJson(Map<String, dynamic> j) => MpPour(
@@ -456,7 +460,22 @@ class MpPour {
     qualityGrade: gradeFrom(j['qualityGrade'] as String?),
     receiptNo: _sn(j['receiptNo']),
     status: _s(j['status']),
+    rejectedQty: double.tryParse('${j['rejectedQty']}') ?? 0,
   );
+
+  /// Value of the refused litres, at this pour's own rate — the same basis the
+  /// server charged them on, so the two agree.
+  double get rejectedAmount => rejectedQty <= 0 ? 0 : rejectedQty * ratePerLitre;
+
+  /// What this pour will actually be paid. Showing [lineAmount] on a refused
+  /// pour states an amount the farmer is not getting, in the same green as
+  /// money they are — and the deduction then arrives unannounced a cycle later.
+  double get payableAmount {
+    final net = lineAmount - rejectedAmount;
+    return net < 0 ? 0 : net;
+  }
+
+  bool get hasRejection => rejectedQty > 0;
 }
 
 class MpCollectionSummary {
@@ -758,6 +777,18 @@ class MpConsignment {
       varianceQty,
       variancePct;
   final bool directReceive;
+  /// Litres refused off this load, and the reasons given. `receiptQty` is what
+  /// was KEPT, so without these a fully-refused load reads "0.0 L" under a green
+  /// tick — which says the milk arrived and all was well.
+  final double rejectedQty;
+  final List<String> rejectedReasons;
+  /// What the operator typed when they picked 'other'. Preferred over the
+  /// reason code on screen — "Other" names nothing.
+  final String? rejectedNote;
+  /// Litres this leg carried that were refused FURTHER DOWN the chain. Kept
+  /// apart from [rejectedQty]: this node accepted the milk, and calling its
+  /// own receipt "rejected" would pin a later failure on the sender.
+  final double downstreamRejectedQty;
 
   /// Milk type of the load. Nullable because legacy consignments predate the
   /// A1/A2 split and pooled BMC loads may carry none.
@@ -785,6 +816,10 @@ class MpConsignment {
     this.varianceQty,
     this.variancePct,
     this.directReceive = false,
+    this.rejectedQty = 0,
+    this.rejectedReasons = const [],
+    this.rejectedNote,
+    this.downstreamRejectedQty = 0,
   });
 
   bool get inTransit => status == 'in_transit';
@@ -817,6 +852,11 @@ class MpConsignment {
     varianceQty: _dn(j['varianceQty']),
     variancePct: _dn(j['variancePct']),
     directReceive: j['directReceive'] == true,
+    rejectedQty: double.tryParse('${j['rejectedQty']}') ?? 0,
+    rejectedReasons: ((j['rejectedReasons'] as String?) ?? '')
+        .split(',').where((r) => r.isNotEmpty).toList(),
+    rejectedNote: j['rejectedNote'] as String?,
+    downstreamRejectedQty: double.tryParse('${j['downstreamRejectedQty']}') ?? 0,
     milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
   );
 }
@@ -1007,6 +1047,36 @@ class MpRejectionStat {
         rejectedQty: double.tryParse('${j['rejectedQty']}') ?? 0,
         amount: double.tryParse('${j['amount']}') ?? 0,
         events: (j['events'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// One refusal charged to a farmer, as their payment breakdown lists it.
+class MpRejectionLine {
+  final String collectionDate, reason;
+  final String? shift, notes;
+  final MilkType? milkType;
+  final double qtyLitres, ratePerLitre, amount;
+
+  MpRejectionLine({
+    required this.collectionDate,
+    required this.reason,
+    required this.qtyLitres,
+    required this.ratePerLitre,
+    required this.amount,
+    this.shift,
+    this.notes,
+    this.milkType,
+  });
+
+  factory MpRejectionLine.fromJson(Map<String, dynamic> j) => MpRejectionLine(
+        collectionDate: j['collectionDate'] as String,
+        reason: (j['reason'] as String?) ?? 'other',
+        shift: j['shift'] as String?,
+        notes: j['notes'] as String?,
+        milkType: j['milkType'] == null ? null : milkTypeFrom(j['milkType'] as String?),
+        qtyLitres: double.tryParse('${j['qtyLitres']}') ?? 0,
+        ratePerLitre: double.tryParse('${j['ratePerLitre']}') ?? 0,
+        amount: double.tryParse('${j['amount']}') ?? 0,
       );
 }
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, desc, sql, inArray, gte, lte, or, isNull } from 'drizzle-orm';
+import { and, asc, eq, desc, sql, inArray, gte, lte, or, isNull, getTableColumns } from 'drizzle-orm';
 import {
   mpConsignments, mpNodes, mpPours, mpFarmerSales, mpGlSettings, mpRawMilkItems, stockLedger,
 } from '@runq/db';
@@ -50,6 +50,67 @@ export interface MilkTypeAvailability {
   avgFat: number | null; avgSnf: number | null; avgWater: number | null;
 }
 
+/**
+ * Litres refused off a consignment, and why.
+ *
+ * Carried on the row rather than fetched separately because every screen that
+ * shows a receipt needs it: `receipt_qty` is what was KEPT, so a fully-refused
+ * load reads "0.0 L" with a green tick and a 0% variance — which says the milk
+ * arrived and all was well, the exact opposite of what happened.
+ *
+ * The outer column is named in full rather than interpolated: `${'$'}{mpConsignments.id}`
+ * renders as a BARE `"id"`, which inside the subquery binds to the rejection's
+ * own id instead of the consignment's. It matched nothing and every load read
+ * zero rejected — silently, because a correlated subquery that correlates to
+ * the wrong table is still valid SQL. The inner alias is `rej` for the same
+ * reason: nothing here should be resolvable two ways.
+ */
+const rejectedQtySql = sql<string>`(
+  select coalesce(sum(rej.qty_litres), 0) from mp_rejections rej
+  where rej.subject_type = 'consignment' and rej.subject_id = mp_consignments.id
+    and rej.reversed_at is null)`;
+
+const rejectedReasonsSql = sql<string | null>`(
+  select string_agg(distinct rej.reason::text, ',') from mp_rejections rej
+  where rej.subject_type = 'consignment' and rej.subject_id = mp_consignments.id
+    and rej.reversed_at is null)`;
+
+/** The operator's own words, where they gave them. A chip reading "· Other" is
+ *  no reason at all — the note is the whole point of having picked 'other'. */
+const rejectedNoteSql = sql<string | null>`(
+  select string_agg(rej.notes, ' · ') from mp_rejections rej
+  where rej.subject_type = 'consignment' and rej.subject_id = mp_consignments.id
+    and rej.reversed_at is null and rej.notes is not null and btrim(rej.notes) <> '')`;
+
+/**
+ * Litres this leg carried that were refused FURTHER DOWN the chain.
+ *
+ * Traced through the pours behind it, so it is exact rather than inferred: a
+ * CC's inbound leg is "refused later at the plant" only when the very pours it
+ * carried are the ones charged. Kept separate from `rejectedQty` on purpose —
+ * the CC accepted this milk and chilled it, and saying its VMCC's delivery was
+ * rejected would pin a plant-stage failure on that VMCC's quality record.
+ */
+const downstreamRejectedSql = sql<string>`(
+  select coalesce(sum(ch.qty_litres), 0)
+  from mp_rejection_charges ch
+  join mp_rejections rj on rj.id = ch.rejection_id
+  join mp_pours p on p.id = ch.pour_id
+  where ch.reversed_at is null and rj.reversed_at is null
+    and rj.subject_id is distinct from mp_consignments.id
+    and p.node_id = mp_consignments.from_node_id
+    and p.collection_date = mp_consignments.collection_date
+    and (mp_consignments.shift is null or p.shift = mp_consignments.shift)
+    and (mp_consignments.milk_type is null or p.milk_type = mp_consignments.milk_type))`;
+
+/** A consignment plus what was refused off it. */
+export type MpConsignmentWithRejection = MpConsignmentRow & {
+  rejectedQty: string;
+  rejectedReasons: string | null;
+  rejectedNote: string | null;
+  downstreamRejectedQty: string;
+};
+
 /** Tier-to-tier consignments (VMCC→CC, CC→PP) with dispatch+receipt QC + variance. */
 export class ConsignmentService {
   constructor(
@@ -61,12 +122,18 @@ export class ConsignmentService {
     filters: ConsignmentFilter,
     pagination: { page: number; limit: number },
     principal: MpPrincipal,
-  ): Promise<{ data: MpConsignmentRow[]; meta: PaginationMeta }> {
+  ): Promise<{ data: MpConsignmentWithRejection[]; meta: PaginationMeta }> {
     const { page, limit } = pagination;
     const { offset } = applyPagination(page, limit);
     const where = this.buildWhere(filters, principal);
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(mpConsignments).where(where)
+      this.db.select({
+        ...getTableColumns(mpConsignments),
+        rejectedQty: rejectedQtySql,
+        rejectedReasons: rejectedReasonsSql,
+        rejectedNote: rejectedNoteSql,
+        downstreamRejectedQty: downstreamRejectedSql,
+      }).from(mpConsignments).where(where)
         .orderBy(desc(mpConsignments.collectionDate), desc(mpConsignments.createdAt)).limit(limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpConsignments).where(where),
     ]);
@@ -74,8 +141,14 @@ export class ConsignmentService {
     return { data: rows, meta: { page, limit, total, totalPages: calcTotalPages(total, limit) } };
   }
 
-  async getById(id: string, principal: MpPrincipal): Promise<MpConsignmentRow> {
-    const [row] = await this.db.select().from(mpConsignments)
+  async getById(id: string, principal: MpPrincipal): Promise<MpConsignmentWithRejection> {
+    const [row] = await this.db.select({
+      ...getTableColumns(mpConsignments),
+      rejectedQty: rejectedQtySql,
+      rejectedReasons: rejectedReasonsSql,
+      rejectedNote: rejectedNoteSql,
+      downstreamRejectedQty: downstreamRejectedSql,
+    }).from(mpConsignments)
       .where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id), scopeConsignments(principal)));
     if (!row) throw new NotFoundError('Consignment not found');
     return row;

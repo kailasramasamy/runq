@@ -9,6 +9,7 @@ import '../utils/format.dart';
 import 'dhenu_card.dart';
 import 'quality_badge.dart';
 import 'source_row.dart';
+import '../screens/shared/rejection_report.dart';
 
 /// Renders pours grouped into PM-first then AM shift sections. Each section has
 /// a subtotal header (count + total litres + amount) over a card of pour rows,
@@ -114,9 +115,27 @@ class ShiftGroupedPours extends StatelessWidget {
       hideLeading: !showAvatar,
       farmer: showAvatar ? farmer : null,
       litres: litres(p.qtyLitres, unit: true),
-      quality: p.fat == null ? null : pourQualityLine(context, p, bands),
+      quality: _qualityLine(context, p),
       amount: rupees(p.lineAmount),
       onTap: () => onTapPour(p, farmer),
+    );
+  }
+
+  /// Quality, plus what was refused off this pour.
+  ///
+  /// The rejection rides in the quality slot rather than the subtitle so it
+  /// keeps its own colour: on a farmer's Collections tab this is the line
+  /// telling them milk they delivered is not being paid for, and it cannot read
+  /// as another grey metric.
+  Widget? _qualityLine(BuildContext context, MpPour p) {
+    final quality = p.fat == null ? null : pourQualityLine(context, p, bands);
+    if (p.rejectedQty <= 0) return quality;
+    final chip = PourRejectedChip(pour: p);
+    if (quality == null) return chip;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [quality, chip],
     );
   }
 }

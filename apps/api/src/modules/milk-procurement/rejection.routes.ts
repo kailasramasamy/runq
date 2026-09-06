@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   gateRejectionSchema, receiptRejectionSchema, rejectionFilterSchema,
-  rejectionStatsSchema, uuidParamSchema,
+  rejectionStatsSchema, rejectionLinesSchema, uuidParamSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { MpRejectionService } from './rejection.service';
@@ -28,6 +28,17 @@ export const rejectionRoutes: FastifyPluginAsync = async (app) => {
     return { data: await service.stats(q, principal) };
   });
 
+  // One farmer's refused milk, charge by charge — what their payment breakdown
+  // shows under the deduction.
+  app.get('/farmer-lines', { preHandler: [rbacHook([...READ_ROLES, 'farmer'])] }, async (request) => {
+    const q = rejectionLinesSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    const farmerId = principal.kind === 'farmer' ? principal.farmerId : q.farmerId;
+    if (!farmerId) return { data: [] };
+    const service = new MpRejectionService(request.server.db, request.tenantId);
+    return { data: await service.farmerLines(farmerId, q.from, q.to) };
+  });
+
   // Refused at the gate: no pour is created, so nothing accrues.
   app.post('/gate', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request, reply) => {
     const input = gateRejectionSchema.parse(request.body);
@@ -47,6 +58,14 @@ export const rejectionRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({
       data: await service.rejectReceipt(id, input, request.user?.userId, principal),
     });
+  });
+
+  // Undo whatever was refused off one load — the unit the operator sees.
+  app.post('/consignment/:id/reverse', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    const service = new MpRejectionService(request.server.db, request.tenantId);
+    return { data: await service.reverseForConsignment(id, request.user?.userId, principal) };
   });
 
   app.post('/:id/reverse', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {

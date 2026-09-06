@@ -18,6 +18,9 @@ import 'pp_manual_receive_screen.dart';
 import '../shared/cancel_leg.dart';
 import '../../widgets/slot_pill.dart';
 import '../shared/reject_sheet.dart';
+import '../../l10n/l10n_helpers.dart';
+import '../../widgets/sheet_grabber.dart';
+import '../shared/rejection_report.dart';
 
 /// PP Receive — in-transit cc_to_pp tankers (tap a card to receive) above, with
 /// recent receipts below. Two counted sections of one-line cards — source,
@@ -293,7 +296,7 @@ class PpReceiveTab extends ConsumerWidget {
     return DhenuCard(
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
-      onTap: () => _openReceive(context, ref, l, c, name, editable: editable),
+      onTap: () => _openActions(context, ref, l, t, c, name, editable: editable),
       child: Row(children: [
         Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
         const SizedBox(width: DhenuSpacing.md),
@@ -315,7 +318,9 @@ class PpReceiveTab extends ConsumerWidget {
             ]),
           ],
           const SizedBox(height: DhenuSpacing.xs),
-          _whenLine(t, l, c, id: c.consignmentNo),
+          _whenLine(t, l, c),
+          RejectedChip(consignment: c),
+          RefusedLaterChip(consignment: c),
         ])),
         const SizedBox(width: DhenuSpacing.sm),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -325,31 +330,134 @@ class PpReceiveTab extends ConsumerWidget {
           Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
               style: DhenuText.caption.copyWith(color: vColor)),
         ]),
-        if (editable && !c.directReceive) ...[
-          const SizedBox(width: DhenuSpacing.sm),
-          Icon(DhenuIcons.edit, size: 16, color: t.brand),
-        ],
-        // Undo the intake. A manual receipt is withdrawn outright — it's the
-        // entry with no dispatch behind it, and the one to drop when the CC's
-        // own data arrives; a dispatched tanker goes back to in-transit for the
-        // CC to cancel. Either way the server refuses once production has drawn
-        // on the batch.
-        // Refusing part of a tanker is not the same as un-receiving it: the
-        // load did arrive, and the litres that failed have to stay on record
-        // against whoever sent them.
-        const SizedBox(width: DhenuSpacing.xs),
-        IconButton(
-          icon: Icon(DhenuIcons.warning, size: 18, color: t.gradeC),
-          tooltip: l.rejectAction,
-          onPressed: () => rejectConsignment(context, consignment: c,
-              onDone: () => _refresh(ref)),
-        ),
-        CancelReceiptButton(
-          consignment: c,
-          sourceName: name,
-          onDone: () => _refresh(ref),
-        ),
+        const SizedBox(width: DhenuSpacing.sm),
+        // Not a chevron: that promises a detail screen, and tapping here opens
+        // a sheet of actions instead. An ellipsis says "there are things you
+        // can do to this", which is what actually happens.
+        Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
       ]),
+    );
+  }
+
+  /// Everything you can do to a receipt, in a sheet.
+  ///
+  /// Two icons crammed beside the litres left the name-and-slot column 96 px
+  /// wide and overflowed it — but the row was the symptom, not the problem.
+  /// These three actions differ in kind and need naming: editing says the
+  /// figures were wrong, rejecting says the load arrived and some of it failed,
+  /// cancelling says it never arrived at all. Anonymous glyphs made the
+  /// operator guess which was which. Same sheet the CC receive tab uses, so a
+  /// receipt behaves identically at both tiers.
+  Future<void> _openActions(BuildContext context, WidgetRef ref, AppLocalizations l,
+      DhenuTokens t, MpConsignment c, String name, {bool editable = false}) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(child: SheetGrabber()),
+                Text(name, style: DhenuText.title.copyWith(color: t.ink)),
+                const SizedBox(height: 2),
+                Text(
+                  '${consignmentSlotL10n(l, c.shift)} · '
+                  '${litres(c.receiptQty ?? 0, unit: true)} · ${prettyDate(c.collectionDate)}',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft),
+                ),
+                const SizedBox(height: 2),
+                // The full number, which the card itself no longer has room to
+                // show without eliding it to "CON/202…" — useless, since every
+                // one of them begins the same way.
+                Text(c.consignmentNo, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+                const SizedBox(height: DhenuSpacing.lg),
+                ..._receiptActions(context, ref, l, t, c, name, editable: editable, ctx: ctx),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The actions this particular load can actually take.
+  ///
+  /// Offering all three on everything was wrong: a fully-refused tanker has
+  /// nothing left to reject, and the server refuses to un-receive a load while
+  /// a rejection stands on it. Both were dead entries that could only earn a
+  /// error message. What was missing is the one an operator looking at a
+  /// rejected load actually wants — putting it back.
+  List<Widget> _receiptActions(BuildContext context, WidgetRef ref, AppLocalizations l,
+      DhenuTokens t, MpConsignment c, String name,
+      {required bool editable, required BuildContext ctx}) {
+    final rejected = c.rejectedQty > 0;
+    final kept = c.receiptQty ?? 0;
+    return [
+      if (editable) ...[
+        _actionRow(t, DhenuIcons.edit, l.ccReceiveEditReceipt, t.brand, () {
+          Navigator.pop(ctx);
+          _openReceive(context, ref, l, c, name, editable: true);
+        }),
+        const SizedBox(height: DhenuSpacing.sm),
+      ],
+      // Nothing left to refuse once it is all refused.
+      if (kept > 0) ...[
+        _actionRow(t, DhenuIcons.warning, l.rejectAction, t.gradeC, () {
+          Navigator.pop(ctx);
+          rejectConsignment(context, consignment: c, onDone: () => _refresh(ref));
+        }),
+        const SizedBox(height: DhenuSpacing.sm),
+      ],
+      if (rejected)
+        _actionRow(t, DhenuIcons.undo, l.rejectUndo, t.brand, () {
+          Navigator.pop(ctx);
+          undoRejection(context, consignment: c, onDone: () => _refresh(ref));
+        })
+      else
+        _actionRow(
+          t,
+          c.directReceive ? DhenuIcons.trash : DhenuIcons.undo,
+          c.directReceive ? l.ccReceiveDeleteReceipt : l.cancelReceiptAction,
+          t.gradeC,
+          () {
+            Navigator.pop(ctx);
+            confirmCancelReceipt(context, c, name, () => _refresh(ref));
+          },
+        ),
+    ];
+  }
+
+  Widget _actionRow(DhenuTokens t, IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(DhenuRadii.card),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+        decoration: BoxDecoration(
+          color: t.inputFill,
+          borderRadius: BorderRadius.circular(DhenuRadii.card),
+          border: Border.all(color: t.hairline),
+        ),
+        child: Row(children: [
+          Container(
+            width: 38, height: 38, alignment: Alignment.center,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: DhenuSpacing.md),
+          Text(label, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+        ]),
+      ),
     );
   }
 
@@ -362,7 +470,7 @@ class PpReceiveTab extends ConsumerWidget {
           if (c.milkType != null) MilkTypePill(milkType: c.milkType!),
         ]),
         const SizedBox(height: DhenuSpacing.xs),
-        _whenLine(t, l, c, id: c.containerNo ?? c.consignmentNo),
+        _whenLine(t, l, c, id: c.containerNo),
       ]);
 
   /// Slot and date, the two facts the plant matches a tanker on. They used to
@@ -370,18 +478,23 @@ class PpReceiveTab extends ConsumerWidget {
   /// part, so it took the eye first and pushed the date to the ellipsis. Now
   /// the slot is a coloured pill, the date reads in full ink, and the id
   /// trails behind them in caption grey.
-  Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {required String id}) =>
+  Widget _whenLine(DhenuTokens t, AppLocalizations l, MpConsignment c, {String? id}) =>
       Row(children: [
         SlotPill(shift: c.shift),
         const SizedBox(width: DhenuSpacing.sm),
-        Text(slotDateLabel(c.collectionDate),
-            style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-        const SizedBox(width: DhenuSpacing.sm),
-        Expanded(
-          child: Text(id,
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
+        Flexible(
+          child: Text(slotDateLabel(c.collectionDate),
+              style: DhenuText.label.copyWith(color: t.ink, fontWeight: FontWeight.w600),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
+        if (id != null && id.isNotEmpty) ...[
+          const SizedBox(width: DhenuSpacing.sm),
+          Expanded(
+            child: Text(id,
+                style: DhenuText.caption.copyWith(color: t.inkSoft),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ]);
 
   /// AM / PM / Pooled, in that slot's own colour — same pill the CC receive

@@ -14,21 +14,27 @@ String? _sn(Object? v) => v?.toString();
 /// The three debt buckets, in the order a cycle recovers them.
 class MpOwedSplit {
   final double farmerSale, advance, feedLoan;
+  /// Milk refused for quality. Its own bucket: lumping it into `advance` made
+  /// a farmer's payment read "Advance recovery" for money taken off because
+  /// their milk was sent back — wrong, and the most alarming reading available.
+  final double qualityRejection;
   const MpOwedSplit({
     required this.farmerSale,
     required this.advance,
+    this.qualityRejection = 0,
     required this.feedLoan,
   });
 
-  static const zero = MpOwedSplit(farmerSale: 0, advance: 0, feedLoan: 0);
+  static const zero = MpOwedSplit(farmerSale: 0, advance: 0, feedLoan: 0, qualityRejection: 0);
 
-  double get total => farmerSale + advance + feedLoan;
+  double get total => farmerSale + advance + feedLoan + qualityRejection;
 
   factory MpOwedSplit.fromJson(Map<String, dynamic>? j) => j == null
       ? zero
       : MpOwedSplit(
           farmerSale: _d(j['farmerSale']),
           advance: _d(j['advance']),
+          qualityRejection: _d(j['qualityRejection']),
           feedLoan: _d(j['feedLoan']),
         );
 }

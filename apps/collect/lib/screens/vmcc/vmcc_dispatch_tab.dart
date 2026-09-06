@@ -24,6 +24,7 @@ import '../../widgets/tank_gauge.dart';
 import '../dispatch_history.dart';
 import '../../widgets/status_glyph.dart';
 import '../shared/cancel_leg.dart';
+import '../shared/rejection_report.dart';
 
 /// VMCC Dispatch tab — today's availability + dispatch-to-CC form + outbound.
 /// Mirrors the CC→PP dispatch flow; here the leg is `vmcc_to_cc`.
@@ -489,6 +490,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                     style: DhenuText.caption.copyWith(color: t.inkSoft),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
+                  // What the far end refused. Without it a load the plant threw
+                  // away entirely still reads here as dispatched and received,
+                  // under a green tick — the sender is the last to find out
+                  // about their own milk.
+                  RejectedChip(consignment: c),
                 ]),
               ),
               const SizedBox(width: DhenuSpacing.sm),

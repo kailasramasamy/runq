@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, gte, lte } from 'drizzle-orm';
+import { and, eq, desc, sql, gte, lte, getTableColumns } from 'drizzle-orm';
 import { mpPours, mpSequences } from '@runq/db';
 import type { Db, MpPourRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -11,6 +11,26 @@ import { MpPrincipal, scopePours, assertNodeAccess } from './access-scope';
 import { sendPourReceiptWhatsApp } from './mp-pour-notify';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * Litres off this pour later refused, wherever it was caught.
+ *
+ * A VMCC operator otherwise reads their own screen as "97.7 L, paid" for milk
+ * the plant threw away three legs later and the farmer is being charged for.
+ * The pour stays recorded and correct — this is what happened to it afterwards.
+ *
+ * `mp_pours.id` is written out in full deliberately: interpolating the column
+ * renders a BARE "id", which inside the subquery binds to the charge row's own
+ * id and silently matches nothing.
+ */
+const pourRejectedQtySql = sql<string>`(
+  select coalesce(sum(ch.qty_litres), 0)
+  from mp_rejection_charges ch
+  join mp_rejections rj on rj.id = ch.rejection_id
+  where ch.pour_id = mp_pours.id and ch.reversed_at is null and rj.reversed_at is null)`;
+
+/** A pour plus whatever was later refused off it. */
+export type MpPourWithRejection = MpPourRow & { rejectedQty: string };
 
 /** Farmer pour ledger — record (with rate resolution), list, reverse. */
 export class PourService {
@@ -27,12 +47,13 @@ export class PourService {
     filters: PourFilter,
     pagination: { page: number; limit: number },
     principal: MpPrincipal,
-  ): Promise<{ data: MpPourRow[]; meta: PaginationMeta }> {
+  ): Promise<{ data: MpPourWithRejection[]; meta: PaginationMeta }> {
     const { page, limit } = pagination;
     const { offset } = applyPagination(page, limit);
     const where = this.buildWhere(filters, principal);
     const [rows, countResult] = await Promise.all([
-      this.db.select().from(mpPours).where(where)
+      this.db.select({ ...getTableColumns(mpPours), rejectedQty: pourRejectedQtySql })
+        .from(mpPours).where(where)
         .orderBy(desc(mpPours.collectionDate), desc(mpPours.recordedAt)).limit(limit).offset(offset),
       this.db.select({ count: sql<number>`count(*)::int` }).from(mpPours).where(where),
     ]);

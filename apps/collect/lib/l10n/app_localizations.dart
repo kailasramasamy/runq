@@ -6195,6 +6195,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rejections'**
   String get rejectScope;
+
+  /// On a leg whose milk was refused further down the chain
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} refused later'**
+  String rejectRefusedLater(Object qty);
+
+  /// Farmer-facing: rejected litres they are not paid for
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} rejected · not paid'**
+  String rejectNotPaid(Object qty);
+
+  /// No description provided for @farmerPaymentsRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk rejected'**
+  String get farmerPaymentsRejected;
 }
 
 class _AppLocalizationsDelegate

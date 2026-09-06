@@ -3610,4 +3610,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rejectScope => 'Rejections';
+
+  @override
+  String rejectRefusedLater(Object qty) {
+    return '$qty refused later';
+  }
+
+  @override
+  String rejectNotPaid(Object qty) {
+    return '$qty rejected · not paid';
+  }
+
+  @override
+  String get farmerPaymentsRejected => 'Milk rejected';
 }

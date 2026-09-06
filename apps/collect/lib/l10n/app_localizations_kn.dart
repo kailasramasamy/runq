@@ -3597,4 +3597,17 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get rejectScope => 'ತಿರಸ್ಕಾರ';
+
+  @override
+  String rejectRefusedLater(Object qty) {
+    return '$qty ನಂತರ ತಿರಸ್ಕೃತ';
+  }
+
+  @override
+  String rejectNotPaid(Object qty) {
+    return '$qty ತಿರಸ್ಕೃತ · ಪಾವತಿ ಇಲ್ಲ';
+  }
+
+  @override
+  String get farmerPaymentsRejected => 'ತಿರಸ್ಕೃತ ಹಾಲು';
 }

@@ -24,6 +24,7 @@ import '../../utils/friendly_error.dart';
 import '../dispatch_history.dart';
 import '../../widgets/status_glyph.dart';
 import '../shared/cancel_leg.dart';
+import '../shared/rejection_report.dart';
 
 /// CC Dispatch tab — availability summary + dispatch form + today's outbound.
 class CcDispatchTab extends ConsumerStatefulWidget {
@@ -553,6 +554,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                     style: DhenuText.caption.copyWith(color: t.inkSoft),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
+                  // What the far end refused. Without it a load the plant threw
+                  // away entirely still reads here as dispatched and received,
+                  // under a green tick — the sender is the last to find out
+                  // about their own milk.
+                  RejectedChip(consignment: c),
                 ]),
               ),
               const SizedBox(width: DhenuSpacing.sm),

@@ -15,6 +15,7 @@ import '../../widgets/dhenu_states.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/quality_badge.dart';
+import '../shared/rejection_report.dart';
 
 /// Collections tab — current-cycle pours, chart overview + day rows (spec §6.2 redesign).
 class FarmerCollectionsTab extends ConsumerWidget {
@@ -422,7 +423,7 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
     final t = DT(context);
     final l = AppLocalizations.of(context);
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
-    final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
+    final payableRs = pours.fold<double>(0, (s, p) => s + p.payableAmount);
 
     return Material(
       color: _expanded ? t.brandSubtle : t.card,
@@ -453,8 +454,9 @@ class _PastCycleCardState extends ConsumerState<_PastCycleCard> {
                   ],
                 ),
               ),
-              Text(rupees(totalRs),
-                  style: DhenuText.number(size: 16, w: FontWeight.w800).copyWith(color: t.gradeA)),
+              Text(rupees(payableRs),
+                  style: DhenuText.number(size: 16, w: FontWeight.w800)
+                      .copyWith(color: payableRs > 0 ? t.gradeA : t.inkSoft)),
               const SizedBox(width: DhenuSpacing.sm),
               AnimatedRotation(
                 turns: _expanded ? 0.25 : 0,
@@ -534,8 +536,10 @@ class _DayRowState extends ConsumerState<_DayRow> {
     final pours = widget.pours;
     final totalL = pours.fold<double>(0, (s, p) => s + p.qtyLitres);
     final totalRs = pours.fold<double>(0, (s, p) => s + p.lineAmount);
+    final payableRs = pours.fold<double>(0, (s, p) => s + p.payableAmount);
     final bestGrade = pours.map((p) => p.qualityGrade).reduce((a, b) => a.index < b.index ? a : b);
     final dayTypes = milkTypesIn(pours.map((p) => p.milkType));
+    final rejectedToday = pours.fold<double>(0, (s, p) => s + p.rejectedQty);
     final d = DateTime.tryParse(widget.date);
 
     return Padding(
@@ -577,6 +581,12 @@ class _DayRowState extends ConsumerState<_DayRow> {
                   fat: _avg((p) => p.fat), snf: _avg((p) => p.snf), water: _avg((p) => p.water),
                   grade: bestGrade, format: QualityFormat.full, showGrade: false,
                   bands: widget.bands, milkType: dayTypes.firstOrNull ?? widget.milkType),
+              // On the collapsed day too, because the amount beside it is what
+              // the milk earned, not what will be paid — and a farmer who never
+              // expands the day would otherwise meet the deduction for the first
+              // time in their cycle statement.
+              if (rejectedToday > 0)
+                _DayRejectedChip(qty: rejectedToday),
             ],
           ),
         ),
@@ -584,8 +594,17 @@ class _DayRowState extends ConsumerState<_DayRow> {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(rupees(totalRs),
-                style: DhenuText.number(size: 16, w: FontWeight.w800).copyWith(color: t.gradeA)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              if (payableRs < totalRs) ...[
+                Text(rupees(totalRs),
+                    style: DhenuText.caption.copyWith(
+                        color: t.inkSoft, decoration: TextDecoration.lineThrough)),
+                const SizedBox(width: DhenuSpacing.xs),
+              ],
+              Text(rupees(payableRs),
+                  style: DhenuText.number(size: 16, w: FontWeight.w800)
+                      .copyWith(color: payableRs > 0 ? t.gradeA : t.inkSoft)),
+            ]),
             const SizedBox(height: DhenuSpacing.xs),
             AnimatedRotation(
               turns: _expanded ? 0.25 : 0,
@@ -664,6 +683,11 @@ class _DayRowState extends ConsumerState<_DayRow> {
                 fat: p.fat, snf: p.snf, water: p.water,
                 grade: p.qualityGrade, showGrade: false,
                 bands: widget.bands, milkType: p.milkType),
+            // The single most important line on a farmer's screen: milk they
+            // delivered, and were shown an amount for, that they are not being
+            // paid. Without it the row reads ₹6,351 earned and the deduction
+            // turns up unexplained in the next cycle.
+            PourRejectedChip(pour: p),
           ],
         ),
       ),
@@ -672,8 +696,22 @@ class _DayRowState extends ConsumerState<_DayRow> {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(rupees(p.lineAmount),
-              style: DhenuText.number(size: 15, w: FontWeight.w800, color: t.gradeA)),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            // The original, struck through — quiet, but it shows the loss
+            // rather than simply deleting the number the farmer saw before.
+            if (p.hasRejection) ...[
+              Text(rupees(p.lineAmount),
+                  style: DhenuText.caption.copyWith(
+                      color: t.inkSoft, decoration: TextDecoration.lineThrough)),
+              const SizedBox(width: DhenuSpacing.xs),
+            ],
+            Text(rupees(p.payableAmount),
+                style: DhenuText.number(
+                    size: 15, w: FontWeight.w800,
+                    // Not green when nothing is being earned: green is the
+                    // colour of money coming in.
+                    color: p.payableAmount > 0 ? t.gradeA : t.inkSoft)),
+          ]),
           const SizedBox(height: 2),
           Text(l.farmerCollectionDetailRatePerLitre(rupees(p.ratePerLitre, paise: true)),
               style: DhenuText.caption.copyWith(color: t.inkSoft)),
@@ -690,6 +728,34 @@ class _DayRowState extends ConsumerState<_DayRow> {
   }
 
 
+}
+
+/// Day-level echo of [PourRejectedChip] — the per-pour chips live inside the
+/// expanded detail, and this is what a farmer sees before they open it.
+class _DayRejectedChip extends StatelessWidget {
+  const _DayRejectedChip({required this.qty});
+
+  final double qty;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(DhenuIcons.warning, size: 12, color: t.gradeC),
+        const SizedBox(width: 4),
+        Flexible(
+          // Just the litres here: the struck-through amount beside it already
+          // says it is not being paid, and "· not paid" only ever fitted by
+          // losing its own last word.
+          child: Text(l.rejectedChip(litres(qty, unit: true)),
+              style: DhenuText.label.copyWith(color: t.gradeC), maxLines: 2),
+        ),
+      ]),
+    );
+  }
 }
 
 /// A farmer's first in-app recourse (audit E3): flag an entry that looks wrong.

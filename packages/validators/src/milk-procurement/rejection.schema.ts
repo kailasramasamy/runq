@@ -96,3 +96,13 @@ export type GateRejectionInput = z.infer<typeof gateRejectionSchema>;
 export type ReceiptRejectionInput = z.infer<typeof receiptRejectionSchema>;
 export type RejectionFilter = z.infer<typeof rejectionFilterSchema>;
 export type RejectionStatsQuery = z.infer<typeof rejectionStatsSchema>;
+
+/** One farmer's refused milk over a window. A farmer principal is scoped to
+ *  themselves; staff must name whose lines they want. */
+export const rejectionLinesSchema = z.object({
+  farmerId: z.string().uuid().optional(),
+  from: z.string().date(),
+  to: z.string().date(),
+});
+
+export type RejectionLinesQuery = z.infer<typeof rejectionLinesSchema>;

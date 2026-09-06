@@ -33,6 +33,7 @@ import '../../widgets/payout_status_chip.dart';
 import '../../widgets/section_header.dart';
 import '../pdf_viewer_screen.dart';
 import 'farmer_insights.dart';
+import '../shared/rejection_report.dart';
 
 /// Payments tab — transparent month payout breakdown + history (spec §6.3).
 class FarmerPaymentsTab extends ConsumerWidget {
@@ -65,6 +66,9 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final purchases = current == null
         ? const <MpFarmerSale>[]
         : ref.watch(farmerPurchasesProvider(current)).asData?.value ?? const [];
+    final rejections = current == null
+        ? const <MpRejectionLine>[]
+        : ref.watch(farmerRejectionLinesProvider(current)).asData?.value ?? const [];
 
     return RefreshIndicator(
       onRefresh: () => _refresh(ref),
@@ -76,7 +80,8 @@ class FarmerPaymentsTab extends ConsumerWidget {
         children: [
           _stickyHeader(t, l),
           const SizedBox(height: DhenuSpacing.lg),
-          _netPayableCard(context, t, l, cyclePoursAsync, ledgerAsync, purchases, current),
+          _netPayableCard(
+              context, t, l, cyclePoursAsync, ledgerAsync, purchases, rejections, current),
           const SizedBox(height: DhenuSpacing.xl),
           _historyHeader(t, l),
           const SizedBox(height: DhenuSpacing.sm),
@@ -117,6 +122,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
     AsyncValue<List<MpPour>> cyclePoursAsync,
     AsyncValue<MpFarmerLedger> ledgerAsync,
     List<MpFarmerSale> purchases,
+    List<MpRejectionLine> rejections,
     MpCyclePeriod? period,
   ) {
     final periodLabel = period?.label ?? '';
@@ -145,8 +151,15 @@ class FarmerPaymentsTab extends ConsumerWidget {
     // Split the one estimate the way the cycle actually recovers it — milk the
     // farmer bought from us first, then advances and loans. Derived from the
     // total, not re-summed, so the card can never disagree with itself.
-    final boughtDed = (ledger?.saleDue ?? 0).clamp(0, estDeduction).toDouble();
-    final advanceDed = estDeduction - boughtDed;
+    // Refused milk comes off first — it is not a debt the farmer took on, it
+    // is milk we never got, and the payout waterfall recovers it ahead of
+    // everything else. Naming it separately stops it landing under "Advance
+    // recovery", which is both wrong and the most alarming label available.
+    final rejectedDed =
+        rejections.fold<double>(0, (s, r) => s + r.amount).clamp(0, estDeduction).toDouble();
+    final boughtDed =
+        (ledger?.saleDue ?? 0).clamp(0, estDeduction - rejectedDed).toDouble();
+    final advanceDed = estDeduction - boughtDed - rejectedDed;
     // What this payment can't cover. The rows above already name everything
     // being recovered, so repeating those totals in a warning strip said
     // nothing twice; only the leftover is news.
@@ -235,6 +248,14 @@ class FarmerPaymentsTab extends ConsumerWidget {
             // payment is exactly what a trader-farmer needs to be able to check.
             ..._purchaseLines(t, l, purchases, boughtDed),
           ],
+          if (rejectedDed > 0) ...[
+            _hairline(t),
+            _itemRow(t, t.gradeC, l.farmerPaymentsRejected,
+                '− ${rupees(rejectedDed)}', t.gradeC),
+            // Open, never behind a tap — same rule as purchases. Money coming
+            // off a milk cheque has to say which day's milk and why.
+            ..._rejectionLines(t, l, rejections),
+          ],
           if (advanceDed > 0) ...[
             _hairline(t),
             _itemRow(t, t.gradeC, l.farmerPaymentsEstimatedDeduction,
@@ -296,6 +317,24 @@ class FarmerPaymentsTab extends ConsumerWidget {
         ),
       if (earlier > 1)
         _detailLine(t, l.farmerPaymentsEarlierPurchases, null, rupees(earlier)),
+    ];
+  }
+
+  List<Widget> _rejectionLines(
+      DhenuTokens t, AppLocalizations l, List<MpRejectionLine> rows) {
+    return [
+      for (final r in rows)
+        _detailLine(
+          t,
+          '${litres(r.qtyLitres, unit: true)}'
+              '${r.milkType == null ? '' : ' ${milkTypeL10n(l, r.milkType!)}'}',
+          // The typed note first: an operator who chose 'other' wrote down the
+          // real reason, and the code they picked to get there says nothing.
+          '${shortDate(r.collectionDate)}'
+              '${r.shift == null ? '' : ' · ${r.shift == 'am' ? l.shiftAm : l.shiftPm}'}'
+              ' · ${(r.notes?.trim().isNotEmpty ?? false) ? r.notes!.trim() : rejectionReasonL10n(l, r.reason)}',
+          rupees(r.amount),
+        ),
     ];
   }
 

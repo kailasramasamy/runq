@@ -1162,5 +1162,8 @@
   "rejectBySourceTitle": "ಮೂಲದ ಪ್ರಕಾರ ತಿರಸ್ಕಾರ ಪ್ರಮಾಣ",
   "rejectByReasonTitle": "ಹಾಲು ಏಕೆ ತಿರಸ್ಕರಿಸಲಾಯಿತು",
   "rejectEventsLine": "{count, plural, one{{count} ತಿರಸ್ಕಾರ} other{{count} ತಿರಸ್ಕಾರಗಳು}} · {qty}",
-  "rejectScope": "ತಿರಸ್ಕಾರ"
+  "rejectScope": "ತಿರಸ್ಕಾರ",
+  "rejectRefusedLater": "{qty} ನಂತರ ತಿರಸ್ಕೃತ",
+  "rejectNotPaid": "{qty} ತಿರಸ್ಕೃತ · ಪಾವತಿ ಇಲ್ಲ",
+  "farmerPaymentsRejected": "ತಿರಸ್ಕೃತ ಹಾಲು"
 }

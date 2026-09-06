@@ -173,6 +173,113 @@ class RejectionReport extends ConsumerWidget {
   }
 }
 
+/// "97.7 L rejected · Sour", for any card showing a receipt.
+///
+/// Without it a fully-refused load reads "0.0 L" beside a green tick and a 0%
+/// variance — the milk arrived, nothing was kept, and the card says everything
+/// went fine. The litres shown are what was ACCEPTED, and that only means
+/// something next to what was not.
+class RejectedChip extends StatelessWidget {
+  const RejectedChip({super.key, required this.consignment});
+
+  final MpConsignment consignment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (consignment.rejectedQty <= 0) return const SizedBox.shrink();
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    // The typed note wins: an operator who chose 'other' wrote the reason down,
+    // and the code they picked to get there says nothing on its own.
+    final note = consignment.rejectedNote?.trim() ?? '';
+    final why = note.isNotEmpty
+        ? note
+        : consignment.rejectedReasons.map((r) => rejectionReasonL10n(l, r)).join(', ');
+    return Container(
+      margin: const EdgeInsets.only(top: 3),
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: t.gradeC.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(DhenuIcons.warning, size: 12, color: t.gradeC),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            why.isEmpty
+                ? l.rejectedChip(litres(consignment.rejectedQty, unit: true))
+                : '${l.rejectedChip(litres(consignment.rejectedQty, unit: true))} · $why',
+            style: DhenuText.label.copyWith(color: t.gradeC),
+            // Wraps rather than clips: the operator typed this note precisely
+            // because no reason code fitted, so "FAT was only 2.8" cut to
+            // "FAT …" throws away the one thing worth reading.
+            maxLines: 3,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// "97.7 L refused later", for a leg whose milk failed further down the chain.
+///
+/// Worded apart from [RejectedChip] on purpose. This node accepted the milk and
+/// chilled it; the failure was someone else's, later. Calling its own receipt
+/// "rejected" would read as the sender having delivered bad milk, and that row
+/// feeds the source-quality reports.
+class RefusedLaterChip extends StatelessWidget {
+  const RefusedLaterChip({super.key, required this.consignment});
+
+  final MpConsignment consignment;
+
+  @override
+  Widget build(BuildContext context) {
+    // Never both: on the leg that was itself refused, RejectedChip already says
+    // so and is the more direct fact.
+    if (consignment.downstreamRejectedQty <= 0 || consignment.rejectedQty > 0) {
+      return const SizedBox.shrink();
+    }
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return _softChip(t, t.gradeB,
+        l.rejectRefusedLater(litres(consignment.downstreamRejectedQty, unit: true)));
+  }
+}
+
+/// "97.7 L rejected · not paid", on a pour.
+///
+/// The operator who recorded it, and the farmer who brought it, both otherwise
+/// read the screen as milk delivered and owed for. The pour stays recorded and
+/// correct — this says what became of it.
+class PourRejectedChip extends StatelessWidget {
+  const PourRejectedChip({super.key, required this.pour});
+
+  final MpPour pour;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pour.rejectedQty <= 0) return const SizedBox.shrink();
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return _softChip(t, t.gradeC, l.rejectNotPaid(litres(pour.rejectedQty, unit: true)));
+  }
+}
+
+Widget _softChip(DhenuTokens t, Color color, String label) => Container(
+      margin: const EdgeInsets.only(top: 3),
+      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(DhenuRadii.pill),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(DhenuIcons.warning, size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(child: Text(label, style: DhenuText.label.copyWith(color: color), maxLines: 2)),
+      ]),
+    );
+
 /// Reason code → the operator's word for it, in their language.
 String rejectionReasonL10n(AppLocalizations l, String? code) => switch (code) {
       'sour' => l.rejectReasonSour,

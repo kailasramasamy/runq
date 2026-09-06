@@ -14,6 +14,7 @@ import '../utils/friendly_error.dart';
 import 'dhenu_toast.dart';
 import 'quality_badge.dart';
 import 'sheet_grabber.dart';
+import '../screens/shared/rejection_report.dart';
 
 /// Full detail for a single pour (receipt) — amount, rate/L, quality, slot —
 /// plus Modify / Delete actions. [onModify] is invoked (after the sheet closes)
@@ -98,6 +99,9 @@ class _PourDetailSheet extends ConsumerWidget {
               ]),
               if (pour.receiptNo != null)
                 Text(pour.receiptNo!, style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              // What became of this milk. The pour is recorded and correct; the
+              // operator still needs to know the plant sent it back.
+              PourRejectedChip(pour: pour),
               const SizedBox(height: DhenuSpacing.lg),
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(rupees(pour.lineAmount), style: DhenuText.number(size: 32, color: t.ink)),
