@@ -288,31 +288,36 @@ class CcReceiveTab extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       onTap: () => _openActions(context, ref, t, l, c, name, canDelete),
-      child: Row(children: [
-        Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Wrap(spacing: DhenuSpacing.sm, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-            if (mixed && c.milkType != null) MilkTypePill(milkType: c.milkType!),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: DhenuSpacing.sm, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text(name, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+              if (mixed && c.milkType != null) MilkTypePill(milkType: c.milkType!),
+            ]),
+            const SizedBox(height: DhenuSpacing.xs),
+            _whenLine(t, l, c),
+          ])),
+          const SizedBox(width: DhenuSpacing.sm),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
+            const SizedBox(height: 2),
+            Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
+                style: DhenuText.caption.copyWith(color: vColor)),
           ]),
-          const SizedBox(height: DhenuSpacing.xs),
-          _whenLine(t, l, c),
-          RejectedChip(consignment: c),
-          RefusedLaterChip(consignment: c),
-        ])),
-        const SizedBox(width: DhenuSpacing.sm),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(c.receiptQty ?? 0, unit: true), style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 2),
-          Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
-              style: DhenuText.caption.copyWith(color: vColor)),
+          const SizedBox(width: DhenuSpacing.sm),
+          // Not a chevron: that promises a detail screen, and tapping here opens
+          // a sheet of actions instead. An ellipsis says "there are things you
+          // can do to this", which is what actually happens.
+          Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
         ]),
-        const SizedBox(width: DhenuSpacing.sm),
-        // Not a chevron: that promises a detail screen, and tapping here opens
-        // a sheet of actions instead. An ellipsis says "there are things you
-        // can do to this", which is what actually happens.
-        Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
+        // Below the row, spanning the card: sharing the row's middle column
+        // left the refusal wrapping in the narrow space the litres and the
+        // actions affordance leave behind.
+        RejectedChip(consignment: c),
+        RefusedLaterChip(consignment: c),
       ]),
     );
   }

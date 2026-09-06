@@ -298,44 +298,49 @@ class PpReceiveTab extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
       onTap: () => _openActions(context, ref, l, t, c, name, editable: editable),
-      child: Row(children: [
-        Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
-        const SizedBox(width: DhenuSpacing.md),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name,
-              style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
-          // The milk type decides which raw-milk stock this load lands in, so
-          // name it on its own line rather than burying it in the subtitle.
-          if (c.milkType != null) ...[
-            const SizedBox(height: 3),
-            // Wrapped, not a Row: a long type name ("Cow A1 (regular)") plus the
-            // MANUAL tag overflows the narrow column left by the qty and delete
-            // affordances, so the tag drops to its own line instead.
-            Wrap(spacing: DhenuSpacing.xs, runSpacing: 3, children: [
-              MilkTypePill(milkType: c.milkType!),
-              // A manual receipt has no dispatch behind it — say so, since it's
-              // the row to delete if the CC's own entry lands later.
-              if (c.directReceive) _pill(t, l.ppReceiveManualTag, t.gradeB),
-            ]),
-          ],
-          const SizedBox(height: DhenuSpacing.xs),
-          _whenLine(t, l, c),
-          RejectedChip(consignment: c),
-          RefusedLaterChip(consignment: c),
-        ])),
-        const SizedBox(width: DhenuSpacing.sm),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(litres(c.receiptQty ?? 0, unit: true),
-              style: DhenuText.number(size: 16, color: t.ink)),
-          const SizedBox(height: 2),
-          Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
-              style: DhenuText.caption.copyWith(color: vColor)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(DhenuIcons.checkCircle, size: 18, color: t.gradeA),
+          const SizedBox(width: DhenuSpacing.md),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name,
+                style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+            // The milk type decides which raw-milk stock this load lands in, so
+            // name it on its own line rather than burying it in the subtitle.
+            if (c.milkType != null) ...[
+              const SizedBox(height: 3),
+              // Wrapped, not a Row: a long type name ("Cow A1 (regular)") plus the
+              // MANUAL tag overflows the narrow column left by the qty and delete
+              // affordances, so the tag drops to its own line instead.
+              Wrap(spacing: DhenuSpacing.xs, runSpacing: 3, children: [
+                MilkTypePill(milkType: c.milkType!),
+                // A manual receipt has no dispatch behind it — say so, since it's
+                // the row to delete if the CC's own entry lands later.
+                if (c.directReceive) _pill(t, l.ppReceiveManualTag, t.gradeB),
+              ]),
+            ],
+            const SizedBox(height: DhenuSpacing.xs),
+            _whenLine(t, l, c),
+          ])),
+          const SizedBox(width: DhenuSpacing.sm),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(litres(c.receiptQty ?? 0, unit: true),
+                style: DhenuText.number(size: 16, color: t.ink)),
+            const SizedBox(height: 2),
+            Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
+                style: DhenuText.caption.copyWith(color: vColor)),
+          ]),
+          const SizedBox(width: DhenuSpacing.sm),
+          // Not a chevron: that promises a detail screen, and tapping here opens
+          // a sheet of actions instead. An ellipsis says "there are things you
+          // can do to this", which is what actually happens.
+          Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
         ]),
-        const SizedBox(width: DhenuSpacing.sm),
-        // Not a chevron: that promises a detail screen, and tapping here opens
-        // a sheet of actions instead. An ellipsis says "there are things you
-        // can do to this", which is what actually happens.
-        Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
+        // Below the row, spanning the card: sharing the row's middle column
+        // left the refusal wrapping in the narrow space the litres and the
+        // actions affordance leave behind.
+        RejectedChip(consignment: c),
+        RefusedLaterChip(consignment: c),
       ]),
     );
   }

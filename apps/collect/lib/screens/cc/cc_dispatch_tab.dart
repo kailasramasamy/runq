@@ -554,11 +554,6 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                     style: DhenuText.caption.copyWith(color: t.inkSoft),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
-                  // What the far end refused. Without it a load the plant threw
-                  // away entirely still reads here as dispatched and received,
-                  // under a green tick — the sender is the last to find out
-                  // about their own milk.
-                  RejectedChip(consignment: c),
                 ]),
               ),
               const SizedBox(width: DhenuSpacing.sm),
@@ -576,6 +571,11 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                 onDone: _refreshLegs,
               ),
             ]),
+            // What the far end refused, spanning the card rather than sharing
+            // the row's left column: this is the most serious line on the card,
+            // and squeezed beside the litres and the undo button it wrapped in
+            // half the width it needed.
+            RejectedChip(consignment: c),
           ],
         ]),
       ),

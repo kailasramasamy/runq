@@ -197,15 +197,19 @@ class RejectedChip extends StatelessWidget {
         : consignment.rejectedReasons.map((r) => rejectionReasonL10n(l, r)).join(', ');
     return Container(
       margin: const EdgeInsets.only(top: 3),
-      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
       decoration: BoxDecoration(
         color: t.gradeC.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
+      // Fills whatever the caller gives it rather than hugging its text: a
+      // shrink-wrapped pill made the right edge follow the longest line, which
+      // read as a layout fault. Callers place it across the full card width.
+      child: Row(children: [
         Icon(DhenuIcons.warning, size: 12, color: t.gradeC),
-        const SizedBox(width: 4),
-        Flexible(
+        const SizedBox(width: DhenuSpacing.sm),
+        Expanded(
           child: Text(
             why.isEmpty
                 ? l.rejectedChip(litres(consignment.rejectedQty, unit: true))
@@ -266,17 +270,21 @@ class PourRejectedChip extends StatelessWidget {
   }
 }
 
+/// Shared shape for the quieter chips. Laid out exactly like [RejectedChip] —
+/// they sit in the same slots on the same cards, and two pills of different
+/// widths stacked on one row is the kind of difference that reads as a bug.
 Widget _softChip(DhenuTokens t, Color color, String label) => Container(
       margin: const EdgeInsets.only(top: 3),
-      padding: const EdgeInsets.symmetric(horizontal: DhenuSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.sm, vertical: DhenuSpacing.xs),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(DhenuRadii.pill),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
+      child: Row(children: [
         Icon(DhenuIcons.warning, size: 12, color: color),
-        const SizedBox(width: 4),
-        Flexible(child: Text(label, style: DhenuText.label.copyWith(color: color), maxLines: 2)),
+        const SizedBox(width: DhenuSpacing.sm),
+        Expanded(child: Text(label, style: DhenuText.label.copyWith(color: color), maxLines: 2)),
       ]),
     );
 

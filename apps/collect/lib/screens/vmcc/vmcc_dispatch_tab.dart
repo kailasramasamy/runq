@@ -490,17 +490,6 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                     style: DhenuText.caption.copyWith(color: t.inkSoft),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
-                  // What the far end refused. Without it a load the plant threw
-                  // away entirely still reads here as dispatched and received,
-                  // under a green tick — the sender is the last to find out
-                  // about their own milk.
-                  RejectedChip(consignment: c),
-                  // A VMCC's own leg is almost never the one refused: the plant
-                  // rejects the CC's tanker, and the charge lands back on these
-                  // pours. Showing only RejectedChip left that refusal invisible
-                  // at the one tier that can act on it — the receive screens
-                  // already pair the two chips for exactly this reason.
-                  RefusedLaterChip(consignment: c),
                 ]),
               ),
               const SizedBox(width: DhenuSpacing.sm),
@@ -518,6 +507,15 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 onDone: _refreshLegs,
               ),
             ]),
+            // Both refusal chips span the card rather than sharing the row's
+            // left column, where they wrapped in half the width they needed.
+            RejectedChip(consignment: c),
+            // A VMCC's own leg is almost never the one refused: the plant
+            // rejects the CC's tanker, and the charge lands back on these
+            // pours. Showing only RejectedChip left that refusal invisible at
+            // the one tier that can act on it — the receive screens already
+            // pair the two chips for exactly this reason.
+            RefusedLaterChip(consignment: c),
           ],
         ]),
       ),
