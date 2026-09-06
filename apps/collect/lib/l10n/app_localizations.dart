@@ -6247,14 +6247,26 @@ abstract class AppLocalizations {
   /// No description provided for @unwindDone.
   ///
   /// In en, this message translates to:
-  /// **'Load undone'**
-  String get unwindDone;
+  /// **'{count, plural, one{1 step undone} other{{count} steps undone}}'**
+  String unwindDone(num count);
 
   /// No description provided for @unwindOpen.
   ///
   /// In en, this message translates to:
   /// **'Undo the whole chain'**
   String get unwindOpen;
+
+  /// No description provided for @unwindWhatHappens.
+  ///
+  /// In en, this message translates to:
+  /// **'WHAT WILL HAPPEN'**
+  String get unwindWhatHappens;
+
+  /// No description provided for @unwindBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Some steps cannot run yet — see below.'**
+  String get unwindBlocked;
 }
 
 class _AppLocalizationsDelegate

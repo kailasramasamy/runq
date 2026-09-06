@@ -2621,6 +2621,9 @@
   "@unwindConfirm": {"placeholders": {"count": {}}},
   "unwindIncludePours": "Also remove the farmer entries",
   "unwindIncludePoursHint": "Reopens the shift and reverses the pours behind this load. The farmers will not be paid for them.",
-  "unwindDone": "Load undone",
-  "unwindOpen": "Undo the whole chain"
+  "unwindDone": "{count, plural, one{1 step undone} other{{count} steps undone}}",
+  "@unwindDone": {"placeholders": {"count": {}}},
+  "unwindOpen": "Undo the whole chain",
+  "unwindWhatHappens": "WHAT WILL HAPPEN",
+  "unwindBlocked": "Some steps cannot run yet — see below."
 }

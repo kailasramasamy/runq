@@ -624,9 +624,14 @@ class MpRepo {
 
   /// Commit it. The server re-plans first, so what runs is the state now — not
   /// what the preview showed. All or nothing.
-  Future<void> unwindRun(String consignmentId, {bool includePours = false}) =>
-      _api.post('$_base/consignments/unwind/run',
-          {'consignmentId': consignmentId, 'includePours': includePours});
+  /// Returns how many steps committed — the confirmation is worth stating in
+  /// the operator's terms ("3 steps undone"), not just implying by a refresh.
+  Future<int> unwindRun(String consignmentId, {bool includePours = false}) async {
+    final res = await _api.post('$_base/consignments/unwind/run',
+        {'consignmentId': consignmentId, 'includePours': includePours});
+    final m = _one(res);
+    return ((m?['completed'] as List?) ?? const []).length;
+  }
 
   // ── rejections ────────────────────────────────────────────────────────────
   /// Refuse a farmer's milk at the gate. No pour is created for these litres,

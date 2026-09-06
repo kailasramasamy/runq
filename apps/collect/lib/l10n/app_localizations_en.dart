@@ -3649,8 +3649,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reopens the shift and reverses the pours behind this load. The farmers will not be paid for them.';
 
   @override
-  String get unwindDone => 'Load undone';
+  String unwindDone(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count steps undone',
+      one: '1 step undone',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get unwindOpen => 'Undo the whole chain';
+
+  @override
+  String get unwindWhatHappens => 'WHAT WILL HAPPEN';
+
+  @override
+  String get unwindBlocked => 'Some steps cannot run yet — see below.';
 }

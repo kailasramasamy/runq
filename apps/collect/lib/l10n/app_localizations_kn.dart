@@ -3636,8 +3636,22 @@ class AppLocalizationsKn extends AppLocalizations {
       'ಪಾಳಿಯನ್ನು ಮತ್ತೆ ತೆರೆದು ಈ ಸಾಗಣೆಯ ಹಿಂದಿನ ಸಂಗ್ರಹಗಳನ್ನು ಹಿಂತೆಗೆಯುತ್ತದೆ. ಆ ರೈತರಿಗೆ ಪಾವತಿ ಆಗುವುದಿಲ್ಲ.';
 
   @override
-  String get unwindDone => 'ಸಾಗಣೆ ರದ್ದಾಗಿದೆ';
+  String unwindDone(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಹಂತಗಳು ರದ್ದಾಗಿವೆ',
+      one: '1 ಹಂತ ರದ್ದಾಗಿದೆ',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get unwindOpen => 'ಪೂರ್ಣ ಸರಪಳಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ';
+
+  @override
+  String get unwindWhatHappens => 'ಏನಾಗುತ್ತದೆ';
+
+  @override
+  String get unwindBlocked => 'ಕೆಲವು ಹಂತಗಳು ಈಗ ನಡೆಯುವುದಿಲ್ಲ — ಕೆಳಗೆ ನೋಡಿ.';
 }

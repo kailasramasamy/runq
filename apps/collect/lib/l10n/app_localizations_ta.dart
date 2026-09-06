@@ -3664,8 +3664,22 @@ class AppLocalizationsTa extends AppLocalizations {
       'ஷிப்டைத் திறந்து இந்தச் சரக்கின் பின்னுள்ள பால் பதிவுகளை ரத்து செய்யும். அந்த விவசாயிகளுக்குப் பணம் வழங்கப்படாது.';
 
   @override
-  String get unwindDone => 'சரக்கு ரத்து செய்யப்பட்டது';
+  String unwindDone(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count படிகள் ரத்து செய்யப்பட்டன',
+      one: '1 படி ரத்து செய்யப்பட்டது',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get unwindOpen => 'முழுச் சங்கிலியையும் ரத்து செய்';
+
+  @override
+  String get unwindWhatHappens => 'என்ன நடக்கும்';
+
+  @override
+  String get unwindBlocked => 'சில படிகள் இப்போது இயங்காது — கீழே பார்க்கவும்.';
 }

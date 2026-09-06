@@ -1171,6 +1171,8 @@
   "unwindConfirm": "{count, plural, one{{count} ಹಂತ ರದ್ದುಗೊಳಿಸಿ} other{ಎಲ್ಲಾ {count} ಹಂತಗಳನ್ನು ರದ್ದುಗೊಳಿಸಿ}}",
   "unwindIncludePours": "ರೈತರ ನಮೂದುಗಳನ್ನೂ ತೆಗೆದುಹಾಕಿ",
   "unwindIncludePoursHint": "ಪಾಳಿಯನ್ನು ಮತ್ತೆ ತೆರೆದು ಈ ಸಾಗಣೆಯ ಹಿಂದಿನ ಸಂಗ್ರಹಗಳನ್ನು ಹಿಂತೆಗೆಯುತ್ತದೆ. ಆ ರೈತರಿಗೆ ಪಾವತಿ ಆಗುವುದಿಲ್ಲ.",
-  "unwindDone": "ಸಾಗಣೆ ರದ್ದಾಗಿದೆ",
-  "unwindOpen": "ಪೂರ್ಣ ಸರಪಳಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ"
+  "unwindDone": "{count, plural, one{1 ಹಂತ ರದ್ದಾಗಿದೆ} other{{count} ಹಂತಗಳು ರದ್ದಾಗಿವೆ}}",
+  "unwindOpen": "ಪೂರ್ಣ ಸರಪಳಿಯನ್ನು ರದ್ದುಗೊಳಿಸಿ",
+  "unwindWhatHappens": "ಏನಾಗುತ್ತದೆ",
+  "unwindBlocked": "ಕೆಲವು ಹಂತಗಳು ಈಗ ನಡೆಯುವುದಿಲ್ಲ — ಕೆಳಗೆ ನೋಡಿ."
 }
