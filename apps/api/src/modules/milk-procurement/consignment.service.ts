@@ -608,18 +608,21 @@ export class ConsignmentService {
     const batches = await this.collectedFor(nodeId, node.nodeType, mode, collectionDate, effShift);
     // A pool is dispatched as one tanker dated on the anchor day (shift null), so
     // the dispatched side stays anchored there regardless of the shift filter.
-    const dispatchRows = await this.outflowsByType(nodeId, collectionDate, effShift);
-    // Sold litres are inside `dispatchRows` (they draw the slot down the same
-    // way), but they are not a dispatch — pulled out again so the figure the
-    // operator reads still means "sent onward".
+    // Kept apart rather than taken from `outflowsByType`: both draw the slot
+    // down, but only one of them is a dispatch, and the two figures below have
+    // to be able to tell them apart.
+    const legRows = await this.dispatchedByType(nodeId, collectionDate, effShift);
     const saleRows = await this.salesByType(nodeId, collectionDate, effShift);
     const soldOf = (t: MilkType | null) => round3(saleRows
       .filter((r) => r.milkType === t).reduce((sum, r) => sum + r.qty, 0));
 
-    const left = drawDown(batches, dispatchRows);
+    const left = drawDown(batches, [...legRows, ...saleRows]);
+    // Sale-only types are NOT part of this pool. A VMCC that collects no A2 but
+    // sells 80 L of it at the gate is reselling stock brought in from elsewhere;
+    // listing it as a type here invents a row reading "0 L collected".
     const types = [...new Set([
       ...batches.map((b) => b.milkType),
-      ...dispatchRows.filter((r) => r.milkType != null).map((r) => r.milkType),
+      ...legRows.filter((r) => r.milkType != null).map((r) => r.milkType),
     ])];
 
     const byMilkType: MilkTypeAvailability[] = types.map((t) => {
@@ -627,7 +630,13 @@ export class ConsignmentService {
       const rest = weigh(left.filter((b) => b.milkType === t));
       const sold = soldOf(t);
       return {
-        milkType: t, collected, dispatched: round3(collected - rest.qty - sold), sold,
+        milkType: t, collected,
+        // Only the sold litres the pool could actually absorb. Subtracting the
+        // whole sale drove this negative for a type the node never collected —
+        // and since the headline sums every type, one 80 L A2 sale reported a
+        // VMCC that had sent 238.7 L onward as having dispatched 158.7 L.
+        dispatched: round3(collected - rest.qty - Math.min(sold, collected)),
+        sold,
         available: rest.qty,
         avgFat: rest.fat, avgSnf: rest.snf, avgWater: rest.water,
       };
@@ -638,13 +647,21 @@ export class ConsignmentService {
     const scopedLeft = milkType ? left.filter((b) => b.milkType === milkType) : left;
     const collected = round3(scoped.reduce((t, r) => t + r.collected, 0));
     const dispatched = round3(scoped.reduce((t, r) => t + r.dispatched, 0));
-    const sold = round3(scoped.reduce((t, r) => t + r.sold, 0));
+    // Taken from the sales themselves, not summed off `scoped`: a sale-only type
+    // is no longer listed there, and reporting the node's sales as nil because
+    // the milk came from outside the pool is how 80 L goes quietly missing.
+    const sold = milkType
+      ? soldOf(milkType)
+      : round3(saleRows.reduce((t, r) => t + r.qty, 0));
     // QC describes what's still on hand, not everything collected — the second
     // dispatch of a day must prefill the remaining batch's FAT/SNF, not the blend.
     const qc = weigh(scopedLeft);
     return {
       nodeId, collectionDate, nodeType: node.nodeType,
-      collected, dispatched, sold, available: round3(collected - dispatched - sold),
+      // Measured from what the draw-down actually left standing, not derived as
+      // collected − dispatched − sold: that identity is false the moment a sale
+      // is of milk this node never collected.
+      collected, dispatched, sold, available: round3(qc.qty),
       avgFat: qc.fat, avgSnf: qc.snf, avgWater: qc.water,
       byMilkType,
     };
