@@ -147,3 +147,57 @@ export interface BatchUsage {
   runs: BatchUsageRun[];
   otherOut: BatchUsageOtherOut[];
 }
+
+// ── Draws ─────────────────────────────────────────────────────────────────
+
+/** One lot of milk taken into a draw. */
+export interface DrawLine {
+  inputItemId: string;
+  inputItemName: string;
+  batchNo: string | null;
+  qty: number;
+  uom: string;
+  at: string | null;
+}
+
+/**
+ * Milk taken for a product, before anyone knows the yield.
+ *
+ * A work order with no recipe underneath (migration 0210) — but nothing the
+ * floor sees says so. Open until the yield is recorded, at which point it
+ * closes and `outputQty` is what came out.
+ */
+export interface DrawRow {
+  id: string;
+  woNumber: string;
+  outputItemId: string | null;
+  outputItemName: string;
+  outputUom: string;
+  /** Batch-tracked products need an expiry date when the yield is recorded. */
+  outputTracksBatches: boolean;
+  warehouseId: string;
+  warehouseName: string;
+  status: string;
+  startedAt: string | null;
+  closedAt: string | null;
+  /** Zero until the draw is closed. */
+  outputQty: number;
+  /** Everything taken so far, across every top-up. */
+  drawnQty: number;
+  drawnUom: string;
+  lines: DrawLine[];
+  notes: string | null;
+}
+
+/**
+ * What the last closed draw of this product yielded.
+ *
+ * A hint, never a recipe and never applied — the operator sees "40 litre made
+ * 7.2 kg last time" beside an empty field and enters what actually happened.
+ */
+export interface DrawYieldHint {
+  drawnQty: number;
+  drawnUom: string;
+  outputQty: number;
+  closedAt: string | null;
+}

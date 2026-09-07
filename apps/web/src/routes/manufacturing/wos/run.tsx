@@ -254,9 +254,11 @@ export function WorkOrderRunPage({ woId }: Props) {
           <RunOutputsPanel
             woId={woId}
             warehouseId={wo.warehouseId}
-            outputItemId={wo.outputItemId}
+            outputItemId={wo.outputItemId ?? ''}
             outputUom={wo.outputUom}
-            bomCode={wo.bomCode}
+            // A draw has no recipe to name; the batch-number suggestion the
+            // panel builds from it falls back to the WO number.
+            bomCode={wo.bomCode ?? wo.woNumber}
             status={wo.status}
           />
         </div>

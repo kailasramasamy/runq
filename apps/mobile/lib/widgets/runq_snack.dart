@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
 
 import '../api/api_client.dart';
@@ -335,6 +336,10 @@ bool _isDuplicate(SnackKind kind, String message, String? description) {
 /// Screens that dock their own action bar inside the body Column instead of
 /// the bottomNavigationBar slot are invisible to that geometry, so they keep
 /// the old allowance for a typical 60-70px docked button bar.
+/// Room for a typical docked action bar or bottom nav — the fallback whenever
+/// the real geometry cannot be measured.
+const double _dockedBarAllowance = 80.0;
+
 double _bottomInsetFor(BuildContext context) {
   const gap = 12.0;
   final scaffold = Scaffold.maybeOf(context);
@@ -343,8 +348,17 @@ double _bottomInsetFor(BuildContext context) {
   }
   final hasBottomBar = scaffold.widget.bottomNavigationBar != null ||
       scaffold.widget.persistentFooterButtons != null;
-  if (!hasBottomBar) return 80.0;
+  if (!hasBottomBar) return _dockedBarAllowance;
 
+  // ScaffoldGeometry is only readable during the paint phase, and every toast
+  // is raised from an event handler — a tap, an await returning — which never
+  // is. Reading it anyway threw "must only be accessed during the paint
+  // phase" and took the screen down with it. No caller inside a Scaffold that
+  // owns a bottom bar had toasted before, so the trap sat unsprung until one
+  // did; checking the phase is what makes the read legal rather than lucky.
+  if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+    return _dockedBarAllowance + MediaQuery.of(context).viewPadding.bottom;
+  }
   final geometry = Scaffold.geometryOf(context).value;
   final navTop = geometry.bottomNavigationBarTop;
   final screenHeight = MediaQuery.of(context).size.height;

@@ -202,7 +202,9 @@ export class WoLifecycleService {
     }
 
     const outputValue = costAssignment.totalOutputValue;
-    const bomRow = await this.loadBom(tx, wo.bomId);
+    // A draw has no recipe, so no name to post against — the GL narration
+    // falls back to the WO number, which is what the poster does with ''.
+    const bomRow = wo.bomId ? await this.loadBom(tx, wo.bomId) : null;
     const consumedValueByClass = consumedByClass(consumptionForCosting);
 
     const today = new Date().toISOString().slice(0, 10);

@@ -188,11 +188,13 @@ export class WoReversalService {
       itemClass: itemClassMap.get(c.inputItemId) ?? null,
       value: Number(c.value),
     }));
-    const [bom] = await tx
-      .select({ name: boms.name })
-      .from(boms)
-      .where(and(eq(boms.id, wo.bomId), eq(boms.tenantId, this.tenantId)))
-      .limit(1);
+    const [bom] = wo.bomId
+      ? await tx
+          .select({ name: boms.name })
+          .from(boms)
+          .where(and(eq(boms.id, wo.bomId), eq(boms.tenantId, this.tenantId)))
+          .limit(1)
+      : [];
     const poster = new ManufacturingGlPoster(tx, this.tenantId, userId);
     await poster.reverseClose({
       date: new Date().toISOString().slice(0, 10),

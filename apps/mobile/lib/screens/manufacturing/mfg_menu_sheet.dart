@@ -19,8 +19,10 @@ List<MenuItem> _items(WidgetRef ref) {
   final hasInventory =
       ref.watch(allowedModulesProvider).contains(AppModule.inventory);
   return [
+    const MenuItem(Icons.outbox_outlined, 'Take for production',
+        MfgColors.roseDarkest, '/manufacturing/draws/new'),
     const MenuItem(Icons.bolt_rounded, 'Record production',
-        MfgColors.roseDarkest, '/manufacturing/production/new'),
+        MfgColors.roseDeep, '/manufacturing/production/new'),
     if (hasInventory)
       const MenuItem(Icons.delete_outline, 'Write-offs & wastage',
           Color(0xFFDC2626), '/manufacturing/reports/write-offs'),

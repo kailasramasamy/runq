@@ -13,6 +13,7 @@ import '../../utils/format_expiry.dart';
 import '../../utils/format_qty.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
+import 'draw_yield_sheet.dart';
 import 'mfg_material_sheet.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_doc_list.dart';
@@ -84,6 +85,7 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               )).future),
               // The bell reads scopedUnreadCountProvider, which derives from
               // this — it was never refreshed before, so the count went stale.
+              ref.refresh(openDrawsProvider.future),
               ref.refresh(notificationsProvider.future),
             ].map(_settled));
           },
@@ -97,6 +99,9 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               _HeroCard(dashboard: dashAsync),
               const SizedBox(height: 16),
               const _RecordProductionButton(),
+              // Milk that has left the pool with no yield recorded against it
+              // — above stock, because it is stock nobody can see.
+              const OpenDrawsSection(),
               // What a run can actually consume. Expiry urgency rides these
               // rows rather than sitting in a second card above them: milk is
               // a perishable raw material, and stating it twice in two shapes

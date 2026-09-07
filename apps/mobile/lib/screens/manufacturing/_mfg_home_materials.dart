@@ -226,3 +226,103 @@ class _RecordProductionButton extends StatelessWidget {
         ),
       );
 }
+
+// ── Open draws ────────────────────────────────────────────────────────────
+
+/// Milk that is out of the pool and not yet accounted for.
+///
+/// The most urgent thing on this screen: stock has left, the yield is
+/// unrecorded, and until somebody closes it neither the tank nor the books
+/// tell the truth. Sits above raw materials for exactly that reason, and
+/// hides itself when there is nothing open.
+class OpenDrawsSection extends ConsumerWidget {
+  const OpenDrawsSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final draws = ref.watch(openDrawsProvider).asData?.value ?? const <DrawRow>[];
+    if (draws.isEmpty) return const SizedBox.shrink();
+
+    return Column(children: [
+      MfgSectionHeader(
+        label: 'Out for production',
+        trailing: Text(
+          draws.length == 1 ? '1 open' : '${draws.length} open',
+          style: RunqText.caption.copyWith(color: MfgColors.orangeAlert),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: MfgCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          child: Column(children: [
+            for (var i = 0; i < draws.length; i++) ...[
+              if (i > 0) Divider(color: t.hairline, height: 1),
+              _OpenDrawRow(draw: draws[i]),
+            ],
+          ]),
+        ),
+      ),
+      const SizedBox(height: 8),
+    ]);
+  }
+}
+
+/// One open draw. Tapping it asks the only outstanding question — what came
+/// out — rather than opening a detail screen nobody needs.
+class _OpenDrawRow extends ConsumerWidget {
+  const _OpenDrawRow({required this.draw});
+  final DrawRow draw;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final since = arrivalStamp(draw.startedAt);
+    return InkWell(
+      onTap: () async {
+        final closed = await showDrawYieldSheet(context, draw);
+        if (closed == true) ref.invalidate(openDrawsProvider);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: MfgColors.orangeAlertBg,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(Icons.outbox_outlined,
+                size: 17, color: MfgColors.orangeAlert),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(draw.outputItemName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: RunqText.body.copyWith(color: t.ink)),
+              const SizedBox(height: 2),
+              Text(
+                [
+                  '${formatItemQty(draw.drawnQty, null, unit: draw.drawnUom)}'
+                      '${draw.drawnUom.isEmpty ? '' : ' ${draw.drawnUom}'} taken',
+                  ?since,
+                ].join('  ·  '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: RunqText.micro.copyWith(color: t.muted),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Text('What came out?',
+              style: RunqText.caption.copyWith(color: MfgColors.brand(context))),
+          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+        ]),
+      ),
+    );
+  }
+}

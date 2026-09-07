@@ -15,6 +15,7 @@ import { tenants } from '../tenant';
 import { users } from '../user';
 import { warehouses } from '../inventory/warehouses';
 import { boms } from './boms';
+import { items } from '../masters/items';
 
 export const woStatusEnum = pgEnum('wo_status', [
   'draft',
@@ -69,12 +70,23 @@ export const workOrders = pgTable(
       .references(() => tenants.id),
     woNumber: varchar('wo_number', { length: 50 }).notNull(),
 
-    bomId: uuid('bom_id')
-      .notNull()
-      .references(() => boms.id),
-    bomVersion: integer('bom_version').notNull(),
+    // Null for a recipe-less draw: the floor takes 40 litres "for khoa" and
+    // only learns the yield hours later, so there is no recipe to run and no
+    // plan to deviate from. See migration 0210.
+    bomId: uuid('bom_id').references(() => boms.id),
+    bomVersion: integer('bom_version'),
 
-    plannedQty: decimal('planned_qty', { precision: 12, scale: 3 }).notNull(),
+    /**
+     * What this run makes. Copied from the BOM when there is one, and the only
+     * source for a draw — so readers take
+     * `COALESCE(work_orders.output_item_id, boms.output_item_id)` and never
+     * have to care which kind of run they are looking at.
+     */
+    outputItemId: uuid('output_item_id').references(() => items.id),
+    outputUom: varchar('output_uom', { length: 20 }),
+
+    /** Null on a draw — nobody states a yield before the kettle is done. */
+    plannedQty: decimal('planned_qty', { precision: 12, scale: 3 }),
     warehouseId: uuid('warehouse_id')
       .notNull()
       .references(() => warehouses.id),

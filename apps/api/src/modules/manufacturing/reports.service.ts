@@ -22,6 +22,12 @@ import type {
 
 const outputItem = items;
 
+/**
+ * The product a run makes: its own where it states one, its recipe's
+ * otherwise. Mirrors wo.service so both agree about what a run produced.
+ */
+const outputItemRef = sql`COALESCE(${workOrders.outputItemId}, ${boms.outputItemId})`;
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function toDateStr(d: Date | string | null | undefined): string | null {
@@ -184,6 +190,10 @@ export class ManufacturingReportsService {
     return r?.avg ?? null;
   }
 
+  /**
+   * Ranked by recipe, so a recipe-less draw has no row here by definition —
+   * the inner join below is the filter, not an oversight.
+   */
   private async _topBomsThisWeek(
     tid: string,
   ): Promise<Array<{ bomId: string; bomCode: string; bomName: string; runs: number }>> {
@@ -244,8 +254,10 @@ export class ManufacturingReportsService {
         closedAt: workOrders.closedAt,
       })
       .from(workOrders)
-      .innerJoin(boms, eq(boms.id, workOrders.bomId))
-      .innerJoin(outputItem, eq(outputItem.id, boms.outputItemId))
+      // LEFT: this is one row per run, and a draw is a run. Inner-joining the
+      // recipe dropped every recipe-less one out of the summary silently.
+      .leftJoin(boms, eq(boms.id, workOrders.bomId))
+      .innerJoin(outputItem, eq(outputItem.id, outputItemRef))
       .innerJoin(warehouses, eq(warehouses.id, workOrders.warehouseId))
       .where(
         and(
@@ -292,6 +304,11 @@ export class ManufacturingReportsService {
 
   // ── Yield Trend ───────────────────────────────────────────────────────────
 
+  /**
+   * Planned against actual, per recipe. A draw has neither a recipe nor a
+   * plan, so it is outside this question entirely — the inner join is what
+   * keeps it out, deliberately.
+   */
   async yieldTrend(filter: YieldTrendFilter): Promise<YieldTrendPoint[]> {
     const from = filter.from ?? defaultFrom({});
     const to = filter.to ?? defaultTo({});
@@ -414,7 +431,8 @@ export class ManufacturingReportsService {
         ageDays: sql<string>`EXTRACT(DAY FROM NOW() - ${workOrders.completedAt})::int`,
       })
       .from(workOrders)
-      .innerJoin(boms, eq(boms.id, workOrders.bomId))
+      // LEFT: a draw left open is exactly what this report exists to chase.
+      .leftJoin(boms, eq(boms.id, workOrders.bomId))
       .where(
         and(
           eq(workOrders.tenantId, this.tenantId),

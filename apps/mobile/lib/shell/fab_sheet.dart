@@ -218,10 +218,17 @@ List<FabAction> purchaseFabActions() => [
 // never used.
 List<FabAction> manufacturingFabActions() => [
       FabAction(
+        icon: Icons.outbox_outlined,
+        title: 'Take for production',
+        sub: 'Draw now, record the yield later',
+        tint: const Color(0xFF9F1239),
+        onTap: (ctx) => ctx.push('/manufacturing/draws/new'),
+      ),
+      FabAction(
         icon: Icons.bolt_rounded,
         title: 'Record Production',
-        sub: 'Log what was made',
-        tint: const Color(0xFF9F1239),
+        sub: 'Log what was made in one go',
+        tint: const Color(0xFFBE123C),
         onTap: (ctx) => ctx.push('/manufacturing/production/new'),
       ),
       FabAction(

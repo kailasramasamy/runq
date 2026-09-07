@@ -1436,3 +1436,144 @@ class BatchUsage {
 
   bool get isEmpty => runs.isEmpty && otherOut.isEmpty;
 }
+
+// ── Draws ─────────────────────────────────────────────────────────────────
+
+/// One lot of milk taken into a draw.
+class DrawLine {
+  final String inputItemId;
+  final String inputItemName;
+  final String? batchNo;
+  final double qty;
+  final String uom;
+  final String? at;
+  const DrawLine({
+    required this.inputItemId,
+    required this.inputItemName,
+    required this.batchNo,
+    required this.qty,
+    required this.uom,
+    required this.at,
+  });
+
+  factory DrawLine.fromJson(Map<String, dynamic> j) => DrawLine(
+        inputItemId: (j['inputItemId'] as String?) ?? '',
+        inputItemName: (j['inputItemName'] as String?) ?? '',
+        batchNo: j['batchNo'] as String?,
+        qty: _num(j['qty']),
+        uom: (j['uom'] as String?) ?? '',
+        at: j['at'] as String?,
+      );
+}
+
+/// Milk taken for a product, before anyone knows the yield.
+///
+/// Open until somebody records what came out. The floor never sees that this
+/// is a work order underneath.
+class DrawRow {
+  final String id;
+  final String woNumber;
+  final String? outputItemId;
+  final String outputItemName;
+  final String outputUom;
+
+  /// Batch-tracked products need an expiry date when the yield is recorded.
+  final bool outputTracksBatches;
+  final String warehouseId;
+  final String warehouseName;
+  final String status;
+  final String? startedAt;
+  final String? closedAt;
+
+  /// Zero until the draw is closed.
+  final double outputQty;
+
+  /// Everything taken so far, across every top-up.
+  final double drawnQty;
+  final String drawnUom;
+  final List<DrawLine> lines;
+
+  const DrawRow({
+    required this.id,
+    required this.woNumber,
+    required this.outputItemId,
+    required this.outputItemName,
+    required this.outputUom,
+    required this.outputTracksBatches,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.status,
+    required this.startedAt,
+    required this.closedAt,
+    required this.outputQty,
+    required this.drawnQty,
+    required this.drawnUom,
+    required this.lines,
+  });
+
+  bool get isOpen => status == 'in_progress';
+
+  factory DrawRow.fromJson(Map<String, dynamic> j) => DrawRow(
+        id: (j['id'] as String?) ?? '',
+        woNumber: (j['woNumber'] as String?) ?? '',
+        outputItemId: j['outputItemId'] as String?,
+        outputItemName: (j['outputItemName'] as String?) ?? '',
+        outputUom: (j['outputUom'] as String?) ?? '',
+        outputTracksBatches: j['outputTracksBatches'] == true,
+        warehouseId: (j['warehouseId'] as String?) ?? '',
+        warehouseName: (j['warehouseName'] as String?) ?? '',
+        status: (j['status'] as String?) ?? '',
+        startedAt: j['startedAt'] as String?,
+        closedAt: j['closedAt'] as String?,
+        outputQty: _num(j['outputQty']),
+        drawnQty: _num(j['drawnQty']),
+        drawnUom: (j['drawnUom'] as String?) ?? '',
+        lines: ((j['lines'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(DrawLine.fromJson)
+            .toList(),
+      );
+}
+
+/// What the last closed draw of this product yielded — a hint beside an empty
+/// field, never a recipe and never applied.
+class DrawYieldHint {
+  final double drawnQty;
+  final String drawnUom;
+  final double outputQty;
+  final String? closedAt;
+  const DrawYieldHint({
+    required this.drawnQty,
+    required this.drawnUom,
+    required this.outputQty,
+    required this.closedAt,
+  });
+
+  factory DrawYieldHint.fromJson(Map<String, dynamic> j) => DrawYieldHint(
+        drawnQty: _num(j['drawnQty']),
+        drawnUom: (j['drawnUom'] as String?) ?? '',
+        outputQty: _num(j['outputQty']),
+        closedAt: j['closedAt'] as String?,
+      );
+}
+
+/// One lot the operator chose to draw from.
+class DrawLineInput {
+  final String inputItemId;
+  final String? batchNo;
+  final double qty;
+  final String uom;
+  const DrawLineInput({
+    required this.inputItemId,
+    required this.batchNo,
+    required this.qty,
+    required this.uom,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'inputItemId': inputItemId,
+        if (batchNo != null && batchNo!.isNotEmpty) 'batchNo': batchNo,
+        'qty': qty,
+        'uom': uom,
+      };
+}

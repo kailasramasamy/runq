@@ -106,7 +106,7 @@ class MfgMaterialSheet extends ConsumerWidget {
               ],
             ),
           ),
-          _UseInProduction(itemName: first.itemName),
+          _UseInProduction(itemId: first.itemId),
         ]),
       ),
     );
@@ -658,11 +658,11 @@ class _Chip extends StatelessWidget {
 }
 
 /// The only reason the floor is looking at this stock. Sitting at the bottom
-/// of the sheet it turns "how much milk is there" straight into the entry,
+/// of the sheet it turns "how much milk is there" straight into taking some,
 /// instead of sending the operator back out to the FAB.
 class _UseInProduction extends StatelessWidget {
-  const _UseInProduction({required this.itemName});
-  final String itemName;
+  const _UseInProduction({required this.itemId});
+  final String itemId;
 
   @override
   Widget build(BuildContext context) {
@@ -675,11 +675,15 @@ class _UseInProduction extends StatelessWidget {
         border: Border(top: BorderSide(color: t.hairline)),
       ),
       child: MfgPrimaryButton(
-        label: 'Use in production',
-        icon: Icons.bolt_rounded,
+        label: 'Take for production',
+        icon: Icons.water_drop_outlined,
         onPressed: () {
           Navigator.of(context).pop();
-          context.push('/manufacturing/production/new');
+          // Straight into a draw with this material chosen — the operator was
+          // already looking at its lots, and making them pick it again on the
+          // next screen is the kind of step that sends people back to a
+          // stock adjustment instead.
+          context.push('/manufacturing/draws/new?inputItemId=$itemId');
         },
       ),
     );

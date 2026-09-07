@@ -10,7 +10,8 @@ export '../api/manufacturing_repo.dart' show manufacturingRepo;
 export '../api/manufacturing_models.dart'
     show WoConsumptionRow, WoOutputRow, SuggestedBatch, WoCostingPreview, WoCloseResult,
         MfgDashboard, MfgTopBom, WoSummaryRow, YieldTrendPoint,
-        BatchUsage, BatchUsageRun, BatchUsageOutput, BatchUsageOtherOut;
+        BatchUsage, BatchUsageRun, BatchUsageOutput, BatchUsageOtherOut,
+        DrawRow, DrawLine, DrawLineInput, DrawYieldHint;
 
 /// Whether this user is shown money inside Manufacturing.
 ///
@@ -328,4 +329,17 @@ final batchUsageProvider = FutureProvider.autoDispose
     .family<Map<String, BatchUsage>, BatchUsageParams>(
   (ref, p) async =>
       manufacturingRepo.batchUsage(itemId: p.itemId, batchNos: p.batchNos),
+);
+
+/// Milk that is out of the pool and not yet accounted for. The most urgent
+/// thing on the Manufacturing home screen — an open draw is stock nobody can
+/// see and a yield nobody has recorded.
+final openDrawsProvider = FutureProvider.autoDispose<List<DrawRow>>(
+  (ref) async => manufacturingRepo.listDraws(openOnly: true),
+);
+
+/// What this product yielded last time. Null until one draw of it has closed.
+final drawYieldHintProvider =
+    FutureProvider.autoDispose.family<DrawYieldHint?, String>(
+  (ref, outputItemId) async => manufacturingRepo.drawYieldHint(outputItemId),
 );

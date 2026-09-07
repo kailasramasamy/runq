@@ -27,6 +27,13 @@ export interface WorkOrderListResult {
 
 const PRE_CLOSE_STATUSES = ['draft', 'in_progress', 'completed'] as const;
 
+/**
+ * The product a run makes, whichever kind of run it is: a draw names its own,
+ * a recipe-backed run inherits its BOM's. Every read joins `items` through
+ * this so neither kind needs a query of its own.
+ */
+const outputItemRef = sql`COALESCE(${workOrders.outputItemId}, ${boms.outputItemId})`;
+
 export class WorkOrderService {
   constructor(
     private readonly db: Db,
@@ -48,12 +55,16 @@ export class WorkOrderService {
           bomCode: boms.bomCode,
           bomName: boms.name,
           outputItemName: items.name,
-          outputUom: boms.outputUom,
+          // The draw states its own uom; a recipe-backed run takes the BOM's,
+          // and the item's unit is the last resort.
+          outputUom: sql<string>`COALESCE(${workOrders.outputUom}, ${boms.outputUom}, ${items.unit})`,
           warehouseName: warehouses.name,
         })
         .from(workOrders)
-        .innerJoin(boms, eq(boms.id, workOrders.bomId))
-        .innerJoin(items, eq(items.id, boms.outputItemId))
+        // LEFT, because a draw has no recipe — an inner join dropped every one
+        // of them out of the list the floor reads.
+        .leftJoin(boms, eq(boms.id, workOrders.bomId))
+        .innerJoin(items, eq(items.id, outputItemRef))
         .innerJoin(warehouses, eq(warehouses.id, workOrders.warehouseId))
         .where(where)
         .orderBy(desc(workOrders.scheduledFor), desc(workOrders.createdAt))
@@ -62,8 +73,8 @@ export class WorkOrderService {
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(workOrders)
-        .innerJoin(boms, eq(boms.id, workOrders.bomId))
-        .innerJoin(items, eq(items.id, boms.outputItemId))
+        .leftJoin(boms, eq(boms.id, workOrders.bomId))
+        .innerJoin(items, eq(items.id, outputItemRef))
         .where(where),
     ]);
 
@@ -87,35 +98,35 @@ export class WorkOrderService {
         wo: workOrders,
         bom: boms,
         outputItemName: items.name,
+        outputUom: sql<string>`COALESCE(${workOrders.outputUom}, ${boms.outputUom}, ${items.unit})`,
         warehouseName: warehouses.name,
       })
       .from(workOrders)
-      .innerJoin(boms, eq(boms.id, workOrders.bomId))
-      .innerJoin(items, eq(items.id, boms.outputItemId))
+      .leftJoin(boms, eq(boms.id, workOrders.bomId))
+      .innerJoin(items, eq(items.id, outputItemRef))
       .innerJoin(warehouses, eq(warehouses.id, workOrders.warehouseId))
       .where(and(eq(workOrders.id, id), eq(workOrders.tenantId, this.tenantId)))
       .limit(1);
 
     if (!row) throw new NotFoundError('WorkOrder');
 
-    // Fetch BOM lines at the snapshotted version
+    // Fetch BOM lines at the snapshotted version. A draw has no recipe, so
+    // there is nothing expected of it — the floor stated what it took.
     const inputItems = this.db
       .select({ id: items.id, name: items.name })
       .from(items)
       .as('input_items');
 
-    const lines = await this.db
-      .select({ line: bomLines, inputItemName: inputItems.name })
-      .from(bomLines)
-      .innerJoin(inputItems, eq(inputItems.id, bomLines.inputItemId))
-      .where(
-        and(
-          eq(bomLines.bomId, row.wo.bomId),
-        ),
-      )
-      .orderBy(bomLines.lineNo);
+    const lines = row.wo.bomId
+      ? await this.db
+          .select({ line: bomLines, inputItemName: inputItems.name })
+          .from(bomLines)
+          .innerJoin(inputItems, eq(inputItems.id, bomLines.inputItemId))
+          .where(eq(bomLines.bomId, row.wo.bomId))
+          .orderBy(bomLines.lineNo)
+      : [];
 
-    const plannedQty = Number(row.wo.plannedQty);
+    const plannedQty = Number(row.wo.plannedQty ?? 0);
     const substitutesByLine = await this.loadLineSubstitutes(lines.map((l) => l.line.id));
 
     const expected: WorkOrderExpectedLine[] = lines.map((l) => {
@@ -137,11 +148,10 @@ export class WorkOrderService {
 
     return {
       ...this.toWO(row.wo),
-      bomCode: row.bom.bomCode,
-      bomName: row.bom.name,
-      outputItemId: row.bom.outputItemId,
+      bomCode: row.bom?.bomCode ?? null,
+      bomName: row.bom?.name ?? null,
       outputItemName: row.outputItemName,
-      outputUom: row.bom.outputUom,
+      outputUom: row.outputUom,
       warehouseName: row.warehouseName,
       expected,
     };
@@ -391,7 +401,10 @@ export class WorkOrderService {
       woNumber: row.woNumber,
       bomId: row.bomId,
       bomVersion: row.bomVersion,
-      plannedQty: Number(row.plannedQty),
+      outputItemId: row.outputItemId,
+      // Null, not zero, on a draw: a plan of zero would read as a run that was
+      // meant to make nothing and post -100% against every yield report.
+      plannedQty: row.plannedQty === null ? null : Number(row.plannedQty),
       warehouseId: row.warehouseId,
       shift: row.shift ?? null,
       scheduledFor: row.scheduledFor,

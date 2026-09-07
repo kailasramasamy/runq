@@ -26,9 +26,13 @@ export interface WorkOrder {
   id: string;
   tenantId: string;
   woNumber: string;
-  bomId: string;
-  bomVersion: number;
-  plannedQty: number;
+  /** Null on a draw — milk taken before anyone knows what it will yield. */
+  bomId: string | null;
+  bomVersion: number | null;
+  /** Null on a draw: there is no plan to deviate from until the yield is in. */
+  plannedQty: number | null;
+  /** The product being made. Always set — from the BOM, or stated by a draw. */
+  outputItemId: string | null;
   warehouseId: string;
   shift: string | null;
   scheduledFor: string;
@@ -69,18 +73,21 @@ export interface WorkOrderExpectedLine {
 }
 
 export interface WorkOrderWithDetail extends WorkOrder {
-  bomCode: string;
-  bomName: string;
-  outputItemId: string;
+  /** Null on a draw, which has no recipe behind it. */
+  bomCode: string | null;
+  bomName: string | null;
+  /** Always resolved — from the recipe, or from what the draw was taken for. */
   outputItemName: string;
   outputUom: string;
   warehouseName: string;
+  /** Empty on a draw: nothing was expected, the floor stated what it took. */
   expected: WorkOrderExpectedLine[];
 }
 
 export interface WorkOrderListRow extends WorkOrder {
-  bomCode: string;
-  bomName: string;
+  bomCode: string | null;
+  bomName: string | null;
   outputItemName: string;
+  outputUom: string;
   warehouseName: string;
 }

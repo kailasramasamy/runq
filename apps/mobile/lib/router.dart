@@ -142,6 +142,7 @@ import 'screens/manufacturing/manufacturing_home_screen.dart';
 import 'screens/manufacturing/manufacturing_more_screen.dart';
 import 'screens/manufacturing/bom_list_screen.dart';
 import 'screens/manufacturing/input_pool_screen.dart';
+import 'screens/manufacturing/draw_take_screen.dart';
 import 'screens/manufacturing/mfg_raw_materials_screen.dart';
 import 'screens/manufacturing/bom_detail_screen.dart';
 import 'screens/manufacturing/bom_create_screen.dart';
@@ -974,6 +975,22 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/manufacturing/wos/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const WoCreateScreen(), key: state.pageKey),
+        ),
+        // Take material now, record the yield later. A form screen, so it
+        // pushes onto the root navigator like the rest: inside the shell it
+        // sat under RootShell's Scaffold, which put the bot nav beneath its
+        // own action bar and made toasts read ScaffoldGeometry off the wrong
+        // Scaffold — an exception outside the paint phase.
+        GoRoute(
+          path: '/manufacturing/draws/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(
+            DrawTakeScreen(
+              inputItemId: state.uri.queryParameters['inputItemId'],
+              drawId: state.uri.queryParameters['drawId'],
+            ),
+            key: state.pageKey,
+          ),
         ),
         // Unplanned production entry — no WO exists yet; the server creates
         // one on submit. See docs/manufacturing-plan.md §5.4.

@@ -187,7 +187,9 @@ export const woRoutes: FastifyPluginAsync = async (app) => {
       ]);
       const data = computePreview({
         woId: id,
-        plannedQty: wo.plannedQty,
+        // Zero on a draw — with no plan there is no expected output, and the
+        // preview reports variance against nothing rather than inventing one.
+        plannedQty: wo.plannedQty ?? 0,
         consumption: consumption.map((c) => ({ itemClass: null, value: c.value })),
         output: output.map((o) => ({ qty: o.qty })),
       });

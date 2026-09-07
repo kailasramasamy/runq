@@ -32,8 +32,9 @@ export interface MfgDashboard {
 export interface WoSummaryRow {
   woId: string;
   woNumber: string;
-  bomCode: string;
-  bomName: string;
+  /** Null on a draw — milk taken with no recipe behind it. */
+  bomCode: string | null;
+  bomName: string | null;
   outputItemName: string;
   warehouseName: string;
   scheduledFor: string;
@@ -81,8 +82,9 @@ export interface BomUsageRow {
 export interface WoPendingCloseRow {
   woId: string;
   woNumber: string;
-  bomCode: string;
-  bomName: string;
+  /** Null on a draw — milk taken with no recipe behind it. */
+  bomCode: string | null;
+  bomName: string | null;
   scheduledFor: string;
   completedAt: string;
   consumedValue: number;

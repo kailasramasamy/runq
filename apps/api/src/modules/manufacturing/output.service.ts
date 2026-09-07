@@ -185,12 +185,20 @@ export class WoOutputService {
    * 001 and collide — an AM and a PM batch of the same product on one day is
    * routine on a dairy floor, and unplanned entries add more same-day runs.
    */
-  private async generateBatchNo(tx: Tx, bomId: string, outputItemId: string): Promise<string> {
-    const [bom] = await tx
-      .select({ bomCode: boms.bomCode })
-      .from(boms)
-      .where(and(eq(boms.id, bomId), eq(boms.tenantId, this.tenantId)))
-      .limit(1);
+  /** [bomId] is null on a draw, which has no recipe to name a batch after —
+   *  the 'WO' prefix below is the fallback for exactly that. */
+  private async generateBatchNo(
+    tx: Tx,
+    bomId: string | null,
+    outputItemId: string,
+  ): Promise<string> {
+    const [bom] = bomId
+      ? await tx
+          .select({ bomCode: boms.bomCode })
+          .from(boms)
+          .where(and(eq(boms.id, bomId), eq(boms.tenantId, this.tenantId)))
+          .limit(1)
+      : [];
     const bomCode = bom?.bomCode ?? 'WO';
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `${bomCode}-${today}-`;

@@ -514,6 +514,69 @@ class ManufacturingRepo {
         ));
   }
 
+  // ── Draws ───────────────────────────────────────────────────────────────
+
+  /// Take a raw material for a product — milk, oil, jaggery, anything the
+  /// pool holds. Batches are the operator's own choice; nothing here
+  /// allocates for them.
+  Future<DrawRow> openDraw({
+    required String outputItemId,
+    required String warehouseId,
+    required List<DrawLineInput> lines,
+    String? shift,
+  }) async {
+    final res = await apiClient.post('/manufacturing/draws', {
+      'outputItemId': outputItemId,
+      'warehouseId': warehouseId,
+      if (shift != null) 'shift': shift,
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return DrawRow.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  /// More of the material into a draw that is already open.
+  Future<DrawRow> takeMore(String drawId, List<DrawLineInput> lines) async {
+    final res = await apiClient.post('/manufacturing/draws/$drawId/milk', {
+      'lines': lines.map((l) => l.toJson()).toList(),
+    });
+    return DrawRow.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  /// What came out. Posts the output and closes the draw.
+  Future<DrawRow> closeDraw(
+    String drawId, {
+    required double qty,
+    String? batchNo,
+    String? expiryDate,
+    String? notes,
+  }) async {
+    final res = await apiClient.post('/manufacturing/draws/$drawId/close', {
+      'qty': qty,
+      if (batchNo != null && batchNo.isNotEmpty) 'batchNo': batchNo,
+      if (expiryDate != null) 'expiryDate': expiryDate,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    return DrawRow.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  Future<List<DrawRow>> listDraws({bool openOnly = true}) async {
+    final res = await apiClient.get('/manufacturing/draws?open=$openOnly');
+    return ((res['data'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(DrawRow.fromJson)
+        .toList();
+  }
+
+  /// What the last closed draw of this product yielded, or null if none has.
+  Future<DrawYieldHint?> drawYieldHint(String outputItemId) async {
+    final res = await apiClient.get(
+      '/manufacturing/draws/yield-hint?outputItemId=${Uri.encodeQueryComponent(outputItemId)}',
+    );
+    final data = res['data'];
+    if (data == null) return null;
+    return DrawYieldHint.fromJson((data as Map).cast<String, dynamic>());
+  }
+
   Future<List<MfgItemRow>> searchItems(
     String query, {
     String? itemClass,
