@@ -499,9 +499,11 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
                 const SizedBox(height: 2),
                 _legStatus(t, l, c),
               ]),
-              // Undo a load that hasn't landed. Once the CC has taken it in this
-              // turns into a hint naming who must cancel the receipt first.
-              CancelDispatchButton(
+              // Undo behind a dots menu, not an inline icon: unwinding a leg
+              // is not something a mis-tap beside the litres should be able to
+              // start. Once the CC has taken it in, the sheet offers the chain
+              // unwind instead of a cancel the server would refuse.
+              CancelDispatchMenuButton(
                 consignment: c,
                 destinationName: ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
                 onDone: _refreshLegs,

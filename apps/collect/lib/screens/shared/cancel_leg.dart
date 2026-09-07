@@ -4,10 +4,12 @@ import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/dhenu_icons.dart';
+import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_toast.dart';
+import '../../widgets/sheet_grabber.dart';
 import 'unwind_sheet.dart';
 
 /// Undoing a leg of the journey, shared by both ends of both legs.
@@ -169,4 +171,116 @@ Future<void> _run(
       showDhenuToast(context, friendlyError(context, e), type: DhenuToastType.error);
     }
   }
+}
+
+/// The same undo, one tap further away.
+///
+/// A dispatched load is money and litres already committed downstream, and an
+/// undo icon sitting inline in the sent-legs list is a mis-tap away from
+/// unwinding a leg nobody asked to unwind. The dots open a sheet that names the
+/// load first, so the operator confirms which leg before they confirm the act.
+class CancelDispatchMenuButton extends StatelessWidget {
+  const CancelDispatchMenuButton({
+    super.key,
+    required this.consignment,
+    required this.destinationName,
+    required this.onDone,
+  });
+
+  final MpConsignment consignment;
+  final String destinationName;
+  final Future<void> Function() onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    if (consignment.isReversed) return const SizedBox.shrink();
+    final t = DT(context);
+    final l = AppLocalizations.of(context);
+    return IconButton(
+      icon: Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
+      tooltip: consignment.received ? l.unwindOpen : l.cancelDispatchAction,
+      onPressed: () => _openDispatchActions(context, consignment, destinationName, onDone),
+    );
+  }
+}
+
+/// Sheet listing what can be done to a sent leg. Once the load has landed the
+/// undo has to start at the far end, so the one action turns into the chain
+/// unwind rather than a cancel the server would refuse.
+Future<void> _openDispatchActions(
+  BuildContext context, MpConsignment c, String destinationName,
+  Future<void> Function() onDone,
+) {
+  final t = DT(context);
+  final l = AppLocalizations.of(context);
+  final title = '${c.consignmentNo} · $destinationName';
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Center(child: SheetGrabber()),
+              Text(destinationName, style: DhenuText.title.copyWith(color: t.ink)),
+              const SizedBox(height: 2),
+              Text('${c.consignmentNo} · ${litres(c.dispatchQty ?? 0, unit: true)}',
+                  style: DhenuText.caption.copyWith(color: t.inkSoft)),
+              const SizedBox(height: DhenuSpacing.lg),
+              _sheetAction(
+                t,
+                DhenuIcons.undo,
+                c.received ? l.unwindOpen : l.cancelDispatchAction,
+                t.gradeC,
+                () {
+                  Navigator.pop(ctx);
+                  if (c.received) {
+                    showUnwindSheet(context,
+                        consignmentId: c.id, title: title, onDone: onDone);
+                  } else {
+                    confirmCancelDispatch(context, c, destinationName, onDone);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _sheetAction(
+    DhenuTokens t, IconData icon, String label, Color color, VoidCallback onTap) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(DhenuRadii.card),
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: DhenuSpacing.lg, vertical: DhenuSpacing.md),
+      decoration: BoxDecoration(
+        color: t.inputFill,
+        borderRadius: BorderRadius.circular(DhenuRadii.card),
+        border: Border.all(color: t.hairline),
+      ),
+      child: Row(children: [
+        Container(
+          width: 38, height: 38, alignment: Alignment.center,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: DhenuSpacing.md),
+        Text(label, style: DhenuText.body.copyWith(color: t.ink, fontWeight: FontWeight.w600)),
+      ]),
+    ),
+  );
 }
