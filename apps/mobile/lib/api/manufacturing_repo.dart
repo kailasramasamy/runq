@@ -498,7 +498,7 @@ class ManufacturingRepo {
   /// What each of [batchNos] of [itemId] was made into, keyed by batch number.
   /// One call for every lot on screen — asking per lot would be a request per
   /// card in the raw-material pool.
-  Future<Map<String, List<BatchUsageRun>>> batchUsage({
+  Future<Map<String, BatchUsage>> batchUsage({
     required String itemId,
     required List<String> batchNos,
   }) async {
@@ -508,12 +508,9 @@ class ManufacturingRepo {
         '&batchNos=${Uri.encodeQueryComponent(wanted.join(','))}';
     final res = await apiClient.get('/manufacturing/wos/batch-usage?$qs');
     final data = (res['data'] as Map?)?.cast<String, dynamic>() ?? const {};
-    return data.map((batch, runs) => MapEntry(
+    return data.map((batch, usage) => MapEntry(
           batch,
-          ((runs as List?) ?? const [])
-              .cast<Map<String, dynamic>>()
-              .map(BatchUsageRun.fromJson)
-              .toList(),
+          BatchUsage.fromJson((usage as Map).cast<String, dynamic>()),
         ));
   }
 

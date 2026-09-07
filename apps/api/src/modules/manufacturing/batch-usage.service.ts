@@ -17,10 +17,26 @@
  * credit one consignment with milk that came from three.
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from '@runq/db';
-import { woConsumption, woOutput, workOrders, items } from '@runq/db';
-import type { BatchUsageRun } from '@runq/types';
+import {
+  woConsumption, woOutput, workOrders, items,
+  stockLedger, inventoryAdjustments,
+} from '@runq/db';
+import type { BatchUsage, BatchUsageRun, BatchUsageOtherOut } from '@runq/types';
+
+/** `production_loss` → `Production loss`, for enums people read. */
+function humanise(v: string): string {
+  return v.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Ledger movement types that leave a lot, in the words the floor uses. */
+const MOVEMENT_LABEL: Record<string, string> = {
+  delivery: 'Sold / dispatched',
+  transfer_out: 'Transferred out',
+  adjustment_out: 'Adjusted out',
+  reclaim_out: 'Reclaimed',
+};
 
 /** Postgres's timestamp rendering → ISO-8601, or null when unparseable. */
 function toIso(v: string | null): string | null {
@@ -42,9 +58,33 @@ export class BatchUsageService {
   async byBatch(
     itemId: string,
     batchNos: readonly string[],
-  ): Promise<Record<string, BatchUsageRun[]>> {
+  ): Promise<Record<string, BatchUsage>> {
     const wanted = batchNos.filter(Boolean);
     if (wanted.length === 0) return {};
+
+    const [runsByBatch, otherByBatch] = await Promise.all([
+      this.runs(itemId, wanted),
+      this.otherOut(itemId, wanted),
+    ]);
+
+    const out: Record<string, BatchUsage> = {};
+    for (const batchNo of new Set([
+      ...Object.keys(runsByBatch),
+      ...Object.keys(otherByBatch),
+    ])) {
+      out[batchNo] = {
+        runs: runsByBatch[batchNo] ?? [],
+        otherOut: otherByBatch[batchNo] ?? [],
+      };
+    }
+    return out;
+  }
+
+  /** The production runs each lot fed. */
+  private async runs(
+    itemId: string,
+    wanted: readonly string[],
+  ): Promise<Record<string, BatchUsageRun[]>> {
 
     // 1. How much of each lot each run drew. Summed because a run can take
     //    from the same lot more than once — a top-up mid-run is two rows.
@@ -147,6 +187,102 @@ export class BatchUsageService {
     // operator can still see it is open.
     for (const list of Object.values(out)) {
       list.sort((a, b) => (b.producedAt ?? '9999').localeCompare(a.producedAt ?? '9999'));
+    }
+    return out;
+  }
+
+  /**
+   * Everything that left the lot other than a production run.
+   *
+   * Without it the card cannot add up. A lot showing 661.4 received, 577.9
+   * used and one run drawing 525.8 leaves 52.1 litres of milk with no account
+   * of where they went — which on a shop floor is not a rounding difference,
+   * it is a question. Here that 52.1 is a wastage adjustment against the same
+   * run, and saying so is the whole point.
+   *
+   * Read off the ledger rather than each source table, so a movement type
+   * nobody anticipated still shows up with its quantity instead of silently
+   * widening the gap.
+   */
+  private async otherOut(
+    itemId: string,
+    wanted: readonly string[],
+  ): Promise<Record<string, BatchUsageOtherOut[]>> {
+    const rows = await this.db
+      .select({
+        batchNo: stockLedger.batchNo,
+        movementType: stockLedger.movementType,
+        sourceType: stockLedger.sourceType,
+        sourceId: stockLedger.sourceId,
+        qty: sql<string>`SUM(${stockLedger.qtyOut})`,
+        at: sql<string | null>`MAX(${stockLedger.postedAt})`,
+      })
+      .from(stockLedger)
+      .where(
+        and(
+          eq(stockLedger.tenantId, this.tenantId),
+          eq(stockLedger.itemId, itemId),
+          inArray(stockLedger.batchNo, [...wanted]),
+          sql`${stockLedger.qtyOut} > 0`,
+          // Runs are already listed by name and product; repeating them here
+          // would double the litres the card claims left the lot.
+          ne(stockLedger.sourceType, 'work_order'),
+        ),
+      )
+      .groupBy(
+        stockLedger.batchNo,
+        stockLedger.movementType,
+        stockLedger.sourceType,
+        stockLedger.sourceId,
+      );
+
+    if (rows.length === 0) return {};
+
+    // Adjustments carry the only human account of why milk left — "Wastage on
+    // WO-...", "To make Khoa". Everything else is labelled from its movement
+    // type, which is enough to place it.
+    const adjIds = rows
+      .filter((r) => r.sourceType === 'inventory_adjustment' && r.sourceId)
+      .map((r) => r.sourceId!);
+    const adjById = new Map<string, { no: string; reason: string; notes: string | null }>();
+    if (adjIds.length > 0) {
+      const adjs = await this.db
+        .select({
+          id: inventoryAdjustments.id,
+          no: inventoryAdjustments.adjNo,
+          reason: inventoryAdjustments.reason,
+          notes: inventoryAdjustments.notes,
+        })
+        .from(inventoryAdjustments)
+        .where(
+          and(
+            eq(inventoryAdjustments.tenantId, this.tenantId),
+            inArray(inventoryAdjustments.id, adjIds),
+          ),
+        );
+      for (const a of adjs) adjById.set(a.id, { no: a.no, reason: a.reason, notes: a.notes });
+    }
+
+    const out: Record<string, BatchUsageOtherOut[]> = {};
+    for (const r of rows) {
+      if (!r.batchNo) continue;
+      const adj = r.sourceId ? adjById.get(r.sourceId) : undefined;
+      (out[r.batchNo] ??= []).push({
+        kind: r.sourceType,
+        // The note the operator typed beats any label this code could invent;
+        // the reason enum is the fallback, and the movement type the last one.
+        label: adj?.notes?.trim()
+          ? adj.notes.trim()
+          : adj
+            ? humanise(adj.reason)
+            : MOVEMENT_LABEL[r.movementType] ?? humanise(r.movementType),
+        ref: adj?.no ?? null,
+        qty: Number(r.qty ?? 0),
+        at: toIso(r.at),
+      });
+    }
+    for (const list of Object.values(out)) {
+      list.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
     }
     return out;
   }

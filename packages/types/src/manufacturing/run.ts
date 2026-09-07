@@ -122,3 +122,28 @@ export interface BatchUsageRun {
   producedAt: string | null;
   outputs: BatchUsageOutput[];
 }
+
+/**
+ * Something that left a lot without being a production run — wastage, a
+ * transfer, milk sold straight back to a farmer.
+ *
+ * Present so a lot's arithmetic closes. Runs alone do not explain the used
+ * figure, and an unexplained gap between "used" and "made" is a question the
+ * floor cannot answer from the screen.
+ */
+export interface BatchUsageOtherOut {
+  /** Ledger `source_type` — `inventory_adjustment`, `mp_farmer_sale`, … */
+  kind: string;
+  /** The operator's own note where there is one, else the reason or movement. */
+  label: string;
+  /** Document number, when the movement has one. */
+  ref: string | null;
+  qty: number;
+  at: string | null;
+}
+
+/** Everything that has happened to one lot since it landed. */
+export interface BatchUsage {
+  runs: BatchUsageRun[];
+  otherOut: BatchUsageOtherOut[];
+}

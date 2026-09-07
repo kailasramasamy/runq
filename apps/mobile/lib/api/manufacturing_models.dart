@@ -1387,3 +1387,52 @@ class BatchUsageRun {
             .toList(),
       );
 }
+
+/// Something that left a lot without being a production run — wastage, a
+/// transfer, milk sold straight back to a farmer.
+///
+/// Present so a lot's arithmetic closes: runs alone do not explain the used
+/// figure, and an unexplained gap between "used" and "made" is a question the
+/// floor cannot answer from the screen.
+class BatchUsageOtherOut {
+  final String kind;
+  final String label;
+  final String? ref;
+  final double qty;
+  final String? at;
+  const BatchUsageOtherOut({
+    required this.kind,
+    required this.label,
+    required this.ref,
+    required this.qty,
+    required this.at,
+  });
+
+  factory BatchUsageOtherOut.fromJson(Map<String, dynamic> j) => BatchUsageOtherOut(
+        kind: (j['kind'] as String?) ?? '',
+        label: (j['label'] as String?) ?? '',
+        ref: j['ref'] as String?,
+        qty: (j['qty'] as num?)?.toDouble() ?? 0,
+        at: j['at'] as String?,
+      );
+}
+
+/// Everything that has happened to one lot since it landed.
+class BatchUsage {
+  final List<BatchUsageRun> runs;
+  final List<BatchUsageOtherOut> otherOut;
+  const BatchUsage({this.runs = const [], this.otherOut = const []});
+
+  factory BatchUsage.fromJson(Map<String, dynamic> j) => BatchUsage(
+        runs: ((j['runs'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BatchUsageRun.fromJson)
+            .toList(),
+        otherOut: ((j['otherOut'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BatchUsageOtherOut.fromJson)
+            .toList(),
+      );
+
+  bool get isEmpty => runs.isEmpty && otherOut.isEmpty;
+}

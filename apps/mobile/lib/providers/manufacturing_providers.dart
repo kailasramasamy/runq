@@ -10,7 +10,7 @@ export '../api/manufacturing_repo.dart' show manufacturingRepo;
 export '../api/manufacturing_models.dart'
     show WoConsumptionRow, WoOutputRow, SuggestedBatch, WoCostingPreview, WoCloseResult,
         MfgDashboard, MfgTopBom, WoSummaryRow, YieldTrendPoint,
-        BatchUsageRun, BatchUsageOutput;
+        BatchUsage, BatchUsageRun, BatchUsageOutput, BatchUsageOtherOut;
 
 /// Whether this user is shown money inside Manufacturing.
 ///
@@ -325,7 +325,7 @@ class BatchUsageParams {
 /// What each lot became, keyed by batch number. Lots nothing has drawn on are
 /// simply absent from the map.
 final batchUsageProvider = FutureProvider.autoDispose
-    .family<Map<String, List<BatchUsageRun>>, BatchUsageParams>(
+    .family<Map<String, BatchUsage>, BatchUsageParams>(
   (ref, p) async =>
       manufacturingRepo.batchUsage(itemId: p.itemId, batchNos: p.batchNos),
 );
