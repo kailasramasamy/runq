@@ -298,6 +298,33 @@ class AppLocalizationsTa extends AppLocalizations {
   String get pourDetailAmount => 'தொகை';
 
   @override
+  String get pourDetailShare => 'ரசீதைப் பகிர்';
+
+  @override
+  String get pourDetailShareTitle => 'பால் சேகரிப்பு ரசீது';
+
+  @override
+  String get pourDetailWater => 'தண்ணீர் %';
+
+  @override
+  String get pourDetailGrade => 'தரம்';
+
+  @override
+  String get consignmentShare => 'ரசீதைப் பகிர்';
+
+  @override
+  String get consignmentShareTitle => 'பால் அனுப்புகை ரசீது';
+
+  @override
+  String get consignmentShareDispatched => 'அனுப்பியது';
+
+  @override
+  String get consignmentShareReceived => 'பெறப்பட்டது';
+
+  @override
+  String get consignmentShareRefused => 'மறுக்கப்பட்டது';
+
+  @override
   String get shiftAm => 'AM';
 
   @override

@@ -295,6 +295,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pourDetailAmount => 'Amount';
 
   @override
+  String get pourDetailShare => 'Share receipt';
+
+  @override
+  String get pourDetailShareTitle => 'Milk collection receipt';
+
+  @override
+  String get pourDetailWater => 'Water %';
+
+  @override
+  String get pourDetailGrade => 'Grade';
+
+  @override
+  String get consignmentShare => 'Share receipt';
+
+  @override
+  String get consignmentShareTitle => 'Milk consignment receipt';
+
+  @override
+  String get consignmentShareDispatched => 'Dispatched';
+
+  @override
+  String get consignmentShareReceived => 'Received';
+
+  @override
+  String get consignmentShareRefused => 'Refused';
+
+  @override
   String get shiftAm => 'AM';
 
   @override

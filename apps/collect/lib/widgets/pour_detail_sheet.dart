@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/dhenu_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/mp_models.dart';
@@ -74,6 +75,50 @@ class _PourDetailSheet extends ConsumerWidget {
     }
   }
 
+  /// The receipt as a WhatsApp message.
+  ///
+  /// The slip an operator used to read out or photograph — quantity, quality,
+  /// rate and amount — composed once so what the farmer receives matches this
+  /// sheet exactly. Same wa.me text share as the shift roundup (WhatsApp shows
+  /// its own contact picker), so no extra share dependency.
+  Future<void> _share(BuildContext context) async {
+    final l = AppLocalizations.of(context);
+    final msg = _shareMessage(context, l);
+    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(msg)}');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      showDhenuToast(context, l.helpCouldNotOpen, type: DhenuToastType.error);
+    }
+  }
+
+  /// Structured, one fact per line — what was poured and how it tested, with no
+  /// rate or amount. Pricing is settled per cycle against the rate chart, and a
+  /// per-pour figure sent to a farmer reads as a promise the payout then has to
+  /// argue with. Quality lines appear only where there is a reading: an
+  /// analyzer-less VMCC has none, and blanks would read as a zero-quality pour.
+  String _shareMessage(BuildContext context, AppLocalizations l) {
+    final quality = [
+      if (pour.fat != null) 'FAT ${pour.fat!.toStringAsFixed(1)}',
+      if (pour.snf != null) 'SNF ${pour.snf!.toStringAsFixed(1)}',
+      if (pour.clr != null) 'CLR ${pour.clr!.toStringAsFixed(1)}',
+    ].join(' · ');
+    final shift = pour.shift == Shift.am ? l.shiftAm : l.shiftPm;
+    return [
+      l.pourDetailShareTitle,
+      farmer != null ? farmerName(context, farmer!) : l.pourDetailFarmerFallback,
+      node.name,
+      '',
+      '${prettyDate(pour.collectionDate)} · $shift',
+      '${l.pourDetailMilkType}: ${milkTypeL10n(l, pour.milkType)}',
+      '${l.pourDetailQuantity}: ${litres(pour.qtyLitres, unit: true)}',
+      if (quality.isNotEmpty) quality,
+      if (pour.water != null) '${l.pourDetailWater}: ${pour.water!.toStringAsFixed(1)}',
+      if (pour.qualityGrade != Grade.unknown)
+        '${l.pourDetailGrade}: ${QualityBadge.gradeLetter(pour.qualityGrade)}',
+      if (pour.receiptNo != null) ...['', pour.receiptNo!],
+    ].join('\n');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = DT(context);
@@ -128,6 +173,23 @@ class _PourDetailSheet extends ConsumerWidget {
               if (!reversed) ...[
                 const SizedBox(height: DhenuSpacing.lg),
                 _actions(context, ref, t, l),
+                const SizedBox(height: DhenuSpacing.md),
+                // Sending the receipt on is the common act here — it replaces
+                // reading the figures out — so it gets its own full-width row
+                // rather than competing with Modify / Delete for half of one.
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _share(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: t.brand,
+                      side: BorderSide(color: t.brand.withValues(alpha: 0.5)),
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    icon: const Icon(DhenuIcons.share, size: 18),
+                    label: Text(l.pourDetailShare),
+                  ),
+                ),
               ],
             ]),
           ),

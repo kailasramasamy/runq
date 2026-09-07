@@ -13,6 +13,7 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/quality_badge.dart';
 import '../../utils/friendly_error.dart';
+import 'consignment_share.dart';
 import 'receive_leg.dart';
 import 'rejection_report.dart';
 
@@ -376,14 +377,15 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
           ]),
         ),
       ),
-      if (expanded) _entryDetail(t, l, date, e.key, e.value),
+      if (expanded) _entryDetail(t, l, date, e.key, name, e.value),
     ]);
   }
 
   /// Inline per-shift breakup (replaces the old bottom sheet): each AM/PM/Day leg
   /// with received qty, quality, variance and — on the vmcc→cc leg only — the
   /// effective ₹/L for that shift.
-  Widget _entryDetail(DhenuTokens t, AppLocalizations l, String date, String sourceId, List<MpConsignment> cs) {
+  Widget _entryDetail(DhenuTokens t, AppLocalizations l, String date, String sourceId,
+      String sourceName, List<MpConsignment> cs) {
     final legs = [...cs]..sort((a, b) => _shiftOrder(a.shift).compareTo(_shiftOrder(b.shift)));
     final summary = leg.showRates
         ? ref.watch(nodeDaySummaryProvider((nodeId: sourceId, date: date))).valueOrNull
@@ -400,7 +402,7 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
       child: Column(children: [
         for (var i = 0; i < legs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          _legTile(t, l, legs[i], _rateFor(summary, legs[i], sourceId, date),
+          _legTile(t, l, legs[i], _rateFor(summary, legs[i], sourceId, date), sourceName,
               showMilkType: hasMixedMilkTypes(cs.map((c) => c.milkType))),
         ],
       ]),
@@ -438,7 +440,7 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
       s == Shift.am ? DhenuIcons.sun : s == Shift.pm ? DhenuIcons.moon : DhenuIcons.calendar;
 
   Widget _legTile(DhenuTokens t, AppLocalizations l, MpConsignment c, double? rate,
-      {bool showMilkType = false}) {
+      String sourceName, {bool showMilkType = false}) {
     final isAm = c.shift == Shift.am, isPm = c.shift == Shift.pm;
     // Same vocabulary the dispatch side uses — a null shift is a pooled
     // whole-day tanker, and both ends should call it the same thing.
@@ -491,6 +493,11 @@ class _ReceiveHistoryState extends ConsumerState<ReceiveHistory> {
           const Spacer(),
           Text(l.ccVarianceSuffix('${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}'),
               style: DhenuText.caption.copyWith(color: vColor)),
+          // Per leg, not per day: what the source asks about is one tanker on
+          // one shift, and a day's roll-up cannot answer that.
+          const SizedBox(width: DhenuSpacing.xs),
+          ShareConsignmentButton(
+              consignment: c, sourceName: sourceName, destinationName: node.name),
         ]),
       ]),
     );

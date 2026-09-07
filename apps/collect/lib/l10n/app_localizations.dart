@@ -568,6 +568,60 @@ abstract class AppLocalizations {
   /// **'Amount'**
   String get pourDetailAmount;
 
+  /// No description provided for @pourDetailShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share receipt'**
+  String get pourDetailShare;
+
+  /// No description provided for @pourDetailShareTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk collection receipt'**
+  String get pourDetailShareTitle;
+
+  /// No description provided for @pourDetailWater.
+  ///
+  /// In en, this message translates to:
+  /// **'Water %'**
+  String get pourDetailWater;
+
+  /// No description provided for @pourDetailGrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Grade'**
+  String get pourDetailGrade;
+
+  /// No description provided for @consignmentShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share receipt'**
+  String get consignmentShare;
+
+  /// No description provided for @consignmentShareTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk consignment receipt'**
+  String get consignmentShareTitle;
+
+  /// No description provided for @consignmentShareDispatched.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatched'**
+  String get consignmentShareDispatched;
+
+  /// No description provided for @consignmentShareReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Received'**
+  String get consignmentShareReceived;
+
+  /// No description provided for @consignmentShareRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Refused'**
+  String get consignmentShareRefused;
+
   /// No description provided for @shiftAm.
   ///
   /// In en, this message translates to:

@@ -293,6 +293,33 @@ class AppLocalizationsKn extends AppLocalizations {
   String get pourDetailAmount => 'ಮೊತ್ತ';
 
   @override
+  String get pourDetailShare => 'ರಸೀದಿ ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String get pourDetailShareTitle => 'ಹಾಲು ಸಂಗ್ರಹ ರಸೀದಿ';
+
+  @override
+  String get pourDetailWater => 'ನೀರು %';
+
+  @override
+  String get pourDetailGrade => 'ದರ್ಜೆ';
+
+  @override
+  String get consignmentShare => 'ರಸೀದಿ ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String get consignmentShareTitle => 'ಹಾಲು ರವಾನೆ ರಸೀದಿ';
+
+  @override
+  String get consignmentShareDispatched => 'ರವಾನೆಯಾದದ್ದು';
+
+  @override
+  String get consignmentShareReceived => 'ಸ್ವೀಕರಿಸಿದ್ದು';
+
+  @override
+  String get consignmentShareRefused => 'ನಿರಾಕರಿಸಿದ್ದು';
+
+  @override
   String get shiftAm => 'AM';
 
   @override

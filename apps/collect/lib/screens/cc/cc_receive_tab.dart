@@ -22,6 +22,7 @@ import 'receive_consignment_screen.dart';
 import 'cc_dispatch_tab.dart';
 import '../../widgets/primary_action.dart';
 import '../shared/cancel_leg.dart';
+import '../shared/consignment_share.dart';
 import '../../widgets/slot_pill.dart';
 import '../shared/reject_sheet.dart';
 import '../shared/rejection_report.dart';
@@ -339,13 +340,20 @@ class CcReceiveTab extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      // The action list grew past the default half-screen cap on shorter
+      // phones. Scroll-controlled + scrollable so a sheet that outgrows the
+      // space scrolls instead of clipping its last action.
+      isScrollControlled: true,
       builder: (ctx) => Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.85),
         decoration: BoxDecoration(
           color: t.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(DhenuRadii.sheet)),
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(
                 DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.lg),
             child: Column(
@@ -372,6 +380,15 @@ class CcReceiveTab extends ConsumerWidget {
                 _actionRow(t, DhenuIcons.edit, l.ccReceiveEditReceipt, t.brand, () {
                   Navigator.pop(ctx);
                   _openReceive(context, ref, c, name, editable: true);
+                }),
+                // Send the load back to whoever sent it — what landed and how
+                // it tested, in the app's own words rather than a photo of the
+                // screen or a retyped message that disagrees with it.
+                const SizedBox(height: DhenuSpacing.sm),
+                _actionRow(t, DhenuIcons.share, l.consignmentShare, t.brand, () {
+                  Navigator.pop(ctx);
+                  shareConsignment(context,
+                      consignment: c, sourceName: name, destinationName: node.name);
                 }),
                 // Refusing part of a load is a receiving decision, so it sits
                 // with the other two: correct the figures, hand it back, or
