@@ -36,6 +36,7 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
       ref.invalidate(workOrderDetailProvider(widget.woId));
       ref.invalidate(workOrderListProvider);
       ref.invalidate(mfgDashboardProvider);
+      ref.invalidate(openDrawsProvider);
       context.push('/manufacturing/wos/${wo.id}/run');
     } catch (e) {
       // Same surface the run screen uses for lifecycle failures.

@@ -157,7 +157,14 @@ export interface DrawLine {
   batchNo: string | null;
   qty: number;
   uom: string;
+  /** When the milk was drawn. */
   at: string | null;
+  /**
+   * When the lot itself came into stock — the fact that tells two lots apart.
+   * [at] is the same clock time for every line of one draw and says nothing
+   * about which milk is older.
+   */
+  receivedAt: string | null;
 }
 
 /**

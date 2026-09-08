@@ -40,6 +40,9 @@ Future<void> showMfgMaterialSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    // Root navigator, so the shell's bottom nav cannot paint over the sheet's
+    // own footer button — see showDrawYieldSheet.
+    useRootNavigator: true,
     builder: (_) => MfgMaterialSheet(rows: rows),
   );
 }

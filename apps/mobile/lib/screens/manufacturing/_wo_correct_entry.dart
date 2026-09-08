@@ -71,11 +71,18 @@ Future<void> _reverse(
   );
   // Cancelling leaves you on the detail page, which now reads Cancelled.
   if (!reopen) return;
+  final bomId = wo.bomId;
   // Replaces the detail page: the reversed run is not somewhere to go back to.
+  if (bomId == null) {
+    // A draw has no recipe, so there is nothing to prefill Record Production
+    // with — re-entering one means taking the material again.
+    context.pushReplacement('/manufacturing/draws/new');
+    return;
+  }
   context.pushReplacement(
     '/manufacturing/production/new',
     extra: RecordProductionPrefill(
-      bomId: wo.bomId,
+      bomId: bomId,
       bomCode: wo.bomCode,
       bomName: wo.bomName,
       producedQty: wo.outputQty,

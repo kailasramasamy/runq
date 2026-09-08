@@ -219,10 +219,18 @@ class Bom {
 class WorkOrderListRow {
   final String id;
   final String woNumber;
-  final String bomId;
+
+  /// Null on a draw — material taken before anyone knows the yield, so there
+  /// is no recipe behind the run. Casting this to a non-null String threw on
+  /// the first draw and took the whole list down with it: one unparseable row
+  /// and every work order that day vanished.
+  final String? bomId;
   final String bomCode;
   final String bomName;
   final int bomVersion;
+
+  /// Zero on a draw. There is no plan to deviate from until the yield is in,
+  /// so read [outputQty] for what a closed run actually made.
   final double plannedQty;
   final String outputUom;
   final String outputItemName;
@@ -278,7 +286,7 @@ class WorkOrderListRow {
         id: j['id'] as String,
         woNumber: j['woNumber'] as String,
         entryMode: j['entryMode'] as String? ?? 'planned',
-        bomId: j['bomId'] as String,
+        bomId: j['bomId'] as String?,
         bomCode: (j['bomCode'] as String?) ?? '',
         bomName: (j['bomName'] as String?) ?? '',
         bomVersion: _int(j['bomVersion']),
@@ -366,7 +374,9 @@ class WorkOrderExpectedLine {
 class WorkOrder {
   final String id;
   final String woNumber;
-  final String bomId;
+
+  /// Null on a draw, which has no recipe behind it — see WorkOrderListRow.
+  final String? bomId;
   final String bomCode;
   final String bomName;
   final int bomVersion;
@@ -425,7 +435,7 @@ class WorkOrder {
   factory WorkOrder.fromJson(Map<String, dynamic> j) => WorkOrder(
         id: j['id'] as String,
         woNumber: j['woNumber'] as String,
-        bomId: j['bomId'] as String,
+        bomId: j['bomId'] as String?,
         bomCode: (j['bomCode'] as String?) ?? '',
         bomName: (j['bomName'] as String?) ?? '',
         bomVersion: _int(j['bomVersion']),
@@ -1446,7 +1456,13 @@ class DrawLine {
   final String? batchNo;
   final double qty;
   final String uom;
+
+  /// When the material was drawn.
   final String? at;
+
+  /// When the lot came into stock — what actually separates one lot from
+  /// another. [at] is the same clock time for every line of a single draw.
+  final String? receivedAt;
   const DrawLine({
     required this.inputItemId,
     required this.inputItemName,
@@ -1454,6 +1470,7 @@ class DrawLine {
     required this.qty,
     required this.uom,
     required this.at,
+    required this.receivedAt,
   });
 
   factory DrawLine.fromJson(Map<String, dynamic> j) => DrawLine(
@@ -1463,6 +1480,7 @@ class DrawLine {
         qty: _num(j['qty']),
         uom: (j['uom'] as String?) ?? '',
         at: j['at'] as String?,
+        receivedAt: j['receivedAt'] as String?,
       );
 }
 

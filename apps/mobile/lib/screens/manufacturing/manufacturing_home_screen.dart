@@ -111,7 +111,15 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               // The card used to carry it as a footer, which put the escape
               // hatch ten rows down the page.
               MfgSectionHeader(
-                label: showingFallback ? 'Recently made' : 'Made today',
+                // The date rides the heading, so the rows below need not
+                // repeat it. Every run under "Made today" is from the same
+                // day, and a date block on each one only invited the reader
+                // to wonder why it sometimes differed — it carries the day
+                // the run was worked, which is not always the day it was
+                // scheduled for.
+                label: showingFallback
+                    ? 'Recently made'
+                    : 'Made today · ${_headerDate()}',
                 trailing: (woAsync.valueOrNull?.data.isNotEmpty ?? false)
                     ? TextButton(
                         onPressed: () => context.push('/manufacturing/wos'),
@@ -146,18 +154,35 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                         ),
                       );
                     }
-                    final top = res.data.take(_recentWoLimit).toList();
+                    // An open draw is already sitting above under "Out for
+                    // production", where the one question left is asked
+                    // directly. Listing it here too gave the same run two
+                    // ways to be finished, and finishing it by the second
+                    // left the first still claiming the milk was out.
+                    // It reappears here once closed — it was made today.
+                    final rows = res.data
+                        .where((wo) => !(wo.bomId == null && wo.status == 'in_progress'))
+                        .toList();
+                    if (rows.isEmpty) {
+                      return MfgEmptyState(
+                        icon: Icons.event_available_outlined,
+                        title: 'Nothing made yet',
+                        description: 'Close a draw, or record what was made.',
+                      );
+                    }
+                    final top = rows.take(_recentWoLimit).toList();
                     return MfgDividedCard(
                       children: [
                         for (final wo in top)
                           MfgDocListTile(
                             flat: true,
                             icon: Icons.precision_manufacturing_outlined,
-                            // The day the run was worked, not the day it was
-                            // planned — see _activeDate. Shift is what
-                            // separates one run from the next; the date falls
-                            // back in only when a run carries no shift.
-                            leadingDate: _activeDate(wo),
+                            // Only the fallback list spans more than one day,
+                            // so only it needs a date per row. Under "Made
+                            // today" the heading carries the date and the
+                            // leading block shows the shift, which is what
+                            // actually separates one run from the next.
+                            leadingDate: showingFallback ? _activeDate(wo) : null,
                             leadingShift: showingFallback ? null : wo.shift,
                             title: wo.outputItemName,
                             subtitle: wo.bomName,
@@ -348,6 +373,13 @@ class _RecentSkeleton extends StatelessWidget {
       )),
     );
   }
+}
+
+/// Today, as the section heading writes it: `8 Sep`.
+String _headerDate() {
+  final d = DateTime.now();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return '${d.day} ${months[d.month - 1]}';
 }
 
 /// The day a run was actually worked, falling back to the day it was planned.

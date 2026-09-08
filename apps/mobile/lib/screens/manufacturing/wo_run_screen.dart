@@ -53,6 +53,13 @@ class _WoRunScreenState extends ConsumerState<WoRunScreen>
     ref.invalidate(woConsumptionProvider(widget.woId));
     ref.invalidate(woOutputProvider(widget.woId));
     ref.invalidate(woPreviewProvider(widget.woId));
+    ref.invalidate(workOrderListProvider);
+    // A recipe-less run is a draw, and closing one here has to clear it from
+    // the home screen's "Out for production" card. Without this the milk sat
+    // there as still-out long after the run that consumed it was closed.
+    ref.invalidate(openDrawsProvider);
+    ref.invalidate(mfgDashboardProvider);
+    ref.invalidate(batchUsageProvider);
     // Consuming and posting output moves stock, so the mfg home behind this
     // screen (raw materials on hand, perishables) is stale too.
     invalidateStockViews(ref);

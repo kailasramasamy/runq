@@ -33,6 +33,13 @@ Future<bool?> showDrawYieldSheet(BuildContext context, DrawRow draw) =>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // On the ROOT navigator, or the shell's own bottom nav lands on top of
+      // this sheet's footer. Opened from the home screen the sheet is a route
+      // inside RootShell's Scaffold *body*, and a Scaffold paints its
+      // bottomNavigationBar after the body and lifts it above the keyboard —
+      // straight over the Done button, which then washed out and swallowed
+      // every tap while looking for all the world like it was disabled.
+      useRootNavigator: true,
       builder: (_) => DrawYieldSheet(draw: draw),
     );
 
@@ -63,97 +70,214 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
         ? null
         : ref.watch(drawYieldHintProvider(d.outputItemId!)).asData?.value;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.bgWarm,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        child: SafeArea(
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    // The surface runs the full height and continues *behind* the keypad
+    // rather than stopping above it. Padding the whole sheet up by the
+    // keyboard inset left a strip of dimmed barrier between the two — a hole
+    // between the sheet's bottom edge and the keyboard's top. Extending
+    // underneath and insetting only the content leaves them reading as one
+    // panel.
+    return Container(
+      constraints: BoxConstraints(maxHeight: media.size.height * 0.94),
+      decoration: BoxDecoration(
+        color: t.bgWarm,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      child: SafeArea(
+        top: false,
+        // The keypad already covers the home indicator, so the safe area is
+        // only owed when it is down.
+        bottom: keyboard == 0,
+        child: Padding(
+          // Content sits above the keypad; the background behind it does not.
+          padding: EdgeInsets.only(bottom: keyboard),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _grabber(t),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('What came out?',
-                    style: RunqText.h3.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(d.outputItemName,
-                    style: RunqText.body.copyWith(color: t.muted)),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: _drawnCard(t, d),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _qtyField(t, d, hint),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: MfgPrimaryButton(
-                  label: 'Done',
-                  icon: Icons.check_rounded,
-                  loading: _busy,
-                  onPressed: _canSubmit ? _submit : null,
-                ),
+            _header(t, d),
+            // The middle scrolls; the footer does not. On a short phone with
+            // the number pad up there is no room for both, and the button is
+            // the half that must survive.
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                children: [
+                  _drawnCard(t, d),
+                  const SizedBox(height: 12),
+                  _qtyField(t, d, hint),
+                ],
               ),
             ),
+            _footer(t),
           ]),
         ),
       ),
     );
   }
 
+  /// The product, with the unit it is counted in beside it — "45" means
+  /// nothing until you know it is 45 of a 200g pack.
+  Widget _header(RunqTokens t, DrawRow d) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('What came out?',
+              style: RunqText.h3.copyWith(color: t.ink, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: d.outputItemName,
+                style: RunqText.body.copyWith(color: t.ink),
+              ),
+              if (d.outputUom.isNotEmpty)
+                TextSpan(
+                  text: '  ${d.outputUom}',
+                  style: RunqText.body.copyWith(color: t.muted),
+                ),
+            ]),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ]),
+      );
+
+  /// Done, and — when it is not available — the one thing still missing.
+  /// A greyed button with no explanation is the most common way a form
+  /// strands somebody.
+  Widget _footer(RunqTokens t) {
+    final blocker = _blocker;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border(top: BorderSide(color: t.hairline)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Above the button, not below it: the reason a control is unavailable
+        // has to be read before reaching for it, and anything under the
+        // button competes with the keyboard for the last strip of screen.
+        if (blocker != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: MfgColors.orangeAlertBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Icon(Icons.info_outline_rounded,
+                  size: 14, color: MfgColors.orangeAlert),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  blocker,
+                  style: RunqText.caption.copyWith(
+                    color: MfgColors.orangeAlert,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: MfgPrimaryButton(
+            label: 'Done',
+            icon: Icons.check_rounded,
+            loading: _busy,
+            onPressed: blocker == null ? _submit : null,
+          ),
+        ),
+      ]),
+    );
+  }
+
   /// What went in, so the number being typed has something to sit against.
+  ///
+  /// Lots are named by when they were received, not by consignment number: on
+  /// a floor "5 Sep, 7:18 PM" places a can instantly and CON/2026-27/01901
+  /// places nothing. Oldest first, which is the order it should have been
+  /// drawn in.
   Widget _drawnCard(RunqTokens t, DrawRow d) => MfgCard(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.outbox_outlined, size: 15, color: t.muted),
+            Icon(Icons.outbox_outlined, size: 16, color: MfgColors.brand(context)),
             const SizedBox(width: 8),
             Expanded(
-              // Named from the draw rather than fixed as "milk": the same
-              // screen closes a coconut-oil or jaggery draw, and a label that
-              // says milk over a drum of oil is simply wrong.
               child: Text(
-                d.lines.isEmpty ? 'Taken' : '${d.lines.first.inputItemName} taken',
+                // Named from the draw rather than fixed as "milk": the same
+                // screen closes a coconut-oil or jaggery draw.
+                d.lines.isEmpty ? 'Taken' : d.lines.first.inputItemName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: RunqText.caption.copyWith(color: t.muted),
+                style: RunqText.bodyStrong.copyWith(color: t.ink),
               ),
             ),
             Text(
               '${formatItemQty(d.drawnQty, null, unit: d.drawnUom)}'
               '${d.drawnUom.isEmpty ? '' : ' ${d.drawnUom}'}',
-              style: RunqText.bodyStrong.copyWith(color: t.ink),
+              style: RunqText.bodyStrong.copyWith(color: MfgColors.brand(context)),
             ),
           ]),
-          for (final l in d.lines)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, left: 23),
-              child: Row(children: [
-                Expanded(
-                  child: Text(
-                    [l.batchNo ?? 'No batch', ?arrivalStamp(l.at)].join('  ·  '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.micro.copyWith(color: t.muted2),
+          // One line per lot only when there is more than one — a single-lot
+          // draw would just restate the total underneath itself.
+          if (d.lines.length > 1) ...[
+            const SizedBox(height: 8),
+            Divider(height: 1, color: t.hairline),
+            const SizedBox(height: 6),
+            Text('FROM', style: RunqText.micro.copyWith(color: t.muted2, letterSpacing: 0.3)),
+            for (final l in d.lines)
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Row(children: [
+                  Container(
+                    width: 4,
+                    height: 4,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(color: t.muted2, shape: BoxShape.circle),
                   ),
-                ),
-                Text(
-                  '${formatItemQty(l.qty, null, unit: l.uom)}'
-                  '${l.uom.isEmpty ? '' : ' ${l.uom}'}',
-                  style: RunqText.micro.copyWith(color: t.muted),
-                ),
-              ]),
+                  Expanded(
+                    child: Text(
+                      _receivedLabel(l),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: RunqText.caption.copyWith(color: t.muted),
+                    ),
+                  ),
+                  Text(
+                    '${formatItemQty(l.qty, null, unit: l.uom)}'
+                    '${l.uom.isEmpty ? '' : ' ${l.uom}'}',
+                    style: RunqText.caption.copyWith(
+                        color: t.ink, fontWeight: FontWeight.w600),
+                  ),
+                ]),
+              ),
+          ] else if (d.lines.length == 1) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: Text(
+                _receivedLabel(d.lines.first),
+                style: RunqText.caption.copyWith(color: t.muted),
+              ),
             ),
+          ],
         ]),
       );
+
+  /// "Received 5 Sep, 7:18 PM", falling back to the batch number only when the
+  /// lot has no recorded arrival — a code beats nothing, but only just.
+  static String _receivedLabel(DrawLine l) {
+    final stamp = arrivalStamp(l.receivedAt);
+    if (stamp != null) return 'Received $stamp';
+    return l.batchNo ?? 'No batch';
+  }
 
   Widget _qtyField(RunqTokens t, DrawRow d, DrawYieldHint? hint) {
     final needsExpiry = _tracksBatches;
@@ -167,7 +291,11 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
         style: RunqText.h2.copyWith(color: t.ink),
         onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
-          labelText: 'Made (${d.outputUom})',
+          labelText: 'Quantity made',
+          // The unit rides the field rather than the label: "45" and "200g"
+          // read as one figure that way, and the label stays a label.
+          suffixText: d.outputUom.isEmpty ? null : d.outputUom,
+          suffixStyle: RunqText.body.copyWith(color: RT(context).muted),
           filled: true,
           fillColor: t.surface,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -241,11 +369,14 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
   /// belt-and-braces path for stock whose flag changed under an open draw.
   bool _expiryRequired = false;
 
-  bool get _canSubmit {
+  /// What is stopping the submit, or null when nothing is. Returning the
+  /// reason rather than a bool is what lets the footer explain itself.
+  String? get _blocker {
+    if (_busy) return null;
     final qty = double.tryParse(_qtyCtl.text.trim()) ?? 0;
-    if (qty <= 0) return false;
-    if (_tracksBatches && _expiry == null) return false;
-    return !_busy;
+    if (qty <= 0) return 'Enter how much was made';
+    if (_tracksBatches && _expiry == null) return 'Set the expiry date';
+    return null;
   }
 
   Future<void> _pickExpiry() async {
@@ -270,8 +401,16 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
       );
       ref.invalidate(openDrawsProvider);
       ref.invalidate(mfgDashboardProvider);
-      ref.invalidate(invOnHandProvider(
-          (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')));
+      // Closing a draw finishes a run, so the home screen's "Made today" card
+      // and the work-order list behind it are both stale. Invalidating only
+      // the open-draw list left the run invisible until a manual refresh —
+      // the operator recorded a yield and the screen showed nothing for it.
+      ref.invalidate(workOrderListProvider);
+      // The lot the milk came from has a new entry under "made from this lot".
+      ref.invalidate(batchUsageProvider);
+      // Output lands in stock and the draw's inputs already left it, so every
+      // stock view behind this sheet is stale too.
+      invalidateStockViews(ref);
       if (!mounted) return;
       showRunqSnack(
         context,

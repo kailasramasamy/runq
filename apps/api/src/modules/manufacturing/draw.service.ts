@@ -21,9 +21,9 @@
  * orders lots soonest-expiry-first as a hint and leaves the choice alone.
  */
 
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
-  items, warehouses, workOrders, woConsumption, woOutput,
+  items, warehouses, workOrders, woConsumption, woOutput, stockLedger,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { ConflictError, NotFoundError, UnprocessableError } from '../../utils/errors';
@@ -337,6 +337,14 @@ export class DrawService {
       )
       .orderBy(asc(woConsumption.consumedAt));
 
+    // When each lot came into stock. The consumption row only knows when the
+    // milk was *drawn*, which on a single draw is the same clock time for
+    // every lot and says nothing about which is older — the receipt time is
+    // the fact the floor actually reads.
+    const receivedAt = await this.receivedAtMap(
+      lines.map((l) => ({ itemId: l.inputItemId, batchNo: l.batchNo })),
+    );
+
     return rows.map((r) => {
       const mine = lines.filter((l) => l.woId === r.id);
       return {
@@ -344,16 +352,61 @@ export class DrawService {
         outputQty: Number(r.outputQty ?? 0),
         drawnQty: mine.reduce((s, l) => s + Number(l.qty), 0),
         drawnUom: mine[0]?.uom ?? '',
-        lines: mine.map((l) => ({
-          inputItemId: l.inputItemId,
-          inputItemName: l.inputItemName,
-          batchNo: l.batchNo,
-          qty: Number(l.qty),
-          uom: l.uom,
-          at: l.at?.toISOString() ?? null,
-        })),
+        lines: mine
+            .map((l) => ({
+              inputItemId: l.inputItemId,
+              inputItemName: l.inputItemName,
+              batchNo: l.batchNo,
+              qty: Number(l.qty),
+              uom: l.uom,
+              at: l.at?.toISOString() ?? null,
+              receivedAt: receivedAt.get(`${l.inputItemId}|${l.batchNo ?? ''}`) ?? null,
+            }))
+            // Oldest stock first — the order it should have been drawn in, and
+            // the order it reads in on the card.
+            .sort((a, b) => (a.receivedAt ?? '').localeCompare(b.receivedAt ?? '')),
       };
     });
+  }
+
+  /**
+   * Earliest inbound posting per (item, batch) — when the lot landed.
+   *
+   * Mirrors StockQueryService.batchReceivedMap: `moved_at` carries the
+   * business date and is midnight for a milk receipt, so `posted_at` is the
+   * only column that can tell two of the same day's lots apart.
+   */
+  private async receivedAtMap(
+    keys: Array<{ itemId: string; batchNo: string | null }>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const wanted = keys.filter((k) => k.batchNo);
+    if (wanted.length === 0) return out;
+
+    const rows = await this.db
+      .select({
+        itemId: stockLedger.itemId,
+        batchNo: stockLedger.batchNo,
+        at: sql<string | null>`MIN(${stockLedger.postedAt})::text`,
+      })
+      .from(stockLedger)
+      .where(
+        and(
+          eq(stockLedger.tenantId, this.tenantId),
+          inArray(stockLedger.itemId, Array.from(new Set(wanted.map((k) => k.itemId)))),
+          inArray(stockLedger.batchNo, Array.from(new Set(wanted.map((k) => k.batchNo!)))),
+          sql`${stockLedger.qtyIn} > 0`,
+        ),
+      )
+      .groupBy(stockLedger.itemId, stockLedger.batchNo);
+
+    for (const r of rows) {
+      if (!r.batchNo || !r.at) continue;
+      const d = new Date(r.at);
+      if (Number.isNaN(d.getTime())) continue;
+      out.set(`${r.itemId}|${r.batchNo}`, d.toISOString());
+    }
+    return out;
   }
 
   private async loadOpenDraw(id: string) {
