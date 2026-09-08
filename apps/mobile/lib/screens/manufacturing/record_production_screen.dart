@@ -21,7 +21,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/api_client.dart';
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../services/wo_run_queue.dart';
 import '../../theme/runq_theme.dart';
@@ -124,7 +123,7 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   /// pick it each time is a tap that can only be got wrong. Falls back to the
   /// sole warehouse when none is flagged default. Mirrors wo_create_screen.
   Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(invWarehousesProvider.future);
+    final whs = await ref.read(mfgWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);
@@ -379,7 +378,7 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
     ref.invalidate(mfgDashboardProvider);
     // A run consumes inputs and posts an output batch, so every stock view
     // behind us (raw materials on hand, perishables) is stale.
-    invalidateStockViews(ref);
+    invalidateMfgStock(ref);
     final posted = woNumber.isEmpty ? 'Production posted' : 'Posted as $woNumber';
     showRunqSnack(
       context,

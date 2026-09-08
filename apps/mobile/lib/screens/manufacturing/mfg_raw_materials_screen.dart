@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/inventory_models.dart';
-import '../../providers/inventory_providers.dart';
+import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../inventory/batch_detail_sheet.dart';
@@ -11,14 +11,14 @@ import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 import '../../utils/format_qty.dart';
 
-/// Every input a work order can draw from, batch by batch — inside the
-/// Manufacturing module rather than sending the planner over to Inventory and
-/// losing their place mid-run.
+/// What the plant has, on both sides of a run: the materials it can draw and
+/// the goods it has made.
 ///
-/// Reads the `inputs` item-class group (raw_material + packaging), which is
-/// exactly the set consumption pulls from, so nothing here is un-consumable.
-/// The two classes are then split by a chip strip — a planner chasing bottles
-/// should not have to scroll past every drum of oil to find them.
+/// The floor is granted `manufacturing` and nothing else, so this is the only
+/// stock view they can reach — hence both shelves live here rather than one
+/// here and one in Inventory. `inputs` is raw_material + packaging, exactly
+/// what consumption pulls from; `finished` is finished_good + semi_finished,
+/// which is what a run puts back, unpacked paneer included.
 class MfgRawMaterialsScreen extends ConsumerStatefulWidget {
   const MfgRawMaterialsScreen({super.key});
 
@@ -26,11 +26,39 @@ class MfgRawMaterialsScreen extends ConsumerStatefulWidget {
   ConsumerState<MfgRawMaterialsScreen> createState() => _MfgRawMaterialsScreenState();
 }
 
+/// The two shelves, and the class chips that subdivide each. Made goods split
+/// into packed and unpacked because those are different questions: one is what
+/// can ship, the other is what still has to be packed.
+const _shelves = <({String group, String label, List<({String? cls, String label})> chips})>[
+  (
+    group: 'inputs',
+    label: 'Raw materials',
+    chips: [
+      (cls: null, label: 'All'),
+      (cls: 'raw_material', label: 'Raw material'),
+      (cls: 'packaging', label: 'Packaging'),
+    ],
+  ),
+  (
+    group: 'finished',
+    label: 'Made',
+    chips: [
+      (cls: null, label: 'All'),
+      (cls: 'finished_good', label: 'Packed'),
+      (cls: 'semi_finished', label: 'Unpacked'),
+    ],
+  ),
+];
+
 class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
   final _searchCtrl = TextEditingController();
   String _search = '';
-  /// null = the whole 'inputs' group. Filtered client-side: the group is
-  /// already fetched whole, so a class chip costs no extra round trip.
+
+  /// Which shelf is showing — an index into [_shelves].
+  int _shelf = 0;
+
+  /// null = the whole group. Filtered client-side: the group is already
+  /// fetched whole, so a class chip costs no extra round trip.
   String? _itemClass;
 
   @override
@@ -42,8 +70,9 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
-    final args = (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs');
-    final async = ref.watch(invOnHandProvider(args));
+    final shelf = _shelves[_shelf];
+    final args = (warehouseId: null, itemClassGroup: shelf.group);
+    final async = ref.watch(mfgStockProvider(args));
 
     return Scaffold(
       backgroundColor: t.bgWarm,
@@ -52,12 +81,13 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
         child: RefreshIndicator(
           color: MfgColors.brand(context),
           onRefresh: () async {
-            ref.invalidate(invOnHandProvider(args));
+            ref.invalidate(mfgStockProvider(args));
             await Future<void>.delayed(const Duration(milliseconds: 200));
           },
           child: Column(children: [
             // A bottom-nav tab, so no back arrow — there is nothing behind it.
-            const MfgPlainAppBar(title: 'Raw materials', showBack: false),
+            const MfgPlainAppBar(title: 'Stock', showBack: false),
+            _shelfSwitcher(t),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: MfgSearchBar(
@@ -72,17 +102,13 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  for (final c in const [
-                    (itemClass: null, label: 'All'),
-                    (itemClass: 'raw_material', label: 'Raw material'),
-                    (itemClass: 'packaging', label: 'Packaging'),
-                  ])
+                  for (final c in shelf.chips)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: MfgFilterChip(
                         label: c.label,
-                        selected: _itemClass == c.itemClass,
-                        onTap: () => setState(() => _itemClass = c.itemClass),
+                        selected: _itemClass == c.cls,
+                        onTap: () => setState(() => _itemClass = c.cls),
                       ),
                     ),
                 ],
@@ -106,6 +132,53 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     );
   }
 
+  /// Raw materials | Made. A segmented control rather than chips, because the
+  /// two are different questions rather than filters on one list — and the
+  /// class chips below are already chips.
+  Widget _shelfSwitcher(RunqTokens t) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: t.bgWarm,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: t.hairline),
+          ),
+          child: Row(children: [
+            for (var i = 0; i < _shelves.length; i++)
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _shelf = i;
+                    // The class chips belong to the shelf, so a stale one
+                    // would filter the new list to nothing.
+                    _itemClass = null;
+                  }),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _shelf == i ? t.surface : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: _shelf == i
+                          ? Border.all(color: MfgColors.brand(context).withValues(alpha: 0.35))
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _shelves[i].label,
+                      style: RunqText.caption.copyWith(
+                        color: _shelf == i ? MfgColors.brand(context) : t.muted,
+                        fontWeight: _shelf == i ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      );
+
   Widget _list(RunqTokens t, List<InvOnHandRow> everything) {
     final all = _itemClass == null
         ? everything
@@ -118,11 +191,16 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
                 r.batchNo.toLowerCase().contains(_search))
             .toList();
     if (rows.isEmpty) {
+      final madeShelf = _shelves[_shelf].group == 'finished';
       return MfgEmptyState(
         icon: Icons.inventory_2_outlined,
-        title: all.isEmpty ? 'No raw materials in stock' : 'No match',
+        title: all.isEmpty
+            ? (madeShelf ? 'Nothing made yet' : 'No raw materials in stock')
+            : 'No match',
         description: all.isEmpty
-            ? 'A work order will have nothing to consume until stock arrives.'
+            ? (madeShelf
+                ? 'Close a draw or record a run, and what it made shows up here.'
+                : 'A work order will have nothing to consume until stock arrives.')
             : 'Nothing matches "$_search".',
       );
     }
@@ -132,6 +210,7 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     // a third. A flat list ordered by quantity put jaggery between two milks
     // for no reason a reader could see.
     final groups = _groupByCategory(rows);
+    final madeShelf = _shelves[_shelf].group == 'finished';
 
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -145,14 +224,71 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
               style: RunqText.caption.copyWith(color: t.muted2),
             ),
           ),
-          for (final batches in g.items)
+          // Made goods are a list, not a stack of cards: a finished SKU is a
+          // name and a number, and the lots behind it are a question you ask
+          // by tapping. Raw materials keep their per-item card, where the
+          // batch pool is the point — that is what a run draws from.
+          if (madeShelf)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: _itemCard(t, batches),
-            ),
+              child: MfgCard(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: Column(children: [
+                  for (var i = 0; i < g.items.length; i++) ...[
+                    if (i > 0) Divider(color: t.hairline, height: 1),
+                    _madeRow(t, g.items[i]),
+                  ],
+                ]),
+              ),
+            )
+          else
+            for (final batches in g.items)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: _itemCard(t, batches),
+              ),
           const SizedBox(height: 6),
         ],
       ],
+    );
+  }
+
+  /// One made item. The unit belongs to the name — "A2 Desi Cow Curd 400g" is
+  /// the SKU as the floor says it, and 25 is how many of it there are.
+  Widget _madeRow(RunqTokens t, List<InvOnHandRow> batches) {
+    final first = batches.first;
+    final qty = _totalQty(batches);
+    final unit = first.itemUnit ?? '';
+    return InkWell(
+      onTap: () => showMfgMaterialSheet(context, rows: batches),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Row(children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                  text: first.itemName,
+                  style: RunqText.body.copyWith(color: t.ink),
+                ),
+                if (unit.isNotEmpty)
+                  TextSpan(
+                    text: '  $unit',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                  ),
+              ]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _trimQty(qty, first.itemUnit),
+            style: RunqText.bodyStrong.copyWith(color: t.ink),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
+        ]),
+      ),
     );
   }
 
@@ -206,6 +342,7 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
                 expiryDate: b.expiryDate,
                 warehouseName: b.warehouseName,
                 origin: b.origin,
+                viaManufacturing: true,
               ),
             ),
           ),

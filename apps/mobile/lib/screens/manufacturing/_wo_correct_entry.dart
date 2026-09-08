@@ -16,7 +16,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../api/api_client.dart';
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../widgets/runq_snack.dart';
 import 'record_production_screen.dart';
@@ -59,7 +58,7 @@ Future<void> _reverse(
   ref.invalidate(workOrderDetailProvider(wo.id));
   ref.invalidate(workOrderListProvider);
   ref.invalidate(mfgDashboardProvider);
-  invalidateStockViews(ref);
+  invalidateMfgStock(ref);
 
   if (!context.mounted) return;
   showRunqSnack(

@@ -25,7 +25,6 @@ import 'package:go_router/go_router.dart';
 import '../../api/api_client.dart';
 import '../../api/inventory_models.dart';
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -75,7 +74,7 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
   /// sole warehouse when none is flagged default. Mirrors
   /// record_production_screen and wo_create_screen.
   Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(invWarehousesProvider.future);
+    final whs = await ref.read(mfgWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);
@@ -98,8 +97,7 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
   Widget build(BuildContext context) {
     final t = RT(context);
     final rows = ref
-            .watch(invOnHandProvider(
-                (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')))
+            .watch(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')))
             .asData
             ?.value ??
         const <InvOnHandRow>[];
@@ -324,8 +322,7 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
               lines: lines,
             );
       ref.invalidate(openDrawsProvider);
-      ref.invalidate(invOnHandProvider(
-          (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')));
+      ref.invalidate(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')));
       if (!mounted) return;
       showRunqSnack(
         context,

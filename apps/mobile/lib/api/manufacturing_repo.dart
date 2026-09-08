@@ -3,6 +3,8 @@
 // `apiClient` singleton as `purchase_repo.dart`.
 
 import 'api_client.dart';
+import 'inventory_models.dart' show InvOnHandRow, InvWarehouse;
+import 'inventory_movement_models.dart' show InvMovementPage, InvMovementQuery;
 import 'manufacturing_models.dart';
 import '../services/wo_run_queue.dart';
 
@@ -512,6 +514,58 @@ class ManufacturingRepo {
           batch,
           BatchUsage.fromJson((usage as Map).cast<String, dynamic>()),
         ));
+  }
+
+  // ── Stock, through the manufacturing gate ───────────────────────────────
+  //
+  // The floor is granted `manufacturing` and nothing else, and every
+  // /inventory/* route 403s for them. These read the same data through the
+  // module they do have — see apps/api/.../manufacturing/stock.routes.ts.
+
+  /// What is on hand. `itemClassGroup` picks the shelf: `inputs` is what a run
+  /// can draw from, `finished` is what it produced.
+  Future<List<InvOnHandRow>> stockOnHand({
+    String? warehouseId,
+    String? itemClassGroup,
+  }) async {
+    final qp = <String, String>{};
+    if (warehouseId != null && warehouseId.isNotEmpty) qp['warehouseId'] = warehouseId;
+    if (itemClassGroup != null && itemClassGroup != 'all') {
+      qp['itemClassGroup'] = itemClassGroup;
+    }
+    final qs = qp.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final res = await apiClient.get('/manufacturing/stock${qs.isEmpty ? '' : '?$qs'}');
+    return ((res['data'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvOnHandRow.fromJson)
+        .toList();
+  }
+
+  /// One lot's movement trail — the "full history" behind a stock row.
+  Future<InvMovementPage> itemMovements(InvMovementQuery q) async {
+    final qp = <String, String>{'page': '${q.page}', 'limit': '50'};
+    if (q.warehouseId != null) qp['warehouseId'] = q.warehouseId!;
+    if (q.batchNo != null) qp['batchNo'] = q.batchNo!;
+    if (q.direction != null) qp['direction'] = q.direction!;
+    if (q.group != null) qp['group'] = q.group!;
+    if (q.type != null) qp['type'] = q.type!;
+    if (q.from != null) qp['from'] = q.from!;
+    if (q.to != null) qp['to'] = q.to!;
+    final qs = qp.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final res = await apiClient.get('/manufacturing/stock/items/${q.itemId}/movements?$qs');
+    return InvMovementPage.fromJson((res['data'] as Map).cast<String, dynamic>());
+  }
+
+  Future<List<InvWarehouse>> warehouses() async {
+    final res = await apiClient.get('/manufacturing/warehouses');
+    return ((res['data'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(InvWarehouse.fromJson)
+        .toList();
   }
 
   // ── Draws ───────────────────────────────────────────────────────────────

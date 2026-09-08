@@ -17,7 +17,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/inventory_models.dart';
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -92,9 +91,8 @@ class WoMaterialsCard extends ConsumerWidget {
 
   Widget _draftCard(BuildContext context, WidgetRef ref, RunqTokens t) {
     final stock = ref
-            .watch(invOnHandProvider((
+            .watch(mfgStockProvider((
               warehouseId: wo.warehouseId,
-              lowOnly: false,
               itemClassGroup: 'inputs',
             )))
             .asData

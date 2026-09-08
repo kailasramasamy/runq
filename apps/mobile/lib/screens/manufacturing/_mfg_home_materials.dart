@@ -24,8 +24,7 @@ class _RawMaterialsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final async = ref.watch(invOnHandProvider(
-        (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')));
+    final async = ref.watch(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')));
 
     // A failed fetch used to collapse to nothing — the section read
     // `.asData?.value ?? []` and then hid itself on an empty list, so a broken

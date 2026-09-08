@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../api/inventory_models.dart';
 import '../../api/manufacturing_models.dart';
 import '../../api/manufacturing_repo.dart';
-import '../../providers/inventory_providers.dart';
 import '../../services/wo_run_queue.dart' show EnqueueOutcome;
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
@@ -119,7 +118,7 @@ class _WoRunSimpleScreenState extends ConsumerState<WoRunSimpleScreen> {
     ref.invalidate(mfgDashboardProvider);
     // On-hand isn't the only stale view after a run — perishables and the
     // stock highlights move with it.
-    invalidateStockViews(ref);
+    invalidateMfgStock(ref);
   }
 
   /// Oldest-first batch allocation for every BOM line. Returns null and explains
@@ -167,8 +166,8 @@ class _WoRunSimpleScreenState extends ConsumerState<WoRunSimpleScreen> {
     final stock = wh == null
         ? const <InvOnHandRow>[]
         : ref
-                .watch(invOnHandProvider(
-                    (warehouseId: wh, lowOnly: false, itemClassGroup: 'inputs')))
+                .watch(mfgStockProvider(
+                    (warehouseId: wh, itemClassGroup: 'inputs')))
                 .asData
                 ?.value ??
             const <InvOnHandRow>[];

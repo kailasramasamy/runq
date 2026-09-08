@@ -28,7 +28,7 @@ List<MenuItem> _items(WidgetRef ref) {
           Color(0xFFDC2626), '/manufacturing/reports/write-offs'),
     const MenuItem(Icons.layers_outlined, 'Input pool', Color(0xFF2563EB),
         '/manufacturing/input-pool'),
-    const MenuItem(Icons.inventory_2_outlined, 'Raw materials',
+    const MenuItem(Icons.inventory_2_outlined, 'Stock',
         Color(0xFF0891B2), '/manufacturing/raw-materials', isTab: true),
     const MenuItem(Icons.recycling_rounded, 'Reclaim stock',
         Color(0xFF16A34A), '/manufacturing/reclaims/new'),

@@ -22,8 +22,7 @@ class _HeroCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final d = dashboard.maybeWhen(data: (v) => v, orElse: () => null);
     final inputs = ref
-            .watch(invOnHandProvider(
-                (warehouseId: null, lowOnly: false, itemClassGroup: 'inputs')))
+            .watch(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')))
             .asData
             ?.value ??
         const <InvOnHandRow>[];

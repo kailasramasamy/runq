@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../api/notifications_repo.dart';
 import '../../providers/auth_provider.dart';
 import '../../api/inventory_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../api/manufacturing_models.dart' show WorkOrderListRow;
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
@@ -78,11 +77,7 @@ class ManufacturingHomeScreen extends ConsumerWidget {
               ref.refresh(workOrderListProvider(const WoListParams()).future),
               ref.refresh(
                   workOrderListProvider(const WoListParams(status: 'draft')).future),
-              ref.refresh(invOnHandProvider((
-                warehouseId: null,
-                lowOnly: false,
-                itemClassGroup: 'inputs',
-              )).future),
+              ref.refresh(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')).future),
               // The bell reads scopedUnreadCountProvider, which derives from
               // this — it was never refreshed before, so the count went stale.
               ref.refresh(openDrawsProvider.future),

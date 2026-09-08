@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../services/wo_run_queue.dart';
 import '../../theme/runq_theme.dart';
@@ -62,7 +61,7 @@ class _WoRunScreenState extends ConsumerState<WoRunScreen>
     ref.invalidate(batchUsageProvider);
     // Consuming and posting output moves stock, so the mfg home behind this
     // screen (raw materials on hand, perishables) is stale too.
-    invalidateStockViews(ref);
+    invalidateMfgStock(ref);
   }
 
   Future<void> _startWo() async {

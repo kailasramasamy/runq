@@ -22,7 +22,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/manufacturing_models.dart';
 import '../../api/manufacturing_repo.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -67,7 +66,7 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
   }
 
   Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(invWarehousesProvider.future);
+    final whs = await ref.read(mfgWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);
@@ -110,7 +109,7 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
       final posted = await manufacturingRepo.postReclaim(draft.id);
       if (!mounted) return;
 
-      invalidateStockViews(ref);
+      invalidateMfgStock(ref);
       ref.invalidate(mfgDashboardProvider);
       ref.invalidate(reclaimOptionsProvider);
 

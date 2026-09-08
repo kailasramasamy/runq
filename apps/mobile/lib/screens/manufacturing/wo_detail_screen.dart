@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '_wo_run_close_dialog.dart';
 import '../../api/manufacturing_models.dart';
 import '../../api/manufacturing_repo.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -93,7 +92,7 @@ class _WoDetailScreenState extends ConsumerState<WoDetailScreen> {
       ref.invalidate(workOrderDetailProvider(widget.woId));
       ref.invalidate(workOrderListProvider);
       ref.invalidate(mfgDashboardProvider);
-      ref.invalidate(invOnHandProvider);
+      ref.invalidate(mfgStockProvider);
       showRunqSnack(context, 'Work order closed — GL posted', kind: SnackKind.success);
     } catch (e) {
       if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);

@@ -4,6 +4,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/manufacturing_models.dart';
 import '../api/manufacturing_repo.dart';
+import '../api/inventory_models.dart' show InvOnHandRow, InvWarehouse;
+import '../api/inventory_movement_models.dart' show InvMovementPage, InvMovementQuery;
 import 'auth_provider.dart';
 
 export '../api/manufacturing_repo.dart' show manufacturingRepo;
@@ -343,3 +345,42 @@ final drawYieldHintProvider =
     FutureProvider.autoDispose.family<DrawYieldHint?, String>(
   (ref, outputItemId) async => manufacturingRepo.drawYieldHint(outputItemId),
 );
+
+// ── Stock, read through the manufacturing gate ────────────────────────────
+//
+// The shop floor is granted `manufacturing` and nothing else, so every
+// /inventory/* provider 403s for them. These carry the same rows through the
+// module they do have. Owners see no difference.
+
+/// Which shelf a stock view is asking about.
+typedef MfgStockArgs = ({String? warehouseId, String itemClassGroup});
+
+/// On-hand rows for one item-class group — `inputs` for what a run can draw,
+/// `finished` for what it made.
+final mfgStockProvider =
+    FutureProvider.autoDispose.family<List<InvOnHandRow>, MfgStockArgs>(
+  (ref, a) async => manufacturingRepo.stockOnHand(
+    warehouseId: a.warehouseId,
+    itemClassGroup: a.itemClassGroup,
+  ),
+);
+
+/// A lot's movement trail, for the batch sheet's "full history".
+final mfgItemMovementsProvider = FutureProvider.autoDispose
+    .family<InvMovementPage, InvMovementQuery>(
+  (ref, q) async => manufacturingRepo.itemMovements(q),
+);
+
+/// Warehouses, for the pickers on every manufacturing form.
+final mfgWarehousesProvider = FutureProvider.autoDispose<List<InvWarehouse>>(
+  (ref) async => manufacturingRepo.warehouses(),
+);
+
+/// Everything a stock movement invalidates inside this module. The Inventory
+/// module has its own `invalidateStockViews`; this is the manufacturing half,
+/// for screens the floor can actually reach.
+void invalidateMfgStock(WidgetRef ref) {
+  ref.invalidate(mfgStockProvider);
+  ref.invalidate(openDrawsProvider);
+  ref.invalidate(batchUsageProvider);
+}

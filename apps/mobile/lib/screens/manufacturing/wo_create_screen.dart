@@ -8,7 +8,6 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import '../../api/inventory_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../inventory/widgets/warehouse_picker.dart';
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
@@ -44,7 +43,7 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
   /// it each time is a tap that can only be got wrong. Falls back to the sole
   /// warehouse when none is flagged default.
   Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(invWarehousesProvider.future);
+    final whs = await ref.read(mfgWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);
@@ -950,8 +949,8 @@ class _MaterialPlan extends ConsumerWidget {
     final t = RT(context);
     final bom = ref.watch(bomDetailProvider(bomId)).asData?.value;
     final stock = ref
-            .watch(invOnHandProvider(
-                (warehouseId: warehouseId, lowOnly: false, itemClassGroup: 'inputs')))
+            .watch(mfgStockProvider(
+                (warehouseId: warehouseId, itemClassGroup: 'inputs')))
             .asData
             ?.value ??
         const <InvOnHandRow>[];

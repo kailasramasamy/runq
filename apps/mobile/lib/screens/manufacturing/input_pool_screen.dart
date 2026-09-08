@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/manufacturing_models.dart';
 import '../../api/manufacturing_repo.dart';
-import '../../providers/inventory_providers.dart';
+import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../inventory/widgets/inv_primitives.dart' show compactINR;
@@ -51,7 +51,7 @@ class _InputPoolScreenState extends ConsumerState<InputPoolScreen> {
   /// Mirrors Record Production: most plants run out of one warehouse, so the
   /// pick is a tap that can only be got wrong.
   Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(invWarehousesProvider.future);
+    final whs = await ref.read(mfgWarehousesProvider.future);
     if (!mounted || _warehouseId != null || whs.isEmpty) return;
     final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
     setState(() => _warehouseId = pick.id);

@@ -120,7 +120,7 @@ const _manufacturingTabs = <_Tab>[
   _Tab('/manufacturing', 'Home', Icons.home_outlined, Icons.home_rounded),
   _Tab(
     '/manufacturing/raw-materials',
-    'Materials',
+    'Stock',
     Icons.inventory_2_outlined,
     Icons.inventory_2_rounded,
   ),

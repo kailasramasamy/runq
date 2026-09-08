@@ -17,7 +17,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/api_client.dart';
 import '../../api/manufacturing_models.dart';
-import '../../providers/inventory_providers.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -410,7 +409,7 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
       ref.invalidate(batchUsageProvider);
       // Output lands in stock and the draw's inputs already left it, so every
       // stock view behind this sheet is stale too.
-      invalidateStockViews(ref);
+      invalidateMfgStock(ref);
       if (!mounted) return;
       showRunqSnack(
         context,

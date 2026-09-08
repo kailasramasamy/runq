@@ -109,7 +109,7 @@ class MfgMaterialSheet extends ConsumerWidget {
               ],
             ),
           ),
-          _UseInProduction(itemId: first.itemId),
+          _UseInProduction(item: first),
         ]),
       ),
     );
@@ -289,6 +289,7 @@ class _LotCard extends StatelessWidget {
                 expiryDate: row.expiryDate,
                 warehouseName: row.warehouseName,
                 origin: row.origin,
+                viaManufacturing: true,
               ),
             ),
             child: Padding(
@@ -663,13 +664,32 @@ class _Chip extends StatelessWidget {
 /// The only reason the floor is looking at this stock. Sitting at the bottom
 /// of the sheet it turns "how much milk is there" straight into taking some,
 /// instead of sending the operator back out to the FAB.
+/// What a BOM is allowed to consume — mirrors the API's `bom_inputs` group.
+///
+/// Semi-finished is in it deliberately: "Paneer - unpacked" is something the
+/// plant made *and* something the next run draws from, so it earns the button
+/// even though it shows up on the Made shelf.
+const _consumableClasses = {
+  'raw_material',
+  'packaging',
+  'consumable',
+  'semi_finished',
+};
+
 class _UseInProduction extends StatelessWidget {
-  const _UseInProduction({required this.itemId});
-  final String itemId;
+  const _UseInProduction({required this.item});
+  final InvOnHandRow item;
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // A packed SKU is the end of the line — nothing draws from a 400g tub of
+    // curd, and offering to take it for production is an action that would
+    // fail or, worse, quietly consume finished stock. The sheet still opens
+    // for it; it just has nothing to offer beyond the lots.
+    if (!_consumableClasses.contains(item.itemClass)) {
+      return const SizedBox.shrink();
+    }
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
@@ -686,7 +706,7 @@ class _UseInProduction extends StatelessWidget {
           // already looking at its lots, and making them pick it again on the
           // next screen is the kind of step that sends people back to a
           // stock adjustment instead.
-          context.push('/manufacturing/draws/new?inputItemId=$itemId');
+          context.push('/manufacturing/draws/new?inputItemId=${item.itemId}');
         },
       ),
     );

@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import '../../api/inventory_models.dart';
 import '../../api/inventory_movement_models.dart';
 import '../../providers/inventory_providers.dart';
+import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../utils/format_expiry.dart';
@@ -35,6 +36,7 @@ class BatchDetailArgs {
     this.expiryDate,
     this.warehouseName,
     this.origin,
+    this.viaManufacturing = false,
   });
 
   final String itemId;
@@ -46,6 +48,12 @@ class BatchDetailArgs {
   final String? expiryDate;
   final String? warehouseName;
   final BatchOrigin? origin;
+
+  /// Opened from the Manufacturing module, whose users are granted
+  /// `manufacturing` and nothing else. The movement trail then has to come
+  /// through that module's own route — every /inventory/* endpoint 403s for
+  /// them, and the sheet would show a permission error where the history goes.
+  final bool viaManufacturing;
 
   double? get receivedQty => origin?.receivedQty;
   double? get drawnQty {
@@ -293,7 +301,9 @@ class _Movements extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
     final query = InvMovementQuery(itemId: args.itemId, batchNo: args.batchNo);
-    final async = ref.watch(invItemMovementsProvider(query));
+    final async = ref.watch(args.viaManufacturing
+        ? mfgItemMovementsProvider(query)
+        : invItemMovementsProvider(query));
 
     return async.when(
       loading: () => const Padding(
