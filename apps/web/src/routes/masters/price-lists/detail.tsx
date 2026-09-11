@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { Pencil, Power, ArrowLeft, Download, Check, X, Trash2, Calculator, Plus } from 'lucide-react';
+import { Pencil, Power, ArrowLeft, Download, Check, X, Trash2, Calculator, Plus, Search } from 'lucide-react';
 import XLSX from 'xlsx-js-style';
 import {
   usePriceList,
@@ -124,10 +124,32 @@ interface RowDraft {
   marginPercent: string;
   discountPercent: string;
   minQuantity: string;
+  /** Landing incl GST. Non-null = the anchor: rate and MRP derive from it. */
+  landing: string | null;
+}
+
+const EMPTY_DRAFT: RowDraft = {
+  rate: '', mrp: '', marginPercent: '', discountPercent: '', minQuantity: '', landing: null,
+};
+
+/** Re-derive rate (excl GST) and MRP from the landing anchor. The delivery
+ *  partner prints its own MRP, so landing is what we actually negotiate. */
+function applyLanding(draft: RowDraft, row: PriceListItemRow): RowDraft {
+  const landing = num(draft.landing ?? '');
+  if (landing == null) return draft;
+  const gst = row.itemGstRate ?? 0;
+  const margin = num(draft.marginPercent) ?? row.itemMargin ?? 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    ...draft,
+    rate: String(round2(landing / (1 + gst / 100))),
+    mrp: margin < 100 ? String(round2(landing / (1 - margin / 100))) : draft.mrp,
+  };
 }
 
 function draftFromRow(item: PriceListItemRow): RowDraft {
   return {
+    landing: null,
     rate: item.rate != null ? String(item.rate) : '',
     mrp: item.mrp != null ? String(item.mrp) : '',
     marginPercent: item.marginPercent != null ? String(item.marginPercent) : '',
@@ -163,6 +185,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
   /** Add-item modal state. */
   const [addOpen, setAddOpen] = useState(false);
   const [addItemId, setAddItemId] = useState<string>('');
+  const [search, setSearch] = useState('');
   const { data: itemsData } = useItems({ limit: 500 });
 
   /** Build the minimal Item shape the calculator needs from the price-list
@@ -202,6 +225,14 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
 
   const pl = data?.data ?? null;
   const items = pl?.items ?? [];
+  // Display-only filter. Saves still rebuild from the full `items` array —
+  // the update endpoint replaces every row, so filtering it would drop rows.
+  const query = search.trim().toLowerCase();
+  const visibleItems = query
+    ? items.filter((it) =>
+        [it.itemName, it.itemSku, it.itemCategory, it.itemSubcategory]
+          .some((f) => f?.toLowerCase().includes(query)))
+    : items;
 
   function startEdit(row: PriceListItemRow) {
     setDrafts((d) => ({ ...d, [row.id]: draftFromRow(row) }));
@@ -213,8 +244,14 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
       return next;
     });
   }
-  function setDraftField(rowId: string, field: keyof RowDraft, value: string) {
-    setDrafts((d) => ({ ...d, [rowId]: { ...d[rowId]!, [field]: value } }));
+  /** Typing rate or MRP directly drops the landing anchor; margin keeps it
+   *  (MRP re-derives so landing stays put). */
+  function setDraftField(row: PriceListItemRow, field: keyof RowDraft, value: string) {
+    setDrafts((d) => {
+      const next = { ...d[row.id]!, [field]: value };
+      if (field === 'rate' || field === 'mrp') next.landing = null;
+      return { ...d, [row.id]: applyLanding(next, row) };
+    });
   }
 
   /** Save a single row. The update endpoint replaces the full items array,
@@ -461,11 +498,22 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
         {/* Line items with full pricing breakup */}
         <Card>
           <CardHeader
-            title={`Pricing Breakup (${items.length} items)`}
+            title={`Pricing Breakup (${query ? `${visibleItems.length} of ` : ''}${items.length} items)`}
             action={
-              <Button size="sm" onClick={() => setAddOpen(true)} disabled={update.isPending}>
-                <Plus size={13} /> Add item
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Input
+                    placeholder="Search item, SKU, category…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                  <Search size={15} className="pointer-events-none absolute mt-[-30px] ml-3 text-zinc-400" />
+                </div>
+                <Button size="sm" onClick={() => setAddOpen(true)} disabled={update.isPending}>
+                  <Plus size={13} /> Add item
+                </Button>
+              </div>
             }
           />
           <CardContent className="p-0">
@@ -490,10 +538,13 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                   </tr>
                 </TableHeader>
                 <TableBody>
-                  {items.length === 0 ? (
-                    <TableEmpty colSpan={14} message="No items in this price list." />
+                  {visibleItems.length === 0 ? (
+                    <TableEmpty
+                      colSpan={14}
+                      message={query ? `No items match "${search.trim()}".` : 'No items in this price list.'}
+                    />
                   ) : (
-                    items.map((item) => {
+                    visibleItems.map((item) => {
                       const editing = drafts[item.id];
                       // While editing, compute breakup from a draft-merged view
                       // so Basic Price / GST / Landing / Profit update live as
@@ -534,7 +585,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                               <Input
                                 type="number"
                                 value={editing.rate}
-                                onChange={(e) => setDraftField(item.id, 'rate', e.target.value)}
+                                onChange={(e) => setDraftField(item,'rate', e.target.value)}
                                 placeholder={item.itemBasicPrice != null ? String(item.itemBasicPrice) : '0.00'}
                                 title="Basic price per unit (excludes GST). Leave blank to derive from MRP × (1 - margin) / (1 + gst)."
                                 className="w-24 text-right"
@@ -548,7 +599,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                               <Input
                                 type="number"
                                 value={editing.mrp}
-                                onChange={(e) => setDraftField(item.id, 'mrp', e.target.value)}
+                                onChange={(e) => setDraftField(item,'mrp', e.target.value)}
                                 placeholder={item.itemMrp != null ? String(item.itemMrp) : '—'}
                                 className="w-24 text-right"
                               />
@@ -567,7 +618,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                                 <Input
                                   type="number"
                                   value={editing.marginPercent}
-                                  onChange={(e) => setDraftField(item.id, 'marginPercent', e.target.value)}
+                                  onChange={(e) => setDraftField(item,'marginPercent', e.target.value)}
                                   placeholder={item.itemMargin != null ? String(item.itemMargin) : '—'}
                                   className="w-20 text-right"
                                 />
@@ -614,14 +665,22 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                             ) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric>
-                            {breakup ? formatINR(breakup.landingPrice) : '—'}
+                            {editing ? (
+                              <Input
+                                type="number"
+                                value={editing.landing ?? (breakup ? String(breakup.landingPrice) : '')}
+                                onChange={(e) => setDraftField(item, 'landing', e.target.value)}
+                                title="Landing price incl GST — rate, MRP, GST and profit derive from it"
+                                className="w-24 text-right"
+                              />
+                            ) : breakup ? formatINR(breakup.landingPrice) : '—'}
                           </TableCell>
                           <TableCell align="right" numeric className="text-zinc-500">
                             {editing ? (
                               <Input
                                 type="number"
                                 value={editing.discountPercent}
-                                onChange={(e) => setDraftField(item.id, 'discountPercent', e.target.value)}
+                                onChange={(e) => setDraftField(item,'discountPercent', e.target.value)}
                                 placeholder="0"
                                 className="w-20 text-right"
                               />
@@ -639,7 +698,7 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
                               <Input
                                 type="number"
                                 value={editing.minQuantity}
-                                onChange={(e) => setDraftField(item.id, 'minQuantity', e.target.value)}
+                                onChange={(e) => setDraftField(item,'minQuantity', e.target.value)}
                                 placeholder="0"
                                 className="w-20 text-right"
                               />
@@ -762,9 +821,8 @@ export function PriceListDetailPage({ priceListId }: { priceListId: string }) {
               setDrafts((d) => ({
                 ...d,
                 [calcRowId]: {
-                  ...(d[calcRowId] ?? {
-                    rate: '', mrp: '', marginPercent: '', discountPercent: '', minQuantity: '',
-                  }),
+                  ...(d[calcRowId] ?? EMPTY_DRAFT),
+                  landing: null,
                   marginPercent: margin != null ? String(margin) : '',
                   mrp: mrp != null ? String(mrp) : '',
                 },

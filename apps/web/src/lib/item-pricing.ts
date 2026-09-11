@@ -43,9 +43,15 @@ export interface PricingInputs {
   cogm: number;
   schemePct?: number;
   freightPct?: number;
+  /**
+   * When set, landing price is the anchor and MRP is derived from it
+   * (MRP = Landing / (1 − m)). For sellers whose buyer prints its own MRP.
+   */
+  landingPrice?: number;
 }
 
 export interface PricingResult {
+  mrp: number;
   basicPrice: number;
   gstValue: number;
   landingPrice: number;
@@ -60,11 +66,15 @@ export interface PricingResult {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function calculatePricing(inputs: PricingInputs): PricingResult {
-  const { mrp, sellerMarginPct, gstRatePct, cogm } = inputs;
+  const { sellerMarginPct, gstRatePct, cogm } = inputs;
   const schemePct = inputs.schemePct ?? 0;
   const freightPct = inputs.freightPct ?? 0;
 
-  const landingPrice = mrp * (1 - sellerMarginPct / 100);
+  const anchoredOnLanding = inputs.landingPrice != null && sellerMarginPct < 100;
+  const landingPrice = anchoredOnLanding
+    ? inputs.landingPrice!
+    : inputs.mrp * (1 - sellerMarginPct / 100);
+  const mrp = anchoredOnLanding ? landingPrice / (1 - sellerMarginPct / 100) : inputs.mrp;
   const basicPrice = landingPrice / (1 + gstRatePct / 100);
   const gstValue = basicPrice * (gstRatePct / 100);
 
@@ -79,6 +89,7 @@ export function calculatePricing(inputs: PricingInputs): PricingResult {
   const sellerEarningsPerUnit = mrp - landingPrice;
 
   return {
+    mrp: round2(mrp),
     basicPrice: round2(basicPrice),
     gstValue: round2(gstValue),
     landingPrice: round2(landingPrice),

@@ -308,6 +308,38 @@ function LineItemRow({ line, items, onChange, onRemove, onOpenCalc }: LineItemPr
     return Math.round(basic * 100) / 100;
   })();
 
+  // Landing (incl GST) anchor: non-null while the user is typing it. The
+  // delivery partner prints its own MRP, so landing is what we negotiate —
+  // rate and MRP are derived from it.
+  const [landingInput, setLandingInput] = useState<string | null>(null);
+  const gst = selectedItem?.gstRate ?? 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const derivedLanding = (() => {
+    const basic = line.rate ?? marginPreview;
+    return basic != null ? round2(basic * (1 + gst / 100)) : null;
+  })();
+
+  // The typed landing only stays authoritative while it still matches the
+  // line's rate — the price calculator can rewrite rate/MRP underneath it.
+  const landingAnchored =
+    landingInput != null &&
+    (landingInput === '' || round2(Number(landingInput) / (1 + gst / 100)) === line.rate);
+
+  function mrpFromLanding(landing: number, margin: number | null | undefined): number | null {
+    const m = margin ?? selectedItem?.margin ?? 0;
+    return m < 100 ? round2(landing / (1 - m / 100)) : null;
+  }
+
+  function changeLanding(value: string) {
+    setLandingInput(value);
+    const landing = value ? Number(value) : null;
+    if (landing == null || !Number.isFinite(landing)) return;
+    onChange(line._key, {
+      rate: round2(landing / (1 + gst / 100)),
+      mrp: mrpFromLanding(landing, line.marginPercent),
+    });
+  }
+
   return (
     <tr className="border-b border-zinc-100 dark:border-zinc-800 align-top">
       <td className="px-3 py-2">
@@ -323,7 +355,10 @@ function LineItemRow({ line, items, onChange, onRemove, onOpenCalc }: LineItemPr
         <input
           type="number"
           value={line.rate ?? ''}
-          onChange={(e) => onChange(line._key, { rate: e.target.value ? Number(e.target.value) : null })}
+          onChange={(e) => {
+            setLandingInput(null);
+            onChange(line._key, { rate: e.target.value ? Number(e.target.value) : null });
+          }}
           className={numericInputClasses}
           placeholder={ratePlaceholder}
           title="Basic price per unit (excludes GST). Leave blank to derive from MRP × (1 - margin) / (1 + gst)."
@@ -333,7 +368,13 @@ function LineItemRow({ line, items, onChange, onRemove, onOpenCalc }: LineItemPr
         <input
           type="number"
           value={line.marginPercent ?? ''}
-          onChange={(e) => onChange(line._key, { marginPercent: e.target.value ? Number(e.target.value) : null })}
+          onChange={(e) => {
+            const marginPercent = e.target.value ? Number(e.target.value) : null;
+            const landing = landingInput ? Number(landingInput) : null;
+            onChange(line._key, landing != null && Number.isFinite(landing)
+              ? { marginPercent, mrp: mrpFromLanding(landing, marginPercent) }
+              : { marginPercent });
+          }}
           className={numericInputClasses}
           placeholder="%"
         />
@@ -350,9 +391,22 @@ function LineItemRow({ line, items, onChange, onRemove, onOpenCalc }: LineItemPr
         <input
           type="number"
           value={line.mrp ?? ''}
-          onChange={(e) => onChange(line._key, { mrp: e.target.value ? Number(e.target.value) : null })}
+          onChange={(e) => {
+            setLandingInput(null);
+            onChange(line._key, { mrp: e.target.value ? Number(e.target.value) : null });
+          }}
           className={numericInputClasses}
           placeholder={selectedItem?.mrp != null ? String(selectedItem.mrp) : '0.00'}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          value={landingAnchored ? landingInput! : derivedLanding != null ? String(derivedLanding) : ''}
+          onChange={(e) => changeLanding(e.target.value)}
+          className={numericInputClasses}
+          placeholder="0.00"
+          title="Landing price incl GST — rate and MRP are derived from it"
         />
       </td>
       <td className="px-3 py-2">
@@ -620,6 +674,7 @@ export function PriceListForm({ priceList, onClose }: { priceList?: PriceList; o
                   <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Rate</th>
                   <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Margin%</th>
                   <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">MRP</th>
+                  <th className="w-24 px-3 py-2 text-right text-xs font-medium text-zinc-500">Landing (incl GST)</th>
                   <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Discount%</th>
                   <th className="w-20 px-3 py-2 text-right text-xs font-medium text-zinc-500">Min Qty</th>
                   <th className="w-16 px-3 py-2"></th>

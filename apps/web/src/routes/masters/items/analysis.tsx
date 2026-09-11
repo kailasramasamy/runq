@@ -55,6 +55,10 @@ export function ItemAnalysisPage({
   const [gstRate, setGstRate] = useState('5');
   const [sellerMargin, setSellerMargin] = useState('20');
   const [mrp, setMrp] = useState('');
+  // Landing price (incl GST) is the anchor by default: the delivery partner
+  // prints its own MRP, so MRP is derived. Typing an MRP flips the anchor.
+  const [landing, setLanding] = useState('');
+  const [anchor, setAnchor] = useState<'landing' | 'mrp'>('landing');
   const [scheme, setScheme] = useState('0');
   const [freight, setFreight] = useState('0');
   const [targetMargin, setTargetMargin] = useState('10');
@@ -70,6 +74,10 @@ export function ItemAnalysisPage({
     setGstRate(item.gstRate?.toString() ?? (item.type === 'service' ? '18' : '5'));
     setSellerMargin(item.margin?.toString() ?? '20');
     setMrp(item.mrp?.toString() ?? '');
+    const savedMargin = item.margin ?? 20;
+    const savedLanding =
+      item.defaultSellingPrice ?? (item.mrp != null ? item.mrp * (1 - savedMargin / 100) : null);
+    setLanding(savedLanding != null ? (Math.round(savedLanding * 100) / 100).toString() : '');
     setServicePrice(item.defaultSellingPrice?.toString() ?? '');
     setBreakdown(item.cogmBreakdown ?? []);
   }, [item]);
@@ -103,8 +111,9 @@ export function ItemAnalysisPage({
         cogm: effectiveCogm,
         schemePct: Number(scheme) || 0,
         freightPct: Number(freight) || 0,
+        landingPrice: anchor === 'landing' ? Number(landing) || 0 : undefined,
       }),
-    [mrp, sellerMargin, gstRate, effectiveCogm, scheme, freight],
+    [mrp, landing, anchor, sellerMargin, gstRate, effectiveCogm, scheme, freight],
   );
 
   // Service pricing result — simpler math, used only when item.type === 'service'.
@@ -181,7 +190,7 @@ export function ItemAnalysisPage({
             costPrice: effectiveCogm || null,
             gstRate: numOrNull(gstRate),
             margin: numOrNull(sellerMargin),
-            mrp: numOrNull(mrp),
+            mrp: result.mrp || null,
             basicPrice: result.basicPrice || null,
             gstValue: result.gstValue || null,
             defaultSellingPrice: result.landingPrice || null,
@@ -198,6 +207,7 @@ export function ItemAnalysisPage({
   function applySolved() {
     if (solvedMrp == null) return;
     setMrp(roundUpToPsychologicalPrice(solvedMrp).toString());
+    setAnchor('mrp');
   }
 
   const isLossService = serviceResult.profitPerUnit < 0;
@@ -314,12 +324,26 @@ export function ItemAnalysisPage({
                   helper="What the retailer earns"
                 />
                 <Input
+                  label="Landing Price incl GST (₹)"
+                  type="number"
+                  step="0.01"
+                  value={anchor === 'landing' ? landing : result.landingPrice ? result.landingPrice.toString() : ''}
+                  onChange={(e) => {
+                    setLanding(e.target.value);
+                    setAnchor('landing');
+                  }}
+                  helper={anchor === 'landing' ? 'What you invoice — drives everything' : 'Derived from MRP'}
+                />
+                <Input
                   label="MRP (₹)"
                   type="number"
                   step="0.01"
-                  value={mrp}
-                  onChange={(e) => setMrp(e.target.value)}
-                  helper="Consumer printed price"
+                  value={anchor === 'mrp' ? mrp : result.mrp ? result.mrp.toString() : ''}
+                  onChange={(e) => {
+                    setMrp(e.target.value);
+                    setAnchor('mrp');
+                  }}
+                  helper={anchor === 'mrp' ? 'Consumer printed price — drives landing' : 'Derived from landing price'}
                 />
                 <Input
                   label="Trade Scheme (% off basic)"
@@ -391,7 +415,7 @@ export function ItemAnalysisPage({
             ) : (
               <>
                 <Table>
-                  <Row label="MRP (consumer price)" value={mrp ? formatINR(Number(mrp)) : '—'} muted />
+                  <Row label="MRP (consumer price)" value={result.mrp ? formatINR(result.mrp) : '—'} muted />
                   <Row label="Seller earnings" value={formatINR(result.sellerEarningsPerUnit)} muted hint={`${sellerMargin}% off MRP`} />
                   <Divider />
                   <Row label="Landing Price (incl GST)" value={formatINR(result.landingPrice)} hint="What you invoice the seller" emphasized />
@@ -425,7 +449,7 @@ export function ItemAnalysisPage({
                 </Table>
                 {isLoss && (
                   <Alert tone="red">
-                    You're losing {formatINR(Math.abs(result.profitPerUnit))} per unit at this price. Either raise MRP, drop seller margin, or cut the cost.
+                    You're losing {formatINR(Math.abs(result.profitPerUnit))} per unit at this price. Raise the landing price or cut the cost.
                   </Alert>
                 )}
                 {lowMargin && (
@@ -496,7 +520,7 @@ export function ItemAnalysisPage({
               <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
                 <Sparkles size={12} className="mr-1 inline text-indigo-500" />
                 Break-even MRP at current cost & margin: <strong>{breakeven != null ? formatINR(breakeven) : '—'}</strong>
-                {breakeven != null && Number(mrp) > 0 && Number(mrp) < breakeven && (
+                {breakeven != null && result.mrp > 0 && result.mrp < breakeven && (
                   <span className="ml-2 text-red-600 dark:text-red-400">— current MRP is below break-even</span>
                 )}
               </div>
