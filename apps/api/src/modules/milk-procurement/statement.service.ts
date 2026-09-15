@@ -10,8 +10,8 @@ import { DEDUCTION_TYPES, foldOutstanding, waterfall } from './farmer-ledger';
 import type { MpPrincipal } from './access-scope';
 import type {
   PourStatementData, StatementPour, StatementDeduction, StatementSettlement,
-  StatementRejection,
 } from './statement-template';
+import { REJECTION_LABEL } from './statement-template';
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -86,9 +86,11 @@ export class StatementService {
         ratePerLitre: Number(r.ratePerLitre),
         lineAmount: Number(r.lineAmount),
         receiptNo: r.receiptNo,
+        rejectedQty: Number(r.rejectedQty) || undefined,
       }))
       .sort((a, b) => a.collectionDate.localeCompare(b.collectionDate));
     const totals = computeTotals(pours);
+    const refused = await this.refusedCharges(farmerId, from, to);
     const [t] = await this.db.select({ name: tenants.name }).from(tenants)
       .where(eq(tenants.id, this.tenantId)).limit(1);
     return {
@@ -101,27 +103,30 @@ export class StatementService {
       period: { from, to, label: label ?? null },
       pours,
       byType: computeByType(pours),
-      rejections: await this.rejections(farmerId, from, to),
+      rejections: refused.map((r) => ({
+        collectionDate: r.date, shift: r.shift, milkType: r.milkType,
+        qtyLitres: Number(r.qty), reason: r.reason,
+      })),
       totals,
-      settlement: await this.settlement(farmerId, from, to, totals.amount),
+      settlement: await this.settlement(farmerId, from, to, totals.amount, refused),
       generatedAt: new Date().toISOString(),
     };
   }
 
   /**
-   * Milk this farmer brought that was refused, whichever tier caught it — the
-   * gate rows have no pour behind them, the downstream ones are their share of
-   * a rejected load. Listed so the deduction below has something to point at.
+   * Every charge this farmer carries for milk that was refused, whichever tier
+   * caught it — the gate rows have no pour behind them, the downstream ones are
+   * their share of a rejected load. Read once and used twice: the "not accepted"
+   * table lists them, and the settlement block's deduction points back at them.
    */
-  private async rejections(
+  private async refusedCharges(
     farmerId: string, from: string, to: string,
-  ): Promise<StatementRejection[]> {
+  ): Promise<RefusedCharge[]> {
     const rows = await this.db.select({
-      collectionDate: mpRejections.collectionDate,
-      shift: mpRejections.shift,
-      milkType: mpRejections.milkType,
-      qty: mpRejectionCharges.qtyLitres,
-      reason: mpRejections.reason,
+      date: mpRejections.collectionDate, shift: mpRejections.shift,
+      milkType: mpRejections.milkType, reason: mpRejections.reason,
+      qty: mpRejectionCharges.qtyLitres, rate: mpRejectionCharges.ratePerLitre,
+      amount: mpRejectionCharges.amount,
     }).from(mpRejectionCharges)
       .innerJoin(mpRejections, eq(mpRejectionCharges.rejectionId, mpRejections.id))
       .where(and(
@@ -132,12 +137,7 @@ export class StatementService {
         gte(mpRejections.collectionDate, from),
         lte(mpRejections.collectionDate, to),
       ));
-    return rows
-      .map((r) => ({
-        collectionDate: r.collectionDate, shift: r.shift, milkType: r.milkType,
-        qtyLitres: Number(r.qty), reason: r.reason,
-      }))
-      .sort((a, b) => a.collectionDate.localeCompare(b.collectionDate));
+    return rows.sort((a, b) => a.date.localeCompare(b.date));
   }
 
   /**
@@ -148,9 +148,10 @@ export class StatementService {
    * farmer what is coming off. Null when nothing is owed either way.
    */
   private async settlement(
-    farmerId: string, from: string, to: string, gross: number,
+    farmerId: string, from: string, to: string, gross: number, refused: RefusedCharge[],
   ): Promise<StatementSettlement | null> {
     const saleLines = await this.saleDetail(farmerId, from, to);
+    const rejectionLines = refused.map(refusalLine);
     const [line] = await this.db.select({
       id: mpPayoutLines.id, gross: mpPayoutLines.grossAmount,
       deducted: mpPayoutLines.deductionTotal, net: mpPayoutLines.netAmount,
@@ -167,7 +168,7 @@ export class StatementService {
         type: mpPayoutDeductions.deductionType, amount: mpPayoutDeductions.amount,
       }).from(mpPayoutDeductions).where(eq(mpPayoutDeductions.payoutLineId, line.id));
       const deductions = rows.map((r) => withDetail(
-        { type: r.type, amount: Number(r.amount) }, saleLines));
+        { type: r.type, amount: Number(r.amount) }, saleLines, rejectionLines));
       const totalDeductions = r2(Number(line.deducted));
       if (!totalDeductions) return null;
       return { gross: r2(Number(line.gross)), deductions, totalDeductions, net: r2(Number(line.net)), provisional: false };
@@ -180,7 +181,8 @@ export class StatementService {
     const taken = waterfall(foldOutstanding(ledger), gross);
     if (!taken.total) return null;
     const deductions = DEDUCTION_TYPES
-      .map(([bucket, type]) => withDetail({ type, amount: taken[bucket] }, saleLines))
+      .map(([bucket, type]) => withDetail(
+        { type, amount: taken[bucket] }, saleLines, rejectionLines))
       .filter((d) => d.amount > 0);
     return {
       gross: r2(gross), deductions, totalDeductions: taken.total,
@@ -211,9 +213,29 @@ export class StatementService {
   }
 }
 
-/** Milk-sale deductions carry their per-sale lines; the rest stand alone. */
+/** One refusal charged to this farmer, as both the listing and the deduction need it. */
+interface RefusedCharge {
+  date: string; shift: 'am' | 'pm' | null; milkType: string | null;
+  reason: string; qty: string; rate: string; amount: string;
+}
+
+/** A refusal as a settlement detail line — the day and reason the money came off. */
+function refusalLine(r: RefusedCharge): NonNullable<StatementDeduction['lines']>[number] {
+  return {
+    date: r.date, itemName: null, milkType: r.milkType, unit: 'L',
+    qty: Number(r.qty), ratePerUnit: Number(r.rate), amount: Number(r.amount),
+    note: [REJECTION_LABEL[r.reason] ?? r.reason, r.shift?.toUpperCase()]
+      .filter(Boolean).join(' · '),
+  };
+}
+
+/** Sales and refusals carry their own detail lines; the rest stand alone. */
 function withDetail(
-  d: { type: string; amount: number }, saleLines: StatementDeduction['lines'],
+  d: { type: string; amount: number },
+  saleLines: StatementDeduction['lines'],
+  rejectionLines: StatementDeduction['lines'],
 ): StatementDeduction {
-  return d.type === 'farmer_sale' ? { ...d, lines: saleLines } : d;
+  if (d.type === 'farmer_sale') return { ...d, lines: saleLines };
+  if (d.type === 'quality_rejection') return { ...d, lines: rejectionLines };
+  return d;
 }

@@ -222,6 +222,27 @@ function LineStatus({ line }: { line: MpPayoutLine }) {
   return <Badge variant="warning">Unpaid</Badge>;
 }
 
+const DEDUCTION_LABEL: Record<string, string> = {
+  quality_rejection: 'Milk refused', farmer_sale: 'Purchases', advance: 'Advance',
+  cattle_feed_loan: 'Feed loan', other: 'Other',
+};
+
+/** What the one deduction figure is made of. Without it a farmer's gross reads as
+ *  if refused milk was paid for — the recovery is invisible in a single total. */
+function DeductionBreakdown({ deductions }: { deductions: MpPayoutLine['deductions'] }) {
+  const rows = deductions.filter((d) => Number(d.amount) > 0);
+  if (rows.length < 1) return null;
+  return (
+    <div className="mt-0.5 space-y-0.5 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+      {rows.map((d) => (
+        <div key={d.id}>
+          {DEDUCTION_LABEL[d.deductionType] ?? d.deductionType} ₹{d.amount}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FarmerLineRow({ line, cycle, canPay, onPay }: {
   line: MpPayoutLine; cycle: MpCycleDetail; canPay: boolean; onPay: (l: MpPayoutLine) => void;
 }) {
@@ -249,9 +270,19 @@ function FarmerLineRow({ line, cycle, canPay, onPay }: {
         <div className="text-xs text-zinc-500">{line.farmerCode}</div>
       </TableCell>
       <TableCell className="text-sm text-zinc-600 dark:text-zinc-300">{line.vmccName ?? '—'}</TableCell>
-      <TableCell className="text-right tabular-nums">{line.qtyLitres}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {line.qtyLitres}
+        {line.rejectedLitres > 0 && (
+          <div className="text-xs text-red-600 dark:text-red-400">
+            {line.rejectedLitres} L refused
+          </div>
+        )}
+      </TableCell>
       <TableCell className="text-right tabular-nums">₹{line.grossAmount}</TableCell>
-      <TableCell className="text-right tabular-nums">₹{line.deductionTotal}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        ₹{line.deductionTotal}
+        <DeductionBreakdown deductions={line.deductions} />
+      </TableCell>
       <TableCell className="text-right font-medium">
         <CopyableAmount display={`₹${line.netAmount}`} copyValue={line.netAmount} />
       </TableCell>

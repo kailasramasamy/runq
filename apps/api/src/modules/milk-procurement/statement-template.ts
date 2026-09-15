@@ -13,6 +13,9 @@ export interface StatementPour {
   ratePerLitre: number;
   lineAmount: number;
   receiptNo?: string | null;
+  /** Litres off this pour later refused. The row still shows what was poured and
+   *  billed at gross — the settlement block takes the money back. */
+  rejectedQty?: number;
 }
 
 /** One refusal on the statement — litres brought that were not kept. */
@@ -43,6 +46,8 @@ export interface StatementDeduction {
     date: string; qty: number; unit: string; ratePerUnit: number; amount: number;
     /** One of the two is set: a product names its item, bulk milk its type. */
     itemName: string | null; milkType: string | null;
+    /** Trailing qualifier — the refusal reason on a rejection line. */
+    note?: string | null;
   }[];
 }
 
@@ -108,8 +113,10 @@ function summaryCard(label: string, value: string): string {
 }
 
 function pourRow(p: StatementPour): string {
-  return `<tr>
-    <td>${fmtDate(p.collectionDate)}</td>
+  const refused = p.rejectedQty ?? 0;
+  return `<tr${refused > 0 ? ' class="rej"' : ''}>
+    <td>${fmtDate(p.collectionDate)}${refused > 0
+      ? `<div class="rej-note">${num(refused, 1)} L not accepted</div>` : ''}</td>
     <td class="center">${p.shift === 'am' ? 'AM' : 'PM'}</td>
     <td class="center">${esc(milkLabel(p.milkType))}</td>
     <td class="right">${num(p.qtyLitres, 1)}</td>
@@ -147,26 +154,25 @@ function byTypeSection(rows: MilkTypeBreakdown[]): string {
 export function rejectionsSection(rows: StatementRejection[]): string {
   if (!rows.length) return '';
   const total = rows.reduce((s, r) => s + r.qtyLitres, 0);
-  return `
-    <h2>Milk not accepted</h2>
-    <table class="grid">
-      <thead><tr><th>Date</th><th>Shift</th><th>Type</th>
-        <th class="r">Litres</th><th>Reason</th></tr></thead>
+  return `<div class="section-title">Milk not accepted</div>
+    <table class="breakup">
+      <thead><tr><th>Date</th><th class="center">Shift</th><th class="center">Type</th>
+        <th class="right">Litres</th><th>Reason</th></tr></thead>
       <tbody>
         ${rows.map((r) => `<tr>
           <td>${fmtDate(r.collectionDate)}</td>
-          <td>${esc((r.shift ?? '').toUpperCase())}</td>
-          <td>${esc(milkLabel(r.milkType ?? ''))}</td>
-          <td class="r">${num(r.qtyLitres, 1)}</td>
+          <td class="center">${esc((r.shift ?? '').toUpperCase())}</td>
+          <td class="center">${esc(milkLabel(r.milkType ?? ''))}</td>
+          <td class="right">${num(r.qtyLitres, 1)}</td>
           <td>${esc(REJECTION_LABEL[r.reason] ?? r.reason)}</td>
         </tr>`).join('')}
       </tbody>
-      <tfoot><tr><td colspan="3">Total not accepted</td>
-        <td class="r">${num(total, 1)}</td><td></td></tr></tfoot>
+      <tfoot><tr><td colspan="3" class="tfoot-label">Total not accepted</td>
+        <td class="right">${num(total, 1)}</td><td></td></tr></tfoot>
     </table>`;
 }
 
-const REJECTION_LABEL: Record<string, string> = {
+export const REJECTION_LABEL: Record<string, string> = {
   sour: 'Sour', adulterated: 'Adulterated', temperature: 'Too warm',
   cob_positive: 'COB positive', antibiotic: 'Antibiotic residue',
   foreign_matter: 'Foreign matter', other: 'Other',
@@ -187,15 +193,16 @@ const DEDUCTION_LABEL: Record<string, string> = {
  * keeps the block adding up instead of quietly not.
  */
 function reconcileLine(
-  lines: NonNullable<StatementDeduction['lines']>, recovered: number,
+  lines: NonNullable<StatementDeduction['lines']>, recovered: number, type: string,
 ): string[] {
   if (!lines.length) return [];
   const listed = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
   const gap = Math.round((listed - recovered) * 100) / 100;
   if (Math.abs(gap) < 1) return [];
+  const earlier = type === 'quality_rejection' ? 'refusals' : 'purchases';
   return [gap > 0
     ? `<em>${inr(gap)} carried to your next payment</em>`
-    : `<em>${inr(-gap)} from purchases before this period</em>`];
+    : `<em>${inr(-gap)} from ${earlier} before this period</em>`];
 }
 
 /**
@@ -211,13 +218,14 @@ function settlementSection(st: StatementSettlement | null): string {
       ...lines.map((l) => {
         const what = l.itemName ?? milkLabel(l.milkType ?? '');
         // "2 × 500g Ghee" for a packed product; "80.0 L Cow A1" for bulk milk.
-        const qty = l.milkType
+        const qty = l.unit === 'L' || l.milkType
           ? `${num(l.qty, 1)} ${esc(l.unit)}`
           : `${num(l.qty, 0)} × ${esc(l.unit)}`;
-        return `${fmtDate(l.date)} · ${qty} ${esc(what)}`
-          + ` @ ₹${num(l.ratePerUnit, 2)}/${esc(l.unit)} · ${inr(l.amount)}`;
+        return `${fmtDate(l.date)} · ${`${qty} ${esc(what)}`.trim()}`
+          + ` @ ₹${num(l.ratePerUnit, 2)}/${esc(l.unit)} · ${inr(l.amount)}`
+          + (l.note ? ` · ${esc(l.note)}` : '');
       }),
-      ...reconcileLine(lines, d.amount),
+      ...reconcileLine(lines, d.amount, d.type),
     ].join('<br/>');
     return `<tr>
       <td>${esc(DEDUCTION_LABEL[d.type] ?? DEDUCTION_LABEL.other!)}
@@ -469,6 +477,11 @@ const STYLE = `<style>
      reads as a mistake. 4px fits the whole cycle on one page with room spare. */
   tbody td { padding: 4px 8px; border-bottom: 1px solid #EFEDE6; font-variant-numeric: tabular-nums; }
   tbody tr:nth-child(even) td { background: #FBFAF6; }
+  /* A refused pour stays on the daily detail at what it was poured and billed
+     at — striking it out would not match the Gross line. It is flagged instead,
+     and the settlement block below is where the money comes back off. */
+  tbody tr.rej td { background: #FEF3F2; }
+  .rej-note { font-size: 9px; font-weight: 600; color: #B42318; margin-top: 1px; }
   .right { text-align: right; } .center { text-align: center; }
   .empty { text-align: center; color: #5B635C; padding: 20px; }
   /* Print repeats a real <tfoot> at the foot of every page, so a multi-page

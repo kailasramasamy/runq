@@ -764,6 +764,8 @@ export interface MpPayoutLine {
   paidAt: string | null; billId: string | null;
   farmerName: string; farmerCode: string;
   vmccNodeId: string | null; vmccName: string | null; viaVmcc: boolean;
+  /** Litres inside qtyLitres later refused — billed at gross, recovered as a deduction. */
+  rejectedLitres: number;
 }
 export interface MpCycleDetail extends MpPayoutCycle {
   lines: MpPayoutLine[];

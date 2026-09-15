@@ -2,6 +2,7 @@ import { and, eq, desc, ne, or, sql, gte, lte, inArray, isNull, getTableColumns 
 import {
   mpPayoutCycles, mpPayoutLines, mpPayoutDeductions, mpFarmerLedger,
   mpPours, mpFarmers, mpFarmerMemberships, mpNodes, mpGlSettings, mpVmccBills, payments,
+  mpRejections, mpRejectionCharges,
 } from '@runq/db';
 import type { Db, MpPayoutCycleRow, MpPayoutLineRow } from '@runq/db';
 import { applyPagination, calcTotalPages } from '@runq/db';
@@ -32,6 +33,10 @@ export interface CycleDetail extends MpPayoutCycleRow {
     vmccNodeId: string | null; vmccName: string | null;
     /** true = farmer is settled through a VMCC bill, not payable individually here. */
     viaVmcc: boolean;
+    /** Litres inside qtyLitres that were later refused. The line still bills at
+     *  gross and recovers the money as a quality_rejection deduction — this is
+     *  only so the cycle page can say so instead of looking like an overpayment. */
+    rejectedLitres: number;
   })[];
   /** VMCC-bill roll-up so a pooled (via_vmcc) cycle, which has no farmer lines,
    *  still shows a meaningful payable/paid on the detail cards. */
@@ -364,6 +369,8 @@ export class PayoutService {
       : [];
     const byLine = new Map<string, DeductionRow[]>();
     for (const d of deds) byLine.set(d.payoutLineId, [...(byLine.get(d.payoutLineId) ?? []), d]);
+    const rejected = await this.rejectedLitresByFarmer(
+      lines.map((l) => l.farmerId), cycle.periodStart, cycle.periodEnd);
     const directIds = await directModeVmccIds(this.db, this.tenantId);
     const bill = (await this.billAggregates([id])).get(id);
     return {
@@ -371,10 +378,33 @@ export class PayoutService {
       lines: lines.map((l) => ({
         ...l, deductions: byLine.get(l.id) ?? [],
         viaVmcc: l.vmccNodeId ? !directIds.has(l.vmccNodeId) : false,
+        rejectedLitres: rejected.get(l.farmerId) ?? 0,
       })),
       billTotal: bill?.billTotal ?? 0,
       billPaidTotal: bill?.billPaidTotal ?? 0,
     };
+  }
+
+  /** Refused litres per farmer over a cycle window, charges only — a load
+   *  blended from several farmers charges each their own share. */
+  private async rejectedLitresByFarmer(
+    farmerIds: string[], from: string, to: string,
+  ): Promise<Map<string, number>> {
+    if (!farmerIds.length) return new Map();
+    const rows = await this.db.select({
+      farmerId: mpRejectionCharges.farmerId,
+      litres: sql<string>`sum(${mpRejectionCharges.qtyLitres})`,
+    }).from(mpRejectionCharges)
+      .innerJoin(mpRejections, eq(mpRejections.id, mpRejectionCharges.rejectionId))
+      .where(and(
+        eq(mpRejectionCharges.tenantId, this.tenantId),
+        inArray(mpRejectionCharges.farmerId, farmerIds),
+        isNull(mpRejectionCharges.reversedAt),
+        isNull(mpRejections.reversedAt),
+        gte(mpRejections.collectionDate, from),
+        lte(mpRejections.collectionDate, to),
+      )).groupBy(mpRejectionCharges.farmerId);
+    return new Map(rows.map((r) => [r.farmerId!, Number(r.litres)]));
   }
 
   async lockCycle(id: string, principal?: MpPrincipal): Promise<MpPayoutCycleRow> {
