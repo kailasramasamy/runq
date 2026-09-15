@@ -91,17 +91,48 @@ export class PayoutService {
     if (principal?.kind === 'operator') {
       await assertFarmerAtNode(this.db, this.tenantId, principal, input.farmerId);
     }
-    return this.db.transaction(async (tx) => {
-      const row = await appendLedgerEntry(tx, this.tenantId, { ...input, createdBy: userId });
+    const row = await this.db.transaction(async (tx) => {
+      const entry = await appendLedgerEntry(tx, this.tenantId, { ...input, createdBy: userId });
       // Cash leaving for a new advance/feed-loan creates the farmer receivable.
       if (input.entryType === 'advance_given' || input.entryType === 'feed_loan_given') {
         await new MpGlPoster(this.tenantId, userId).postGrant(tx, {
-          ledgerId: row.id, date: input.occurredOn, amount: input.amount,
+          ledgerId: entry.id, date: input.occurredOn, amount: input.amount,
           kind: input.entryType === 'feed_loan_given' ? 'feed_loan' : 'advance',
         });
       }
-      return row;
+      return entry;
     });
+    // A grant dated inside an open cycle changes what that cycle recovers, and
+    // its lines were costed before this entry existed. Same staleness a farmer
+    // sale causes, same fix — recompute the provisional lines.
+    await this.rebuildOpenCyclesCovering(input.farmerId, input.occurredOn, userId);
+    return row;
+  }
+
+  /**
+   * Recompute any OPEN cycle already holding a line for this farmer whose window
+   * covers `date`. Best-effort: the ledger entry is correct and committed, and a
+   * failed rebuild only leaves a provisional line to be regenerated, so it must
+   * not fail the write.
+   */
+  private async rebuildOpenCyclesCovering(
+    farmerId: string, date: string, userId?: string,
+  ): Promise<void> {
+    const rows = await this.db.selectDistinct({ cycleId: mpPayoutCycles.id })
+      .from(mpPayoutLines)
+      .innerJoin(mpPayoutCycles, eq(mpPayoutLines.payoutCycleId, mpPayoutCycles.id))
+      .where(and(
+        eq(mpPayoutLines.tenantId, this.tenantId),
+        eq(mpPayoutLines.farmerId, farmerId),
+        eq(mpPayoutCycles.status, 'open'),
+        lte(mpPayoutCycles.periodStart, date),
+        gte(mpPayoutCycles.periodEnd, date),
+      ));
+    for (const r of rows) {
+      await this.rebuildCycleLines(r.cycleId, userId).catch((e) => {
+        console.error('Payout cycle rebuild after ledger entry failed:', r.cycleId, e);
+      });
+    }
   }
 
   async ledgerForFarmer(
@@ -508,14 +539,28 @@ export class PayoutService {
     const aggregates = await this.pourAggregates(cycle.periodStart, cycle.periodEnd, cycle.scopeNodeId ?? null);
 
     if (cycle.status === 'open') {
-      // No accrual/repayments yet — recompute every line from current pours.
+      // No accrual/repayments yet — recompute from current pours. A line can
+      // still be marked paid while the cycle is open (markLinePaid only refuses
+      // a reversed one), and that line carries the disbursement reference, mode
+      // and date. Recomputing it would erase a payment that actually went out,
+      // so paid farmers freeze here exactly as they do on the locked path.
       await this.db.transaction(async (tx) => {
-        const old = await tx.select({ id: mpPayoutLines.id }).from(mpPayoutLines)
+        const old = await tx.select({
+          id: mpPayoutLines.id, farmerId: mpPayoutLines.farmerId, paidAt: mpPayoutLines.paidAt,
+          paymentId: mpPayoutLines.paymentId, billId: mpPayoutLines.billId,
+        }).from(mpPayoutLines)
           .where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
-        const ids = old.map((l) => l.id);
-        if (ids.length) await tx.delete(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, ids));
-        await tx.delete(mpPayoutLines).where(and(eq(mpPayoutLines.tenantId, this.tenantId), eq(mpPayoutLines.payoutCycleId, cycleId)));
-        for (const a of aggregates) await this.insertLine(tx, cycleId, cycle.periodStart, a);
+        const frozen = new Set(
+          old.filter((l) => l.paidAt || l.paymentId || l.billId).map((l) => l.farmerId));
+        const stale = old.filter((l) => !frozen.has(l.farmerId)).map((l) => l.id);
+        if (stale.length) {
+          await tx.delete(mpPayoutDeductions).where(inArray(mpPayoutDeductions.payoutLineId, stale));
+          await tx.delete(mpPayoutLines).where(inArray(mpPayoutLines.id, stale));
+        }
+        for (const a of aggregates) {
+          if (frozen.has(a.farmerId)) continue;
+          await this.insertLine(tx, cycleId, cycle.periodStart, a);
+        }
         await this.updateCycleTotals(tx, cycleId);
       });
       return true;

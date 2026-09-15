@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   items, mpFarmerLedger, mpFarmerSales, mpFarmers, mpNodes, mpPayoutCycles, mpPayoutLines,
 } from '@runq/db';
@@ -12,6 +12,7 @@ import { ConsignmentService } from './consignment.service';
 import { MpGlPoster } from './gl-poster';
 import { postSaleStock, reverseSaleStock, type SaleStockContext } from './farmer-sale-stock';
 import { appendLedgerEntry, foldOutstanding } from './farmer-ledger';
+import { PayoutService } from './payout.service';
 import { isPooled } from './procurement-window';
 import { MpPrincipal, assertFarmerAtNode, assertNodeAccess } from './access-scope';
 
@@ -83,7 +84,7 @@ export class FarmerSaleService {
     }
     const stockCtx = await this.stockContext(input, shift, principal, userId);
     const amount = round2(input.qty * input.ratePerUnit);
-    return this.db.transaction(async (tx) => {
+    const created = await this.db.transaction(async (tx) => {
       const ledger = await appendLedgerEntry(tx, this.tenantId, {
         farmerId: input.farmerId, entryType: 'farmer_sale', amount,
         occurredOn: input.saleDate, refType: 'farmer_sale', createdBy: userId,
@@ -117,6 +118,42 @@ export class FarmerSaleService {
       }
       return { ...sale!, journalEntryId: jeId };
     });
+    await this.rebuildCovering(input.farmerId, [input.saleDate]);
+    return created;
+  }
+
+  /**
+   * Recompute the open payout cycles whose window covers any of `dates` for
+   * this farmer, so an already-generated line reflects the sale that just
+   * changed. An edit can move the sale across a cycle boundary, hence dates
+   * plural — the cycle it left is as stale as the one it landed in.
+   *
+   * Runs after the write commits: rebuildCycleLines opens its own transaction,
+   * and it must read the corrected ledger, not the pre-image. Best-effort by
+   * design — the sale is already correct, and a failed rebuild leaves a stale
+   * provisional line that generating the cycle again will fix, so it must not
+   * turn a good write into a 500.
+   */
+  private async rebuildCovering(farmerId: string, dates: string[]): Promise<void> {
+    const wanted = [...new Set(dates)];
+    if (!wanted.length) return;
+    const rows = await this.db.selectDistinct({ cycleId: mpPayoutCycles.id })
+      .from(mpPayoutLines)
+      .innerJoin(mpPayoutCycles, eq(mpPayoutLines.payoutCycleId, mpPayoutCycles.id))
+      .where(and(
+        eq(mpPayoutLines.tenantId, this.tenantId),
+        eq(mpPayoutLines.farmerId, farmerId),
+        eq(mpPayoutCycles.status, 'open'),
+        or(...wanted.map((d) => and(
+          lte(mpPayoutCycles.periodStart, d), gte(mpPayoutCycles.periodEnd, d),
+        ))),
+      ));
+    const payouts = new PayoutService(this.db, this.tenantId);
+    for (const r of rows) {
+      await payouts.rebuildCycleLines(r.cycleId).catch((e) => {
+        console.error('Payout cycle rebuild after farmer-sale change failed:', r.cycleId, e);
+      });
+    }
   }
 
   /**
@@ -228,7 +265,7 @@ export class FarmerSaleService {
     const amount = round2(input.qty * input.ratePerUnit);
     const delta = round2(amount - Number(sale.amount));
 
-    return this.db.transaction(async (tx) => {
+    const updated = await this.db.transaction(async (tx) => {
       const [row] = await tx.update(mpFarmerSales).set({
         saleDate: input.saleDate,
         kind: input.kind,
@@ -259,6 +296,8 @@ export class FarmerSaleService {
       });
       return row!;
     });
+    await this.rebuildCovering(sale.farmerId, [sale.saleDate, input.saleDate]);
+    return updated;
   }
 
   /**
@@ -283,6 +322,7 @@ export class FarmerSaleService {
         });
       }
     });
+    await this.rebuildCovering(sale.farmerId, [sale.saleDate]);
   }
 
   /** Put back what a sale drew, cost and all. Shared by edit, delete and
@@ -310,11 +350,16 @@ export class FarmerSaleService {
    * Guard the money, on two counts — a cycle can have claimed this sale in
    * either of two ways:
    *
-   *   1. A payout line already covers the sale's date. Deductions are computed
-   *      at cycle GENERATE but the repayment ledger rows are only written at
-   *      LOCK, so between the two the ledger still shows the sale outstanding
-   *      while the line has already counted it. Editing there would leave the
-   *      line disagreeing with a statement the farmer can already read.
+   *   1. A LOCKED or PAID payout line covers the sale's date. Lock is what
+   *      writes the repayment ledger rows and posts the accrual, so from there
+   *      on the line is a figure the farmer has been told and the books have
+   *      booked — editing behind it desyncs both.
+   *
+   *      An OPEN cycle is not that. Its lines are provisional: deductions are
+   *      computed at GENERATE but nothing is posted, so the correct answer is
+   *      to recompute them, not to refuse the correction. Callers rebuild the
+   *      covering open cycle after the write (see `rebuildCovering`) — which is
+   *      why an operator who mis-keyed a sale can still fix it the same day.
    *   2. The ledger says it has been repaid — which catches recovery by a LATER
    *      cycle whose window doesn't contain the sale date at all (an August
    *      cycle clearing a July purchase the milk was too small to cover).
@@ -326,12 +371,12 @@ export class FarmerSaleService {
       .where(and(
         eq(mpPayoutLines.tenantId, this.tenantId),
         eq(mpPayoutLines.farmerId, sale.farmerId),
-        ne(mpPayoutCycles.status, 'reversed'),
+        inArray(mpPayoutCycles.status, ['locked', 'paid']),
         lte(mpPayoutCycles.periodStart, sale.saleDate),
         gte(mpPayoutCycles.periodEnd, sale.saleDate),
       )).limit(1);
     if (claimed) {
-      throw new ConflictError('A payout cycle already covers this date — reverse the cycle first');
+      throw new ConflictError('A locked payout cycle already covers this date — reverse the cycle first');
     }
     const rows = await this.db.select({
       entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
@@ -347,7 +392,7 @@ export class FarmerSaleService {
     const sale = await this.loadEditable(id, principal);
     const amount = Number(sale.amount);
 
-    return this.db.transaction(async (tx) => {
+    const reversed = await this.db.transaction(async (tx) => {
       await this.restock(tx, sale, userId);
       await appendLedgerEntry(tx, this.tenantId, {
         farmerId: sale.farmerId, entryType: 'adjustment', amount,
@@ -361,6 +406,8 @@ export class FarmerSaleService {
         .where(eq(mpFarmerSales.id, sale.id)).returning();
       return row!;
     });
+    await this.rebuildCovering(sale.farmerId, [sale.saleDate]);
+    return reversed;
   }
 }
 
