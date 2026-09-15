@@ -806,6 +806,15 @@ export function useCycleAction(action: 'lock' | 'pay') {
   });
 }
 
+/** Recompute an open cycle's lines from current pours and ledger. */
+export function useRebuildCycle() {
+  const c = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<ApiSuccess<MpCycleDetail>>(`${BASE}/payouts/cycles/${id}/rebuild`, {}),
+    onSuccess: () => c.invalidateQueries({ queryKey: ['mp', 'cycles'] }),
+  });
+}
+
 // ── operators ────────────────────────────────────────────────────────────────
 export interface MpOperator {
   id: string; nodeId: string; userId: string | null; name: string | null; phone: string | null;

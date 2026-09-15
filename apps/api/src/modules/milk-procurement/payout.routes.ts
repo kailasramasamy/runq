@@ -81,6 +81,19 @@ export const payoutRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data: await service.createCycle(input, principal) });
   });
 
+  // Recompute an open cycle's lines from current pours and ledger. Needed
+  // because a line is a snapshot taken at generate: anything that changed the
+  // underlying data afterwards and did not go through a path that rebuilds
+  // (a direct DB correction, a best-effort rebuild that failed) leaves the line
+  // stale, and lock posts the stale figure. Open only — a locked cycle has its
+  // accrual posted and goes through reverse.
+  app.post('/cycles/:id/rebuild', { preHandler: [rbacHook([...CYCLE_WRITE_ROLES])] }, async (request) => {
+    const { id } = uuidParamSchema.parse(request.params);
+    const principal = await resolveMpPrincipal(request);
+    const service = new PayoutService(request.server.db, request.tenantId);
+    return { data: await service.rebuildOpenCycle(id, request.user?.userId, principal) };
+  });
+
   app.post('/cycles/:id/lock', { preHandler: [rbacHook([...CYCLE_WRITE_ROLES])] }, async (request) => {
     const { id } = uuidParamSchema.parse(request.params);
     const principal = await resolveMpPrincipal(request);

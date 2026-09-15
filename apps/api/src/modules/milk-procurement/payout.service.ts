@@ -525,6 +525,22 @@ export class PayoutService {
   }
 
   /**
+   * Operator-triggered recompute of an OPEN cycle, returning the refreshed
+   * detail. Separate from rebuildCycleLines because that one is a silent side
+   * effect of another write and tolerates any status; this is someone asking
+   * for it, so a locked or paid cycle must say why it refused rather than
+   * quietly doing nothing.
+   */
+  async rebuildOpenCycle(
+    id: string, userId?: string, principal?: MpPrincipal,
+  ): Promise<CycleDetail> {
+    const cycle = await this.requireStatus(id, 'open');
+    if (principal?.kind === 'operator') assertNodeAccess(principal, cycle.scopeNodeId ?? '');
+    await this.rebuildCycleLines(id, userId);
+    return this.getCycle(id, principal);
+  }
+
+  /**
    * Rebuild a cycle's farmer lines from the CURRENT pours after milk data is
    * corrected — leaving already-PAID farmers frozen. Recomputes only unpaid lines
    * (paidAt/paymentId/billId null) and, if the cycle is locked, posts a signed GL

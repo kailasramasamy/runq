@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Download, Receipt } from 'lucide-react';
+import { ArrowLeft, Download, Receipt, RefreshCw } from 'lucide-react';
 import { sharePdf } from '@/lib/share-pdf';
 import {
   PageHeader, Card, CardContent, Button, Badge, Modal, Input, Combobox, EmptyState,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import {
-  usePayoutCycle, useCycleAction, useSettleFarmer, useNodes, useGlSettings, useBillableVmccs,
+  usePayoutCycle, useCycleAction, useRebuildCycle, useSettleFarmer, useNodes, useGlSettings, useBillableVmccs,
   type MpPayoutLine, type MpCycleDetail, type MpNode, type MpBillableVmcc, type BillingPeriodSel, type PayoutMode,
 } from '@/hooks/queries/use-milk-procurement';
 import { VmccBillSection } from './billing';
@@ -48,6 +48,7 @@ export function MpCycleDetailPage() {
   const { toast } = useToast();
   const { data, isLoading } = usePayoutCycle(cycleId);
   const lock = useCycleAction('lock');
+  const rebuild = useRebuildCycle();
   const [tab, setTab] = useState<'vmcc' | 'farmers'>('vmcc');
   const cycle = data?.data;
   // Billable preview for the cycle's CC — a pooled centre's payable comes from
@@ -69,10 +70,21 @@ export function MpCycleDetailPage() {
         description={`${cycle.periodStart} → ${cycle.periodEnd}`}
         fullWidth
         actions={cycle.status === 'open' ? (
-          <Button size="sm" loading={lock.isPending} onClick={() => lock.mutate(cycleId, {
-            onSuccess: () => toast('Cycle locked', 'success'),
-            onError: (e) => toast(e instanceof Error ? e.message : 'Failed to lock', 'error'),
-          })}>Lock cycle</Button>
+          <div className="flex gap-2">
+            {/* A line is a snapshot taken at generate. Anything that changed the
+                pours or the ledger afterwards without going through a path that
+                rebuilds leaves it stale — and lock posts whatever the line says,
+                it does not recompute. Hence a way to refresh before locking. */}
+            <Button size="sm" variant="secondary" loading={rebuild.isPending}
+              onClick={() => rebuild.mutate(cycleId, {
+                onSuccess: () => toast('Lines recomputed from current pours and ledger', 'success'),
+                onError: (e) => toast(e instanceof Error ? e.message : 'Failed to regenerate', 'error'),
+              })}><RefreshCw className="h-4 w-4" />Regenerate lines</Button>
+            <Button size="sm" loading={lock.isPending} onClick={() => lock.mutate(cycleId, {
+              onSuccess: () => toast('Cycle locked', 'success'),
+              onError: (e) => toast(e instanceof Error ? e.message : 'Failed to lock', 'error'),
+            })}>Lock cycle</Button>
+          </div>
         ) : undefined}
       />
       <TotalsStrip cycle={cycle} billable={billableData?.data ?? []} />
