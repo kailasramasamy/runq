@@ -209,9 +209,31 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
     if (_isMilk) {
       _seedMilkType(ref.watch(farmerSalesProvider(widget.farmer.id)));
     }
+    final mq = MediaQuery.of(context);
+    // The form is long enough to reach the status bar on a phone once the
+    // keypad is up — the title then sat behind the clock and the battery. Cap
+    // it at what is left above the keyboard, less the status bar and a margin,
+    // so the sheet always reads as a sheet with the screen behind it.
+    final maxH = (mq.size.height - mq.viewInsets.bottom - mq.padding.top - DhenuSpacing.xxl)
+        .clamp(0.0, mq.size.height);
+    // Below Save, the sheet's own bottom padding used to hold a 40pt band of
+    // empty surface above the keypad, so the two looked like two separate
+    // panels. With the keypad up the sheet ends just under Save and the keypad
+    // continues from there; with it down the padding returns as the thumb rest.
+    final keypadUp = mq.viewInsets.bottom > 0;
+    // The keypad's own top corners are rounded, so a sheet that stops exactly
+    // at its edge leaves two wedges of the screen behind showing through.
+    // Running the surface a little way under the keypad fills them; the same
+    // amount is added back inside so Save is not what gets covered.
+    // Clamped, not subtracted: the keypad animates in, so the inset passes
+    // through every value between 0 and its height — and any of those smaller
+    // than the overlap made the padding negative, which Padding asserts on.
+    const overlap = DhenuSpacing.xxl;
+    final liftBy = (mq.viewInsets.bottom - overlap).clamp(0.0, double.infinity);
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: liftBy),
       child: Container(
+        constraints: BoxConstraints(maxHeight: maxH),
         decoration: BoxDecoration(
           color: t.surface,
           borderRadius:
@@ -220,8 +242,8 @@ class _FarmerSaleSheetState extends ConsumerState<_FarmerSaleSheet> {
         child: ListView(
           shrinkWrap: true,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.fromLTRB(
-              DhenuSpacing.lg, 0, DhenuSpacing.lg, DhenuSpacing.x4),
+          padding: EdgeInsets.fromLTRB(DhenuSpacing.lg, 0, DhenuSpacing.lg,
+              keypadUp ? DhenuSpacing.lg + overlap : DhenuSpacing.x4),
           children: [
             const SheetGrabber(),
             Text(_isEdit ? l.farmerSaleEditTitle : l.farmerSaleTitle,
