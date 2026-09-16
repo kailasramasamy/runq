@@ -316,6 +316,12 @@ class AppLocalizationsTa extends AppLocalizations {
   String get consignmentShareTitle => 'பால் அனுப்புகை ரசீது';
 
   @override
+  String get consignmentShareDispatch => 'அனுப்புகை விவரத்தைப் பகிர்';
+
+  @override
+  String get consignmentShareDispatchTitle => 'பால் அனுப்புகை விவரம்';
+
+  @override
   String get consignmentShareDispatched => 'அனுப்பியது';
 
   @override

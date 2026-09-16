@@ -505,6 +505,7 @@ class _VmccDispatchTabState extends ConsumerState<VmccDispatchTab> {
               // unwind instead of a cancel the server would refuse.
               CancelDispatchMenuButton(
                 consignment: c,
+                sourceName: widget.node.name,
                 destinationName: ccNames[c.toNodeId] ?? l.dispatchHistoryCcFallback,
                 onDone: _refreshLegs,
               ),

@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/sheet_grabber.dart';
+import 'consignment_share.dart';
 import 'unwind_sheet.dart';
 
 /// Undoing a leg of the journey, shared by both ends of both legs.
@@ -24,54 +25,6 @@ import 'unwind_sheet.dart';
 /// The server owns every rule about whether a cancel is allowed (milk sent
 /// onward, batch already in production). Nothing here second-guesses it — the
 /// button is offered on state alone, and the refusal comes back as a toast.
-
-/// Cancel button for a dispatched load.
-///
-/// Once the load has landed the undo has to start at the far end, so the button
-/// turns into a hint saying so rather than disappearing. Rendering nothing was
-/// the dead end that sent an operator hunting: their duplicate legs were
-/// already received, the tab offered no affordance at all, and there was
-/// nothing on screen naming the centre that had to act first.
-class CancelDispatchButton extends StatelessWidget {
-  const CancelDispatchButton({
-    super.key,
-    required this.consignment,
-    required this.destinationName,
-    required this.onDone,
-  });
-
-  final MpConsignment consignment;
-  final String destinationName;
-  final Future<void> Function() onDone;
-
-  @override
-  Widget build(BuildContext context) {
-    if (consignment.isReversed) return const SizedBox.shrink();
-    final t = DT(context);
-    final l = AppLocalizations.of(context);
-    // A received leg used to render a lock and a hint naming the centre that
-    // had to act first — true, but it left the operator to go and find that
-    // screen, in another mode, often date-scoped to today. The undo now starts
-    // from here and walks the whole chain in the order the guards require.
-    if (consignment.received) {
-      return IconButton(
-        icon: Icon(DhenuIcons.undo, size: 18, color: t.gradeC),
-        tooltip: l.unwindOpen,
-        onPressed: () => showUnwindSheet(
-          context,
-          consignmentId: consignment.id,
-          title: '${consignment.consignmentNo} · $destinationName',
-          onDone: onDone,
-        ),
-      );
-    }
-    return IconButton(
-      icon: Icon(DhenuIcons.undo, size: 18, color: t.gradeC),
-      tooltip: l.cancelDispatchAction,
-      onPressed: () => confirmCancelDispatch(context, consignment, destinationName, onDone),
-    );
-  }
-}
 
 /// Cancel button for a load already taken in here. Puts it back in transit so
 /// the sender can withdraw it — or, for a manually-entered receipt, withdraws
@@ -183,11 +136,16 @@ class CancelDispatchMenuButton extends StatelessWidget {
   const CancelDispatchMenuButton({
     super.key,
     required this.consignment,
+    required this.sourceName,
     required this.destinationName,
     required this.onDone,
   });
 
   final MpConsignment consignment;
+
+  /// The centre that sent it. Only the share needs it, and only to write the
+  /// "from → to" line the receiving end already sends back.
+  final String sourceName;
   final String destinationName;
   final Future<void> Function() onDone;
 
@@ -199,7 +157,8 @@ class CancelDispatchMenuButton extends StatelessWidget {
     return IconButton(
       icon: Icon(DhenuIcons.more, size: 18, color: t.inkSoft),
       tooltip: consignment.received ? l.unwindOpen : l.cancelDispatchAction,
-      onPressed: () => _openDispatchActions(context, consignment, destinationName, onDone),
+      onPressed: () => _openDispatchActions(
+          context, consignment, sourceName, destinationName, onDone),
     );
   }
 }
@@ -208,8 +167,8 @@ class CancelDispatchMenuButton extends StatelessWidget {
 /// undo has to start at the far end, so the one action turns into the chain
 /// unwind rather than a cancel the server would refuse.
 Future<void> _openDispatchActions(
-  BuildContext context, MpConsignment c, String destinationName,
-  Future<void> Function() onDone,
+  BuildContext context, MpConsignment c, String sourceName,
+  String destinationName, Future<void> Function() onDone,
 ) {
   final t = DT(context);
   final l = AppLocalizations.of(context);
@@ -236,6 +195,20 @@ Future<void> _openDispatchActions(
               Text('${c.consignmentNo} · ${litres(c.dispatchQty ?? 0, unit: true)}',
                   style: DhenuText.caption.copyWith(color: t.inkSoft)),
               const SizedBox(height: DhenuSpacing.lg),
+              // Send the load on ahead in the app's own words — the same
+              // sentence the CC shares back on receipt, so the two ends of the
+              // leg quote identical litres and QC instead of a photographed
+              // screen and a retyped message that disagree.
+              _sheetAction(t, DhenuIcons.share,
+                  c.received ? l.consignmentShare : l.consignmentShareDispatch,
+                  t.brand, () {
+                Navigator.pop(ctx);
+                shareConsignment(context,
+                    consignment: c,
+                    sourceName: sourceName,
+                    destinationName: destinationName);
+              }),
+              const SizedBox(height: DhenuSpacing.sm),
               _sheetAction(
                 t,
                 DhenuIcons.undo,

@@ -228,6 +228,8 @@
   "pourDetailGrade": "Grade",
   "consignmentShare": "Share receipt",
   "consignmentShareTitle": "Milk consignment receipt",
+  "consignmentShareDispatch": "Share dispatch",
+  "consignmentShareDispatchTitle": "Milk consignment dispatch",
   "consignmentShareDispatched": "Dispatched",
   "consignmentShareReceived": "Received",
   "consignmentShareRefused": "Refused",

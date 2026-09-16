@@ -604,6 +604,18 @@ abstract class AppLocalizations {
   /// **'Milk consignment receipt'**
   String get consignmentShareTitle;
 
+  /// No description provided for @consignmentShareDispatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Share dispatch'**
+  String get consignmentShareDispatch;
+
+  /// No description provided for @consignmentShareDispatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Milk consignment dispatch'**
+  String get consignmentShareDispatchTitle;
+
   /// No description provided for @consignmentShareDispatched.
   ///
   /// In en, this message translates to:

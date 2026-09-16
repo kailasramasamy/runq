@@ -84,6 +84,8 @@
   "pourDetailGrade": "தரம்",
   "consignmentShare": "ரசீதைப் பகிர்",
   "consignmentShareTitle": "பால் அனுப்புகை ரசீது",
+  "consignmentShareDispatch": "அனுப்புகை விவரத்தைப் பகிர்",
+  "consignmentShareDispatchTitle": "பால் அனுப்புகை விவரம்",
   "consignmentShareDispatched": "அனுப்பியது",
   "consignmentShareReceived": "பெறப்பட்டது",
   "consignmentShareRefused": "மறுக்கப்பட்டது",

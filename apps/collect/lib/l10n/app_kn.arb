@@ -84,6 +84,8 @@
   "pourDetailGrade": "ದರ್ಜೆ",
   "consignmentShare": "ರಸೀದಿ ಹಂಚಿಕೊಳ್ಳಿ",
   "consignmentShareTitle": "ಹಾಲು ರವಾನೆ ರಸೀದಿ",
+  "consignmentShareDispatch": "ರವಾನೆ ವಿವರ ಹಂಚಿಕೊಳ್ಳಿ",
+  "consignmentShareDispatchTitle": "ಹಾಲು ರವಾನೆ ವಿವರ",
   "consignmentShareDispatched": "ರವಾನೆಯಾದದ್ದು",
   "consignmentShareReceived": "ಸ್ವೀಕರಿಸಿದ್ದು",
   "consignmentShareRefused": "ನಿರಾಕರಿಸಿದ್ದು",

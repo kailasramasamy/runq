@@ -563,10 +563,14 @@ class _CcDispatchTabState extends ConsumerState<CcDispatchTab> {
                 const SizedBox(height: 2),
                 _outboundStatus(t, l, c),
               ]),
-              // Undo a tanker that hasn't landed. Once the plant has taken it in
-              // this turns into a hint naming who must cancel the receipt first.
-              CancelDispatchButton(
+              // Share and undo behind a dots menu, the way the VMCC tab lists
+              // them: unwinding a tanker is not something a mis-tap beside the
+              // litres should start, and the plant asks for these figures often
+              // enough that sharing belongs next to it rather than two screens
+              // away in history.
+              CancelDispatchMenuButton(
                 consignment: c,
+                sourceName: widget.node.name,
                 destinationName: ppNames[c.toNodeId] ?? l.dispatchHistoryPlantFallback,
                 onDone: _refreshLegs,
               ),

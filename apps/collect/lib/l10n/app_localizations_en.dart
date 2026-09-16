@@ -313,6 +313,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get consignmentShareTitle => 'Milk consignment receipt';
 
   @override
+  String get consignmentShareDispatch => 'Share dispatch';
+
+  @override
+  String get consignmentShareDispatchTitle => 'Milk consignment dispatch';
+
+  @override
   String get consignmentShareDispatched => 'Dispatched';
 
   @override

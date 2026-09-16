@@ -311,6 +311,12 @@ class AppLocalizationsKn extends AppLocalizations {
   String get consignmentShareTitle => 'ಹಾಲು ರವಾನೆ ರಸೀದಿ';
 
   @override
+  String get consignmentShareDispatch => 'ರವಾನೆ ವಿವರ ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String get consignmentShareDispatchTitle => 'ಹಾಲು ರವಾನೆ ವಿವರ';
+
+  @override
   String get consignmentShareDispatched => 'ರವಾನೆಯಾದದ್ದು';
 
   @override

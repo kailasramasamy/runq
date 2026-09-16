@@ -13,6 +13,7 @@ import '../widgets/dhenu_states.dart';
 import '../widgets/quality_badge.dart';
 import '../widgets/source_row.dart';
 import '../widgets/status_glyph.dart';
+import 'shared/consignment_share.dart';
 
 /// Dispatch history for a VMCC or CC — tankers this node sent onward over the
 /// last 30 days, grouped into per-day sections (newest first). The most recent
@@ -152,16 +153,37 @@ class _DispatchHistoryState extends ConsumerState<DispatchHistory> {
       DhenuTokens t, AppLocalizations l, List<MpConsignment> cs, Map<String, String> names) => [
         for (var i = 0; i < cs.length; i++) ...[
           if (i > 0) Divider(height: 1, color: t.hairline),
-          SourceRow(
-            title: names[cs[i].toNodeId] ??
-                (_destType == 'pp' ? l.dispatchHistoryPlantFallback : l.dispatchHistoryCcFallback),
-            subtitle: _subtitle(l, cs[i]),
-            quality: cs[i].milkType == null ? null : MilkTypePill(milkType: cs[i].milkType!),
-            litres: litres(cs[i].dispatchQty ?? 0, unit: true),
-            trailingStatus: _status(t, l, cs[i]),
-          ),
+          _detailRow(t, l, cs[i], names),
         ],
       ];
+
+  /// One leg, with its share beside it. Sharing sits per row and not per day
+  /// because the question a destination asks is about one tanker on one shift —
+  /// litres, QC, container — which a day's roll-up cannot answer. A
+  /// direct-receive leg is excluded: this node never sent it, so it has no
+  /// dispatch figures to quote.
+  Widget _detailRow(DhenuTokens t, AppLocalizations l, MpConsignment c,
+      Map<String, String> names) {
+    final destination = names[c.toNodeId] ??
+        (_destType == 'pp' ? l.dispatchHistoryPlantFallback : l.dispatchHistoryCcFallback);
+    return Row(children: [
+      Expanded(
+        child: SourceRow(
+          title: destination,
+          subtitle: _subtitle(l, c),
+          quality: c.milkType == null ? null : MilkTypePill(milkType: c.milkType!),
+          litres: litres(c.dispatchQty ?? 0, unit: true),
+          trailingStatus: _status(t, l, c),
+        ),
+      ),
+      if (!c.directReceive && !c.isReversed)
+        Padding(
+          padding: const EdgeInsets.only(right: DhenuSpacing.sm),
+          child: ShareConsignmentButton(
+              consignment: c, sourceName: node.name, destinationName: destination),
+        ),
+    ]);
+  }
 
   /// A direct-receive leg was never dispatched from here — the destination
   /// keyed it on arrival. Saying so stops the sending operator reading it as a

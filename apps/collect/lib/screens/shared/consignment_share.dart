@@ -47,22 +47,30 @@ String consignmentShareMessage(
   required String sourceName,
   required String destinationName,
 }) {
+  // An in-transit leg has no receipt yet, so it speaks in the sender's own
+  // figures — the dispatch QC and the litres that left. Reading the receipt
+  // fields regardless would have sent "Received: 0.0 L" with no quality at all
+  // for the load a VMCC operator shares most often: the one just dispatched.
+  final landed = c.received;
+  final fat = landed ? c.receiptFat : c.dispatchFat;
+  final snf = landed ? c.receiptSnf : c.dispatchSnf;
+  final water = landed ? c.receiptWater : c.dispatchWater;
   final quality = [
-    if (c.receiptFat != null) 'FAT ${c.receiptFat!.toStringAsFixed(1)}',
-    if (c.receiptSnf != null) 'SNF ${c.receiptSnf!.toStringAsFixed(1)}',
+    if (fat != null) 'FAT ${fat.toStringAsFixed(1)}',
+    if (snf != null) 'SNF ${snf.toStringAsFixed(1)}',
   ].join(' · ');
   return [
-    l.consignmentShareTitle,
+    landed ? l.consignmentShareTitle : l.consignmentShareDispatchTitle,
     '$sourceName → $destinationName',
     '',
     '${prettyDate(c.collectionDate)} · ${consignmentSlotL10n(l, c.shift)}',
     if (c.milkType != null) '${l.pourDetailMilkType}: ${milkTypeL10n(l, c.milkType!)}',
     if (c.dispatchQty != null)
       '${l.consignmentShareDispatched}: ${litres(c.dispatchQty!, unit: true)}',
-    '${l.consignmentShareReceived}: ${litres(c.receiptQty ?? 0, unit: true)}',
+    if (landed)
+      '${l.consignmentShareReceived}: ${litres(c.receiptQty ?? 0, unit: true)}',
     if (quality.isNotEmpty) quality,
-    if (c.receiptWater != null)
-      '${l.pourDetailWater}: ${c.receiptWater!.toStringAsFixed(1)}',
+    if (water != null) '${l.pourDetailWater}: ${water.toStringAsFixed(1)}',
     if (c.rejectedQty > 0)
       '${l.consignmentShareRefused}: ${litres(c.rejectedQty, unit: true)}',
     '',
@@ -91,7 +99,7 @@ class ShareConsignmentButton extends StatelessWidget {
     final l = AppLocalizations.of(context);
     return IconButton(
       icon: Icon(DhenuIcons.share, size: 16, color: t.brand),
-      tooltip: l.consignmentShare,
+      tooltip: consignment.received ? l.consignmentShare : l.consignmentShareDispatch,
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       padding: EdgeInsets.zero,
