@@ -259,12 +259,16 @@ export class WhiteBooksGspClient implements GspClient {
       if (status === 'P') {
         return { status: 'P' };
       }
-      if (status === 'PE') {
-        // Processed with Error — surface ALL section errors, not just first
+      if (status && status !== 'IP') {
+        // Any terminal non-processed status: PE (processed with error), ER,
+        // or anything else GSTN invents. Always log the RAW response — a bare
+        // code like "ER" with no error_report is undiagnosable otherwise,
+        // which is exactly how the first post-fix 3B save failed.
+        console.log(`[gsp-client] retstatus terminal status=${status} resp=${JSON.stringify(data).substring(0, 4000)}`);
         const errorReport = data?.data?.error_report ?? data?.error_report;
         const messages: string[] = [];
         // Iterate whatever sections GSTN reports rather than a fixed GSTR-1
-        // list — the same poller now serves GSTR-3B, whose error_report keys
+        // list — the same poller serves GSTR-3B, whose error_report keys
         // (sup_details, itc_elg, inward_sup, …) are different.
         for (const [section, errs] of Object.entries((errorReport ?? {}) as Record<string, unknown>)) {
           if (!Array.isArray(errs)) continue;
@@ -272,17 +276,15 @@ export class WhiteBooksGspClient implements GspClient {
             if (e.error_msg) messages.push(`[${section}] ${e.error_cd || ''} ${e.error_msg}`);
           });
         }
-        // eslint-disable-next-line no-console
-        console.log('[gsp-client] retstatus error_report:', JSON.stringify(errorReport).substring(0, 4000));
+        const topError = data?.error?.message || data?.error?.error_msg || data?.data?.error_msg;
         return {
-          status: 'PE',
-          errorCode: 'GSTN_VALIDATION',
-          errorMessage: messages.length > 0 ? messages.join(' | ') : 'Validation failed on GSTN',
+          status,
+          errorCode: data?.error?.error_cd || (status === 'PE' ? 'GSTN_VALIDATION' : status),
+          errorMessage: messages.length > 0
+            ? messages.join(' | ')
+            : (topError || `GSTN returned status ${status} with no error detail`),
           errorReport,
         };
-      }
-      if (status && status !== 'IP') {
-        return { status, errorCode: data?.error?.error_cd, errorMessage: data?.error?.message };
       }
     }
     return { status: 'TIMEOUT', errorMessage: 'Polling timed out after 30 seconds' };
@@ -480,9 +482,15 @@ export class WhiteBooksGspClient implements GspClient {
       'ret_period': period,
     };
 
+    // Tag every line so one save attempt can be grepped end-to-end, the same
+    // way the file path is tagged. Without the request body logged, a GSTN
+    // rejection cannot be traced back to the field that caused it.
+    const tag = `[GST 3B save ${gstin}/${period}]`;
     const payload = this.transformGstr3bForUpload(gstin, period, data);
+    console.log(`${tag} PUT body=${JSON.stringify(payload)}`);
     const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) });
     const result = await res.json();
+    console.log(`${tag} http=${res.status} resp=${JSON.stringify(result).slice(0, 2000)}`);
 
     const success = result.status_cd === '1' || result.status === 1;
     // WhiteBooks nests the reference id under `data`, same as /gstr1/retsave.
