@@ -141,7 +141,11 @@ export function useItems(filters?: ItemFilters) {
     params.set('itemClassGroup', filters.itemClassGroup);
   }
   if (filters?.itemClass) params.set('itemClass', filters.itemClass);
-  if (filters?.sort) params.set('sort', filters.sort);
+  // Category order is the app-wide default, so every picker that doesn't ask
+  // for anything specific reads the catalogue in the sequence set on the
+  // categories master. Callers that want the class-rank grouping instead —
+  // the items master outside Inventory — pass sort: 'name' explicitly.
+  params.set('sort', filters?.sort ?? 'category');
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

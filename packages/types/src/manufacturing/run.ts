@@ -14,6 +14,14 @@ export interface WoConsumption {
   /** Joined from items master at read time. */
   inputItemName: string;
   batchNo: string | null;
+  /**
+   * When the batch itself came into stock — the fact that tells two lots
+   * apart. `consumedAt` is the same clock time for every line of one draw and
+   * says nothing about which milk is older, and a consignment code cannot be
+   * compared to another consignment code. Null for untracked stock, or a
+   * batch with no inbound movement behind it.
+   */
+  receivedAt: string | null;
   warehouseId: string;
   warehouseName: string;
   qty: number;

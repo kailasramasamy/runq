@@ -609,6 +609,9 @@ class _BomPickerSheetState extends State<_BomPickerSheet> {
     try {
       final res = await manufacturingRepo.listBoms(
         isActive: true, // only show active BOMs
+        // Dispatch posts repack runs itself, against the packed SKU, when a
+        // delivery line falls short. Nobody plans one by hand.
+        excludeAutoRepack: true,
         search: q.isEmpty ? null : q,
         limit: 30,
       );

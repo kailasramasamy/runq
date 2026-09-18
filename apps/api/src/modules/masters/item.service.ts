@@ -2,6 +2,7 @@ import { eq, and, ilike, or, sql, gte, lte, isNull, inArray } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core';
 import { items, categories, priceListItems, salesInvoices, salesInvoiceItems, tenants, stockOnHand, boms } from '@runq/db';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
+import { categoryTreeOrder } from './category-order';
 
 // Joined view of an item row + category leaf + parent. We compose this
 // once per read query so toItem() can derive the `category` / `subcategory`
@@ -30,13 +31,10 @@ const ITEM_RECENCY_DESC = sql`GREATEST(
   ${items.updatedAt}
 ) DESC NULLS LAST`;
 
-/** Category-tree order: root name, then leaf name, both A–Z with uncategorised
- *  items last. Mirrors toItem()'s derivation — a root-level leaf is the
- *  category itself and has no subcategory, so it sorts ahead of its children. */
-const ITEM_CATEGORY_ASC = [
-  sql`COALESCE(${catParent.name}, ${catLeaf.name}) ASC NULLS LAST`,
-  sql`CASE WHEN ${catLeaf.parentId} IS NULL THEN NULL ELSE ${catLeaf.name} END ASC NULLS FIRST`,
-];
+/** Category-tree order: the sequence set on the categories master, root then
+ *  leaf, with uncategorised items last. Shared with the BOM and price-list
+ *  lists so "category order" means the same thing on every screen. */
+const ITEM_CATEGORY_ASC = categoryTreeOrder(catLeaf, catParent);
 
 type ItemRowWithCategory = {
   item: typeof items.$inferSelect;
@@ -316,7 +314,7 @@ export class ItemService {
           ilike(items.name, `${root}%`),
         ),
       )
-      .orderBy(items.name);
+      .orderBy(...ITEM_CATEGORY_ASC, items.name);
     return candidates
       .filter((c) => c.item.id !== id)
       .filter(

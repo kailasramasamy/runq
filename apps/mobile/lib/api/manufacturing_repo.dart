@@ -16,12 +16,17 @@ class ManufacturingRepo {
     bool? isActive,
     String? search,
     String? sort,
+    /// Drop the recipes dispatch repacks on its own. Set by the pickers that
+    /// ask a person what they are making; left off by the BOM list and the
+    /// report filters, which still have to show them.
+    bool? excludeAutoRepack,
     int page = 1,
     int limit = 25,
   }) async {
     final qp = <String, String>{'page': '$page', 'limit': '$limit'};
     if (outputItemId != null && outputItemId.isNotEmpty) qp['outputItemId'] = outputItemId;
     if (isActive != null) qp['isActive'] = '$isActive';
+    if (excludeAutoRepack == true) qp['excludeAutoRepack'] = 'true';
     if (search != null && search.isNotEmpty) qp['search'] = search;
     if (sort != null && sort.isNotEmpty) qp['sort'] = sort;
     final qs = qp.entries
@@ -636,7 +641,7 @@ class ManufacturingRepo {
     String? itemClass,
     String? itemClassGroup,
   }) async {
-    final qp = <String, String>{'search': query, 'limit': '30'};
+    final qp = <String, String>{'search': query, 'limit': '30', 'sort': 'category'};
     if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
     // 'all' is the absence of a filter — mirror inventory_repo and omit it
     // rather than relying on the server to interpret the literal.

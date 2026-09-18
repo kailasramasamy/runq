@@ -79,6 +79,21 @@ export function useUpdateCategory() {
   });
 }
 
+/** Persists a dragged sibling group's new order as one dense 0..n-1 sequence. */
+export function useReorderCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (order: Array<{ id: string; sortOrder: number }>) =>
+      api.put<{ data: { updated: number } }>('/masters/categories/reorder', order),
+    // Items everywhere are ordered off this sequence, so a reorder invalidates
+    // the item caches too — not just the category tree.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CATEGORY_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
 export function useToggleCategory() {
   const qc = useQueryClient();
   return useMutation({

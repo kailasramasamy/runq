@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import {
   createCategorySchema, updateCategorySchema, categoryFilterSchema,
-  categoryTreeQuerySchema, uuidParamSchema,
+  categoryTreeQuerySchema, uuidParamSchema, reorderCategoriesSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { CategoryService } from './category.service';
@@ -51,6 +51,19 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
       const service = new CategoryService(request.server.db, request.tenantId);
       const category = await service.create(input);
       return reply.status(201).send({ data: category });
+    },
+  );
+
+  // Declared before '/:id' for readability; Fastify's router prefers the
+  // static segment over the parametric one regardless of registration order.
+  app.put(
+    '/reorder',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request) => {
+      const input = reorderCategoriesSchema.parse(request.body);
+      const service = new CategoryService(request.server.db, request.tenantId);
+      await service.reorder(input);
+      return { data: { updated: input.length } };
     },
   );
 

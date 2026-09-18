@@ -202,6 +202,7 @@ class InventoryRepo {
   Future<List<InvItem>> searchItems(String query, {int limit = 25, String? itemClassGroup}) async {
     final qp = <String, String>{
       'limit': '$limit',
+      'sort': 'category',
       if (query.trim().isNotEmpty) 'search': query.trim(),
       if (itemClassGroup != null && itemClassGroup != 'all') 'itemClassGroup': itemClassGroup,
     };

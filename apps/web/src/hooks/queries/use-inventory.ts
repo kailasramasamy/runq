@@ -27,6 +27,13 @@ export interface OnHandRow {
   /** item_class enum value. Drives the bucket-tab strip on the on-hand
    *  page (Finished / Inputs / Trading / Other). */
   itemClass: string | null;
+  /** Axis-2 category tree. `categoryName` is the leaf the item is filed under,
+   *  `categoryGroup` its parent — so a list heads its sections with the group
+   *  and falls back to the leaf for an item sitting directly on a root. The
+   *  API has always sent both (stock-query.service.ts); only this type was
+   *  missing them. Named to match mobile's InvOnHandRow. */
+  categoryName: string | null;
+  categoryGroup: string | null;
   warehouseId: string;
   warehouseName: string;
   batchNo: string;

@@ -14,6 +14,7 @@ import '../../../api/manufacturing_models.dart';
 import '../../../api/manufacturing_repo.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
+import 'mfg_bom_grouping.dart';
 import 'mfg_colors.dart';
 import 'mfg_primitives.dart';
 
@@ -179,9 +180,48 @@ class MfgItemPickerSheetState extends State<MfgItemPickerSheet> {
     }
   }
 
+  /// Section headers and item rows in one flat list, so the sheet keeps a lazy
+  /// [ListView.builder] instead of building every tile up front.
+  ///
+  /// The suggested run stays ungrouped at the top: it is a ranking, and filing
+  /// those rows back into their categories would scatter the one thing the
+  /// section exists to gather. Everything below it sections by category, in the
+  /// order the server sent — the sequence set on the categories master.
+  List<Object> get _entries {
+    final out = <Object>[];
+    if (_suggestedCount > 0) {
+      out.add(MfgCategoryHeader(
+        label: 'Suggested for ${widget.suggestFrom}',
+        count: _suggestedCount,
+      ));
+      out.addAll(_results.take(_suggestedCount));
+    }
+    final rest = _results.skip(_suggestedCount).toList();
+    if (rest.isEmpty) return out;
+
+    final groups = groupMfgItemsByCategory(rest);
+    String? currentCategory;
+    for (final g in groups) {
+      if (g.category != currentCategory) {
+        currentCategory = g.category;
+        out.add(MfgCategoryHeader(
+          label: g.category,
+          count: mfgItemCategoryCount(groups, g.category),
+        ));
+      }
+      if (g.subcategory != null) {
+        out.add(MfgCategoryHeader(label: g.subcategory!, count: g.rows.length, nested: true));
+      }
+      out.addAll(g.rows);
+    }
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    // Built once per frame, not per row — the builder below only indexes it.
+    final entries = _entries;
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       minChildSize: 0.5,
@@ -281,78 +321,69 @@ class MfgItemPickerSheetState extends State<MfgItemPickerSheet> {
                   : ListView.builder(
                       controller: scrollCtrl,
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
-                      itemCount: _results.length,
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                      itemCount: entries.length,
                       itemBuilder: (_, i) {
-                        final item = _results[i];
-                        // Headers ride on the first row of each run so the
-                        // list stays a single flat, scroll-cheap builder.
-                        final header = _suggestedCount == 0
-                            ? null
-                            : i == 0
-                            ? 'Suggested for ${widget.suggestFrom}'
-                            : i == _suggestedCount
-                            ? 'All items'
-                            : null;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (header != null)
-                              Padding(
-                                padding: EdgeInsets.fromLTRB(14, i == 0 ? 4 : 14, 14, 6),
-                                child: Text(
-                                  header.toUpperCase(),
-                                  style: RunqText.label.copyWith(color: t.muted),
-                                ),
-                              ),
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => Navigator.of(context).pop(item),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color: MfgColors.roseSubtle,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(
-                                          Icons.inventory_2_outlined,
-                                          size: 18,
-                                          color: MfgColors.brand(context),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              item.name,
-                                              style: RunqText.bodyStrong.copyWith(color: t.ink),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              '${item.sku.isEmpty ? '' : '${item.sku} · '}${item.uom} · ${item.itemClass}',
-                                              style: RunqText.caption.copyWith(color: t.muted),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                        final entry = entries[i];
+                        if (entry is MfgCategoryHeader) return entry;
+                        final item = entry as MfgItemRow;
+                        // items.unit is nullable, so fall back to the GST pack
+                        // unit. A blank sitting between two separators reads as
+                        // a rendering fault rather than as missing data.
+                        final unit = item.uom.isNotEmpty ? item.uom : (item.packSizeUqc ?? '');
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => Navigator.of(context).pop(item),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: MfgColors.roseSubtle,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 18,
+                                      color: MfgColors.brand(context),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: RunqText.bodyStrong.copyWith(color: t.ink),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          // Joined, not interpolated: any of
+                                          // the three can be blank, and the
+                                          // old form left the separators behind
+                                          // when they were.
+                                          [
+                                            if (item.sku.isNotEmpty) item.sku,
+                                            if (unit.isNotEmpty) unit,
+                                            if (item.itemClass.isNotEmpty) item.itemClass,
+                                          ].join(' · '),
+                                          style: RunqText.caption.copyWith(color: t.muted),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         );
                       },
                     ),

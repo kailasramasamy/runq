@@ -55,6 +55,11 @@ export class WorkOrderService {
           bomCode: boms.bomCode,
           bomName: boms.name,
           outputItemName: items.name,
+          // Resolved, not raw. work_orders.output_item_id is null on a
+          // recipe-backed run — the product comes off the BOM there — so a
+          // caller grouping runs by what they made needs the one key that
+          // holds for both kinds of run.
+          outputItemId: sql<string>`${outputItemRef}`,
           // The draw states its own uom; a recipe-backed run takes the BOM's,
           // and the item's unit is the last resort.
           outputUom: sql<string>`COALESCE(${workOrders.outputUom}, ${boms.outputUom}, ${items.unit})`,
@@ -85,6 +90,9 @@ export class WorkOrderService {
         bomCode: r.bomCode,
         bomName: r.bomName,
         outputItemName: r.outputItemName,
+        // Listed after the spread deliberately: the resolved id has to win
+        // over the raw null toWO() copies off the row.
+        outputItemId: r.outputItemId,
         outputUom: r.outputUom,
         warehouseName: r.warehouseName,
       })),

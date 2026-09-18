@@ -4,6 +4,7 @@ import type { Db } from '@runq/db';
 import type { Category } from '@runq/types';
 import type {
   CreateCategoryInput, UpdateCategoryInput, CategoryFilterInput, CategoryTreeQuery,
+  ReorderCategoriesInput,
 } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
@@ -146,6 +147,25 @@ export class CategoryService {
 
     if (!row) throw new NotFoundError('Category');
     return this.toCategory(row);
+  }
+
+  /**
+   * Write a whole sibling group's order at once.
+   *
+   * One transaction, not N round trips: a drag moves every row between the
+   * grab point and the drop point, and a run that failed halfway would leave
+   * the list in an order the user never chose. Rows outside the tenant are
+   * silently skipped by the same where clause every other write uses.
+   */
+  async reorder(input: ReorderCategoriesInput): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      for (const { id, sortOrder } of input) {
+        await tx
+          .update(categories)
+          .set({ sortOrder, updatedAt: new Date() })
+          .where(and(eq(categories.id, id), eq(categories.tenantId, this.tenantId)));
+      }
+    });
   }
 
   async toggleActive(id: string): Promise<Category> {

@@ -16,7 +16,7 @@ import {
   useSuggestedBatches,
 } from '@/hooks/queries/use-wo-run';
 import { useItems } from '@/hooks/queries/use-items';
-import { formatItemQty, formatINR } from '@/lib/utils';
+import { formatItemQty, formatINR, formatReceivedAt } from '@/lib/utils';
 import type { WorkOrderExpectedLine, WoConsumption } from '@runq/types';
 
 const ACCENT = '#E11D48';
@@ -442,9 +442,18 @@ function ConsumptionRow({
           {formatItemQty(item.qty, null, item.uom)} <span className="text-[10px] font-normal" style={{ color: 'var(--text-3)' }}>{item.uom}</span>
         </div>
         {item.batchNo && (
-          <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-3)' }}>
-            Batch {item.batchNo}
-          </div>
+          // When the lot landed leads, the code follows: one arrival time can
+          // be compared to another at a glance, one consignment code cannot.
+          <>
+            {item.receivedAt && (
+              <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-2)' }}>
+                {formatReceivedAt(item.receivedAt)}
+              </div>
+            )}
+            <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--text-3)' }}>
+              {item.receivedAt ? item.batchNo : `Batch ${item.batchNo}`}
+            </div>
+          </>
         )}
       </div>
       <div className="shrink-0 text-right">

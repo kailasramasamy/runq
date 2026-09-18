@@ -119,3 +119,19 @@ function trimQty(v: number, places: number): string {
   const s = v.toFixed(places);
   return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s;
 }
+
+/**
+ * Batch intake stamp: date plus clock time, since several tankers can land on
+ * the same day and the order they arrived is what matters for short-life stock.
+ *
+ * Shared rather than per-screen — on-hand and the WO consumed section both
+ * lead with it, and two spellings of one timestamp read as two facts.
+ */
+export function formatReceivedAt(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+}

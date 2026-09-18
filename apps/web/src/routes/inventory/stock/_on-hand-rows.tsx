@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Badge, TableRow, TableCell } from '@/components/ui';
 import type { OnHandRow } from '@/hooks/queries/use-inventory';
-import { formatItemQty } from '@/lib/utils';
+import { formatItemQty, formatReceivedAt } from '@/lib/utils';
 
 /**
  * One line per item+warehouse, with its batches folded underneath.
@@ -19,6 +19,10 @@ export interface ItemGroup {
   itemSku: string | null;
   itemUnit: string | null;
   itemClass: string | null;
+  /** Carried up from the batch rows so the item view can section by category
+   *  the same way the batch view does. Every batch of one item shares them. */
+  categoryName: string | null;
+  categoryGroup: string | null;
   warehouseName: string;
   qty: number;
   value: number;
@@ -41,6 +45,8 @@ export function groupByItem(rows: OnHandRow[]): ItemGroup[] {
         itemSku: r.itemSku,
         itemUnit: r.itemUnit,
         itemClass: r.itemClass,
+        categoryName: r.categoryName,
+        categoryGroup: r.categoryGroup,
         warehouseName: r.warehouseName,
         qty: 0,
         value: 0,
@@ -63,7 +69,10 @@ export function groupByItem(rows: OnHandRow[]): ItemGroup[] {
     // Oldest batch first so the fold reads FEFO top-down.
     g.batches.sort((a, b) => (a.receivedAt ?? '').localeCompare(b.receivedAt ?? ''));
   }
-  return [...map.values()].sort((a, b) => a.itemName.localeCompare(b.itemName));
+  // Server order, untouched: rows arrive in the sequence set on the categories
+  // master (category → subcategory → name). The A–Z re-sort that used to live
+  // here threw that away for the whole screen.
+  return [...map.values()];
 }
 
 /** Quantities read the way their item is measured — see formatItemQty. */
@@ -187,15 +196,4 @@ function daysFromToday(iso: string): number | null {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((d.getTime() - today.getTime()) / 86_400_000);
-}
-
-/** Batch intake stamp: date plus clock time, since several tankers can land on
- *  the same day and the order they arrived is what matters for short-life stock. */
-function formatReceivedAt(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
-  });
 }

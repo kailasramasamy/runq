@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Plus, X, Pencil, Trash2, Power, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Power, ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import {
   Card, CardContent, PageHeader, Button, Badge, Input, useToast, ConfirmationDialog,
 } from '@/components/ui';
 import { HsnSacCombobox } from '@/components/ui/hsn-sac-combobox';
 import {
   useCategoryTree, useCreateCategory, useUpdateCategory, useToggleCategory, useDeleteCategory,
-  type Category,
+  useReorderCategories, type Category,
 } from '@/hooks/queries/use-categories';
 
 /** Parse a free-text number input back to number | null. Empty → null so
@@ -147,9 +147,54 @@ function CategoryForm({ category, parentId, onClose }: {
   );
 }
 
+// ─── Sibling drag-and-drop ──────────────────────────────────────────────────
+//
+// Order only ever means something among siblings: dragging a subcategory onto a
+// root would have to reparent it, which is what the edit form is for. So each
+// level owns its own drag state — the page for the roots, each row for its own
+// children — and a drag can never escape its group.
+
+function useSiblingDrag(siblings: Category[]) {
+  const reorder = useReorderCategories();
+  const { toast } = useToast();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  function clear() {
+    setDragId(null);
+    setOverId(null);
+  }
+
+  async function drop(targetId: string) {
+    const from = siblings.findIndex((c) => c.id === dragId);
+    const to = siblings.findIndex((c) => c.id === targetId);
+    clear();
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...siblings];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    // Dense 0..n-1 across the whole group. sort_order starts at 0 on every row,
+    // so writing only the row that moved would leave it tied with its siblings
+    // and the order would fall back to the name tiebreak.
+    try {
+      await reorder.mutateAsync(next.map((c, i) => ({ id: c.id, sortOrder: i })));
+    } catch {
+      toast('Could not save the new order', 'error');
+    }
+  }
+
+  return { dragId, overId, setDragId, setOverId, clear, drop };
+}
+
+type SiblingDrag = ReturnType<typeof useSiblingDrag>;
+
 // ─── Category Row (recursive for tree) ──────────────────────────────────────
 
-function CategoryRow({ category, depth = 0 }: { category: Category; depth?: number }) {
+function CategoryRow({ category, depth = 0, drag }: {
+  category: Category;
+  depth?: number;
+  drag: SiblingDrag;
+}) {
   const toggle = useToggleCategory();
   const remove = useDeleteCategory();
   const { toast } = useToast();
@@ -160,6 +205,9 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
 
   const subs = category.subcategories ?? [];
   const hasChildren = subs.length > 0;
+  // This row's children reorder among themselves, independently of where this
+  // row sits among its own siblings.
+  const subDrag = useSiblingDrag(subs);
 
   async function handleToggle() {
     try {
@@ -184,9 +232,29 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
   return (
     <>
       <div
-        className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
+        draggable
+        onDragStart={() => drag.setDragId(category.id)}
+        onDragEnd={drag.clear}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (drag.dragId && drag.dragId !== category.id) drag.setOverId(category.id);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          void drag.drop(category.id);
+        }}
+        className={`flex items-center gap-2 border-b px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${
+          drag.overId === category.id
+            ? 'border-b-2 border-b-blue-500 dark:border-b-blue-400'
+            : 'border-zinc-100 dark:border-zinc-800'
+        } ${drag.dragId === category.id ? 'opacity-40' : ''}`}
         style={{ paddingLeft: `${16 + depth * 24}px` }}
       >
+        {/* Drag handle. The whole row is draggable; this is what says so. */}
+        <GripVertical
+          size={14}
+          className="shrink-0 cursor-grab text-zinc-300 active:cursor-grabbing dark:text-zinc-600"
+        />
         {/* Expand/collapse toggle */}
         <button
           type="button"
@@ -257,7 +325,7 @@ function CategoryRow({ category, depth = 0 }: { category: Category; depth?: numb
 
       {/* Subcategories */}
       {expanded && subs.map((sub) => (
-        <CategoryRow key={sub.id} category={sub} depth={depth + 1} />
+        <CategoryRow key={sub.id} category={sub} depth={depth + 1} drag={subDrag} />
       ))}
 
       {/* Add subcategory form */}
@@ -288,6 +356,7 @@ export function CategoriesPage() {
   const [showAdd, setShowAdd] = useState(false);
 
   const tree = data?.data ?? [];
+  const rootDrag = useSiblingDrag(tree);
 
   return (
     <div>
@@ -323,7 +392,7 @@ export function CategoriesPage() {
               No categories yet. Click "New Category" to get started.
             </div>
           ) : (
-            tree.map((cat) => <CategoryRow key={cat.id} category={cat} />)
+            tree.map((cat) => <CategoryRow key={cat.id} category={cat} drag={rootDrag} />)
           )}
         </CardContent>
       </Card>

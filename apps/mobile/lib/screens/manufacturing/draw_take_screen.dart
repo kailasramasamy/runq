@@ -150,6 +150,18 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
     );
   }
 
+  /// The chosen product's unit, falling back to its GST pack unit.
+  ///
+  /// `items.unit` is nullable, so a finished good can arrive without one. The
+  /// line below used to print it unguarded, which turned a missing unit into
+  /// "Measured in " — a dangling label that reads as a bug rather than as an
+  /// item nobody has set a unit on.
+  String get _productUnit {
+    final p = _product;
+    if (p == null) return '';
+    return p.uom.isNotEmpty ? p.uom : (p.packSizeUqc ?? '');
+  }
+
   /// What the material is for. Known at draw time, always — it is what the
   /// yield screen creates when the batch is done.
   Widget _whatForCard(RunqTokens t) => MfgCard(
@@ -161,9 +173,9 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
             value: _product?.name,
             onTap: _pickProduct,
           ),
-          if (_product != null) ...[
+          if (_productUnit.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text('Measured in ${_product!.uom}',
+            Text('Measured in $_productUnit',
                 style: RunqText.caption.copyWith(color: t.muted)),
           ],
           const SizedBox(height: 12),

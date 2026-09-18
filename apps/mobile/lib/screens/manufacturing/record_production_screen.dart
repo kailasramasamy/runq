@@ -68,6 +68,11 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   String? _bomId;
   String? _bomCode;
   String? _bomName;
+
+  /// What the chosen BOM makes, for the card's headline. Set the moment a BOM
+  /// is picked; a prefilled screen starts without it and picks it up from the
+  /// preview, which is the only thing that knows the product name there.
+  String? _bomItemName;
   final _producedQtyCtl = TextEditingController();
   String? _warehouseId;
   DateTime? _expiryDate;
@@ -230,15 +235,16 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
         _bomId = picked.id;
         _bomCode = picked.bomCode;
         _bomName = picked.name;
+        _bomItemName = picked.outputItemName;
         // A typed draw and a counted leftover both belong to the BOM they were
-        // entered against.
+        // entered against. Cleared, never disposed: these controllers stay in
+        // their maps and stay attached to live fields across a re-pick, so
+        // tearing them down here would strand the fields on dead controllers.
+        // State.dispose() owns their teardown.
         for (final c in _drawCtls.values) {
           c.clear();
         }
-        for (final c in _drawCtls.values) {
-      c.dispose();
-    }
-    for (final c in _wastageLeftCtls.values) {
+        for (final c in _wastageLeftCtls.values) {
           c.clear();
         }
       });
@@ -409,6 +415,9 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
                   RecordProductionBomQtyCard(
                     bomCode: _bomCode,
                     bomName: _bomName,
+                    // The pick wins over the preview: right after a re-pick the
+                    // preview still describes the BOM that was just replaced.
+                    bomItemName: _bomItemName ?? _preview?.outputItemName,
                     outputUom: _preview?.outputUom,
                     producedQtyCtl: _producedQtyCtl,
                     warehouseId: _warehouseId,

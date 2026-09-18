@@ -9,6 +9,8 @@ import type { StockOnHandFilter, StockLedgerFilter } from '@runq/validators';
 import { ITEM_CLASS_GROUP_MEMBERS } from '@runq/validators';
 import { NotFoundError } from '../../utils/errors';
 import { BatchOriginService } from './batch-origin.service';
+import { batchReceivedMap } from './batch-received';
+import { categoryTreeOrder } from '../masters/category-order';
 
 /** `YYYY-MM-DD` plus n whole days, in UTC so a shelf life never loses a day to
  *  the server's timezone. */
@@ -97,7 +99,14 @@ export class StockQueryService {
       .leftJoin(category, eq(category.id, items.categoryId))
       .leftJoin(parentCategory, eq(parentCategory.id, category.parentId))
       .where(and(...conds))
-      .orderBy(asc(items.name), asc(warehouses.name));
+      // Category tree first: the on-hand screens group by category, and a
+      // group only holds together if the server hands the rows over in that
+      // order. Item and warehouse break the tie inside a subcategory.
+      .orderBy(
+        ...categoryTreeOrder(category, parentCategory),
+        asc(items.name),
+        asc(warehouses.name),
+      );
 
     const filtered = filter.lowOnly
       ? rows.filter((r) => r.reorderLevel != null && Number(r.qty) <= Number(r.reorderLevel))
@@ -157,33 +166,10 @@ export class StockQueryService {
    *  movement's post time. Distinct from `lastMovementAt`, which tracks the
    *  latest movement against the batch and carries the business date rather
    *  than the clock time. */
-  private async batchReceivedMap(
+  private batchReceivedMap(
     keys: Array<{ itemId: string; batchNo: string }>,
   ): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
-    if (keys.length === 0) return out;
-    const itemIds = Array.from(new Set(keys.map((k) => k.itemId)));
-    const batchNos = Array.from(new Set(keys.map((k) => k.batchNo)));
-    const rows = await this.db
-      .select({
-        itemId: stockLedger.itemId,
-        batchNo: stockLedger.batchNo,
-        receivedAt: sql<string>`MIN(${stockLedger.postedAt})`,
-      })
-      .from(stockLedger)
-      .where(
-        and(
-          eq(stockLedger.tenantId, this.tenantId),
-          inArray(stockLedger.itemId, itemIds),
-          inArray(stockLedger.batchNo, batchNos),
-          sql`${stockLedger.qtyIn} > 0`,
-        ),
-      )
-      .groupBy(stockLedger.itemId, stockLedger.batchNo);
-    for (const r of rows) {
-      if (r.batchNo && r.receivedAt) out.set(`${r.itemId}|${r.batchNo}`, r.receivedAt);
-    }
-    return out;
+    return batchReceivedMap(this.db, this.tenantId, keys);
   }
 
   /**

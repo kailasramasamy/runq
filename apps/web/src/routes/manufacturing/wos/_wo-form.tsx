@@ -35,7 +35,9 @@ export function WoForm({ initial, onSubmit, isLoading }: WoFormProps) {
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: bomsData } = useBoms({ isActive: true, limit: 200 });
+  // Nobody plans a repack by hand — dispatch raises those when a delivery
+  // line falls short. Mirrors the mobile WO-create picker.
+  const { data: bomsData } = useBoms({ isActive: true, excludeAutoRepack: true, limit: 200 });
   const { data: bomDetail } = useBom(bomId);
   const { data: warehousesData } = useWarehouses();
 

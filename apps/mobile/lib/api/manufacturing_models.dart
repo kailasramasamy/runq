@@ -234,6 +234,12 @@ class WorkOrderListRow {
   final double plannedQty;
   final String outputUom;
   final String outputItemName;
+
+  /// The product the run made, resolved server-side across both kinds of run
+  /// (a draw names its own, a recipe run inherits the BOM's). This — never the
+  /// name — is what groups two runs of the same thing: names are not unique
+  /// and can be edited between one run and the next.
+  final String? outputItemId;
   final String warehouseId;
   final String warehouseName;
   final String? shift;
@@ -267,6 +273,7 @@ class WorkOrderListRow {
     required this.plannedQty,
     required this.outputUom,
     required this.outputItemName,
+    this.outputItemId,
     required this.warehouseId,
     required this.warehouseName,
     required this.scheduledFor,
@@ -293,6 +300,7 @@ class WorkOrderListRow {
         plannedQty: _num(j['plannedQty']),
         outputUom: (j['outputUom'] as String?) ?? '',
         outputItemName: (j['outputItemName'] as String?) ?? '',
+        outputItemId: j['outputItemId'] as String?,
         warehouseId: (j['warehouseId'] as String?) ?? '',
         warehouseName: (j['warehouseName'] as String?) ?? '',
         shift: j['shift'] as String?,
@@ -484,6 +492,10 @@ class WoConsumptionRow {
   final String inputItemId;
   final String inputItemName;
   final String? batchNo;
+
+  /// When the lot came into stock. [consumedAt] is the same for every line of
+  /// one draw, so it is this that tells two lots apart.
+  final String? receivedAt;
   final String warehouseId;
   final String warehouseName;
   final double qty;
@@ -507,6 +519,7 @@ class WoConsumptionRow {
     required this.consumedAt,
     this.bomLineId,
     this.batchNo,
+    this.receivedAt,
     this.notes,
   });
 
@@ -517,6 +530,7 @@ class WoConsumptionRow {
         inputItemId: (j['inputItemId'] as String?) ?? '',
         inputItemName: (j['inputItemName'] as String?) ?? '',
         batchNo: j['batchNo'] as String?,
+        receivedAt: j['receivedAt'] as String?,
         warehouseId: (j['warehouseId'] as String?) ?? '',
         warehouseName: (j['warehouseName'] as String?) ?? '',
         qty: _num(j['qty']),
@@ -1148,6 +1162,19 @@ class MfgItemRow {
   /// track them is rejected by the ledger, and vice versa.
   final bool trackBatches;
 
+  /// Where the item sits in the category tree — drives the picker's section
+  /// headers. An item filed straight on a root category has a category but no
+  /// subcategory, so [subcategory] is often null. /masters/items has always
+  /// derived and returned both; this model simply wasn't reading them.
+  final String? category;
+  final String? subcategory;
+
+  /// GST canonical pack unit (LTR, KGS…), defaulted from the HSN family when
+  /// the item is created. Stands in when an item carries no `unit` of its own:
+  /// items.unit is nullable, and a screen that states a unit reads as broken
+  /// when it has none to state.
+  final String? packSizeUqc;
+
   MfgItemRow({
     required this.id,
     required this.name,
@@ -1155,6 +1182,9 @@ class MfgItemRow {
     required this.uom,
     required this.itemClass,
     this.trackBatches = false,
+    this.category,
+    this.subcategory,
+    this.packSizeUqc,
   });
 
   factory MfgItemRow.fromJson(Map<String, dynamic> j) => MfgItemRow(
@@ -1166,6 +1196,9 @@ class MfgItemRow {
         uom: (j['unit'] as String?) ?? (j['uom'] as String?) ?? '',
         itemClass: (j['itemClass'] as String?) ?? '',
         trackBatches: j['trackBatches'] == true,
+        category: j['category'] as String?,
+        subcategory: j['subcategory'] as String?,
+        packSizeUqc: j['packSizeUqc'] as String?,
       );
 }
 

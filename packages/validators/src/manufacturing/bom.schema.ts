@@ -83,6 +83,20 @@ export const bomFilterSchema = z.object({
     .transform((v) => (typeof v === 'boolean' ? v : v === 'true'))
     .optional(),
   search: z.string().optional(),
+  /** Drops the BOMs dispatch repacks on its own.
+   *
+   *  The floor makes the pool item — "Paneer - unpacked 200g" — and dispatch
+   *  differentiates it into the packed SKUs when a delivery line comes up
+   *  short. Offering those SKUs as things to record making asks the floor to
+   *  choose between a run they do and two they never do. Set by the
+   *  production pickers only: the BOM master and the report filters still
+   *  list them, because they are real recipes with real history.
+   *
+   *  Same string-or-boolean shape as isActive — it arrives as a query param. */
+  excludeAutoRepack: z
+    .union([z.boolean(), z.literal('true'), z.literal('false')])
+    .transform((v) => (typeof v === 'boolean' ? v : v === 'true'))
+    .optional(),
   /** 'category' orders by the output product's category tree so a paginated
    *  list can be sectioned without a group straddling a page boundary.
    *  Defaults to newest-first. */

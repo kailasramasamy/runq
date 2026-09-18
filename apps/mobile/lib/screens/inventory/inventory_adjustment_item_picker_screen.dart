@@ -41,29 +41,26 @@ List<_PickEntry> _buildPickerSections(List<InvItem> rows) {
     final sub = (r.subcategory ?? '').trim();
     byCategory.putIfAbsent(cat, () => {}).putIfAbsent(sub, () => []).add(r);
   }
-  final catNames = byCategory.keys.toList()
-    ..sort((a, b) {
-      if (a == uncategorised) return 1;
-      if (b == uncategorised) return -1;
-      return a.toLowerCase().compareTo(b.toLowerCase());
-    });
+  // Insertion order is the server's: the sequence set on the categories
+  // master, with the unfiled tail already last. The A–Z sort that stood here
+  // overrode that for every row on the screen.
+  final catNames = byCategory.keys.toList();
   final entries = <_PickEntry>[];
   for (final cat in catNames) {
     final subs = byCategory[cat]!;
     final total = subs.values.fold<int>(0, (n, list) => n + list.length);
     entries.add(_PickEntry.category(cat, total));
     // '' (direct children of the category) first, then named sub-categories.
-    final subNames = subs.keys.toList()
-      ..sort(
-        (a, b) => a.isEmpty
-            ? -1
-            : b.isEmpty
-            ? 1
-            : a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+    // Direct children of the category first, then the named sub-categories in
+    // server order. Partitioned rather than sorted: Dart's sort is not stable,
+    // so a comparator that treated two named subs as equal could still shuffle
+    // them out of the configured sequence.
+    final subNames = <String>[
+      if (subs.containsKey('')) '',
+      ...subs.keys.where((s) => s.isNotEmpty),
+    ];
     for (final sub in subNames) {
-      final items = subs[sub]!
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final items = subs[sub]!;
       // A leaf named after its parent ("Cold Pressed Oils" under "Cold Pressed
       // Oils") would print the same heading twice — the sub-level says nothing
       // there, so skip it.

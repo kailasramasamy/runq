@@ -52,6 +52,44 @@ int bomCategoryCount(List<BomGroup> groups, String category) => groups
     .where((g) => g.category == category)
     .fold(0, (n, g) => n + g.rows.length);
 
+/// One subcategory bucket of items, for the shared manufacturing item picker.
+/// Mirrors [BomGroup] — separate rather than generic because the two read
+/// their category off different fields of different row types.
+class MfgItemGroup {
+  const MfgItemGroup({required this.category, required this.subcategory, required this.rows});
+  final String category;
+  final String? subcategory;
+  final List<MfgItemRow> rows;
+}
+
+/// Bucket items into category → subcategory, preserving the order they arrive
+/// in. The server sorts by the category tree, so preserving that order is what
+/// keeps a category from appearing twice in the list.
+List<MfgItemGroup> groupMfgItemsByCategory(List<MfgItemRow> rows) {
+  final byCategory = <String, Map<String, List<MfgItemRow>>>{};
+  for (final r in rows) {
+    final cat = (r.category?.trim().isNotEmpty == true)
+        ? r.category!.trim()
+        : kBomUncategorised;
+    final sub = r.subcategory?.trim() ?? '';
+    byCategory.putIfAbsent(cat, () => {}).putIfAbsent(sub, () => []).add(r);
+  }
+  return [
+    for (final cat in byCategory.entries)
+      for (final sub in cat.value.entries)
+        MfgItemGroup(
+          category: cat.key,
+          subcategory: sub.key.isEmpty ? null : sub.key,
+          rows: sub.value,
+        ),
+  ];
+}
+
+/// Total items under a category, for the count on its header.
+int mfgItemCategoryCount(List<MfgItemGroup> groups, String category) => groups
+    .where((g) => g.category == category)
+    .fold(0, (n, g) => n + g.rows.length);
+
 class MfgCategoryHeader extends StatelessWidget {
   const MfgCategoryHeader({
     super.key,

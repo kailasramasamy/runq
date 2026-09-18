@@ -17,6 +17,7 @@ import {
 import type { Db } from '@runq/db';
 import { NotFoundError, ConflictError, AppError } from '../../utils/errors';
 import { StockLedgerService } from '../inventory/stock-ledger.service';
+import { batchReceivedMap } from '../inventory/batch-received';
 import type { WoConsumption } from '@runq/types';
 import type { RecordConsumptionInput } from '@runq/validators';
 
@@ -46,7 +47,26 @@ export class WoConsumptionService {
       .where(and(eq(woConsumption.woId, woId), eq(woConsumption.tenantId, this.tenantId)))
       .orderBy(woConsumption.consumedAt);
 
-    return rows.map((r) => this.toConsumption(r.c, r.itemName, r.warehouseName));
+    // One batched lookup for the whole run: the consumed section leads each
+    // draw with when the lot landed, and a query per line would be an N+1 on
+    // a screen that opens every time somebody checks a work order.
+    const received = await batchReceivedMap(
+      this.db,
+      this.tenantId,
+      rows.filter((r) => r.c.batchNo).map((r) => ({
+        itemId: r.c.inputItemId,
+        batchNo: r.c.batchNo!,
+      })),
+    );
+
+    return rows.map((r) =>
+      this.toConsumption(
+        r.c,
+        r.itemName,
+        r.warehouseName,
+        received.get(`${r.c.inputItemId}|${r.c.batchNo}`) ?? null,
+      ),
+    );
   }
 
   async record(woId: string, input: RecordConsumptionInput, userId?: string): Promise<WoConsumption> {
@@ -255,10 +275,13 @@ export class WoConsumptionService {
     return this.toConsumption(row.c, row.itemName, row.warehouseName);
   }
 
+  /** [receivedAt] is resolved only where it is read — the list. A write path
+   *  returns the row to a client that just named the batch itself. */
   private toConsumption(
     c: typeof woConsumption.$inferSelect,
     inputItemName: string,
     warehouseName: string,
+    receivedAt: string | null = null,
   ): WoConsumption {
     return {
       id: c.id,
@@ -268,6 +291,7 @@ export class WoConsumptionService {
       inputItemId: c.inputItemId,
       inputItemName,
       batchNo: c.batchNo ?? null,
+      receivedAt,
       warehouseId: c.warehouseId,
       warehouseName,
       qty: Number(c.qty),

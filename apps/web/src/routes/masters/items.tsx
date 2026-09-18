@@ -171,7 +171,7 @@ export function ItemsPage() {
     // Inventory reads the catalogue as a category tree, so rows come back
     // ordered category → subcategory → name and the table sections on the
     // same keys. Finance and purchase stay class-ranked and alphabetical.
-    ...(isInventory ? { sort: 'category' as const } : {}),
+    ...(isInventory ? { sort: 'category' as const } : { sort: 'name' as const }),
   });
   const { data: schemaRes } = useItemAttributeSchema();
   const toggle = useToggleItem();

@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, sql, count, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '@runq/db';
 import {
   inventoryStockTakes, inventoryStockTakeLines, stockOnHand, items, warehouses,
-  inventoryAdjustments, inventoryAdjustmentLines,
+  inventoryAdjustments, inventoryAdjustmentLines, categories,
 } from '@runq/db';
 import type {
   StartStockTakeInput, UpsertCountLinesInput, UpdateCountLineInput,
@@ -12,6 +13,12 @@ import { AppError, ConflictError, NotFoundError } from '../../utils/errors';
 import { StockLedgerService } from './stock-ledger.service';
 import { InventoryGlPoster } from './gl-poster';
 import { nextDocNo } from './sequence';
+import { categoryTreeOrder } from '../masters/category-order';
+
+// Leaf category and its parent. A count sheet gets walked shelf by shelf, so
+// its lines read in the same category order as every other item list.
+const catLeaf = alias(categories, 'stock_take_cat_leaf');
+const catParent = alias(categories, 'stock_take_cat_parent');
 
 interface Ctx { db: Db; tenantId: string; userId?: string }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,8 +87,10 @@ export class StockTakeService {
       })
       .from(inventoryStockTakeLines)
       .innerJoin(items, eq(items.id, inventoryStockTakeLines.itemId))
+      .leftJoin(catLeaf, eq(catLeaf.id, items.categoryId))
+      .leftJoin(catParent, eq(catParent.id, catLeaf.parentId))
       .where(eq(inventoryStockTakeLines.stockTakeId, id))
-      .orderBy(asc(items.name));
+      .orderBy(...categoryTreeOrder(catLeaf, catParent), asc(items.name));
     return {
       ...row.st,
       warehouseName: row.warehouseName,

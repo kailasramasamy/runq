@@ -20,6 +20,7 @@ import '../../api/manufacturing_models.dart';
 import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
+import 'mfg_material_sheet.dart' show arrivalStamp;
 import 'widgets/mfg_colors.dart';
 import 'widgets/mfg_primitives.dart';
 
@@ -140,7 +141,8 @@ class WoMaterialsCard extends ConsumerWidget {
 }
 
 /// One input on a posted run: what went in, from which batches, against plan.
-typedef _DrawEntry = MapEntry<String, ({String itemId, String itemName, double qty})>;
+typedef _DrawEntry
+    = MapEntry<String, ({String itemId, String itemName, double qty, String? receivedAt})>;
 
 String _batchOf(_DrawEntry e) => e.key.split('::').last;
 
@@ -191,7 +193,8 @@ class _ConsumedRow extends StatelessWidget {
 
     // One batch can be drawn on more than one row (a correction, a second
     // draw) — the floor thinks in batches, so collapse to one line per batch.
-    final byBatch = <String, ({String itemId, String itemName, double qty})>{};
+    final byBatch =
+        <String, ({String itemId, String itemName, double qty, String? receivedAt})>{};
     for (final r in rows) {
       final key = '${r.inputItemId}::${r.batchNo ?? ''}';
       final prev = byBatch[key];
@@ -199,6 +202,9 @@ class _ConsumedRow extends StatelessWidget {
         itemId: r.inputItemId,
         itemName: r.inputItemName,
         qty: (prev?.qty ?? 0) + r.qty,
+        // Same batch, so same arrival — two draws on one lot do not disagree
+        // about when it landed.
+        receivedAt: prev?.receivedAt ?? r.receivedAt,
       );
     }
     final own = byBatch.entries.where((e) => e.value.itemId == ownItemId).toList();
@@ -235,7 +241,12 @@ class _ConsumedRow extends StatelessWidget {
         ]),
       ]),
       for (final e in _batched(own))
-        _DrawLine(label: _batchOf(e), qty: e.value.qty, uom: uom),
+        _DrawLine(
+          label: _batchOf(e),
+          stamp: arrivalStamp(e.value.receivedAt),
+          qty: e.value.qty,
+          uom: uom,
+        ),
       // Stand-ins carry their own name: a line reading only the batch number
       // would put buffalo milk under the A2 heading unremarked.
       for (final entry in subs.entries) ...[
@@ -251,7 +262,12 @@ class _ConsumedRow extends StatelessWidget {
               : Text(entry.key, style: RunqText.micro.copyWith(color: t.muted2)),
         ),
         for (final e in _batched(entry.value))
-          _DrawLine(label: _batchOf(e), qty: e.value.qty, uom: uom),
+          _DrawLine(
+            label: _batchOf(e),
+            stamp: arrivalStamp(e.value.receivedAt),
+            qty: e.value.qty,
+            uom: uom,
+          ),
       ],
     ]);
   }
@@ -260,16 +276,26 @@ class _ConsumedRow extends StatelessWidget {
 /// One batch's contribution to the line above: what it came off on the left,
 /// how much on the right. Right-aligned against the item total so the column
 /// reads as an arithmetic breakdown rather than a list of tags.
+///
+/// Where the arrival is known it leads and the consignment code drops beneath
+/// it: `Today 10:21 AM` can be held against `Yesterday 6:40 PM` at a glance,
+/// and MP/2026-27/01901 against MP/2026-27/01887 cannot. The code stays for
+/// anyone reconciling against the register.
 class _DrawLine extends StatelessWidget {
   const _DrawLine({
     required this.label,
     required this.qty,
     required this.uom,
+    this.stamp,
     this.dense = true,
   });
   final String label;
   final double qty;
   final String uom;
+
+  /// When the lot landed. Null for untracked stock and for a stand-in heading,
+  /// which names an item rather than a batch — both then read as before.
+  final String? stamp;
 
   /// Batch lines sit under a heading and indent; a stand-in with no batches
   /// stands in for the heading itself, so it keeps the full width.
@@ -280,12 +306,23 @@ class _DrawLine extends StatelessWidget {
     final t = RT(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(dense ? 12 : 0, 5, 0, 0),
-      child: Row(children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
-          child: Text(label,
-              style: RunqText.caption.copyWith(color: t.muted),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          child: stamp == null
+              ? Text(label,
+                  style: RunqText.caption.copyWith(color: t.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(stamp!,
+                      style: RunqText.caption.copyWith(color: t.ink),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  Text(label,
+                      style: RunqText.micro.copyWith(color: t.muted2),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ]),
         ),
         const SizedBox(width: 12),
         Text('${woQty(qty)} $uom',

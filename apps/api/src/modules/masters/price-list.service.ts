@@ -13,6 +13,7 @@ import type { CreatePriceListInput, UpdatePriceListInput, PriceListFilterInput }
 import { applyPagination, calcTotalPages } from '@runq/db';
 import type { PaginationMeta } from '@runq/types';
 import { NotFoundError } from '../../utils/errors';
+import { categoryTreeOrder } from './category-order';
 import { toNumber } from '../../utils/decimal';
 
 export interface PriceListListParams {
@@ -93,8 +94,9 @@ export class PriceListService {
     if (!row) throw new NotFoundError('Price List');
 
     // Category/subcategory strings come off the joined category tree —
-    // items no longer carries them. Order by parent name → leaf name →
-    // item name so the export reads top-down by category hierarchy.
+    // items no longer carries them. Ordered by the categories master's own
+    // sequence so the export reads top-down in the same order as every other
+    // item list in the app.
     const lineItems = await this.db
       .select({
         pli: priceListItems,
@@ -116,11 +118,7 @@ export class PriceListService {
       .leftJoin(plCatLeaf, eq(plCatLeaf.id, items.categoryId))
       .leftJoin(plCatParent, eq(plCatParent.id, plCatLeaf.parentId))
       .where(eq(priceListItems.priceListId, id))
-      .orderBy(
-        sql`COALESCE(${plCatParent.name}, ${plCatLeaf.name})`,
-        sql`CASE WHEN ${plCatLeaf.parentId} IS NULL THEN NULL ELSE ${plCatLeaf.name} END`,
-        items.name,
-      );
+      .orderBy(...categoryTreeOrder(plCatLeaf, plCatParent), items.name);
 
     return {
       ...this.toPriceList(row.pl),

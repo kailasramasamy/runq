@@ -8,6 +8,7 @@ import type { BomListRow, BomWithLines, BomLine, BomLineSubstitute } from '@runq
 import type { PaginationMeta } from '@runq/types';
 import type { CreateBomInput, UpdateBomInput, BomFilter } from '@runq/validators';
 import { ConflictError, NotFoundError } from '../../utils/errors';
+import { categoryTreeOrder } from '../masters/category-order';
 
 /** The handle drizzle hands a `db.transaction()` callback. */
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -23,15 +24,15 @@ const catLeaf = alias(categories, 'bom_cat_leaf');
 const catParent = alias(categories, 'bom_cat_parent');
 
 /**
- * Category-tree order: root name, then leaf name, uncategorised last.
+ * Category-tree order: the sequence set on the categories master, then the
+ * output item's name.
  *
  * The list is paginated, so grouping only holds if the server orders by
  * category — otherwise a category straddles a page boundary and the app
  * renders the same section header twice as you scroll.
  */
 const BOM_CATEGORY_ASC = [
-  sql`COALESCE(${catParent.name}, ${catLeaf.name}) ASC NULLS LAST`,
-  sql`CASE WHEN ${catLeaf.parentId} IS NULL THEN NULL ELSE ${catLeaf.name} END ASC NULLS FIRST`,
+  ...categoryTreeOrder(catLeaf, catParent),
   sql`${items.name} ASC`,
 ];
 
@@ -455,6 +456,10 @@ export class BomService {
       eq(boms.tenantId, this.tenantId),
       filters.outputItemId ? eq(boms.outputItemId, filters.outputItemId) : undefined,
       filters.isActive !== undefined ? eq(boms.isActive, filters.isActive) : undefined,
+      // Only when asked. The BOM master and the report filters share this
+      // query and must keep listing repack recipes — they are real BOMs with
+      // real runs behind them; they are just not things a person starts.
+      filters.excludeAutoRepack ? eq(boms.allowAutoRepack, false) : undefined,
       filters.search
         ? or(
             ilike(boms.name, `%${filters.search}%`),

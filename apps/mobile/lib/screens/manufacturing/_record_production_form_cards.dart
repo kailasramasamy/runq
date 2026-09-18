@@ -17,6 +17,13 @@ import 'widgets/mfg_primitives.dart';
 class RecordProductionBomQtyCard extends StatelessWidget {
   final String? bomCode;
   final String? bomName;
+
+  /// What the BOM actually makes. The floor picks a recipe by its product —
+  /// "Paneer 200g", never "BOM-0007" — so this leads the tile and the recipe
+  /// identity drops to the subtle line under it. Nullable: a prefilled screen
+  /// may know the BOM before it knows the product, and the tile falls back to
+  /// the code rather than rendering empty.
+  final String? bomItemName;
   final String? outputUom;
   final TextEditingController producedQtyCtl;
   final String? warehouseId;
@@ -28,6 +35,7 @@ class RecordProductionBomQtyCard extends StatelessWidget {
     super.key,
     required this.bomCode,
     required this.bomName,
+    this.bomItemName,
     required this.outputUom,
     required this.producedQtyCtl,
     required this.warehouseId,
@@ -39,16 +47,33 @@ class RecordProductionBomQtyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
+    final hasItemName = (bomItemName ?? '').isNotEmpty;
+    // The recipe, quietly. Code first — that is what a work order quotes. When
+    // the product name is missing the code has already taken the line above,
+    // so only the BOM name is left to say down here.
+    final recipeLine = hasItemName
+        ? [
+            if ((bomCode ?? '').isNotEmpty) bomCode!,
+            if ((bomName ?? '').isNotEmpty) bomName!,
+          ].join('  ·  ')
+        : (bomName ?? '');
     return MfgCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('What was made', style: RunqText.label),
           const SizedBox(height: 10),
-          RecordProductionPickerTile(label: 'BOM', value: bomCode, onTap: onPickBom),
-          if (bomName != null) ...[
+          // Product on the line that reads, recipe on the line that reconciles.
+          // Falling back to the code keeps the tile from going blank when the
+          // product name has not been resolved yet.
+          RecordProductionPickerTile(
+            label: hasItemName ? 'Product' : 'BOM',
+            value: hasItemName ? bomItemName : bomCode,
+            onTap: onPickBom,
+          ),
+          if (recipeLine.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(bomName!, style: RunqText.caption.copyWith(color: t.muted)),
+            Text(recipeLine, style: RunqText.caption.copyWith(color: t.muted)),
           ],
           const SizedBox(height: 12),
           Row(

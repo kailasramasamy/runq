@@ -1,7 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from '@runq/db';
-import { reorderRules, items, warehouses } from '@runq/db';
+import { reorderRules, items, warehouses, categories } from '@runq/db';
 import type { UpsertReorderRuleInput, ExpiryFilter } from '@runq/validators';
+import { categoryTreeOrder } from '../masters/category-order';
+
+// Leaf category and its parent, so the rules list reads in the same order as
+// every other item list rather than in whatever order the planner returns.
+const catLeaf = alias(categories, 'reorder_cat_leaf');
+const catParent = alias(categories, 'reorder_cat_parent');
 
 export class ReorderService {
   constructor(private readonly db: Db, private readonly tenantId: string) {}
@@ -16,7 +23,10 @@ export class ReorderService {
       .from(reorderRules)
       .innerJoin(items, eq(items.id, reorderRules.itemId))
       .innerJoin(warehouses, eq(warehouses.id, reorderRules.warehouseId))
-      .where(eq(reorderRules.tenantId, this.tenantId));
+      .leftJoin(catLeaf, eq(catLeaf.id, items.categoryId))
+      .leftJoin(catParent, eq(catParent.id, catLeaf.parentId))
+      .where(eq(reorderRules.tenantId, this.tenantId))
+      .orderBy(...categoryTreeOrder(catLeaf, catParent), items.name);
   }
 
   async upsert(input: UpsertReorderRuleInput) {

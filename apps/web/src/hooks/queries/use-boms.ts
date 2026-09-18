@@ -19,6 +19,10 @@ export function useBoms(filters?: BomListFilters) {
   const params = new URLSearchParams();
   if (filters?.outputItemId) params.set('outputItemId', filters.outputItemId);
   if (filters?.isActive !== undefined) params.set('isActive', String(filters.isActive));
+  // Forwarded explicitly: BomListFilters extends the server's BomFilter, so
+  // this type-checks whether or not it is sent — and a filter that is accepted
+  // and quietly dropped is worse than one that never compiled.
+  if (filters?.excludeAutoRepack) params.set('excludeAutoRepack', 'true');
   if (filters?.search) params.set('search', filters.search);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));

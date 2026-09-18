@@ -29,9 +29,13 @@ part '_mfg_home_materials.dart';
 /// came for — record production, and what there is to make it out of —
 /// followed by the runs logged today.
 
-/// The home card is a glance, not a list — anything past this many rows is
-/// reached through "See all" rather than scrolled past on the way to the rest
-/// of the page.
+/// The home card is a glance, not a list — anything past this many is reached
+/// through "See all" rather than scrolled past on the way to the rest of the
+/// page.
+///
+/// Counts *products* on the card, one line each however many runs made them.
+/// The "See all" label still counts runs, because runs are what that screen
+/// lists.
 const int _recentWoLimit = 10;
 
 class ManufacturingHomeScreen extends ConsumerWidget {
@@ -165,36 +169,12 @@ class ManufacturingHomeScreen extends ConsumerWidget {
                         description: 'Close a draw, or record what was made.',
                       );
                     }
-                    final top = rows.take(_recentWoLimit).toList();
-                    return MfgDividedCard(
-                      children: [
-                        for (final wo in top)
-                          MfgDocListTile(
-                            flat: true,
-                            icon: Icons.precision_manufacturing_outlined,
-                            // Only the fallback list spans more than one day,
-                            // so only it needs a date per row. Under "Made
-                            // today" the heading carries the date and the
-                            // leading block shows the shift, which is what
-                            // actually separates one run from the next.
-                            leadingDate: showingFallback ? _activeDate(wo) : null,
-                            leadingShift: showingFallback ? null : wo.shift,
-                            title: wo.outputItemName,
-                            subtitle: wo.bomName,
-                            status: wo.status,
-                            // What came out, once anything has. A run that is
-                            // still open has no output yet, so the plan stands
-                            // in — but on a closed run the planned figure is
-                            // the estimate, not the answer.
-                            rightValue: formatItemQty(
-                                wo.outputQty > 0 ? wo.outputQty : wo.plannedQty,
-                                null,
-                                unit: wo.outputUom),
-                            rightUnit: wo.outputUom,
-                            reference: wo.woNumber,
-                            onTap: () => context.push('/manufacturing/wos/${wo.id}'),
-                          ),
-                      ],
+                    // Every run goes in: the card caps itself by product, not
+                    // by run. Capping here would cut a product's runs in half
+                    // and understate its own total — see _MadeTodayList.
+                    return _MadeTodayList(
+                      rows: rows,
+                      showingFallback: showingFallback,
                     );
                   },
                 ),
@@ -366,6 +346,204 @@ class _RecentSkeleton extends StatelessWidget {
           ),
         ),
       )),
+    );
+  }
+}
+
+/// One product's runs for the day, in the order the server sent them.
+class _MadeGroup {
+  _MadeGroup({required this.key});
+  final String key;
+  final List<WorkOrderListRow> rows = [];
+
+  WorkOrderListRow get lead => rows.first;
+
+  /// Only what the runs actually put out.
+  ///
+  /// A single row falls back to the plan when a run has no yield yet, which is
+  /// honest sitting beside a status chip. Folded into a combined figure it
+  /// would quietly add a plan to an actual and overstate the day — so the
+  /// total counts yields alone and the unreported runs are stated separately.
+  double get madeQty => rows.fold(0.0, (n, r) => n + r.outputQty);
+
+  /// Runs with no yield reported yet.
+  int get openCount => rows.where((r) => r.outputQty <= 0).length;
+}
+
+/// Group a day's runs by what they made.
+///
+/// Keyed on the resolved output item id, never the name: names are not unique
+/// across items, and editing one between two runs would split a product in
+/// half. The uom joins the key because a draw states its own unit while a
+/// recipe run takes the BOM's — two runs of one product can legitimately
+/// differ, and litres must never be added to units. Falls back to the name
+/// only when an id is genuinely absent.
+List<_MadeGroup> _groupByProduct(List<WorkOrderListRow> rows) {
+  final byKey = <String, _MadeGroup>{};
+  for (final r in rows) {
+    final id = (r.outputItemId ?? '').isNotEmpty ? r.outputItemId! : r.outputItemName;
+    final key = '$id|${r.outputUom}';
+    byKey.putIfAbsent(key, () => _MadeGroup(key: key)).rows.add(r);
+  }
+  return byKey.values.toList();
+}
+
+/// Today's runs, one line per product rather than one per work order.
+///
+/// Two runs of the same thing on the same day answer a single question — how
+/// much was made — and splitting them across two rows left the reader doing
+/// the addition. A product made by one run still renders as one plain row: an
+/// expander that opens onto a single child is a control that earns nothing.
+class _MadeTodayList extends StatefulWidget {
+  const _MadeTodayList({required this.rows, required this.showingFallback});
+
+  final List<WorkOrderListRow> rows;
+  final bool showingFallback;
+
+  @override
+  State<_MadeTodayList> createState() => _MadeTodayListState();
+}
+
+class _MadeTodayListState extends State<_MadeTodayList> {
+  /// Products the reader has opened, by group key.
+  final Set<String> _expanded = {};
+
+  @override
+  Widget build(BuildContext context) {
+    // Capped by product, never by run. Trimming the runs first would leave a
+    // product's total counting only the runs that survived the cut — a number
+    // that is wrong rather than merely short. Dropping a whole product past
+    // the cap only hides it, and "See all" is right there.
+    final groups = _groupByProduct(widget.rows).take(_recentWoLimit).toList();
+    return MfgDividedCard(
+      children: [
+        for (final g in groups)
+          if (g.rows.length == 1) _singleRun(g.lead) else _combinedGroup(g),
+      ],
+    );
+  }
+
+  /// Exactly the row this card has always shown.
+  Widget _singleRun(WorkOrderListRow wo) => MfgDocListTile(
+        flat: true,
+        icon: Icons.precision_manufacturing_outlined,
+        // Only the fallback list spans more than one day, so only it needs a
+        // date per row. Under "Made today" the heading carries the date and
+        // the leading block shows the shift, which is what actually separates
+        // one run from the next.
+        leadingDate: widget.showingFallback ? _activeDate(wo) : null,
+        leadingShift: widget.showingFallback ? null : wo.shift,
+        title: wo.outputItemName,
+        subtitle: wo.bomName,
+        status: wo.status,
+        // What came out, once anything has. A run still open has no output
+        // yet, so the plan stands in — but on a closed run the planned figure
+        // is the estimate, not the answer.
+        rightValue: formatItemQty(
+            wo.outputQty > 0 ? wo.outputQty : wo.plannedQty, null,
+            unit: wo.outputUom),
+        rightUnit: wo.outputUom,
+        reference: wo.woNumber,
+        onTap: () => context.push('/manufacturing/wos/${wo.id}'),
+      );
+
+  /// A product made by more than one run: the combined figure, and — once
+  /// opened — the runs behind it.
+  ///
+  /// One widget rather than a spread, so [MfgDividedCard] rules its line
+  /// between *products* and never between a heading and its own runs. Spliced
+  /// in flat, every run took a full-width divider of its own and read as
+  /// another product rather than as a child.
+  Widget _combinedGroup(_MadeGroup g) {
+    final open = _expanded.contains(g.key);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MfgDocListTile(
+          flat: true,
+          // The chevron takes the icon slot: on a row that opens, the module
+          // glyph said nothing the rows above had not already said.
+          icon: open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+          title: g.lead.outputItemName,
+          // No work-order number and no status here — the runs differ on both,
+          // and naming one of them would read as though it were the whole
+          // figure. They are stated per run once the group is opened.
+          subtitle: '${g.rows.length} runs'
+              '${g.openCount > 0 ? '  ·  ${g.openCount} yet to report' : ''}',
+          rightValue: formatItemQty(g.madeQty, null, unit: g.lead.outputUom),
+          rightUnit: g.lead.outputUom,
+          onTap: () => setState(() {
+            if (open) {
+              _expanded.remove(g.key);
+            } else {
+              _expanded.add(g.key);
+            }
+          }),
+        ),
+        if (open)
+          for (final wo in g.rows) _runRow(wo),
+      ],
+    );
+  }
+
+  /// One run inside an opened product: what it made, how far along it is, and
+  /// a way into it. Deliberately lighter than the row above — a child that
+  /// looked as heavy as its heading would read as another product.
+  Widget _runRow(WorkOrderListRow wo) {
+    final t = RT(context);
+    final made = wo.outputQty > 0;
+    return InkWell(
+      onTap: () => context.push('/manufacturing/wos/${wo.id}'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(46, 10, 14, 10),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // The pill sits with the run it describes. Held at the right
+                // edge it lined up into a column of its own and read as a
+                // property of the list rather than of this row.
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  // Flexible, so a long WO number gives way to the pill rather
+                  // than pushing it off the end.
+                  Flexible(
+                    child: Text(
+                      wo.woNumber,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: RunqText.caption.copyWith(color: t.ink),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  MfgStatusPill(status: wo.status),
+                ]),
+                if ((wo.shift ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(wo.shift!, style: RunqText.micro.copyWith(color: t.muted2)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Bare number: the product line above already states the unit, and
+          // every run under it shares that unit by construction — the uom is
+          // part of the grouping key. `unit:` stays because it decides how the
+          // figure is formatted, not whether it is labelled.
+          //
+          // An em dash, not a zero: a run that has not reported is not a run
+          // that made nothing.
+          Text(
+            made ? formatItemQty(wo.outputQty, null, unit: wo.outputUom) : '—',
+            style: RunqText.caption.copyWith(
+              color: made ? t.ink : t.muted2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

@@ -36,7 +36,9 @@ interface Props {
 }
 
 export function ProductionForm({ state, onChange, outputTracksBatches, outputLabel, errors }: Props) {
-  const { data: bomsData } = useBoms({ isActive: true, limit: 200 });
+  // Dispatch posts repack runs itself against the packed SKU; the floor makes
+  // the pool item. Mirrors the mobile Pick BOM sheet.
+  const { data: bomsData } = useBoms({ isActive: true, excludeAutoRepack: true, limit: 200 });
   const { data: warehousesData } = useWarehouses();
   useAutoSelectWarehouse(state.warehouseId, (id) => onChange({ warehouseId: id }));
 

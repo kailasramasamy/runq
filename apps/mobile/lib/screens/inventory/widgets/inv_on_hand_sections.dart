@@ -106,20 +106,18 @@ String? onHandSubcategoryOf(InvOnHandRow r) {
 
 /// Split groups into category sections, each with its leaf bands.
 ///
-/// Categories sort alphabetically with the unfiled tail last; inside a
-/// section, rows filed directly on the parent come first, then leaves
-/// alphabetically. Row order within a band is the incoming order.
+/// Categories follow the order set on the categories master, with the unfiled
+/// tail last; inside a section, rows filed directly on the parent come first,
+/// then the leaves. Every order here is the incoming one.
 List<OnHandSection> groupOnHandRows(List<OnHandGroup> rows) {
   final byParent = <String, List<OnHandGroup>>{};
   for (final r in rows) {
     byParent.putIfAbsent(onHandCategoryOf(r.lead), () => []).add(r);
   }
-  final parents = byParent.keys.toList()
-    ..sort((a, b) {
-      if (a == kUncategorised) return 1;
-      if (b == kUncategorised) return -1;
-      return a.toLowerCase().compareTo(b.toLowerCase());
-    });
+  // Insertion order is the server's order, and the server already sorts the
+  // unfiled tail last. Re-sorting alphabetically here — as this did — put the
+  // screen back in A–Z and discarded the configured sequence.
+  final parents = byParent.keys.toList();
   return [
     for (final parent in parents)
       (
@@ -142,8 +140,7 @@ List<OnHandSubSection> _leafBands(List<OnHandGroup> rows) {
       byLeaf.putIfAbsent(leaf, () => []).add(r);
     }
   }
-  final leaves = byLeaf.keys.toList()
-    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  final leaves = byLeaf.keys.toList();
   return [
     if (direct.isNotEmpty) (label: null, rows: direct),
     for (final leaf in leaves) (label: leaf, rows: byLeaf[leaf]!),

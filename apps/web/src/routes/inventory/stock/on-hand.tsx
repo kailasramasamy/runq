@@ -7,25 +7,29 @@ import {
 } from '@/components/ui';
 import { useOnHand, useWarehouses } from '@/hooks/queries/use-inventory';
 import { InvClassTabs, classGroupForItemClass, type ItemClassGroup } from '@/components/inventory/inv-class-tabs';
-import type { OnHandRow } from '@/hooks/queries/use-inventory';
 import { groupByItem, ItemGroupRow, StockRow } from './_on-hand-rows';
 
-/** Section order + labels for the grouped ("All") view. Mirrors the tab
- *  strip's order so the two read as the same taxonomy. */
-const SECTION_ORDER: ReadonlyArray<{ key: Exclude<ItemClassGroup, 'all'>; label: string }> = [
-  { key: 'finished', label: 'Finished goods' },
-  { key: 'inputs', label: 'Raw materials & inputs' },
-  { key: 'trading', label: 'Trading goods' },
-  { key: 'other', label: 'Consumables & spares' },
-];
+const UNCATEGORISED = 'Uncategorised';
 
-/** Split rows into class-group sections, dropping empty buckets so a tenant
- *  that only stocks finished goods sees one header, not four. */
-function groupRows(rows: OnHandRow[]) {
-  return SECTION_ORDER.map((s) => ({
-    ...s,
-    rows: rows.filter((r) => classGroupForItemClass(r.itemClass) === s.key),
-  })).filter((s) => s.rows.length > 0);
+/**
+ * Split category-tagged rows into sections, in the order the server sent them:
+ * the sequence set on the categories master, with uncategorised last.
+ *
+ * Insertion order into the Map *is* that order, which is the whole point — the
+ * alphabetical re-sort that used to live on this screen threw the configured
+ * sequence away. The heading is the category group (the parent), falling back
+ * to the leaf for an item filed straight onto a root category.
+ */
+function groupByCategory<T extends { categoryName: string | null; categoryGroup: string | null }>(
+  rows: T[],
+) {
+  const byCategory = new Map<string, T[]>();
+  for (const r of rows) {
+    const key = (r.categoryGroup ?? r.categoryName ?? '').trim() || UNCATEGORISED;
+    if (!byCategory.has(key)) byCategory.set(key, []);
+    byCategory.get(key)!.push(r);
+  }
+  return [...byCategory].map(([label, sectionRows]) => ({ key: label, label, rows: sectionRows }));
 }
 
 type Params = {
@@ -96,15 +100,15 @@ export function OnHandPage() {
       if (classGroup !== 'all' && classGroupForItemClass(r.itemClass) !== classGroup) return false;
       const q = search.toLowerCase();
       return !q || r.itemName.toLowerCase().includes(q) || (r.itemSku ?? '').toLowerCase().includes(q) || r.batchNo.toLowerCase().includes(q);
-    })
-    // Newest intake first. For short-life stock the question is almost always
-    // "what came in, and when" rather than "which item alphabetically" — and it
-    // puts today's tankers at the top. Batches with no recorded receipt sort last.
-    .sort((a, b) => (b.receivedAt ?? '').localeCompare(a.receivedAt ?? ''));
+    });
 
-  // Grouped only on 'all' — under a single-bucket pill a lone header is noise.
-  const sections = classGroup === 'all' ? groupRows(rows) : [];
+  // Always sectioned by category now. The old class buckets collapsed to a
+  // single pointless header under a class pill; categories don't — picking
+  // "Inputs" still leaves several of them. Both views section on the same keys
+  // and in the same server order, so the screen reads the same either way.
   const itemGroups = groupByItem(rows);
+  const sections = groupByCategory(rows);
+  const itemSections = groupByCategory(itemGroups);
 
   const whOptions = [
     { value: '', label: 'All warehouses' },
@@ -187,19 +191,28 @@ export function OnHandPage() {
           </TableHeader>
           <TableBody>
             {view === 'item'
-              ? itemGroups.map((g) => <ItemGroupRow key={g.key} group={g} />)
-              : sections.length === 0
-                ? rows.map((r, i) => (
-                    <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
-                  ))
-                : sections.map((s) => (
-                    <Fragment key={s.key}>
-                      <SectionHeaderRow label={s.label} rows={s.rows} />
-                      {s.rows.map((r, i) => (
-                        <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
-                      ))}
-                    </Fragment>
-                  ))}
+              ? itemSections.map((s) => (
+                  <Fragment key={s.key}>
+                    <SectionHeaderRow
+                      label={s.label}
+                      count={s.rows.length}
+                      value={s.rows.reduce((n, g) => n + g.value, 0)}
+                    />
+                    {s.rows.map((g) => <ItemGroupRow key={g.key} group={g} />)}
+                  </Fragment>
+                ))
+              : sections.map((s) => (
+                  <Fragment key={s.key}>
+                    <SectionHeaderRow
+                      label={s.label}
+                      count={s.rows.length}
+                      value={s.rows.reduce((n, r) => n + r.value, 0)}
+                    />
+                    {s.rows.map((r, i) => (
+                      <StockRow key={`${r.itemId}-${r.warehouseId}-${r.batchNo}-${i}`} row={r} />
+                    ))}
+                  </Fragment>
+                ))}
           </TableBody>
         </Table>
       )}
@@ -235,11 +248,11 @@ function ViewToggle({ value, onChange }: { value: StockView; onChange: (v: Stock
   );
 }
 
-/** Class-group divider inside the table. Carries the section's own row count
- *  and value subtotal so each block states its total instead of forcing a
- *  mental tally down the column. */
-function SectionHeaderRow({ label, rows }: { label: string; rows: OnHandRow[] }) {
-  const value = rows.reduce((s, r) => s + r.value, 0);
+/** Category divider inside the table. Carries the section's own row count and
+ *  value subtotal so each block states its total instead of forcing a mental
+ *  tally down the column. Takes the two numbers rather than the rows, because
+ *  the item and batch views hand it different row shapes. */
+function SectionHeaderRow({ label, count, value }: { label: string; count: number; value: number }) {
   return (
     <TableRow className="bg-zinc-50/80 dark:bg-zinc-800/40">
       <TableCell colSpan={6} className="py-2">
@@ -247,7 +260,7 @@ function SectionHeaderRow({ label, rows }: { label: string; rows: OnHandRow[] })
           {label}
         </span>
         <span className="ml-2 text-xs text-zinc-500">
-          {rows.length} {rows.length === 1 ? 'row' : 'rows'}
+          {count} {count === 1 ? 'row' : 'rows'}
         </span>
       </TableCell>
       <TableCell colSpan={3} className="py-2 text-right tabular-nums text-xs font-semibold text-zinc-600 dark:text-zinc-300">

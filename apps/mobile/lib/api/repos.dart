@@ -830,7 +830,7 @@ class OrderRepo {
   }
 
   Future<List<ItemSummary>> searchItems(String query) async {
-    final qp = <String, String>{'limit': '20'};
+    final qp = <String, String>{'limit': '20', 'sort': 'category'};
     if (query.trim().isNotEmpty) qp['search'] = query.trim();
     final res = await apiClient.get('/masters/items?${Uri(queryParameters: qp).query}');
     return _dataList(res).map(ItemSummary.fromJson).toList();

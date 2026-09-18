@@ -453,9 +453,10 @@ String? arrivalStamp(String? iso, {DateTime? now}) {
 /// One run this lot fed: the products it put out, and how much of this lot
 /// went in.
 ///
-/// Laid out in two columns so nothing truncates — the SKU and its run on the
-/// left, the count and the draw right-aligned against them. The count used to
-/// sit inline after the name and lost its own draw figure to an ellipsis.
+/// One line per product — `Farm Fresh Cow Milk 500ml (50)` — with this lot's
+/// draw held against the right edge of the first line. A run that made three
+/// things still states its draw once: repeating it per SKU would read as
+/// though each of them had taken the whole can.
 ///
 /// When the run also drew from other lots the draw reads "525.8 / 1,050
 /// litre": the count is then the run's output, not this lot's, and printing it
@@ -474,6 +475,13 @@ class _MadeRow extends StatelessWidget {
         ? '${formatItemQty(run.drawnQty, null, unit: run.drawnUom)}$uom'
         : '${formatItemQty(run.drawnQty, null, unit: run.drawnUom)} / '
             '${formatItemQty(run.runDrewQty, null, unit: run.drawnUom)}$uom';
+    // Built once and placed in exactly one of the branches below — an empty
+    // run's line or the first product's — so the two never share an instance
+    // in the same tree.
+    final drawText = Text(
+      draw,
+      style: RunqText.caption.copyWith(color: t.muted, fontWeight: FontWeight.w600),
+    );
 
     return InkWell(
       onTap: () => context.push('/manufacturing/wos/${run.woId}'),
@@ -487,19 +495,25 @@ class _MadeRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // One line per product: the SKU as the floor names it, with the
-              // count it put out held against the right edge.
+              // The SKU as the floor names it, the count riding the label, and
+              // the draw on the right of the first line only.
               if (run.outputs.isEmpty)
-                Text('Output not recorded yet',
-                    style: RunqText.caption.copyWith(color: t.muted))
+                Row(children: [
+                  Expanded(
+                    child: Text('Output not recorded yet',
+                        style: RunqText.caption.copyWith(color: t.muted)),
+                  ),
+                  const SizedBox(width: 8),
+                  drawText,
+                ])
               else
-                for (final o in run.outputs)
+                for (final (i, o) in run.outputs.indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Row(children: [
                       Expanded(
                         child: Text(
-                          o.uom.isEmpty ? o.itemName : '${o.itemName} ${o.uom}',
+                          _outputLabel(o),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: RunqText.caption
@@ -507,26 +521,16 @@ class _MadeRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        formatItemQty(o.qty, null, unit: o.uom),
-                        style: RunqText.caption
-                            .copyWith(color: brand, fontWeight: FontWeight.w700),
-                      ),
+                      if (i == 0) drawText,
                     ]),
                   ),
-              // The run, and what it took from here.
-              Row(children: [
-                Expanded(
-                  child: Text(
-                    [run.woNumber, ?when].join('  ·  '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: RunqText.micro.copyWith(color: t.muted2),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(draw, style: RunqText.micro.copyWith(color: t.muted)),
-              ]),
+              // The run it belonged to.
+              Text(
+                [run.woNumber, ?when].join('  ·  '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: RunqText.micro.copyWith(color: t.muted2),
+              ),
             ]),
           ),
           const SizedBox(width: 2),
@@ -538,6 +542,14 @@ class _MadeRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// `Farm Fresh Cow Milk 500ml (50)` — the SKU the way the floor says it, with
+/// the count it put out riding the label instead of holding a column of its
+/// own. The packet size is part of the name here, not a unit to be formatted.
+String _outputLabel(BatchUsageOutput o) {
+  final name = o.uom.isEmpty ? o.itemName : '${o.itemName} ${o.uom}';
+  return '$name (${formatItemQty(o.qty, null, unit: o.uom)})';
 }
 
 /// The small caps heading over a group of movements.

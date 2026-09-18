@@ -117,6 +117,10 @@ class _BomPickerSheetState extends State<_BomPickerSheet> {
     try {
       final res = await manufacturingRepo.listBoms(
         search: q.isEmpty ? null : q,
+        // The floor makes the pool item; dispatch differentiates it into the
+        // packed SKUs on its own. Listing those here asked a technician to
+        // choose between one run they do and two they never do.
+        excludeAutoRepack: true,
         // Category-ordered so the sheet can section by what each BOM makes,
         // and asked for in one page — a technician scrolling for "Paneer"
         // shouldn't hit an invisible cut-off partway down.
@@ -169,9 +173,12 @@ class _BomPickerSheetState extends State<_BomPickerSheet> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              // The sheet opens onto a list you pick from, not a field you type
+              // into — grabbing focus here buried that list under the keyboard
+              // and made a two-tap job start with a dismiss.
               child: MfgSearchBar(
                 controller: _ctrl,
-                autofocus: true,
+                autofocus: false,
                 placeholder: 'Search BOM code or name…',
                 onChanged: _runSearch,
               ),

@@ -33,6 +33,22 @@ export const categoryTreeQuerySchema = z.object({
   unclassified: z.coerce.boolean().optional(),
 });
 
+/**
+ * A whole sibling group's new order, written in one call. Drag-and-drop moves
+ * every row below the one that was dragged, so the client sends the group's
+ * dense 0..n-1 sequence rather than one PUT per affected row.
+ */
+export const reorderCategoriesSchema = z
+  .array(
+    z.object({
+      id: z.string().uuid(),
+      sortOrder: z.number().int().min(0),
+    }),
+  )
+  .min(1)
+  .max(500);
+
+export type ReorderCategoriesInput = z.infer<typeof reorderCategoriesSchema>;
 export type CategoryTreeQuery = z.infer<typeof categoryTreeQuerySchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
