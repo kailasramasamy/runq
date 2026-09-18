@@ -185,6 +185,10 @@ const STANDARD_COA: CoaEntry[] = [
   { code: '5050', name: 'Milk Purchases', type: 'expense', parent: '5100' },
   // Milk procurement (Dhenu) — VMCC operator commission/handling, booked on VMCC bill pay.
   { code: '5060', name: 'VMCC Commission & Handling', type: 'expense', parent: '5100' },
+  // Milk procurement (Dhenu) — contra-expense. Milk poured but refused for
+  // quality still debits 5050 at gross; the refused share is credited here, so
+  // 5050 reads "all milk poured" and 5070 "what we refused".
+  { code: '5070', name: 'Milk Quality Rejections', type: 'expense', parent: '5100' },
 
   // Employee Costs
   { code: '5200', name: 'Employee Costs', type: 'expense', parent: '5000' },
