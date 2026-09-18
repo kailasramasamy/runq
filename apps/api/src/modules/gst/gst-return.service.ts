@@ -238,6 +238,10 @@ export class GstReturnService {
 
     const profile = await this.getTenantGstProfile();
     const token = await this.getValidToken(ret.gstin);
+    // Workflow step 2 — GSTN's auto-calculated liability, fetched before the
+    // save so a divergence from our books is visible in the logs alongside
+    // the payload we then send.
+    await this.logAutoLiability(token, ret.gstin, profile.gstUsername, ret.period, ret.data as Gstr3bData);
     const result = await this.gsp.saveGstr3b(token, ret.gstin, profile.gstUsername, ret.period, ret.data as Gstr3bData);
 
     if (result.success) {
@@ -595,10 +599,9 @@ export class GstReturnService {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await this.gsp.saveGstr3b(token, ret.gstin, profile.gstUsername, ret.period, ret.data as any);
       }
-      // GSTN can take a couple of seconds to propagate the re-save before
-      // the offset call sees it. Brief pause avoids retrying into the
-      // same stale-state error.
-      await new Promise((r) => setTimeout(r, 3000));
+      // No blind pause needed any more: both re-save paths poll
+      // /gstr/retstatus until GSTN reports the save processed, so the retry
+      // cannot race the propagation it used to sleep through.
       result = await callFile();
     }
 
@@ -627,6 +630,38 @@ export class GstReturnService {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Fetch GSTN's auto-calculated liability (workflow step 2) and log it next
+   * to what runq computed for the same tables. Diagnostic only: the GSP error
+   * is caught and logged rather than propagated, because a missing
+   * cross-check must never block an otherwise-valid save.
+   */
+  private async logAutoLiability(
+    token: GspAuthToken,
+    gstin: string,
+    username: string,
+    period: string,
+    data: Gstr3bData | null,
+  ): Promise<void> {
+    const tag = `[GST 3B autoliab ${gstin}/${period}]`;
+    try {
+      const auto = await this.gsp.getAutoLiability(token, gstin, username, period);
+      console.log(`${tag} gstn=${JSON.stringify(auto).slice(0, 4000)}`);
+      const t = data?.table31;
+      if (t) {
+        console.log(
+          `${tag} runq txval=${t.outwardTaxableInterState.taxableValue + t.outwardTaxableIntraState.taxableValue}`
+          + ` iamt=${t.outwardTaxableInterState.igst}`
+          + ` camt=${t.outwardTaxableIntraState.cgst}`
+          + ` samt=${t.outwardTaxableIntraState.sgst}`
+          + ` netItc=${JSON.stringify(data?.table4.netItc)}`,
+        );
+      }
+    } catch (err) {
+      console.error(`${tag} fetch failed — continuing to save`, err);
+    }
+  }
 
   private async getTenantGstProfile(): Promise<TenantGstProfile> {
     const [tenant] = await this.db

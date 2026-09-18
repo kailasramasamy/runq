@@ -62,6 +62,7 @@ export interface GspClient {
   fileGstr1(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string): Promise<FilingResult>;
 
   getAutoPopulated3b(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Gstr3bData>;
+  getAutoLiability(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>>;
   saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult>;
   getRawGstr3bSummary(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>>;
   fileGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, evc: string, signatoryPan?: string, data?: Gstr3bData): Promise<FilingResult>;
@@ -262,13 +263,14 @@ export class WhiteBooksGspClient implements GspClient {
         // Processed with Error — surface ALL section errors, not just first
         const errorReport = data?.data?.error_report ?? data?.error_report;
         const messages: string[] = [];
-        for (const section of ['b2b', 'b2cs', 'b2cl', 'cdnr', 'cdnur', 'hsn', 'nil', 'doc_issue', 'exp']) {
-          const errs = errorReport?.[section];
-          if (Array.isArray(errs)) {
-            errs.slice(0, 5).forEach((e: { error_msg?: string; error_cd?: string }) => {
-              if (e.error_msg) messages.push(`[${section}] ${e.error_cd || ''} ${e.error_msg}`);
-            });
-          }
+        // Iterate whatever sections GSTN reports rather than a fixed GSTR-1
+        // list — the same poller now serves GSTR-3B, whose error_report keys
+        // (sup_details, itc_elg, inward_sup, …) are different.
+        for (const [section, errs] of Object.entries((errorReport ?? {}) as Record<string, unknown>)) {
+          if (!Array.isArray(errs)) continue;
+          errs.slice(0, 5).forEach((e: { error_msg?: string; error_cd?: string }) => {
+            if (e.error_msg) messages.push(`[${section}] ${e.error_cd || ''} ${e.error_msg}`);
+          });
         }
         // eslint-disable-next-line no-console
         console.log('[gsp-client] retstatus error_report:', JSON.stringify(errorReport).substring(0, 4000));
@@ -456,6 +458,19 @@ export class WhiteBooksGspClient implements GspClient {
     return (result?.data ?? result ?? {}) as Record<string, unknown>;
   }
 
+  /** Step 2 of the WhiteBooks 3B workflow: GSTN's auto-calculated liability,
+   *  derived from the filed GSTR-1, plus its ITC view. The doc says to
+   *  prepare the retsave payload against this response; we fetch and log it
+   *  next to our own computed figures so a divergence between GSTN's view
+   *  and our books is visible BEFORE the save lands. */
+  async getAutoLiability(token: GspAuthToken, gstin: string, username: string, period: string): Promise<Record<string, unknown>> {
+    const stateCode = stateCodeFromGstin(gstin);
+    const url = withEmail('/gstr3b/autoliab', { gstin, retperiod: period });
+    const res = await fetch(url, { method: 'GET', headers: commonHeaders(username, stateCode, token.txn) });
+    const result = await res.json().catch(() => ({}));
+    return (result?.data ?? result ?? {}) as Record<string, unknown>;
+  }
+
   async saveGstr3b(token: GspAuthToken, gstin: string, username: string, period: string, data: Gstr3bData): Promise<UploadResult> {
     const stateCode = stateCodeFromGstin(gstin);
     const url = withEmail('/gstr3b/retsave');
@@ -469,9 +484,35 @@ export class WhiteBooksGspClient implements GspClient {
     const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) });
     const result = await res.json();
 
+    const success = result.status_cd === '1' || result.status === 1;
+    // WhiteBooks nests the reference id under `data`, same as /gstr1/retsave.
+    // Reading only the top level left this undefined on every 3B save.
+    const refid = result.data?.reference_id || result.reference_id || result.refid;
+
+    if (success && refid) {
+      // status_cd=1 means GSTN QUEUED the save, not that it stored it. Per
+      // step 3 of the workflow doc the reference id must be checked via
+      // /gstr/retstatus. Skipping this is what let a partially-rejected save
+      // look successful — sections silently dropped (Table 5), and the later
+      // retoffset run against a save that had not landed (RT-3BGC-9017).
+      const status = await this.pollRetStatus(token, gstin, username, period, refid);
+      if (status.status !== 'P') {
+        return {
+          success: false,
+          referenceId: refid,
+          errors: [{
+            code: status.errorCode || 'PROCESSING_FAILED',
+            message: status.errorMessage || `GSTN returned status ${status.status}`,
+          }],
+        };
+      }
+    } else if (success) {
+      console.warn(`[gsp-client] 3B retsave reported success with no reference_id — save is unverified. resp=${JSON.stringify(result).slice(0, 500)}`);
+    }
+
     return {
-      success: result.status_cd === '1' || result.status === 1,
-      referenceId: result.reference_id || result.refid,
+      success,
+      referenceId: refid,
       errors: result.error ? [{ code: result.error.error_cd || '', message: result.error.message || '' }] : undefined,
     };
   }
@@ -884,142 +925,136 @@ export class WhiteBooksGspClient implements GspClient {
   }
 
   private transformGstr3bForUpload(gstin: string, period: string, data: Gstr3bData) {
-    // GSTN schema validates numeric fields against a 2-decimal pattern;
-    // raw JS sums like 6000.879999999999 fail. Round every numeric leaf
-    // through this helper before serialising.
-    const r = (n: number) => Math.round((n ?? 0) * 100) / 100;
-    return {
+    const payload: Record<string, unknown> = {
       gstin,
       ret_period: period,
-      sup_details: {
-        osup_det: {
-          txval: r(data.table31.outwardTaxableInterState.taxableValue + data.table31.outwardTaxableIntraState.taxableValue),
-          iamt: r(data.table31.outwardTaxableInterState.igst),
-          camt: r(data.table31.outwardTaxableIntraState.cgst),
-          samt: r(data.table31.outwardTaxableIntraState.sgst),
-          csamt: r((data.table31.outwardTaxableInterState.cess ?? 0) + (data.table31.outwardTaxableIntraState.cess ?? 0)),
-        },
-        osup_zero: {
-          txval: r(data.table31.zeroRatedSupplies.taxableValue),
-          iamt: r(data.table31.zeroRatedSupplies.igst),
-          csamt: r(data.table31.zeroRatedSupplies.cess ?? 0),
-        },
-        osup_nil_exmp: { txval: r(data.table31.nilRatedExempt.taxableValue) },
-        osup_nongst: { txval: r(data.table31.nonGstOutward.taxableValue) },
-        // Table 3.1(d): Inward supplies liable to reverse charge. Read from
-        // table31, which carries the taxable value — table4's RCM node holds
-        // only the 4(A)(3) credit, so sourcing txval from it forced a nil.
-        isup_rev: (() => {
-          const rcm = data.table31.inwardReverseCharge
-            ?? { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 };
-          return {
-            txval: r(rcm.taxableValue),
-            iamt: r(rcm.igst),
-            camt: r(rcm.cgst),
-            samt: r(rcm.sgst),
-            csamt: r(rcm.cess),
-          };
-        })(),
+      sup_details: this.buildSupDetails(data),
+    };
+
+    // Table 3.2: Inter-state supplies to unregistered/composition/UIN.
+    // GSTN rejects rows with empty pos or zero values — only emit per
+    // actual table32 entry (each carries its own 2-digit pos code).
+    const unreg = data.table32
+      .filter((e) => e.taxableValue > 0)
+      .map((e) => ({ pos: e.placeOfSupply, txval: round2(e.taxableValue), iamt: round2(e.igst) }));
+    if (unreg.length > 0) {
+      payload.inter_sup = { unreg_details: unreg, comp_details: [], uin_details: [] };
+    }
+
+    // Table 3.1.1: E-commerce supplies (added in GSTR-3B v7.1). We don't
+    // track e-commerce sales yet. This is the ONE section the workflow doc
+    // says to send as zeros rather than omit ("even if you don't have values
+    // in ecodtls pass zeros").
+    payload.eco_dtls = {
+      eco_sup: { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 },
+      eco_reg_sup: { txval: 0 },
+    };
+
+    payload.itc_elg = this.buildItcElg(data);
+
+    // Table 5: Exempt, nil-rated, non-GST inward supplies. This section read
+    // as "silently dropped by GSTN" for months; the cause was a retsave whose
+    // reference id was never checked via /gstr/retstatus (see saveGstr3b), so
+    // a partially-rejected save looked like a success. Rows stay filtered to
+    // non-zero, per the doc's omit-empty rule.
+    const isupDetails = [
+      {
+        ty: 'GST' as const,
+        inter: Math.round(data.table5.interState.nilRated + data.table5.interState.exempt),
+        intra: Math.round(data.table5.intraState.nilRated + data.table5.intraState.exempt),
       },
-      // Table 3.2: Inter-state supplies to unregistered/composition/UIN.
-      // GSTN rejects rows with empty pos or zero values — only emit per
-      // actual table32 entry (each carries its own 2-digit pos code).
-      inter_sup: {
-        unreg_details: data.table32
-          .filter((e) => e.taxableValue > 0)
-          .map((e) => ({ pos: e.placeOfSupply, txval: r(e.taxableValue), iamt: r(e.igst) })),
-        comp_details: [],
-        uin_details: [],
+      {
+        ty: 'NONGST' as const,
+        inter: Math.round(data.table5.interState.nonGst),
+        intra: Math.round(data.table5.intraState.nonGst),
       },
-      // Table 3.1.1: E-commerce supplies (added in GSTR-3B v7.1). We don't
-      // track e-commerce sales yet — send zeros to satisfy the schema.
-      // Strict JSON-schema validators reject the section being absent.
-      eco_dtls: {
-        eco_sup: { txval: 0, iamt: 0, camt: 0, samt: 0, csamt: 0 },
-        eco_reg_sup: { txval: 0 },
+    ].filter((row) => row.inter > 0 || row.intra > 0);
+    if (isupDetails.length > 0) payload.inward_sup = { isup_details: isupDetails };
+
+    // Table 5.1: Interest declared by taxpayer. Note: ltfee_details is
+    // intentionally NOT sent at SAVE — GSTN computes late fees server-side
+    // at FILE time based on actual submission timestamp.
+    const intr = { iamt: round2(data.table51.interestAmount ?? 0), camt: 0, samt: 0, csamt: 0 };
+    if (anyNonZero(intr)) payload.intr_ltfee = { intr_details: intr };
+
+    return payload;
+  }
+
+  /** Table 3.1. Only osup_det is unconditional — the zero-rated, nil/exempt,
+   *  non-GST and reverse-charge blocks are omitted entirely when they carry
+   *  no value, per the workflow doc ("if you don't have any value you can
+   *  remove that object from json"). */
+  private buildSupDetails(data: Gstr3bData): Record<string, unknown> {
+    const t = data.table31;
+    const sup: Record<string, unknown> = {
+      osup_det: {
+        txval: round2(t.outwardTaxableInterState.taxableValue + t.outwardTaxableIntraState.taxableValue),
+        iamt: round2(t.outwardTaxableInterState.igst),
+        camt: round2(t.outwardTaxableIntraState.cgst),
+        samt: round2(t.outwardTaxableIntraState.sgst),
+        csamt: round2((t.outwardTaxableInterState.cess ?? 0) + (t.outwardTaxableIntraState.cess ?? 0)),
       },
-      itc_elg: (() => {
-        // Per the WhiteBooks retsave reference payload, itc_elg sub-arrays
-        // only carry rows with non-zero values. We previously sent all 5
-        // itc_avl categories + both RUL/OTH for itc_rev/itc_inelg even
-        // when zero — likely poisoning the save and silently dropping
-        // sibling sections (canonical case: inward_sup never persisted
-        // for Vrindavan Apr 042026 despite correct shape). Same filter
-        // pattern we already apply to inter_sup.unreg_details and
-        // inward_sup.isup_details.
-        const nonZero = <T extends { iamt: number; camt: number; samt: number; csamt: number }>(row: T): boolean =>
-          row.iamt > 0 || row.camt > 0 || row.samt > 0 || row.csamt > 0;
-        const itcAvl = [
-          { ty: 'IMPG' as const, iamt: r(data.table4.itcAvailable.importGoods.igst),        camt: r(data.table4.itcAvailable.importGoods.cgst),        samt: r(data.table4.itcAvailable.importGoods.sgst),        csamt: r(data.table4.itcAvailable.importGoods.cess) },
-          { ty: 'IMPS' as const, iamt: r(data.table4.itcAvailable.importServices.igst),     camt: r(data.table4.itcAvailable.importServices.cgst),     samt: r(data.table4.itcAvailable.importServices.sgst),     csamt: r(data.table4.itcAvailable.importServices.cess) },
-          { ty: 'ISRC' as const, iamt: r(data.table4.itcAvailable.inwardReverseCharge.igst), camt: r(data.table4.itcAvailable.inwardReverseCharge.cgst), samt: r(data.table4.itcAvailable.inwardReverseCharge.sgst), csamt: r(data.table4.itcAvailable.inwardReverseCharge.cess) },
-          { ty: 'ISD'  as const, iamt: r(data.table4.itcAvailable.isd.igst),                 camt: r(data.table4.itcAvailable.isd.cgst),                 samt: r(data.table4.itcAvailable.isd.sgst),                 csamt: r(data.table4.itcAvailable.isd.cess) },
-          { ty: 'OTH'  as const, iamt: r(data.table4.itcAvailable.allOtherItc.igst),         camt: r(data.table4.itcAvailable.allOtherItc.cgst),         samt: r(data.table4.itcAvailable.allOtherItc.sgst),         csamt: r(data.table4.itcAvailable.allOtherItc.cess) },
-        ].filter(nonZero);
-        const itcRev = [
-          { ty: 'RUL' as const, iamt: r(data.table4.itcReversed.rule4243.igst), camt: r(data.table4.itcReversed.rule4243.cgst), samt: r(data.table4.itcReversed.rule4243.sgst), csamt: r(data.table4.itcReversed.rule4243.cess) },
-          { ty: 'OTH' as const, iamt: r(data.table4.itcReversed.others.igst),    camt: r(data.table4.itcReversed.others.cgst),    samt: r(data.table4.itcReversed.others.sgst),    csamt: r(data.table4.itcReversed.others.cess) },
-        ].filter(nonZero);
-        // itc_inelg: we don't track ineligible ITC yet, so always empty
-        // after filtering. Send the empty array so the schema key exists
-        // (some validators require all top-level itc_elg keys present).
-        const itcInelg: typeof itcRev = [];
-        return {
-          itc_avl: itcAvl,
-          itc_rev: itcRev,
-          itc_net: { iamt: r(data.table4.netItc.igst), camt: r(data.table4.netItc.cgst), samt: r(data.table4.netItc.sgst), csamt: r(data.table4.netItc.cess) },
-          itc_inelg: itcInelg,
-        };
-      })(),
-      // Table 5: Exempt, nil-rated, non-GST inward supplies.
-      //
-      // **KNOWN GAP** — GSTN silently drops the entire inward_sup section
-      // from saves submitted via WhiteBooks' /gstr3b/retsave, even though
-      // the payload shape is structurally correct (proven via portal save
-      // round-trip: same {ty, inter, intra} shape persists when entered
-      // on portal directly, dropped when sent via our API). Trigger is
-      // something in our request envelope (header collision? body field
-      // ordering? eco_dtls interaction?) — not the section structure.
-      //
-      // Mitigation: Layer 2 post-save verify (gst-return.service.ts
-      // verify3b) detects this and surfaces a yellow warning card on the
-      // 3B detail page with "Stored on GSTN: ₹0 (dropped)" so the user
-      // knows to manually enter Table 5 on portal before clicking File.
-      //
-      // Fix path TBD: WhiteBooks support ticket (pending). When their
-      // /retsave is fixed, this section will start persisting without
-      // any code change here.
-      //
-      // We still send the correctly-shaped payload — keep the array
-      // filtered to non-zero rows (matches WhiteBooks reference pattern;
-      // all-zero NONGST row was speculative noise).
-      inward_sup: {
-        isup_details: ([
-          {
-            ty: 'GST' as const,
-            inter: Math.round(data.table5.interState.nilRated + data.table5.interState.exempt),
-            intra: Math.round(data.table5.intraState.nilRated + data.table5.intraState.exempt),
-          },
-          {
-            ty: 'NONGST' as const,
-            inter: Math.round(data.table5.interState.nonGst),
-            intra: Math.round(data.table5.intraState.nonGst),
-          },
-        ]).filter((row) => row.inter > 0 || row.intra > 0),
+    };
+
+    const osupZero = {
+      txval: round2(t.zeroRatedSupplies.taxableValue),
+      iamt: round2(t.zeroRatedSupplies.igst),
+      csamt: round2(t.zeroRatedSupplies.cess ?? 0),
+    };
+    if (anyNonZero(osupZero)) sup.osup_zero = osupZero;
+
+    const nilExmp = { txval: round2(t.nilRatedExempt.taxableValue) };
+    if (anyNonZero(nilExmp)) sup.osup_nil_exmp = nilExmp;
+
+    const nonGst = { txval: round2(t.nonGstOutward.taxableValue) };
+    if (anyNonZero(nonGst)) sup.osup_nongst = nonGst;
+
+    // Table 3.1(d): Inward supplies liable to reverse charge. Read from
+    // table31, which carries the taxable value — table4's RCM node holds
+    // only the 4(A)(3) credit, so sourcing txval from it forced a nil.
+    const rcm = t.inwardReverseCharge ?? { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, cess: 0 };
+    const isupRev = {
+      txval: round2(rcm.taxableValue),
+      iamt: round2(rcm.igst),
+      camt: round2(rcm.cgst),
+      samt: round2(rcm.sgst),
+      csamt: round2(rcm.cess),
+    };
+    if (anyNonZero(isupRev)) sup.isup_rev = isupRev;
+
+    return sup;
+  }
+
+  /** Table 4. Sub-arrays carry only rows with a non-zero amount — sending all
+   *  five itc_avl categories and both RUL/OTH rows when zero matches neither
+   *  the WhiteBooks reference payload nor the doc's omit-empty rule. */
+  private buildItcElg(data: Gstr3bData): Record<string, unknown> {
+    const avl = data.table4.itcAvailable;
+    const rev = data.table4.itcReversed;
+    const row = (ty: string, t: { igst: number; cgst: number; sgst: number; cess: number }) => ({
+      ty, iamt: round2(t.igst), camt: round2(t.cgst), samt: round2(t.sgst), csamt: round2(t.cess),
+    });
+    const nonZero = (x: { iamt: number; camt: number; samt: number; csamt: number }) =>
+      x.iamt > 0 || x.camt > 0 || x.samt > 0 || x.csamt > 0;
+
+    return {
+      itc_avl: [
+        row('IMPG', avl.importGoods),
+        row('IMPS', avl.importServices),
+        row('ISRC', avl.inwardReverseCharge),
+        row('ISD', avl.isd),
+        row('OTH', avl.allOtherItc),
+      ].filter(nonZero),
+      itc_rev: [row('RUL', rev.rule4243), row('OTH', rev.others)].filter(nonZero),
+      itc_net: {
+        iamt: round2(data.table4.netItc.igst),
+        camt: round2(data.table4.netItc.cgst),
+        samt: round2(data.table4.netItc.sgst),
+        csamt: round2(data.table4.netItc.cess),
       },
-      // Table 5.1: Interest declared by taxpayer. Note: ltfee_details is
-      // intentionally NOT sent at SAVE — GSTN computes late fees server-
-      // side at FILE time based on actual submission timestamp. Including
-      // ltfee_details here trips strict-validator schemas that disallow
-      // additional properties on the SAVE shape.
-      intr_ltfee: {
-        intr_details: {
-          iamt: r(data.table51.interestAmount ?? 0),
-          camt: 0,
-          samt: 0,
-          csamt: 0,
-        },
-      },
+      // We don't track ineligible ITC yet — the empty array keeps the key
+      // present for validators that require all itc_elg keys.
+      itc_inelg: [],
     };
   }
 
@@ -1080,12 +1115,42 @@ function buildRetoffsetBody(gstin: string, period: string, summary: Record<strin
   const tx = (summary?.tx_pmt ?? {}) as Record<string, unknown>;
   const body: Record<string, unknown> = { gstin, ret_period: period };
   // Forward GSTN's own computed allocation. pditc is always present; pdcash /
-  // pdnls only when non-empty; net_tax_pay → the mandatory nettaxpay field.
+  // pdnls only when they carry a real amount; net_tax_pay → the mandatory
+  // nettaxpay field.
   if (tx.pditc) body.pditc = tx.pditc;
-  if (Array.isArray(tx.pdcash) && tx.pdcash.length > 0) body.pdcash = tx.pdcash;
-  if (Array.isArray(tx.pdnls) && tx.pdnls.length > 0) body.pdnls = tx.pdnls;
+  // All-zero rows are dropped, not just empty arrays: the workflow doc says
+  // a full adjustment through pditc must NOT also carry pdcash, and GSTN
+  // hands back zero-filled pdcash rows even when nothing is payable in cash.
+  const pdcash = Array.isArray(tx.pdcash) ? tx.pdcash.filter(hasAmount) : [];
+  if (pdcash.length > 0) body.pdcash = pdcash;
+  const pdnls = Array.isArray(tx.pdnls) ? tx.pdnls.filter(hasAmount) : [];
+  if (pdnls.length > 0) body.pdnls = pdnls;
   if (tx.net_tax_pay) body.nettaxpay = tx.net_tax_pay;
   return body;
+}
+
+/** GSTN validates numeric fields against a 2-decimal pattern; raw JS sums
+ *  like 6000.879999999999 fail. Round every numeric leaf before serialising. */
+function round2(n: number): number {
+  return Math.round((n ?? 0) * 100) / 100;
+}
+
+/** True when any numeric field on the object is non-zero. Drives the
+ *  omit-empty-section rule: the workflow doc says an object with no value
+ *  should be removed from the JSON entirely (eco_dtls is the one exception). */
+function anyNonZero(obj: Record<string, number>): boolean {
+  return Object.values(obj).some((v) => Number(v) !== 0);
+}
+
+/** True when a retoffset payment row carries any non-zero amount. Non-numeric
+ *  fields (tx_type and friends) are ignored so a label alone never keeps an
+ *  otherwise-empty row alive. */
+function hasAmount(row: unknown): boolean {
+  if (!row || typeof row !== 'object') return false;
+  return Object.values(row as Record<string, unknown>).some((v) => {
+    const n = Number(v);
+    return !Number.isNaN(n) && n !== 0;
+  });
 }
 
 // ── Factory ────────────────────────────────────────────────────────────
