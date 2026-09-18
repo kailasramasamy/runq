@@ -994,12 +994,16 @@ export class WhiteBooksGspClient implements GspClient {
    *  remove that object from json"). */
   private buildSupDetails(data: Gstr3bData): Record<string, unknown> {
     const t = data.table31;
+    const { camt, samt } = equaliseIntraStateTax(
+      round2(t.outwardTaxableIntraState.cgst),
+      round2(t.outwardTaxableIntraState.sgst),
+    );
     const sup: Record<string, unknown> = {
       osup_det: {
         txval: round2(t.outwardTaxableInterState.taxableValue + t.outwardTaxableIntraState.taxableValue),
         iamt: round2(t.outwardTaxableInterState.igst),
-        camt: round2(t.outwardTaxableIntraState.cgst),
-        samt: round2(t.outwardTaxableIntraState.sgst),
+        camt,
+        samt,
         csamt: round2((t.outwardTaxableInterState.cess ?? 0) + (t.outwardTaxableIntraState.cess ?? 0)),
       },
     };
@@ -1141,6 +1145,33 @@ function buildRetoffsetBody(gstin: string, period: string, summary: Record<strin
  *  like 6000.879999999999 fail. Round every numeric leaf before serialising. */
 function round2(n: number): number {
   return Math.round((n ?? 0) * 100) / 100;
+}
+
+/** GSTN refuses a 3B save when table 3.1(a) CGST and SGST differ at all
+ *  (RT-3BAS584 "Central tax and State/UT tax amount should be equal"). Our
+ *  per-line rounding splits intra-state tax unevenly by a few paise. The GST
+ *  portal quietly raises the lower head to match when you save there, so the
+ *  same figures file fine by hand — over the API they are rejected outright,
+ *  which is what blocked every runq GSTR-3B filing from Apr 2026 onward.
+ *  Anything wider than rounding drift is a genuine data fault, so it is
+ *  logged and sent unchanged rather than papered over with a silent
+ *  adjustment to a declared tax figure. */
+const CGST_SGST_ROUNDING_TOLERANCE = 5;
+
+function equaliseIntraStateTax(cgst: number, sgst: number): { camt: number; samt: number } {
+  if (cgst === sgst) return { camt: cgst, samt: sgst };
+  const gap = Math.abs(cgst - sgst);
+  if (gap > CGST_SGST_ROUNDING_TOLERANCE) {
+    console.error(
+      `[gsp-client] 3.1(a) CGST/SGST differ by ${gap.toFixed(2)} (${cgst}/${sgst}) — beyond rounding`
+      + ' tolerance, so sending unequalised. GSTN will reject this with RT-3BAS584; the books need fixing.',
+    );
+    return { camt: cgst, samt: sgst };
+  }
+  // Raise the lower head, matching what the portal does on save.
+  const equal = Math.max(cgst, sgst);
+  console.log(`[gsp-client] 3.1(a) equalised CGST/SGST ${cgst}/${sgst} -> ${equal}/${equal} (+${gap.toFixed(2)} on the lower head).`);
+  return { camt: equal, samt: equal };
 }
 
 /** True when any numeric field on the object is non-zero. Drives the
