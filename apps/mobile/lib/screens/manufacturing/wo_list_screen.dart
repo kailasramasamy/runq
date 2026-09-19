@@ -6,7 +6,7 @@ import '../../providers/manufacturing_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/mfg_colors.dart';
-import 'widgets/mfg_doc_list.dart';
+import 'widgets/mfg_made_list.dart';
 import 'widgets/mfg_primitives.dart';
 
 /// Status pills. The last one is not a status at all — see [_repacksKey].
@@ -132,7 +132,9 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                   // A card per day under its own header. Inside a day the
                   // date block would repeat down every row, so the leading
                   // block carries the shift instead — which is what actually
-                  // separates one run from the next within a date.
+                  // separates one run from the next within a date. Within the
+                  // day, [MfgMadeList] folds repeat runs of one product into a
+                  // single line that opens onto them.
                   final days = _groupByDay(res.data);
                   return RefreshIndicator(
                     onRefresh: () async =>
@@ -145,7 +147,7 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                       children: [
                         for (final day in days.entries) ...[
                           MfgSectionHeader(
-                            label: _dayLabel(day.key),
+                            label: mfgDayLabel(day.key),
                             trailing: Text(
                               day.value.length == 1
                                   ? '1 run'
@@ -155,10 +157,9 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: MfgDividedCard(
-                              children: [
-                                for (final wo in day.value) _WoTile(wo: wo),
-                              ],
+                            child: MfgMadeList(
+                              rows: day.value,
+                              tileFor: (wo) => _WoTile(wo: wo),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -176,30 +177,19 @@ class _WoListScreenState extends ConsumerState<WoListScreen> {
   }
 }
 
-/// Rows keyed by their scheduled day, in the order the API returned them —
+/// Rows keyed by the day they were made, in the order the API returned them —
 /// grouping must not re-sort a list the server already ordered.
+///
+/// [mfgMadeOn], not `scheduledFor`, and for the reason the day counts exist: a
+/// run planned on the 24th and closed this morning sat under the 24th while
+/// its product's combined figure was read as this morning's output. It falls
+/// back to the schedule for a run nobody has started.
 Map<String, List<WorkOrderListRow>> _groupByDay(List<WorkOrderListRow> rows) {
   final out = <String, List<WorkOrderListRow>>{};
   for (final wo in rows) {
-    out.putIfAbsent(wo.scheduledFor, () => []).add(wo);
+    out.putIfAbsent(mfgMadeOn(wo), () => []).add(wo);
   }
   return out;
-}
-
-/// "Today" / "Yesterday" beat a date the reader has to decode against today.
-String _dayLabel(String iso) {
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return iso;
-  final now = DateTime.now();
-  final days = DateTime(
-    dt.year,
-    dt.month,
-    dt.day,
-  ).difference(DateTime(now.year, now.month, now.day)).inDays;
-  if (days == 0) return 'Today';
-  if (days == -1) return 'Yesterday';
-  if (days == 1) return 'Tomorrow';
-  return mfgPrettyDate(iso);
 }
 
 class _WoTile extends StatelessWidget {
