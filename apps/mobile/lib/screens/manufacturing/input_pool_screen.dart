@@ -125,6 +125,7 @@ class _InputPoolScreenState extends ConsumerState<InputPoolScreen> {
                         ),
                         const SizedBox(height: 10),
                         WarehousePicker(
+                          source: mfgWarehousesProvider,
                           value: _warehouseId,
                           onChanged: (id) {
                             setState(() => _warehouseId = id);

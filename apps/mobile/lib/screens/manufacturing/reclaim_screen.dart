@@ -140,6 +140,7 @@ class _ReclaimScreenState extends ConsumerState<ReclaimScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
             child: WarehousePicker(
+              source: mfgWarehousesProvider,
               value: _warehouseId,
               onChanged: (v) => setState(() {
                 _warehouseId = v;

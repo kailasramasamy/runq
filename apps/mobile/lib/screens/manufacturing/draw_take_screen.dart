@@ -30,6 +30,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import '../inventory/widgets/warehouse_picker.dart';
+import 'widgets/mfg_default_warehouse.dart';
 import '_record_production_form_cards.dart' show RecordProductionPickerTile;
 import '_record_production_pool_row.dart';
 import 'widgets/mfg_colors.dart';
@@ -69,16 +70,11 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
     _applyDefaultWarehouse();
   }
 
-  /// Most plants run everything out of one warehouse, so making the operator
-  /// pick it every time is a tap that can only be got wrong. Falls back to the
-  /// sole warehouse when none is flagged default. Mirrors
-  /// record_production_screen and wo_create_screen.
-  Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(mfgWarehousesProvider.future);
-    if (!mounted || _warehouseId != null || whs.isEmpty) return;
-    final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
-    setState(() => _warehouseId = pick.id);
-  }
+  void _applyDefaultWarehouse() => mfgApplyDefaultWarehouse(
+        ref,
+        current: () => _warehouseId,
+        set: (id) => setState(() => _warehouseId = id),
+      );
 
   @override
   void dispose() {
@@ -180,6 +176,7 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
           ],
           const SizedBox(height: 12),
           WarehousePicker(
+            source: mfgWarehousesProvider,
             value: _warehouseId,
             onChanged: (v) => setState(() => _warehouseId = v),
             label: 'Warehouse',

@@ -10,6 +10,7 @@ import '../../widgets/runq_snack.dart';
 import '../../api/inventory_models.dart';
 import '../inventory/widgets/warehouse_picker.dart';
 import 'widgets/mfg_colors.dart';
+import 'widgets/mfg_default_warehouse.dart';
 import 'widgets/mfg_primitives.dart';
 
 class WoCreateScreen extends ConsumerStatefulWidget {
@@ -39,15 +40,11 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
     _applyDefaultWarehouse();
   }
 
-  /// Most plants run every WO out of one warehouse, so making the operator pick
-  /// it each time is a tap that can only be got wrong. Falls back to the sole
-  /// warehouse when none is flagged default.
-  Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(mfgWarehousesProvider.future);
-    if (!mounted || _warehouseId != null || whs.isEmpty) return;
-    final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
-    setState(() => _warehouseId = pick.id);
-  }
+  void _applyDefaultWarehouse() => mfgApplyDefaultWarehouse(
+        ref,
+        current: () => _warehouseId,
+        set: (id) => setState(() => _warehouseId = id),
+      );
 
   @override
   void dispose() {
@@ -264,6 +261,7 @@ class _WoCreateScreenState extends ConsumerState<WoCreateScreen> {
                         Text('Warehouse', style: RunqText.label),
                         const SizedBox(height: 10),
                         WarehousePicker(
+                          source: mfgWarehousesProvider,
                           value: _warehouseId,
                           onChanged: (id) => setState(() => _warehouseId = id),
                           label: 'Production warehouse',
@@ -532,6 +530,7 @@ class _WoEditScreenState extends ConsumerState<WoEditScreen> {
                             Text('Warehouse', style: RunqText.label),
                             const SizedBox(height: 10),
                             WarehousePicker(
+                              source: mfgWarehousesProvider,
                               value: _warehouseId,
                               onChanged: (id) => setState(() => _warehouseId = id),
                               label: 'Production warehouse',

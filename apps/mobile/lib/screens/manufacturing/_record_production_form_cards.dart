@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../providers/manufacturing_providers.dart';
 import '../inventory/widgets/warehouse_picker.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
@@ -103,6 +104,7 @@ class RecordProductionBomQtyCard extends StatelessWidget {
               Expanded(
                 flex: 6,
                 child: WarehousePicker(
+                  source: mfgWarehousesProvider,
                   value: warehouseId,
                   onChanged: onWarehouseChanged,
                   label: 'Warehouse',

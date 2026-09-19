@@ -31,6 +31,7 @@ import '_record_production_form_cards.dart';
 import '_record_production_wastage.dart';
 import '_wo_summary_bom_picker.dart';
 import 'widgets/mfg_colors.dart';
+import 'widgets/mfg_default_warehouse.dart';
 import 'widgets/mfg_primitives.dart';
 
 /// Seeds the form when a correction reopens it: the operator got one number
@@ -124,16 +125,14 @@ class _RecordProductionScreenState extends ConsumerState<RecordProductionScreen>
   static String _trimQty(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
-  /// Most plants run everything out of one warehouse, so making the technician
-  /// pick it each time is a tap that can only be got wrong. Falls back to the
-  /// sole warehouse when none is flagged default. Mirrors wo_create_screen.
-  Future<void> _applyDefaultWarehouse() async {
-    final whs = await ref.read(mfgWarehousesProvider.future);
-    if (!mounted || _warehouseId != null || whs.isEmpty) return;
-    final pick = whs.firstWhere((w) => w.isDefault, orElse: () => whs.first);
-    setState(() => _warehouseId = pick.id);
-    _schedulePreview();
-  }
+  void _applyDefaultWarehouse() => mfgApplyDefaultWarehouse(
+        ref,
+        current: () => _warehouseId,
+        set: (id) {
+          setState(() => _warehouseId = id);
+          _schedulePreview();
+        },
+      );
 
   @override
   void dispose() {

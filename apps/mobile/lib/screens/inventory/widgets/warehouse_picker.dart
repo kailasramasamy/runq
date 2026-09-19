@@ -24,6 +24,7 @@ class WarehousePicker extends ConsumerWidget {
     this.label = 'Warehouse',
     this.allowAll = true,
     this.dense = false,
+    this.source,
   });
 
   /// Current warehouse id. Null means "All warehouses" when [allowAll] is
@@ -40,9 +41,19 @@ class WarehousePicker extends ConsumerWidget {
   /// Tighter padding for in-sheet usage.
   final bool dense;
 
+  /// Where the warehouse list comes from. Defaults to Inventory's.
+  ///
+  /// Manufacturing passes its own: the floor is granted `manufacturing` and
+  /// nothing else, and `/inventory/warehouses` is behind
+  /// `requireModule('inventory')` — so on a shop-floor login this list came
+  /// back empty and the sheet said "No warehouses match", with no default to
+  /// pre-select either. `/manufacturing/warehouses` is the same service behind
+  /// the gate that login does hold.
+  final AutoDisposeFutureProvider<List<InvWarehouse>>? source;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final whs = ref.watch(invWarehousesProvider);
+    final whs = ref.watch(source ?? invWarehousesProvider);
     final t = RT(context);
     final selected = value == null
         ? null
