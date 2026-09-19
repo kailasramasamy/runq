@@ -566,17 +566,22 @@ export class WhiteBooksGspClient implements GspClient {
     if (!offsetOk) {
       const err = offJson?.error ?? {};
       console.error(`${tag} offset FAILED`, JSON.stringify(offJson));
-      const code = err.error_cd || err.code || 'OFFSET_FAILED';
+      // GSTN returns camelCase `errorCode`/`errorMessage` here, NOT the
+      // snake_case `error_cd`/`message` used elsewhere in the API. Reading
+      // only the snake_case names swallowed the real code on every offset
+      // failure and showed the generic fallback instead.
+      const code = err.error_cd || err.errorCode || err.code || 'OFFSET_FAILED';
       const friendly: Record<string, string> = {
         'RT-3BGC-9017': 'GSTN saved-3B is out of sync with the offset pipeline (RT-3BGC-9017). Re-save and retry; if it persists wait ~2 minutes.',
-        'RT-3BAS1070': 'GSTN rejected the offset (RT-3BAS1070 partial/excess). The pdcash/pditc must equal GSTN’s computed liability exactly.',
+        'RT-3BAS1070': 'GSTN rejected the offset as partial/excess (RT-3BAS1070). The ITC + cash allocation must match GSTN’s computed liability exactly, row by row.',
       };
+      const raw = err.message || err.errorMessage || err.error_msg;
       return {
         success: false,
         errors: [{
           code,
-          message: friendly[code]
-            || (err.message || err.error_msg || 'Liability offset failed — check the cash/credit ledger and retry.').trim().replace(/\s+/g, ' '),
+          message: (friendly[code] || raw || 'Liability offset failed — check the cash/credit ledger and retry.')
+            .trim().replace(/\s+/g, ' '),
         }],
       };
     }
@@ -1193,11 +1198,23 @@ export function buildRetoffsetBody(summary: Record<string, unknown>): Record<str
   const body: Record<string, unknown> = {};
   if (hasAmount(itc)) body.pditc = { liab_ldg_id: 0, trans_typ: 30002, ...itc };
 
-  const pdcash: Record<string, unknown>[] = [];
-  const normalCash = cashAmounts(normal, itc);
-  if (hasAmount(normalCash)) pdcash.push({ liab_ldg_id: 0, trans_typ: 30002, ...normalCash });
-  const rcmCash = cashAmounts(byType(30003));
-  if (hasAmount(rcmCash)) pdcash.push({ liab_ldg_id: 0, trans_typ: 30003, ...rcmCash });
+  // Emit a cash row for EVERY trans_typ GSTN listed in net_tax_pay, in its own
+  // order, zero-filled or not. Dropping all-zero rows left 30002 with no cash
+  // row at all (ITC covers it fully), and GSTN answered RT-3BAS1070
+  // partial/excess even though the totals matched to the rupee — consistent
+  // with it pairing each liability row to a payment row by trans_typ and
+  // finding none. The omit-empty rule the filter came from is documented for
+  // the retsave body, not for retoffset.
+  const pdcash = rows.map((r) => {
+    const transTyp = Number(r?.trans_typ);
+    return {
+      liab_ldg_id: 0,
+      trans_typ: transTyp,
+      // Only 30002 can be discharged from credit; 30003 (reverse charge) is
+      // cash-only, so it gets no ITC deduction.
+      ...cashAmounts(r, transTyp === 30002 ? itc : undefined),
+    };
+  });
   if (pdcash.length > 0) body.pdcash = pdcash;
 
   return body;
