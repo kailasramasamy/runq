@@ -556,7 +556,7 @@ export class WhiteBooksGspClient implements GspClient {
     // ITC drained to discharge the liability (pditc only when credit covers
     // it — full adjustment, no pdcash, per WhiteBooks' note), plus the
     // mandatory nettaxpay.
-    const offsetBody = buildRetoffsetBody(gstin, period, preOffset);
+    const offsetBody = buildRetoffsetBody(preOffset);
     console.log(`${tag} offset PUT body=${JSON.stringify(offsetBody)}`);
     const offRes = await fetch(withEmail('/gstr3b/retoffset'), { method: 'PUT', headers: bodyHeaders, body: JSON.stringify(offsetBody) });
     const offJson = await offRes.json().catch(() => ({}));
@@ -1109,35 +1109,97 @@ export class WhiteBooksGspClient implements GspClient {
   }
 }
 
+interface TaxHead { tx?: number; intr?: number; fee?: number }
+interface TaxPayRow { trans_typ?: number; igst?: TaxHead; cgst?: TaxHead; sgst?: TaxHead; cess?: TaxHead }
+interface ItcAlloc {
+  i_pdi: number; i_pdc: number; i_pds: number;
+  c_pdc: number; c_pdi: number; s_pdi: number; s_pds: number; cs_pdcs: number;
+}
+
 /**
- * Build the /gstr3b/retoffset payload. GSTN PRE-COMPUTES the entire offset
- * allocation — Rule-88A ITC utilization, the real `liab_ldg_id`, and the
- * cash/ITC split — and returns it in the retsum response's `tx_pmt` block.
- * Per WhiteBooks' workflow doc ("prepare the offset payload from the Get
- * GSTR3B Summary response") we forward that block verbatim instead of
- * recomputing it.
+ * Allocate available ITC against one liability row, per Rule 88A: IGST credit
+ * must be exhausted first (own head, then CGST, then SGST); own-head credit
+ * covers the rest; any leftover own-head credit may go against remaining IGST
+ * liability. GSTN enforces this ordering and rejects other allocations.
  *
- * Recomputing was the RT-3BAS1070 bug: a live Vrindavan retsum shows GSTN
- * puts the IGST-credit→CGST/SGST utilization in `c_pdi`/`s_pdi` (both 7763),
- * NOT `i_pdc`/`i_pds`, and uses a real `liab_ldg_id` (1039820722) — our
- * hand-rolled `pditc` had the heads inverted and `liab_ldg_id: 0`, so it
- * never matched GSTN's computed liability.
+ * Available credit is FLOORED to whole rupees: GSTN's tx_pmt works in integers,
+ * and rounding up would claim marginally more ITC than the ledger holds, which
+ * comes back as an excess-utilisation rejection (RT-3BAS1070).
  */
-function buildRetoffsetBody(gstin: string, period: string, summary: Record<string, unknown>) {
-  const tx = (summary?.tx_pmt ?? {}) as Record<string, unknown>;
-  const body: Record<string, unknown> = { gstin, ret_period: period };
-  // Forward GSTN's own computed allocation. pditc is always present; pdcash /
-  // pdnls only when they carry a real amount; net_tax_pay → the mandatory
-  // nettaxpay field.
-  if (tx.pditc) body.pditc = tx.pditc;
-  // All-zero rows are dropped, not just empty arrays: the workflow doc says
-  // a full adjustment through pditc must NOT also carry pdcash, and GSTN
-  // hands back zero-filled pdcash rows even when nothing is payable in cash.
-  const pdcash = Array.isArray(tx.pdcash) ? tx.pdcash.filter(hasAmount) : [];
+function allocateItc(row: TaxPayRow | undefined, itcNet: Record<string, number>): ItcAlloc {
+  const due = (h?: TaxHead) => Math.round(Number(h?.tx ?? 0));
+  const payI = due(row?.igst), payC = due(row?.cgst), payS = due(row?.sgst), payCs = due(row?.cess);
+  let igst = Math.floor(Number(itcNet.iamt ?? 0));
+  let cgst = Math.floor(Number(itcNet.camt ?? 0));
+  let sgst = Math.floor(Number(itcNet.samt ?? 0));
+  const cess = Math.floor(Number(itcNet.csamt ?? 0));
+
+  const i_pdi = Math.min(igst, payI); igst -= i_pdi;
+  const i_pdc = Math.min(igst, payC); igst -= i_pdc;
+  const i_pds = Math.min(igst, payS); igst -= i_pds;
+  const c_pdc = Math.min(cgst, payC - i_pdc); cgst -= c_pdc;
+  const s_pds = Math.min(sgst, payS - i_pds); sgst -= s_pds;
+  const cs_pdcs = Math.min(cess, payCs);
+  const c_pdi = Math.min(cgst, payI - i_pdi);
+  const s_pdi = Math.min(sgst, payI - i_pdi - c_pdi);
+  return { i_pdi, i_pdc, i_pds, c_pdc, c_pdi, s_pdi, s_pds, cs_pdcs };
+}
+
+/** Cash needed for one liability row, after any ITC allocated against it.
+ *  Interest and late fee are always cash — they can never come from credit. */
+function cashAmounts(row: TaxPayRow | undefined, itc?: ItcAlloc): Record<string, number> {
+  const tx = (h?: TaxHead) => Math.round(Number(h?.tx ?? 0));
+  const ix = (h?: TaxHead) => Math.round(Number(h?.intr ?? 0));
+  const fe = (h?: TaxHead) => Math.round(Number(h?.fee ?? 0));
+  return {
+    ipd: tx(row?.igst) - (itc?.i_pdi ?? 0) - (itc?.c_pdi ?? 0) - (itc?.s_pdi ?? 0),
+    cpd: tx(row?.cgst) - (itc?.i_pdc ?? 0) - (itc?.c_pdc ?? 0),
+    spd: tx(row?.sgst) - (itc?.i_pds ?? 0) - (itc?.s_pds ?? 0),
+    cspd: tx(row?.cess) - (itc?.cs_pdcs ?? 0),
+    c_intrpd: ix(row?.cgst), s_intrpd: ix(row?.sgst),
+    i_intrpd: ix(row?.igst), cs_intrpd: ix(row?.cess),
+    c_lfeepd: fe(row?.cgst), s_lfeepd: fe(row?.sgst),
+  };
+}
+
+/**
+ * Build the /gstr3b/retoffset body: `{ pditc, pdcash }` and nothing else.
+ *
+ * Per WhiteBooks' schema sample, gstin/ret_period travel as HEADERS and there
+ * is no `nettaxpay` body field. The previous version sent only `nettaxpay`,
+ * on the assumption GSTN pre-computes the split and hands it back in `tx_pmt`.
+ * It does not — a real saved 3B returns only `tx_py`/`adjnegliab`/`net_tax_pay`,
+ * so that body stated the liability without ever saying how to discharge it,
+ * and GSTN answered RT-3BGC-9017.
+ *
+ * `net_tax_pay` splits liability by `trans_typ`:
+ *   30002 — other than reverse charge: dischargeable from ITC
+ *   30003 — reverse charge u/s 9(5):   CASH ONLY (Sec 49(4))
+ * `pdcash` is an array so it can carry a row per trans_typ; `pditc` is a single
+ * object because only 30002 can use credit. The older hand-built version sent
+ * both as 30002 only and never discharged the RCM half at all.
+ *
+ * `liab_ldg_id` is sent as 0 — nothing in the retsum response carries one, and
+ * a prior test established GSTN generates it rather than requiring it.
+ */
+export function buildRetoffsetBody(summary: Record<string, unknown>): Record<string, unknown> {
+  const tx = (summary?.tx_pmt ?? {}) as { net_tax_pay?: TaxPayRow[] };
+  const rows = Array.isArray(tx.net_tax_pay) ? tx.net_tax_pay : [];
+  const byType = (t: number) => rows.find((r) => Number(r?.trans_typ) === t);
+  const itcNet = (((summary?.itc_elg ?? {}) as Record<string, unknown>).itc_net ?? {}) as Record<string, number>;
+
+  const normal = byType(30002);
+  const itc = allocateItc(normal, itcNet);
+  const body: Record<string, unknown> = {};
+  if (hasAmount(itc)) body.pditc = { liab_ldg_id: 0, trans_typ: 30002, ...itc };
+
+  const pdcash: Record<string, unknown>[] = [];
+  const normalCash = cashAmounts(normal, itc);
+  if (hasAmount(normalCash)) pdcash.push({ liab_ldg_id: 0, trans_typ: 30002, ...normalCash });
+  const rcmCash = cashAmounts(byType(30003));
+  if (hasAmount(rcmCash)) pdcash.push({ liab_ldg_id: 0, trans_typ: 30003, ...rcmCash });
   if (pdcash.length > 0) body.pdcash = pdcash;
-  const pdnls = Array.isArray(tx.pdnls) ? tx.pdnls.filter(hasAmount) : [];
-  if (pdnls.length > 0) body.pdnls = pdnls;
-  if (tx.net_tax_pay) body.nettaxpay = tx.net_tax_pay;
+
   return body;
 }
 
