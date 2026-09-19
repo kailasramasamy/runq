@@ -12,6 +12,7 @@ import '../../theme/runq_tokens.dart';
 import '../../providers/app_module_provider.dart';
 import '../../widgets/settings_kit.dart';
 import 'widgets/mfg_colors.dart';
+import '../../utils/app_info.dart';
 
 class ManufacturingMoreScreen extends ConsumerWidget {
   const ManufacturingMoreScreen({super.key});
@@ -75,7 +76,7 @@ class ManufacturingMoreScreen extends ConsumerWidget {
           const AccountSettingsGroup(),
           const SizedBox(height: 16),
           Center(
-            child: Text('runQ Manufacturing · v1.0',
+            child: Text('runQ Manufacturing · v$kAppVersion',
                 style: RunqText.caption.copyWith(color: t.muted2)),
           ),
         ],

@@ -11,6 +11,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/settings_kit.dart';
 import 'widgets/inv_colors.dart';
+import '../../utils/app_info.dart';
 
 class InventoryMoreScreen extends ConsumerWidget {
   const InventoryMoreScreen({super.key});
@@ -84,7 +85,7 @@ class InventoryMoreScreen extends ConsumerWidget {
           const AccountSettingsGroup(),
           const SizedBox(height: 16),
           Center(
-            child: Text('runQ Inventory · v1.0',
+            child: Text('runQ Inventory · v$kAppVersion',
                 style: RunqText.caption.copyWith(color: t.muted2)),
           ),
         ],

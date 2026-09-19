@@ -15,6 +15,7 @@ import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/hr_widgets.dart';
+import '../../utils/app_info.dart';
 
 class HrMoreScreen extends ConsumerWidget {
   const HrMoreScreen({super.key});
@@ -177,7 +178,7 @@ class HrMoreScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Center(
-            child: Text('runQ HR · v1.0', style: RunqText.caption.copyWith(color: t.muted2)),
+            child: Text('runQ HR · v$kAppVersion', style: RunqText.caption.copyWith(color: t.muted2)),
           ),
         ],
       ),

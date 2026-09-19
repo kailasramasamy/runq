@@ -11,6 +11,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/settings_kit.dart';
 import 'widgets/pur_colors.dart';
+import '../../utils/app_info.dart';
 
 class PurchaseMoreScreen extends ConsumerWidget {
   const PurchaseMoreScreen({super.key});
@@ -70,7 +71,7 @@ class PurchaseMoreScreen extends ConsumerWidget {
           const AccountSettingsGroup(),
           const SizedBox(height: 16),
           Center(
-            child: Text('runQ Purchase · v1.0',
+            child: Text('runQ Purchase · v$kAppVersion',
                 style: RunqText.caption.copyWith(color: t.muted2)),
           ),
         ],

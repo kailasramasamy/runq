@@ -3,12 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../api/api_client.dart';
 
-/// Where to send users to update. Hardcoded because store URLs never
-/// change once an app is listed — they're keyed by app/package ID.
-/// Update these once your listings exist; an empty string disables the
-/// prompt for that platform (the version-check then silently skips).
+/// Where to send users to update. Hardcoded because store URLs never change
+/// once an app is listed — they're keyed by app/package ID.
+///
+/// An empty string disables the prompt for that platform: `AppUpdateGate`
+/// skips a check it has nowhere to send the user, *including a forced one*.
+/// Both sat empty, which is why a `minVersion` set in /admin/app-config
+/// changed nothing on this app however it was configured.
+///
+/// Play keys off the applicationId, so Android's is exact. iOS needs the
+/// numeric App Store ID from App Store Connect — until it is filled in, an
+/// iOS build still silently skips every update prompt.
 const String _iosStoreUrl = '';
-const String _androidStoreUrl = '';
+const String _androidStoreUrl =
+    'https://play.google.com/store/apps/details?id=com.quartex.runq';
 
 /// Maintenance manifest sub-object.
 class MaintenanceConfig {
