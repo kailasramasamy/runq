@@ -3,7 +3,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/app_module_provider.dart';
-import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/hr_providers.dart';
 import '../theme/runq_theme.dart';
@@ -106,26 +105,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProvider
     }
   }
 
-  /// Pick the landing route. Non-admins land in HR: every employee holds HR
-  /// self-service, so it is the one surface all of them share. `technician`
-  /// is the exception — it now has HR too, but the shop floor is where that
-  /// persona actually works, so it opens on manufacturing. This is a landing
-  /// preference, not an access limit. Admins return to whichever module they
-  /// were last in, so hot-restart preserves context. Waits up to ~600ms for
-  /// /hr/me so the role lookup doesn't race with the first paint.
+  /// Pick the landing route — the module the user works in, not the module
+  /// everyone happens to hold.
+  ///
+  /// Landing was "admin → Finance, everyone else → HR", which put an operator
+  /// with Manufacturing and Inventory grants on a leave-balance screen every
+  /// cold start. [landingModuleProvider] decides instead: the module last used
+  /// if it is still held, else the first work module they hold, with HR last.
+  /// This is a landing preference, not an access limit.
+  ///
+  /// Waits for the stored choice and, briefly, for /hr/me — the role decides
+  /// whether Finance is even reachable, and without it an admin's own last
+  /// module reads as "not held".
   Future<String> _resolveLanding() async {
     if (ref.read(authProvider).user?.role == 'technician') {
       return AppModule.manufacturing.homeRoute;
     }
+    await ref.read(appModuleProvider.notifier).restored;
     try {
       await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
     } catch (_) {
       // Fall through to whatever role the provider already has.
     }
-    final role = ref.read(appRoleProvider);
-    if (!role.canAccessFinance) return '/hr/home';
-    final lastModule = ref.read(appModuleProvider);
-    return lastModule == AppModule.hr ? '/hr/home' : '/home';
+    final module = ref.read(landingModuleProvider);
+    // Claim it before the first screen paints, so the switcher chip names the
+    // module the user is actually looking at.
+    await ref.read(appModuleProvider.notifier).setModule(module);
+    return module.homeRoute;
   }
 
   @override

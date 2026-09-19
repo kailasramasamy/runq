@@ -6,7 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../providers/app_module_provider.dart';
-import '../providers/app_role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/hr_providers.dart';
 import '../theme/runq_theme.dart';
@@ -282,24 +281,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with SingleTickerPr
         _resendIn = 0;
       });
 
-  // Wait briefly for /hr/me so the landing matches role on first paint —
-  // admins get Finance Home, everyone else gets HR Home. The router redirect
-  // catches stragglers if HrMe takes longer than the budget.
+  // Land in the module the user works in. Waits briefly for /hr/me, because
+  // the role decides whether Finance is reachable at all; `landingModuleProvider`
+  // then picks the last-used module if it is still held, else the first work
+  // module they hold — HR last, so an operator no longer signs in onto leave
+  // balances. The router redirect catches stragglers if HrMe is slow.
   Future<void> _land() async {
+    await ref.read(appModuleProvider.notifier).restored;
     try {
       await ref.read(hrMeProvider.future).timeout(const Duration(milliseconds: 600));
     } catch (_) {}
     if (!mounted) return;
-    final role = ref.read(appRoleProvider);
-    // Non-admins always land in HR. Admins return to the module they last
-    // used, so a sign-in mid-day doesn't yank them out of context.
-    final String landing;
-    if (!role.canAccessFinance) {
-      landing = '/hr/home';
-    } else {
-      landing = ref.read(appModuleProvider) == AppModule.hr ? '/hr/home' : '/home';
-    }
-    context.go(landing);
+    final module = ref.read(landingModuleProvider);
+    await ref.read(appModuleProvider.notifier).setModule(module);
+    if (!mounted) return;
+    context.go(module.homeRoute);
   }
 
   // The code step's card is taller than the number step (six boxes, verify
