@@ -556,7 +556,13 @@ export class WhiteBooksGspClient implements GspClient {
     // ITC drained to discharge the liability (pditc only when credit covers
     // it — full adjustment, no pdcash, per WhiteBooks' note), plus the
     // mandatory nettaxpay.
-    const offsetBody = buildRetoffsetBody(preOffset);
+    // pditc/pdcash only exist once GSTN has built the liability ledger. If they
+    // are missing there is nothing to offset against yet, and the call will
+    // fail — say so in the log rather than leaving a bare rejection.
+    if (!hasPaymentBlocks(preOffset)) {
+      console.warn(`${tag} retsum carries no tx_pmt.pditc/pdcash — GSTN has not generated the liability ledger for this return yet`);
+    }
+    const offsetBody = buildSummaryEnvelope(gstin, period, preOffset);
     console.log(`${tag} offset PUT body=${JSON.stringify(offsetBody)}`);
     const offRes = await fetch(withEmail('/gstr3b/retoffset'), { method: 'PUT', headers: bodyHeaders, body: JSON.stringify(offsetBody) });
     const offJson = await offRes.json().catch(() => ({}));
@@ -599,8 +605,14 @@ export class WhiteBooksGspClient implements GspClient {
     // Step 4: file with EVC. Body = the retsum `data` object (per WhiteBooks
     // doc); pan + evc go in the query string (same as GSTR-1 retevcfile).
     const fileUrl = withEmail('/gstr3b/retevcfile', { pan, evcotp: evc });
-    console.log(`${tag} file POST url=${fileUrl.replace(/evcotp=\d+/, 'evcotp=<otp>')} payloadKeys=${Object.keys(filePayload).join(',')}`);
-    const res = await fetch(fileUrl, { method: 'POST', headers: bodyHeaders, body: JSON.stringify(filePayload) });
+    // Redact on [^&]+, not \d+: EVC OTPs are alphanumeric (e.g. A0DFE3), so the
+    // digits-only pattern failed to match and logged the OTP in clear.
+    console.log(`${tag} file POST url=${fileUrl.replace(/evcotp=[^&]+/, 'evcotp=<otp>')} payloadKeys=${Object.keys(filePayload).join(',')}`);
+    // Same envelope as retoffset — the whole retsum `data` object, with gstin
+    // and ret_period guaranteed present. Confirmed against a live successful
+    // filing (29AALFV5152D1ZZ / 082026).
+    const fileBody = buildSummaryEnvelope(gstin, period, filePayload);
+    const res = await fetch(fileUrl, { method: 'POST', headers: bodyHeaders, body: JSON.stringify(fileBody) });
     const result = await res.json().catch(() => ({}));
     console.log(`${tag} file http=${res.status} resp=${JSON.stringify(result)}`);
     if (!(result.status_cd === '1' || result.status === 1)) {
@@ -1114,110 +1126,39 @@ export class WhiteBooksGspClient implements GspClient {
   }
 }
 
-interface TaxHead { tx?: number; intr?: number; fee?: number }
-interface TaxPayRow { trans_typ?: number; igst?: TaxHead; cgst?: TaxHead; sgst?: TaxHead; cess?: TaxHead }
-interface ItcAlloc {
-  i_pdi: number; i_pdc: number; i_pds: number;
-  c_pdc: number; c_pdi: number; s_pdi: number; s_pds: number; cs_pdcs: number;
-}
-
 /**
- * Allocate available ITC against one liability row, per Rule 88A: IGST credit
- * must be exhausted first (own head, then CGST, then SGST); own-head credit
- * covers the rest; any leftover own-head credit may go against remaining IGST
- * liability. GSTN enforces this ordering and rejects other allocations.
+ * The body for BOTH /gstr3b/retoffset and /gstr3b/retevcfile: the ENTIRE
+ * `retsum` `data` object, echoed back unchanged.
  *
- * Available credit is FLOORED to whole rupees: GSTN's tx_pmt works in integers,
- * and rounding up would claim marginally more ITC than the ledger holds, which
- * comes back as an excess-utilisation rejection (RT-3BAS1070).
+ * Verified 2026-09-19 against live GSTN (manual run with WhiteBooks support):
+ * the known-good payloads for both endpoints diff identical to the `retsum`
+ * response's `data` object — `gstin`, `ret_period`, `sup_details`, `inter_sup`,
+ * `itc_elg`, `inward_sup`, `intr_ltfee`, `tx_pmt`, `eco_dtls`.
+ *
+ * WhiteBooks' schema sample shows only `{pditc, pdcash}`; that illustrates
+ * those two blocks, not the whole body. Sending just them drew RT-3BAS1070,
+ * and sending only `nettaxpay` before that drew RT-3BGC-9017.
+ *
+ * We deliberately do NOT recompute the ITC/cash split. GSTN's own allocation
+ * is authoritative and its field semantics are the reverse of the obvious
+ * reading — it discharges CGST/SGST liability via `c_pdi`/`s_pdi`, not
+ * `i_pdc`/`i_pds`, and `c_pdi + s_pdi` can exceed the IGST credit available,
+ * so the suffix is not the credit source. A hand-rolled Rule 88A split was
+ * rejected; echoing GSTN's block is both simpler and correct.
+ *
+ * `tx_pmt.pditc` / `tx_pmt.pdcash` only appear once GSTN has generated the
+ * liability ledger. When they are absent there is nothing to offset against
+ * yet, so we surface that plainly rather than guessing an allocation.
  */
-function allocateItc(row: TaxPayRow | undefined, itcNet: Record<string, number>): ItcAlloc {
-  const due = (h?: TaxHead) => Math.round(Number(h?.tx ?? 0));
-  const payI = due(row?.igst), payC = due(row?.cgst), payS = due(row?.sgst), payCs = due(row?.cess);
-  let igst = Math.floor(Number(itcNet.iamt ?? 0));
-  let cgst = Math.floor(Number(itcNet.camt ?? 0));
-  let sgst = Math.floor(Number(itcNet.samt ?? 0));
-  const cess = Math.floor(Number(itcNet.csamt ?? 0));
-
-  const i_pdi = Math.min(igst, payI); igst -= i_pdi;
-  const i_pdc = Math.min(igst, payC); igst -= i_pdc;
-  const i_pds = Math.min(igst, payS); igst -= i_pds;
-  const c_pdc = Math.min(cgst, payC - i_pdc); cgst -= c_pdc;
-  const s_pds = Math.min(sgst, payS - i_pds); sgst -= s_pds;
-  const cs_pdcs = Math.min(cess, payCs);
-  const c_pdi = Math.min(cgst, payI - i_pdi);
-  const s_pdi = Math.min(sgst, payI - i_pdi - c_pdi);
-  return { i_pdi, i_pdc, i_pds, c_pdc, c_pdi, s_pdi, s_pds, cs_pdcs };
+export function buildSummaryEnvelope(gstin: string, period: string, summary: Record<string, unknown>): Record<string, unknown> {
+  return { ...summary, gstin, ret_period: period };
 }
 
-/** Cash needed for one liability row, after any ITC allocated against it.
- *  Interest and late fee are always cash — they can never come from credit. */
-function cashAmounts(row: TaxPayRow | undefined, itc?: ItcAlloc): Record<string, number> {
-  const tx = (h?: TaxHead) => Math.round(Number(h?.tx ?? 0));
-  const ix = (h?: TaxHead) => Math.round(Number(h?.intr ?? 0));
-  const fe = (h?: TaxHead) => Math.round(Number(h?.fee ?? 0));
-  return {
-    ipd: tx(row?.igst) - (itc?.i_pdi ?? 0) - (itc?.c_pdi ?? 0) - (itc?.s_pdi ?? 0),
-    cpd: tx(row?.cgst) - (itc?.i_pdc ?? 0) - (itc?.c_pdc ?? 0),
-    spd: tx(row?.sgst) - (itc?.i_pds ?? 0) - (itc?.s_pds ?? 0),
-    cspd: tx(row?.cess) - (itc?.cs_pdcs ?? 0),
-    c_intrpd: ix(row?.cgst), s_intrpd: ix(row?.sgst),
-    i_intrpd: ix(row?.igst), cs_intrpd: ix(row?.cess),
-    c_lfeepd: fe(row?.cgst), s_lfeepd: fe(row?.sgst),
-  };
-}
-
-/**
- * Build the /gstr3b/retoffset body: `{ pditc, pdcash }` and nothing else.
- *
- * Per WhiteBooks' schema sample, gstin/ret_period travel as HEADERS and there
- * is no `nettaxpay` body field. The previous version sent only `nettaxpay`,
- * on the assumption GSTN pre-computes the split and hands it back in `tx_pmt`.
- * It does not — a real saved 3B returns only `tx_py`/`adjnegliab`/`net_tax_pay`,
- * so that body stated the liability without ever saying how to discharge it,
- * and GSTN answered RT-3BGC-9017.
- *
- * `net_tax_pay` splits liability by `trans_typ`:
- *   30002 — other than reverse charge: dischargeable from ITC
- *   30003 — reverse charge u/s 9(5):   CASH ONLY (Sec 49(4))
- * `pdcash` is an array so it can carry a row per trans_typ; `pditc` is a single
- * object because only 30002 can use credit. The older hand-built version sent
- * both as 30002 only and never discharged the RCM half at all.
- *
- * `liab_ldg_id` is sent as 0 — nothing in the retsum response carries one, and
- * a prior test established GSTN generates it rather than requiring it.
- */
-export function buildRetoffsetBody(summary: Record<string, unknown>): Record<string, unknown> {
-  const tx = (summary?.tx_pmt ?? {}) as { net_tax_pay?: TaxPayRow[] };
-  const rows = Array.isArray(tx.net_tax_pay) ? tx.net_tax_pay : [];
-  const byType = (t: number) => rows.find((r) => Number(r?.trans_typ) === t);
-  const itcNet = (((summary?.itc_elg ?? {}) as Record<string, unknown>).itc_net ?? {}) as Record<string, number>;
-
-  const normal = byType(30002);
-  const itc = allocateItc(normal, itcNet);
-  const body: Record<string, unknown> = {};
-  if (hasAmount(itc)) body.pditc = { liab_ldg_id: 0, trans_typ: 30002, ...itc };
-
-  // Emit a cash row for EVERY trans_typ GSTN listed in net_tax_pay, in its own
-  // order, zero-filled or not. Dropping all-zero rows left 30002 with no cash
-  // row at all (ITC covers it fully), and GSTN answered RT-3BAS1070
-  // partial/excess even though the totals matched to the rupee — consistent
-  // with it pairing each liability row to a payment row by trans_typ and
-  // finding none. The omit-empty rule the filter came from is documented for
-  // the retsave body, not for retoffset.
-  const pdcash = rows.map((r) => {
-    const transTyp = Number(r?.trans_typ);
-    return {
-      liab_ldg_id: 0,
-      trans_typ: transTyp,
-      // Only 30002 can be discharged from credit; 30003 (reverse charge) is
-      // cash-only, so it gets no ITC deduction.
-      ...cashAmounts(r, transTyp === 30002 ? itc : undefined),
-    };
-  });
-  if (pdcash.length > 0) body.pdcash = pdcash;
-
-  return body;
+/** True when GSTN has populated the payment blocks the offset needs. Logged
+ *  before the call so an absent ledger is distinguishable from a rejected one. */
+export function hasPaymentBlocks(summary: Record<string, unknown>): boolean {
+  const tx = (summary?.tx_pmt ?? {}) as Record<string, unknown>;
+  return !!tx.pditc || (Array.isArray(tx.pdcash) && tx.pdcash.length > 0);
 }
 
 /** GSTN validates numeric fields against a 2-decimal pattern; raw JS sums
@@ -1260,16 +1201,6 @@ function anyNonZero(obj: Record<string, number>): boolean {
   return Object.values(obj).some((v) => Number(v) !== 0);
 }
 
-/** True when a retoffset payment row carries any non-zero amount. Non-numeric
- *  fields (tx_type and friends) are ignored so a label alone never keeps an
- *  otherwise-empty row alive. */
-function hasAmount(row: unknown): boolean {
-  if (!row || typeof row !== 'object') return false;
-  return Object.values(row as Record<string, unknown>).some((v) => {
-    const n = Number(v);
-    return !Number.isNaN(n) && n !== 0;
-  });
-}
 
 // ── Factory ────────────────────────────────────────────────────────────
 
