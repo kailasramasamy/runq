@@ -154,8 +154,24 @@ class _MaterialRow extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          Text('${formatItemQty(qty, null, unit: first.itemUnit)}$unit',
-              style: RunqText.bodyStrong.copyWith(color: t.ink)),
+          // How much there is, at heading size: this is the one figure the
+          // floor reads off the card at arm's length, and at body size it
+          // carried no more weight than the item name beside it. The unit
+          // stays small — it never changes down the column, so scaling it
+          // with the number only crowds the row it sits in.
+          Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: formatItemQty(qty, null, unit: first.itemUnit),
+                style: RunqText.h3.copyWith(color: t.ink),
+              ),
+              if (unit.isNotEmpty)
+                TextSpan(
+                  text: unit,
+                  style: RunqText.caption.copyWith(color: t.muted),
+                ),
+            ]),
+          ),
           Icon(Icons.chevron_right_rounded, size: 20, color: t.muted2),
         ]),
       ),

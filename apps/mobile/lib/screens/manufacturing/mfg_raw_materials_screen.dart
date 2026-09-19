@@ -29,16 +29,11 @@ class MfgRawMaterialsScreen extends ConsumerStatefulWidget {
 /// The two shelves, and the class chips that subdivide each. Made goods split
 /// into packed and unpacked because those are different questions: one is what
 /// can ship, the other is what still has to be packed.
+///
+/// Made leads, and so opens by default: the floor comes to this screen to see
+/// what the shift has put out. What went in is the follow-up question — and
+/// the one the Raw materials card on the home screen already answers.
 const _shelves = <({String group, String label, List<({String? cls, String label})> chips})>[
-  (
-    group: 'inputs',
-    label: 'Raw materials',
-    chips: [
-      (cls: null, label: 'All'),
-      (cls: 'raw_material', label: 'Raw material'),
-      (cls: 'packaging', label: 'Packaging'),
-    ],
-  ),
   (
     group: 'finished',
     label: 'Made',
@@ -46,6 +41,15 @@ const _shelves = <({String group, String label, List<({String? cls, String label
       (cls: null, label: 'All'),
       (cls: 'finished_good', label: 'Packed'),
       (cls: 'semi_finished', label: 'Unpacked'),
+    ],
+  ),
+  (
+    group: 'inputs',
+    label: 'Raw materials',
+    chips: [
+      (cls: null, label: 'All'),
+      (cls: 'raw_material', label: 'Raw material'),
+      (cls: 'packaging', label: 'Packaging'),
     ],
   ),
 ];
@@ -132,52 +136,92 @@ class _MfgRawMaterialsScreenState extends ConsumerState<MfgRawMaterialsScreen> {
     );
   }
 
-  /// Raw materials | Made. A segmented control rather than chips, because the
+  /// Made | Raw materials. A segmented control rather than chips, because the
   /// two are different questions rather than filters on one list — and the
   /// class chips below are already chips.
-  Widget _shelfSwitcher(RunqTokens t) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        child: Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: t.bgWarm,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: t.hairline),
+  ///
+  /// Drawn as a track with a single raised thumb that slides between the
+  /// segments. The old version outlined the whole control *and* the selected
+  /// half, which put three borders inside 40 points and read as two buttons
+  /// rather than one control with a position.
+  Widget _shelfSwitcher(RunqTokens t) {
+    final brand = MfgColors.brand(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: t.bgWarmer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Stack(children: [
+          AnimatedAlign(
+            alignment: _thumbAlignment,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: FractionallySizedBox(
+              widthFactor: 1 / _shelves.length,
+              heightFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  // Fully round, track and thumb alike: a pill inside a pill
+                  // keeps one curve on the control instead of two that nearly
+                  // agree. The class chips below are pills too, so the whole
+                  // header now shares a shape.
+                  borderRadius: BorderRadius.circular(999),
+                  // A shadow rather than an outline: the thumb has to read as
+                  // lifted off the track, and a border on top of the track's
+                  // own fill only draws a second edge.
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.07),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          child: Row(children: [
+          Row(children: [
             for (var i = 0; i < _shelves.length; i++)
               Expanded(
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => setState(() {
                     _shelf = i;
                     // The class chips belong to the shelf, so a stale one
                     // would filter the new list to nothing.
                     _itemClass = null;
                   }),
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _shelf == i ? t.surface : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: _shelf == i
-                          ? Border.all(color: MfgColors.brand(context).withValues(alpha: 0.35))
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      _shelves[i].label,
-                      style: RunqText.caption.copyWith(
-                        color: _shelf == i ? MfgColors.brand(context) : t.muted,
+                  child: Center(
+                    // Animated with the thumb, so the label colour arrives
+                    // when the thumb does rather than a frame ahead of it.
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      style: RunqText.body.copyWith(
+                        color: _shelf == i ? brand : t.muted,
                         fontWeight: _shelf == i ? FontWeight.w700 : FontWeight.w500,
                       ),
+                      child: Text(_shelves[i].label),
                     ),
                   ),
                 ),
               ),
           ]),
-        ),
-      );
+        ]),
+      ),
+    );
+  }
+
+  /// Where the thumb sits: the left edge for the first segment, the right for
+  /// the last, spread evenly in between.
+  Alignment get _thumbAlignment => _shelves.length < 2
+      ? Alignment.center
+      : Alignment(-1 + 2 * _shelf / (_shelves.length - 1), 0);
 
   Widget _list(RunqTokens t, List<InvOnHandRow> everything) {
     final all = _itemClass == null
