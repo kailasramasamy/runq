@@ -106,6 +106,8 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
                   _drawnCard(t, d),
                   const SizedBox(height: 12),
                   _qtyField(t, d, hint),
+                  const SizedBox(height: 16),
+                  _cancelAction(t, d),
                 ],
               ),
             ),
@@ -345,6 +347,103 @@ class _DrawYieldSheetState extends ConsumerState<DrawYieldSheet> {
         ),
       ],
     ]);
+  }
+
+  /// The other honest answer to "what came out?" — nothing did, the take was
+  /// a mistake. Kept here rather than on the home row: a swipe on a shop-floor
+  /// list is far too easy to catch with a wet thumb, and this is the screen
+  /// that already shows exactly what would go back.
+  ///
+  /// Quiet by design. It sits below the field, in text rather than as a
+  /// button, because it is the rare path — but it is reachable, and until now
+  /// a mis-posted take had no way back at all.
+  Widget _cancelAction(RunqTokens t, DrawRow d) => Center(
+        child: TextButton.icon(
+          onPressed: _busy ? null : () => _confirmCancel(d),
+          icon: Icon(Icons.undo_rounded, size: 16, color: t.muted),
+          label: Text(
+            'Nothing came out — put it back',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+        ),
+      );
+
+  /// Names what returns and to where, then asks. A confirm that says "Are you
+  /// sure?" tells the operator nothing they did not already know; this one
+  /// tells them the litres.
+  Future<void> _confirmCancel(DrawRow d) async {
+    final t = RT(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: t.surface,
+        title: Text('Put the material back?', style: RunqText.h3.copyWith(color: t.ink)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            'This returns it to the lots it came from and removes '
+            '${d.outputItemName} from Out for production.',
+            style: RunqText.body.copyWith(color: t.muted),
+          ),
+          const SizedBox(height: 10),
+          for (final m in _returning(d))
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(m, style: RunqText.bodyStrong.copyWith(color: t.ink)),
+            ),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Keep it open', style: RunqText.body.copyWith(color: t.muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Put it back',
+                style: RunqText.bodyStrong.copyWith(color: MfgColors.brand(context))),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _cancel();
+  }
+
+  /// One line per material, totalled across its lots — what the operator
+  /// will see reappear in stock.
+  static List<String> _returning(DrawRow d) {
+    final byItem = <String, ({String name, double qty, String uom})>{};
+    for (final l in d.lines) {
+      final seen = byItem[l.inputItemId];
+      byItem[l.inputItemId] = (
+        name: l.inputItemName,
+        qty: (seen?.qty ?? 0) + l.qty,
+        uom: l.uom,
+      );
+    }
+    return byItem.values
+        .map((m) => '${formatItemQty(m.qty, null, unit: m.uom)}'
+            '${m.uom.isEmpty ? '' : ' ${m.uom}'} ${m.name}')
+        .toList();
+  }
+
+  Future<void> _cancel() async {
+    setState(() => _busy = true);
+    try {
+      await manufacturingRepo.cancelDraw(widget.draw.id);
+      ref.invalidate(openDrawsProvider);
+      ref.invalidate(mfgDashboardProvider);
+      // The run is cancelled, not completed — the WO list and the lot's
+      // "made from this lot" trail both drop it.
+      ref.invalidate(workOrderListProvider);
+      ref.invalidate(batchUsageProvider);
+      invalidateMfgStock(ref);
+      if (!mounted) return;
+      showRunqSnack(context, 'Material back in stock', kind: SnackKind.success);
+      Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (mounted) showRunqSnack(context, e.message, kind: SnackKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Widget _grabber(RunqTokens t) => Padding(

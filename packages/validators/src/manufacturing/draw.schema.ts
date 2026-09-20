@@ -38,6 +38,11 @@ export const closeDrawSchema = z.object({
   notes: z.string().nullish(),
 });
 
+/** Abandoning a draw — the material goes back to the lots it came from. */
+export const cancelDrawSchema = z.object({
+  reason: z.string().max(200).nullish(),
+});
+
 export const drawListQuerySchema = z.object({
   open: z.coerce.boolean().optional(),
 });
@@ -50,3 +55,4 @@ export type DrawLineInput = z.infer<typeof drawLineSchema>;
 export type OpenDrawInput = z.infer<typeof openDrawSchema>;
 export type TakeMoreInput = z.infer<typeof takeMoreSchema>;
 export type CloseDrawInput = z.infer<typeof closeDrawSchema>;
+export type CancelDrawInput = z.infer<typeof cancelDrawSchema>;

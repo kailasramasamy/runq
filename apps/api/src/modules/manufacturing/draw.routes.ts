@@ -11,6 +11,7 @@ import {
   openDrawSchema,
   takeMoreSchema,
   closeDrawSchema,
+  cancelDrawSchema,
   drawListQuerySchema,
   yieldHintQuerySchema,
   uuidParamSchema,
@@ -75,6 +76,19 @@ export const drawRoutes: FastifyPluginAsync = async (app) => {
       const input = takeMoreSchema.parse(request.body);
       const service = new DrawService(request.server.db, request.tenantId);
       return { data: await service.takeMore(id, input, request.user?.userId) };
+    },
+  );
+
+  /** Abandoned — the material returns to its lots and the draw disappears. */
+  app.post(
+    '/:id/cancel',
+    { preHandler: [rbacHook([...RUN_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const input = cancelDrawSchema.parse(request.body ?? {});
+      const service = new DrawService(request.server.db, request.tenantId);
+      await service.cancel(id, input, request.user?.userId);
+      return reply.code(204).send();
     },
   );
 

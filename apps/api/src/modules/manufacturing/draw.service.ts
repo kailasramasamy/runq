@@ -31,7 +31,9 @@ import { WoConsumptionService } from './consumption.service';
 import { WoOutputService } from './output.service';
 import { WoLifecycleService } from './wo-lifecycle.service';
 import type { DrawRow, DrawYieldHint } from '@runq/types';
-import type { CloseDrawInput, OpenDrawInput, TakeMoreInput } from '@runq/validators';
+import type {
+  CancelDrawInput, CloseDrawInput, OpenDrawInput, TakeMoreInput,
+} from '@runq/validators';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
@@ -55,12 +57,24 @@ export class DrawService {
   /**
    * Take material for a product. Opens the draw and posts the first lines.
    *
+   * A product that is already out for production takes the new lines onto
+   * that draw instead of starting a second one. One vat of paneer is drawn
+   * from whatever is in the cold room — 30 litres of A1, 30 of A2, 10 of
+   * buffalo — and the take screen posts one material at a time, so the
+   * ordinary batch arrives here as three separate calls. Left alone they
+   * became three entries on the home screen with three yields to record for
+   * one kettle. Keyed on the warehouse too: milk drawn at another plant is
+   * another kettle.
+   *
    * Retried on a work-order number collision the same way `record` does — two
    * operators drawing at once is the ordinary case on a shift change.
    */
   async open(input: OpenDrawInput, userId?: string): Promise<DrawRow> {
     const product = await this.loadProduct(input.outputItemId);
     await this.assertWarehouse(input.warehouseId);
+
+    const openId = await this.findOpenDrawFor(input.outputItemId, input.warehouseId);
+    if (openId) return this.takeMore(openId, { lines: input.lines }, userId);
 
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < MAX_WO_NUMBER_ATTEMPTS; attempt++) {
@@ -93,6 +107,21 @@ export class DrawService {
       await this.postLines(tx, id, draw.warehouseId, input.lines, userId);
     });
     return this.get(id);
+  }
+
+  /**
+   * Nothing came out — the take was a mistake. Every line goes back to the
+   * lot it was drawn from and the draw leaves the floor's screen.
+   *
+   * Delegates to the work-order reversal rather than writing its own: a draw
+   * is an ordinary run underneath, and a second unwind path over the same
+   * ledger rows is how the two drift apart. Closed draws are refused there —
+   * by then the product exists and has been costed, and the way back is a
+   * production reversal, not this.
+   */
+  async cancel(id: string, input: CancelDrawInput, userId?: string): Promise<void> {
+    await this.loadOpenDraw(id);
+    await this.lifecycle.cancelWithReversal(id, input.reason ?? null, userId);
   }
 
   /**
@@ -407,6 +436,30 @@ export class DrawService {
       out.set(`${r.itemId}|${r.batchNo}`, d.toISOString());
     }
     return out;
+  }
+
+  /** The draw already running for this product at this warehouse, if any.
+   *  Newest first, though in practice there is never more than one — every
+   *  take for a product folds into it until the yield closes it. */
+  private async findOpenDrawFor(
+    outputItemId: string,
+    warehouseId: string,
+  ): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: workOrders.id })
+      .from(workOrders)
+      .where(
+        and(
+          eq(workOrders.tenantId, this.tenantId),
+          isNull(workOrders.bomId),
+          eq(workOrders.status, 'in_progress'),
+          eq(workOrders.outputItemId, outputItemId),
+          eq(workOrders.warehouseId, warehouseId),
+        ),
+      )
+      .orderBy(desc(workOrders.startedAt))
+      .limit(1);
+    return (row?.id as string | undefined) ?? null;
   }
 
   private async loadOpenDraw(id: string) {

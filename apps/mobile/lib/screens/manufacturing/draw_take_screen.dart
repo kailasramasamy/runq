@@ -148,14 +148,52 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
 
   /// The chosen product's unit, falling back to its GST pack unit.
   ///
-  /// `items.unit` is nullable, so a finished good can arrive without one. The
-  /// line below used to print it unguarded, which turned a missing unit into
-  /// "Measured in " — a dangling label that reads as a bug rather than as an
-  /// item nobody has set a unit on.
+  /// `items.unit` is nullable, so a finished good can arrive without one —
+  /// hence the guard at the call site: an item nobody has set a unit on shows
+  /// its bare name rather than a dangling separator.
   String get _productUnit {
     final p = _product;
     if (p == null) return '';
     return p.uom.isNotEmpty ? p.uom : (p.packSizeUqc ?? '');
+  }
+
+  /// Name with its unit alongside — "Khoa · kg". The unit is what the yield
+  /// and the pool boxes are counted in, so it belongs beside the name rather
+  /// than on a caption line of its own.
+  static String? _withUnit(String? name, String unit) {
+    if (name == null) return null;
+    return unit.isEmpty ? name : '$name · $unit';
+  }
+
+  /// Says so when this product is already out for production. The take will
+  /// join that draw rather than start a second one — one kettle of paneer is
+  /// drawn from A1, A2 and buffalo in three trips to this screen, and three
+  /// entries on the home screen would mean three yields to record for one
+  /// batch. Silent merging would be the surprise; this is the notice.
+  Widget? _runningDrawNote(RunqTokens t) {
+    final product = _product;
+    if (product == null) return null;
+    final open = ref
+        .watch(openDrawsProvider)
+        .asData
+        ?.value
+        .where((d) => d.outputItemId == product.id && d.warehouseId == _warehouseId)
+        .firstOrNull;
+    if (open == null) return null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.merge_rounded, size: 14, color: MfgColors.orangeAlert),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Already out: ${_trim(open.drawnQty)} ${open.drawnUom} — '
+            'this is added to the same batch.',
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+        ),
+      ]),
+    );
   }
 
   /// What the material is for. Known at draw time, always — it is what the
@@ -166,14 +204,10 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
           const SizedBox(height: 10),
           RecordProductionPickerTile(
             label: 'Product',
-            value: _product?.name,
+            value: _withUnit(_product?.name, _productUnit),
             onTap: _pickProduct,
           ),
-          if (_productUnit.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text('Measured in $_productUnit',
-                style: RunqText.caption.copyWith(color: t.muted)),
-          ],
+          ?_runningDrawNote(t),
           const SizedBox(height: 12),
           WarehousePicker(
             source: mfgWarehousesProvider,
@@ -197,7 +231,9 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
         const SizedBox(height: 10),
         RecordProductionPickerTile(
           label: 'Material',
-          value: _inputItemId == null ? null : name.itemName,
+          value: _inputItemId == null
+              ? null
+              : _withUnit(name.itemName, name.itemUnit ?? ''),
           onTap: () => _pickMaterial(rows),
         ),
       ]),
@@ -271,6 +307,10 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
       // finished_good + semi_finished: khoa is the former, "Paneer -
       // unpacked" the latter, and both are things a material is drawn for.
       itemClassGroup: 'finished',
+      // Repack SKUs ("Farm Fresh Paneer 200g") are only ever made by the
+      // dispatch backfill against their auto-repack BOM, never taken for
+      // directly — offering them here is a dead end.
+      madeOnDispatch: false,
     );
     if (picked != null) setState(() => _product = picked);
   }
@@ -333,9 +373,13 @@ class _DrawTakeScreenState extends ConsumerState<DrawTakeScreen> {
       ref.invalidate(openDrawsProvider);
       ref.invalidate(mfgStockProvider((warehouseId: null, itemClassGroup: 'inputs')));
       if (!mounted) return;
+      // What was just taken, not what the draw now holds: after a merge
+      // `drawnQty` is the running total, and "140 L out" in answer to a 20 L
+      // take reads as a posting bug.
+      final took = lines.fold<double>(0, (s, l) => s + l.qty);
       showRunqSnack(
         context,
-        '${_trim(draw.drawnQty)} ${draw.drawnUom} out for ${draw.outputItemName}',
+        '${_trim(took)} ${lines.first.uom} out for ${draw.outputItemName}',
         kind: SnackKind.success,
       );
       context.pop(true);

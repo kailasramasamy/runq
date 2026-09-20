@@ -24,6 +24,9 @@ import 'mfg_primitives.dart';
 /// BOM output, `'bom_inputs'` for BOM input lines — keeps the list short and
 /// on-task. Omit for an unfiltered search (e.g. ad-hoc WO consumption).
 ///
+/// `madeOnDispatch: false` drops the SKUs an auto-repack BOM backfills at
+/// dispatch ("… Paneer 200g") — nobody takes material for those directly.
+///
 /// `suggestFrom` is a related item name (the BOM output). Items sharing its
 /// distinctive word are hoisted into a "Suggested" section at the top of the
 /// list — ranking only. Packaging and consumables share no word with the
@@ -33,13 +36,18 @@ Future<MfgItemRow?> showMfgItemPicker(
   required String title,
   String? itemClassGroup,
   String? suggestFrom,
+  bool? madeOnDispatch,
 }) {
   return showModalBottomSheet<MfgItemRow>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) =>
-        MfgItemPickerSheet(title: title, itemClassGroup: itemClassGroup, suggestFrom: suggestFrom),
+    builder: (_) => MfgItemPickerSheet(
+      title: title,
+      itemClassGroup: itemClassGroup,
+      suggestFrom: suggestFrom,
+      madeOnDispatch: madeOnDispatch,
+    ),
   );
 }
 
@@ -111,7 +119,17 @@ class MfgItemPickerSheet extends StatefulWidget {
   final String title;
   final String? itemClassGroup;
   final String? suggestFrom;
-  const MfgItemPickerSheet({super.key, required this.title, this.itemClassGroup, this.suggestFrom});
+
+  /// Pass `false` to hide the SKUs an auto-repack BOM makes at dispatch —
+  /// they cannot be produced directly, so offering them is a dead end.
+  final bool? madeOnDispatch;
+  const MfgItemPickerSheet({
+    super.key,
+    required this.title,
+    this.itemClassGroup,
+    this.suggestFrom,
+    this.madeOnDispatch,
+  });
 
   @override
   State<MfgItemPickerSheet> createState() => MfgItemPickerSheetState();
@@ -161,11 +179,13 @@ class MfgItemPickerSheetState extends State<MfgItemPickerSheet> {
             _keyword!,
             itemClass: _itemClass,
             itemClassGroup: widget.itemClassGroup,
+            madeOnDispatch: widget.madeOnDispatch,
           ),
         manufacturingRepo.searchItems(
           q,
           itemClass: _itemClass,
           itemClassGroup: widget.itemClassGroup,
+          madeOnDispatch: widget.madeOnDispatch,
         ),
       ]);
       if (!mounted || q != _lastQuery) return;
@@ -360,23 +380,45 @@ class MfgItemPickerSheetState extends State<MfgItemPickerSheet> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(
-                                          item.name,
-                                          style: RunqText.bodyStrong.copyWith(color: t.ink),
+                                        // Unit rides the name row: it is
+                                        // what the quantity boxes below this
+                                        // sheet are counted in, so it reads
+                                        // with the product, not with the SKU.
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                                          textBaseline: TextBaseline.alphabetic,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                item.name,
+                                                style: RunqText.bodyStrong
+                                                    .copyWith(color: t.ink),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (unit.isNotEmpty) ...[
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                '· $unit',
+                                                style: RunqText.caption
+                                                    .copyWith(color: t.muted),
+                                              ),
+                                            ],
+                                          ],
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          // Joined, not interpolated: any of
-                                          // the three can be blank, and the
-                                          // old form left the separators behind
-                                          // when they were.
-                                          [
-                                            if (item.sku.isNotEmpty) item.sku,
-                                            if (unit.isNotEmpty) unit,
-                                            if (item.itemClass.isNotEmpty) item.itemClass,
-                                          ].join(' · '),
-                                          style: RunqText.caption.copyWith(color: t.muted),
-                                        ),
+                                        // SKU alone under the name. The
+                                        // item class sat here too, but the
+                                        // group filter already decides what
+                                        // this sheet may offer, so printing
+                                        // it on every row said nothing.
+                                        if (item.sku.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            item.sku,
+                                            style: RunqText.caption
+                                                .copyWith(color: t.muted),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

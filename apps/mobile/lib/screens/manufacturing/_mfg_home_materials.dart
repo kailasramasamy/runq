@@ -290,10 +290,79 @@ class _OpenDrawRow extends ConsumerWidget {
   const _OpenDrawRow({required this.draw});
   final DrawRow draw;
 
+  /// One material, in columns: name, quantity, when it went out. Fixed widths
+  /// on the right two so the figures stack under each other — the name takes
+  /// what is left and truncates, because it is the part a glance can afford
+  /// to lose.
+  static Widget _materialLine(
+    RunqTokens t,
+    String name,
+    String qty,
+    String? when, {
+    bool strong = false,
+  }) {
+    final style = strong
+        ? RunqText.micro.copyWith(color: t.ink, fontWeight: FontWeight.w700)
+        : RunqText.micro.copyWith(color: t.muted);
+    return Row(children: [
+      Expanded(
+        child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 72,
+        child: Text(qty, textAlign: TextAlign.right, maxLines: 1, style: style),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 96,
+        child: Text(
+          when ?? '',
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: RunqText.micro.copyWith(color: t.muted2),
+        ),
+      ),
+    ]);
+  }
+
+  static String _qtyText(double qty, String uom) =>
+      '${formatItemQty(qty, null, unit: uom)}${uom.isEmpty ? '' : ' $uom'}';
+
+  /// What was taken, one entry per material: name, total across its lots, and
+  /// when it went out. Lots of the same milk collapse together — the operator
+  /// poured three cans of A1, not three materials — but A1, A2 and buffalo
+  /// each get their own line. They were three separate trips to the take
+  /// screen and folding them into "A1 Milk +2" hid the two that matter most:
+  /// how much of each went into this kettle.
+  static List<_DrawMaterial> _materials(DrawRow draw) {
+    final out = <String, _DrawMaterial>{};
+    for (final l in draw.lines) {
+      if (l.inputItemName.isEmpty) continue;
+      final seen = out[l.inputItemId];
+      out[l.inputItemId] = _DrawMaterial(
+        name: l.inputItemName,
+        qty: (seen?.qty ?? 0) + l.qty,
+        uom: l.uom,
+        // Latest of the lot times: a material topped up at 7:07 and again at
+        // 7:20 reads as the last time anyone touched it.
+        at: _later(seen?.at, l.at),
+      );
+    }
+    return out.values.toList();
+  }
+
+  static String? _later(String? a, String? b) {
+    if (a == null || a.isEmpty) return b;
+    if (b == null || b.isEmpty) return a;
+    return a.compareTo(b) >= 0 ? a : b;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RT(context);
-    final since = arrivalStamp(draw.startedAt);
+    final materials = _materials(draw);
     return InkWell(
       onTap: () async {
         final closed = await showDrawYieldSheet(context, draw);
@@ -315,29 +384,74 @@ class _OpenDrawRow extends ConsumerWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(draw.outputItemName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: RunqText.body.copyWith(color: t.ink)),
-              const SizedBox(height: 2),
-              Text(
-                [
-                  '${formatItemQty(draw.drawnQty, null, unit: draw.drawnUom)}'
-                      '${draw.drawnUom.isEmpty ? '' : ' ${draw.drawnUom}'} taken',
-                  ?since,
-                ].join('  ·  '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: RunqText.micro.copyWith(color: t.muted),
+              // Unit beside the product, because that is what the yield
+              // sheet this row opens will ask for.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Flexible(
+                    child: Text(draw.outputItemName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: RunqText.body.copyWith(color: t.ink)),
+                  ),
+                  if (draw.outputUom.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text('· ${draw.outputUom}',
+                        style: RunqText.caption.copyWith(color: t.muted)),
+                  ],
+                ],
+              ),
+              // Columns, not a dotted sentence: three materials read as a
+              // list of quantities the operator scans down, and ragged
+              // figures are the one thing that makes them add up wrong.
+              for (final m in materials) ...[
+                const SizedBox(height: 3),
+                _materialLine(t, m.name, _qtyText(m.qty, m.uom), arrivalStamp(m.at)),
+              ],
+              // Only worth a total when there is more than one thing to add.
+              if (materials.length > 1) ...[
+                const SizedBox(height: 5),
+                Divider(height: 1, color: t.hairline),
+                const SizedBox(height: 5),
+                _materialLine(
+                  t,
+                  'Total',
+                  _qtyText(draw.drawnQty, draw.drawnUom),
+                  null,
+                  strong: true,
+                ),
+              ],
+              // The call to action gets its own line, right-aligned. Sharing
+              // a line with either of the two above cost whichever text was
+              // longest its tail — first the product name, then the material
+              // — and both are the row's actual content. A fixed-width label
+              // beside variable-length text has nowhere safe to sit.
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('What came out?',
+                      style: RunqText.caption
+                          .copyWith(color: MfgColors.brand(context))),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 18, color: MfgColors.brand(context)),
+                ]),
               ),
             ]),
           ),
-          const SizedBox(width: 8),
-          Text('What came out?',
-              style: RunqText.caption.copyWith(color: MfgColors.brand(context))),
-          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
         ]),
       ),
     );
   }
+}
+
+/// One material on an open draw — every lot of it, totalled.
+class _DrawMaterial {
+  const _DrawMaterial({required this.name, required this.qty, required this.uom, required this.at});
+  final String name;
+  final double qty;
+  final String uom;
+  final String? at;
 }

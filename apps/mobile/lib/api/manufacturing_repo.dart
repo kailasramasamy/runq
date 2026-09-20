@@ -601,6 +601,14 @@ class ManufacturingRepo {
     return DrawRow.fromJson((res['data'] as Map).cast<String, dynamic>());
   }
 
+  /// Abandon a draw — every line goes back to the lot it came from. Used when
+  /// the take itself was the mistake; a draw that made something closes
+  /// through [closeDraw] instead.
+  Future<void> cancelDraw(String drawId, {String? reason}) =>
+      apiClient.post('/manufacturing/draws/$drawId/cancel', {
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      });
+
   /// What came out. Posts the output and closes the draw.
   Future<DrawRow> closeDraw(
     String drawId, {
@@ -640,9 +648,15 @@ class ManufacturingRepo {
     String query, {
     String? itemClass,
     String? itemClassGroup,
+    /// Drop (false) or isolate (true) the SKUs an auto-repack BOM makes at
+    /// dispatch. Set false by the pickers that ask what a person is about to
+    /// make by hand — those SKUs are only ever produced by the dispatch
+    /// backfill, never taken for on purpose.
+    bool? madeOnDispatch,
   }) async {
     final qp = <String, String>{'search': query, 'limit': '30', 'sort': 'category'};
     if (itemClass != null && itemClass.isNotEmpty) qp['itemClass'] = itemClass;
+    if (madeOnDispatch != null) qp['madeOnDispatch'] = '$madeOnDispatch';
     // 'all' is the absence of a filter — mirror inventory_repo and omit it
     // rather than relying on the server to interpret the literal.
     if (itemClassGroup != null && itemClassGroup.isNotEmpty && itemClassGroup != 'all') {
