@@ -54,6 +54,8 @@ class _DayMaterialsSectionState extends State<DayMaterialsSection> {
           action: idle.isEmpty
               ? null
               : (_showIdle ? 'Hide idle stock' : '${idle.length} idle in stock'),
+          // Expands the list in place — nothing to navigate to.
+          actionChevron: false,
           onAction: idle.isEmpty ? null : () => setState(() => _showIdle = !_showIdle),
         ),
         if (shown.isEmpty)

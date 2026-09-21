@@ -136,14 +136,8 @@ class InvNeedsAttention extends ConsumerWidget {
 
   /// What is wrong with stock levels themselves.
   List<_AttentionItem> _stockExceptions(RunqTokens t) => [
-      if (k.outOfStockCount > 0)
-        _AttentionItem(
-          icon: Icons.remove_shopping_cart_outlined,
-          color: InvColors.error,
-          label: 'Out of stock',
-          value: '${k.outOfStockCount}',
-          route: '/inventory/alerts?status=out',
-        ),
+      // Out of stock is not repeated here — the hero card's own Out of Stock
+      // tile already carries the count and lands on the same bucket.
       if (k.lowStockCount > 0)
         _AttentionItem(
           icon: Icons.warning_amber_rounded,
@@ -154,9 +148,8 @@ class InvNeedsAttention extends ConsumerWidget {
         ),
       // Expiry and dead stock lead with the amount, not the batch count: both
       // are money decisions (write-off risk, locked-up cash) and "12 batches"
-      // gives an owner nothing to weigh them against. Low / out-of-stock stay
-      // as counts — an out-of-stock line is worth ₹0 by definition, and for a
-      // low line the on-hand value is not the story either.
+      // gives an owner nothing to weigh them against. Low stock stays a count:
+      // for a low line the on-hand value is not the story.
       if (k.expiringSoon > 0)
         _AttentionItem(
           icon: Icons.schedule_rounded,

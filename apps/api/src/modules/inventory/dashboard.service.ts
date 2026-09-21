@@ -410,14 +410,16 @@ export class InventoryDashboardService {
   }
 
   /**
-   * Stock highlights for the home screens — the N item lines in a class
-   * bucket that moved most recently. Drives the "Finished goods" and "Raw
-   * materials available" strips.
+   * Stock highlights for the home screens — the first N item lines in a class
+   * bucket, in category order. Drives the "Finished goods" and "Raw materials
+   * available" strips.
    *
-   * Ordered by last movement rather than the item master's created_at: after
-   * a production run the interesting rows are the goods that just landed, not
-   * catalogue entries created months ago. Batches are collapsed to one row
-   * per item so a 12-batch SKU doesn't crowd out the rest of the list.
+   * Ordered by the category tree, matching the Categories master and the
+   * on-hand screens, so the strip is a stable top-of-catalogue view. It used
+   * to rank by last movement, which meant a dispatch could push an item to
+   * the top while reducing the pile, and the five rows reshuffled all day.
+   * Batches are collapsed to one row per item so a 12-batch SKU doesn't crowd
+   * out the rest of the list.
    */
   async stockHighlights(group: ItemClassGroup, limit = 5) {
     const classes = ITEM_CLASS_GROUP_MEMBERS[group];
@@ -428,16 +430,40 @@ export class InventoryDashboardService {
       SELECT
         i.id, i.name, i.sku, i.unit, i.item_class::text AS item_class,
         i.reorder_level::text AS reorder_level,
-        SUM(soh.qty)::text AS qty,
-        SUM(soh.value)::text AS value,
+        -- COALESCE, not a bare SUM: an item with no stock_on_hand row at all
+        -- aggregates to NULL, and the web card calls .toLocaleString() on qty.
+        COALESCE(SUM(soh.qty), 0)::text AS qty,
+        COALESCE(SUM(soh.value), 0)::text AS value,
         MAX(soh.last_movement_at) AS last_movement_at
-      FROM stock_on_hand soh
-      INNER JOIN items i ON i.id = soh.item_id
-      WHERE soh.tenant_id = ${this.tenantId}
-        AND soh.qty > 0
+      -- Driven from items, not stock_on_hand: the strip lists the catalogue in
+      -- category order and shows a zero balance as a zero, so an item that has
+      -- run out stays visible instead of silently dropping off the card.
+      FROM items i
+      LEFT JOIN stock_on_hand soh
+        ON soh.item_id = i.id AND soh.tenant_id = i.tenant_id
+      -- items.category_id points at EITHER a root category or a subcategory,
+      -- so the self-join walks one level up to resolve the (root, leaf) pair
+      -- the ordering needs. Same two aliases the on-hand screens join.
+      LEFT JOIN categories cl ON cl.id = i.category_id
+      LEFT JOIN categories cp ON cp.id = cl.parent_id
+      WHERE i.tenant_id = ${this.tenantId}
+        AND i.is_active = TRUE
         AND ${classFilter}
-      GROUP BY i.id, i.name, i.sku, i.unit, i.item_class, i.reorder_level
-      ORDER BY MAX(soh.last_movement_at) DESC NULLS LAST
+      -- cl / cp columns are grouped explicitly: Postgres only infers
+      -- functional dependency from the grouped table's own PK, so ordering on
+      -- a joined table's column without this fails.
+      GROUP BY i.id, i.name, i.sku, i.unit, i.item_class, i.reorder_level,
+               cl.sort_order, cl.name, cl.parent_id, cp.sort_order, cp.name
+      -- Raw-SQL transliteration of categoryTreeOrder() — that helper takes
+      -- Drizzle column objects and this query is hand-written sql. Keep the
+      -- two in step: root sort_order, root name, then the leaf's, with
+      -- root-level items ahead of their own children and unfiled stock last.
+      ORDER BY
+        COALESCE(cp.sort_order, cl.sort_order) ASC NULLS LAST,
+        COALESCE(cp.name, cl.name) ASC NULLS LAST,
+        CASE WHEN cl.parent_id IS NULL THEN NULL ELSE cl.sort_order END ASC NULLS FIRST,
+        CASE WHEN cl.parent_id IS NULL THEN NULL ELSE cl.name END ASC NULLS FIRST,
+        i.name ASC
       LIMIT ${limit}
     `);
     return (result as unknown as {

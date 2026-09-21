@@ -1,7 +1,8 @@
 // Home stock strips — "Finished Goods" and "Raw Materials Available".
 // Both render the same 5-row card off GET /inventory/dashboard/stock-highlights;
-// only the class bucket and the empty-state copy differ. Rows are ordered by
-// last movement, so goods that just came off a production run sit on top.
+// only the class bucket and the empty-state copy differ. Rows follow the
+// Categories master order (category → subcategory → name), so the strip reads
+// as the top of the catalogue rather than reshuffling on every movement.
 
 library;
 
@@ -46,7 +47,10 @@ class InvStockHighlightsCard extends ConsumerWidget {
       children: [
         InvSectionHeader(
           title: title,
-          action: 'See all →',
+          // No literal '→' in the label: the header draws a chevron of its
+          // own, and two arrows on one row read as a glitch.
+          action: 'See all',
+          actionIcon: Icons.inventory_2_outlined,
           onAction: () => context.push('/inventory/items?classGroup=$group'),
         ),
         Padding(

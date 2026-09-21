@@ -1,7 +1,7 @@
 // Home-screen stock strips — "Finished goods" and "Raw materials available".
 // Both render the same card; only the class bucket and the empty-state copy
-// differ. Rows are the most-recently-moved items in the bucket, so a
-// production run or a GRN surfaces at the top immediately.
+// differ. Rows follow the Categories master order (category → subcategory →
+// name), the same sequence /inventory/categories and the on-hand screens use.
 
 import { Link } from '@tanstack/react-router';
 import type { LucideIcon } from 'lucide-react';

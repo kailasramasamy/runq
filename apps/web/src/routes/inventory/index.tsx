@@ -193,19 +193,22 @@ export function InventoryDashboardPage() {
 
       {/* ── What's in stock right now ──────────────────────────── */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Titles say what the strips now are: the first five items in
+            category order, balance included when it is zero — not a
+            recently-moved or in-stock-only list. */}
         <StockHighlightsCard
-          title="Recently added finished goods"
+          title="Finished goods"
           group="finished"
           icon={PackageCheck}
-          emptyTitle="No finished goods in stock yet"
-          emptyBody="Record production or receive stock to see them here."
+          emptyTitle="No finished goods set up yet"
+          emptyBody="Add an item to see it here."
         />
         <StockHighlightsCard
-          title="Raw materials available"
+          title="Raw materials"
           group="inputs"
           icon={Boxes}
-          emptyTitle="No raw material in stock"
-          emptyBody="Receive a GRN to start tracking input balances."
+          emptyTitle="No raw materials set up yet"
+          emptyBody="Add an item to start tracking input balances."
           showValue={false}
         />
       </div>
