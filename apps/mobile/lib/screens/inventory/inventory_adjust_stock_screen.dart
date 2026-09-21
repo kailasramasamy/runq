@@ -299,8 +299,6 @@ class _InventoryAdjustStockScreenState
           AdjustModeToggle(mode: _mode, onChanged: _setMode),
           const SizedBox(height: 14),
           _qtyField(t),
-          const SizedBox(height: 10),
-          _previewCard(t),
           const SizedBox(height: 18),
           const InvFieldLabel('Reason'),
           AdjustReasonChips(
@@ -466,6 +464,12 @@ class _InventoryAdjustStockScreenState
 
   /// The whole point of the screen: spell out the before → after, so a typo
   /// or a wrong mode is caught before it hits the ledger.
+  ///
+  /// Lives in the bottom bar, not the form. It used to sit under the quantity
+  /// field — which is precisely where the keypad covers it, so the one figure
+  /// that proves the number is right was hidden for every keystroke that
+  /// could get it wrong. The bar rises with the keypad, so the result now
+  /// sits directly above the keys being pressed.
   Widget _previewCard(RunqTokens t) {
     final d = _delta;
     if (d == null || d == 0) {
@@ -498,30 +502,45 @@ class _InventoryAdjustStockScreenState
     );
   }
 
-  Widget _bottomBar(RunqTokens t) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-    decoration: BoxDecoration(
-      color: t.surface,
-      border: Border(top: BorderSide(color: t.hairline)),
-    ),
-    child: SafeArea(
-      top: false,
-      child: SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: _canSave ? _save : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: InvColors.brand(context),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : Text(_buttonLabel(), style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+  /// `resizeToAvoidBottomInset` only shrinks the Scaffold *body* — a
+  /// bottomNavigationBar still sits *under* the keypad, which is where the
+  /// result strip went the first time. Lift the whole bar by the inset
+  /// ourselves, the way `GstActionBar` does.
+  Widget _bottomBar(RunqTokens t) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border(top: BorderSide(color: t.hairline)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _previewCard(t),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _canSave ? _save : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: InvColors.brand(context),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(_buttonLabel(), style: RunqText.bodyStrong.copyWith(color: Colors.white)),
+              ),
+            ),
+          ],
         ),
       ),
     ),
