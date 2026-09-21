@@ -378,7 +378,7 @@ export function renderVmccBillHTML(d: VmccBillStatementData): string {
     <div class="cards">
       ${summaryCard('Total milk', `${num(d.totals.litres, 1)} L`)}
       ${summaryCard('Milk cost', inr(d.totals.amount))}
-      ${commission > 0 ? summaryCard('Commission', inr(commission)) : ''}
+      ${commission > 0 ? summaryCard('Operator salary', inr(commission)) : ''}
       ${summaryCard('Net payable', inr(grand))}
     </div>
     ${d.totals.unpricedLines > 0
@@ -397,10 +397,19 @@ export function renderVmccBillHTML(d: VmccBillStatementData): string {
         <td colspan="3" class="tfoot-label">Milk total</td>
         <td class="right">${num(d.totals.litres, 1)}</td>
         <td colspan="3"></td>
-        <td class="right tfoot-label">${commission > 0 ? 'Net' : 'Total'}</td>
-        <td class="right grand">${inr(grand)}</td>
+        <td class="right tfoot-label">Milk cost</td>
+        <td class="right grand">${inr(d.totals.amount)}</td>
       </tr></tfoot>
     </table>
+    ${commission > 0 ? `<table class="settle">
+      <tbody>
+        <tr><td>Milk cost</td><td class="right">${inr(d.totals.amount)}</td></tr>
+        <tr><td>Operator salary</td><td class="right">${inr(commission)}</td></tr>
+        <tr class="settle-net">
+          <td>Net payable</td><td class="right grand">${inr(grand)}</td>
+        </tr>
+      </tbody>
+    </table>` : ''}
     <div class="footer">Generated ${fmtDate(gen.toISOString().slice(0, 10))} · Powered by runq</div>
   </div></body></html>`;
 }
