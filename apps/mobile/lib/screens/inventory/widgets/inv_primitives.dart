@@ -282,6 +282,7 @@ class InvSectionHeader extends StatelessWidget {
     this.action,
     this.onAction,
     this.actionIcon,
+    this.actionChevron = true,
     this.topPad = 16,
   });
   final String title;
@@ -291,6 +292,11 @@ class InvSectionHeader extends StatelessWidget {
   /// Optional glyph before the action label. Widens the target and says what
   /// the action does before the word is read.
   final IconData? actionIcon;
+
+  /// Trailing chevron on the action. On by default — most actions here leave
+  /// the section. Turn it off for an action that stays put, like a show/hide
+  /// toggle, where a forward arrow promises a screen that never comes.
+  final bool actionChevron;
   final double topPad;
 
   @override
@@ -302,8 +308,12 @@ class InvSectionHeader extends StatelessWidget {
     // was the glyphs themselves — about 40x16, well under the 44pt floor, and
     // it took two or three stabs to hit. The header's own padding now lives
     // inside the tap target instead of outside it: the label sits exactly
-    // where it did, but the touchable box is more than twice as tall and
-    // reaches the screen edge.
+    // where it did, but the touchable box reaches the screen edge.
+    //
+    // Padding alone still left it ~31pt tall, so the height is now pinned to
+    // the 44pt floor outright rather than inferred from the caption's line
+    // box. The extra height grows upward and downward around the same
+    // baseline, so the header reads unchanged.
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -326,23 +336,35 @@ class InvSectionHeader extends StatelessWidget {
               child: InkWell(
                 onTap: onAction,
                 borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (actionIcon != null) ...[
-                        Icon(actionIcon, size: 15, color: brand),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(
-                        action!,
-                        style: RunqText.caption.copyWith(
-                          color: brand,
-                          fontWeight: FontWeight.w600,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (actionIcon != null) ...[
+                          Icon(actionIcon, size: 15, color: brand),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          action!,
+                          style: RunqText.caption.copyWith(
+                            color: brand,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                        // Widens the target by ~16pt and marks the row as a
+                        // way out of the section, the same affordance the
+                        // warehouse pill in the hero uses.
+                        if (actionChevron)
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 16,
+                            color: brand.withValues(alpha: 0.8),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1289,10 +1311,17 @@ class InvActivityRow extends StatelessWidget {
     required this.description,
     required this.amount,
     required this.time,
+    this.unit,
     this.onTap,
   });
   final String type;
   final String refLabel;
+
+  /// Unit of measure, held one step back beside [refLabel]. The unit belongs
+  /// to the item, not to the quantity — a feed mixing SKUs reads better with
+  /// "Ghee 500ml … +12" than with the unit tacked onto every figure, which
+  /// leaves the right-hand column ragged.
+  final String? unit;
   final String description;
   final String amount;
   final String time;
@@ -1329,11 +1358,22 @@ class InvActivityRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  refLabel,
-                  style: RunqText.bodyStrong.copyWith(
-                    color: t.ink,
-                    fontSize: 14,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: refLabel,
+                        style: RunqText.bodyStrong.copyWith(
+                          color: t.ink,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if ((unit ?? '').isNotEmpty)
+                        TextSpan(
+                          text: '  $unit',
+                          style: RunqText.caption.copyWith(color: t.muted2),
+                        ),
+                    ],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

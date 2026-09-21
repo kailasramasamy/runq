@@ -1,9 +1,9 @@
 // Inventory Home — godown-floor dashboard. Matches the Finance / HR home
 // chrome: light scaffold, module switcher pinned top-left, a bell on the
-// right, then a hero card holding the two level KPIs (stock value with its
-// month delta, days of cover), the Out / Low alert pair, and the warehouse
-// pill. Body then runs Movement (today's flow, inbound, shrinkage), Needs
-// attention, the two stock strips, and Recent activity.
+// right, then a hero card holding the Out / Low alert pair and the warehouse
+// pill — stock value and days of cover were dropped as figures no owner acted
+// on. Body then runs Needs attention, the two stock strips, and Recent
+// activity; today's flow figures live on the Movements screen instead.
 
 library;
 
@@ -17,12 +17,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/inventory_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
-import '../../utils/format_qty.dart';
 import '../../widgets/module_switcher.dart';
 import '../../widgets/profile_avatar_button.dart';
 import 'widgets/inv_attention.dart';
 import 'widgets/inv_colors.dart';
-import 'widgets/inv_primitives.dart';
+import 'widgets/inv_recent_activity_card.dart';
 import 'widgets/inv_stock_highlights.dart';
 
 class InventoryHomeScreen extends ConsumerWidget {
@@ -82,9 +81,6 @@ class _HomeBody extends StatelessWidget {
         const SliverToBoxAdapter(child: _TopBar()),
         const SliverToBoxAdapter(child: _Greeting()),
         SliverToBoxAdapter(child: _HeroCard(k: k)),
-        // Flow, not level: what came in, what went out and against what
-        // baseline, what is still on its way, and what was lost outright.
-        SliverToBoxAdapter(child: _Movement(k: k)),
         // The dispatch queue and every open exception, as one tile grid.
         SliverToBoxAdapter(child: InvNeedsAttention(k: k)),
         // What's actually on the floor right now — goods that just came off
@@ -93,20 +89,22 @@ class _HomeBody extends StatelessWidget {
           child: InvStockHighlightsCard(
             title: 'Finished Goods',
             group: 'finished',
-            emptyText: 'No finished goods in stock yet — record production to '
-                'see them here.',
+            // Reached only when the item master itself is empty: the strip
+            // lists the catalogue now, so a zero balance still shows a row.
+            emptyText: 'No finished goods set up yet — add an item to see it '
+                'here.',
           ),
         ),
         const SliverToBoxAdapter(
           child: InvStockHighlightsCard(
-            title: 'Raw Materials Available',
+            title: 'Raw Materials',
             group: 'inputs',
-            emptyText: 'No raw material in stock — receive a GRN to start '
+            emptyText: 'No raw materials set up yet — add an item to start '
                 'tracking input balances.',
             showValue: false,
           ),
         ),
-        const SliverToBoxAdapter(child: _RecentActivityCard()),
+        const SliverToBoxAdapter(child: InvRecentActivityCard()),
         // Trailing space so the bot-nav pill doesn't crop the last row.
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
@@ -293,7 +291,7 @@ class _AnalyticsPill extends StatelessWidget {
   }
 }
 
-// ── Hero card (Stock value + Days of cover + alerts + warehouse pill) ────
+// ── Hero card (Out / Low alerts + warehouse pill) ────────────────────────
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({required this.k});
@@ -319,53 +317,28 @@ class _HeroCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: InvHeroKpi(
-                      label: 'Stock Value',
-                      value: compactINR(k.totalValue),
-                      // A bare total cannot answer the owner's actual
-                      // question — is working capital piling up in the
-                      // godown? The month's net movement can.
-                      footnote: _monthDelta(k),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    // Replaced 'Active SKUs', which no owner ever acted on.
-                    // Days of cover is the one inventory figure that drives a
-                    // decision: buy sooner, or stop buying.
-                    child: InvHeroKpi(
-                      label: 'Days of Cover',
-                      value: _coverValue(k),
-                      footnote: k.daysOfCover == null
-                          ? 'nothing issued in 30d'
-                          : 'at 30-day burn rate',
-                      // Deliberately never red. "Low cover" has no
-                      // cross-industry threshold: this dairy runs at 3 days
-                      // because milk turns daily, while a hardware counter at
-                      // 3 days is an emergency. Without a per-tenant target
-                      // any colour we pick is a false alarm for someone.
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Two tiles, not four. Today In / Today Out moved down to the
-            // Movement section: they are flow, the hero is level, and at four
-            // across nothing fit — "Out of Stock" had to be abbreviated to
-            // "Stockouts" purely to survive the width.
+            // Three tiles: what is on the floor, then the two ways it is
+            // wrong. Today In / Today Out are flow, not level, and live on
+            // the Movements screen instead.
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: _HeroMiniKpi(
-                      // Out of stock leads: it is already costing sales,
+                      // The baseline the other two are exceptions against:
+                      // 6 out of 240 items short reads very differently
+                      // from 6 out of 9.
+                      label: 'In Stock',
+                      value: k.activeItems.toString(),
+                      sub: k.activeItems == 1 ? 'item' : 'items',
+                      onTap: () => context.push('/inventory/on-hand'),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _HeroMiniKpi(
+                      // Out of stock before low: it is already costing sales,
                       // where "low" is still only a warning.
                       label: 'Out of Stock',
                       value: k.outOfStockCount.toString(),
@@ -376,7 +349,7 @@ class _HeroCard extends StatelessWidget {
                       onTap: () => context.push('/inventory/alerts?status=out'),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: _HeroMiniKpi(
                       label: 'Low Stock',
@@ -403,25 +376,6 @@ class _HeroCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// Net stock-value movement so far this month, as a hero footnote. Left
-  /// tone-neutral on purpose: stock building up is a strong order book or
-  /// dead capital, and the dashboard cannot tell which.
-  static String _monthDelta(InvKpis k) {
-    final net = k.monthNetValue;
-    // Sub-₹1000 swings are rounding, not a trend worth an arrow.
-    if (net.abs() < 1000) return 'flat this month';
-    final arrow = net > 0 ? '↑' : '↓';
-    return '$arrow ${compactINR(net.abs())} this month';
-  }
-
-  static String _coverValue(InvKpis k) {
-    final d = k.daysOfCover;
-    if (d == null) return '—';
-    // Past a quarter the exact figure is noise; the message is "too much".
-    if (d > 99) return '99+';
-    return d.round().toString();
   }
 }
 
@@ -493,6 +447,8 @@ class _WarehousePill extends ConsumerWidget {
 // Compact tinted KPI used inside the hero card. Translucent white fill so it
 // reads as part of the gradient; the alert variant goes solid red instead of
 // a red wash — a tint over amber just muddies into orange and disappears.
+// Padding stays tight because three of these sit across the hero on a 360px
+// phone, where "Out of Stock" has about 74px of label to live in.
 class _HeroMiniKpi extends StatelessWidget {
   const _HeroMiniKpi({
     required this.label,
@@ -518,7 +474,7 @@ class _HeroMiniKpi extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(10),
@@ -580,119 +536,6 @@ class _HeroMiniKpi extends StatelessWidget {
   }
 }
 
-// ── Recent activity (5 rows + See all) ────────────────────────────────────
-
-class _RecentActivityCard extends ConsumerWidget {
-  const _RecentActivityCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(invRecentActivityProvider);
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InvSectionHeader(
-          title: 'Recent Activity',
-          action: 'See all →',
-          onAction: () => context.push('/inventory/activity?period=7d'),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: async.when(
-            loading: () => Container(
-              height: 96,
-              decoration: BoxDecoration(
-                color: t.surface,
-                border: Border.all(color: t.hairline),
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            error: (_, __) => InvCard(
-              child: Text('Could not load activity',
-                  style: RunqText.caption.copyWith(color: t.muted)),
-            ),
-            data: (rows) {
-              if (rows.isEmpty) {
-                return InvCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'No movements yet — receive or dispatch stock to see entries here.',
-                      style: RunqText.caption.copyWith(color: t.muted),
-                    ),
-                  ),
-                );
-              }
-              final top = rows.take(5).toList();
-              return InvCard(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                child: Column(
-                  children: [
-                    for (var i = 0; i < top.length; i++) ...[
-                      _activityRow(context, top[i]),
-                      if (i < top.length - 1)
-                        Divider(height: 1, thickness: 0.5, color: t.hairlineSoft),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Shared mapper from `InvActivity` → `InvActivityRow` so both Home and the
-/// full-feed screen render identical chrome.
-Widget _activityRow(BuildContext context, InvActivity a) {
-  return InvActivityRow(
-    type: a.iconKey,
-    refLabel: a.itemName,
-    description: _activityDescription(a),
-    amount: _signedQty(a),
-    time: _relativeTime(a.movedAt),
-  );
-}
-
-String _activityDescription(InvActivity a) {
-  final src = _sourceLabel(a.movementType);
-  return '$src · ${a.warehouseName}';
-}
-
-String _sourceLabel(String movementType) {
-  switch (movementType) {
-    case 'grn':           return 'GRN';
-    case 'dn':            return 'Delivery';
-    case 'transfer_in':   return 'Transfer in';
-    case 'transfer_out':  return 'Transfer out';
-    case 'adjustment':    return 'Adjustment';
-    case 'stock_take':    return 'Stock take';
-    default:              return movementType;
-  }
-}
-
-String _signedQty(InvActivity a) {
-  final q = a.signedQty;
-  final unit = a.itemUnit == null || a.itemUnit!.isEmpty ? '' : ' ${a.itemUnit}';
-  final str = formatItemQty(q.abs(), null, unit: a.itemUnit);
-  if (q > 0) return '+$str$unit';
-  if (q < 0) return '-$str$unit';
-  return str + unit;
-}
-
-String _relativeTime(DateTime when) {
-  final diff = DateTime.now().difference(when);
-  if (diff.inMinutes < 1) return 'just now';
-  if (diff.inMinutes < 60) return '${diff.inMinutes}m';
-  if (diff.inHours < 24)   return '${diff.inHours}h';
-  if (diff.inDays < 7)     return '${diff.inDays}d';
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return '${when.day} ${months[when.month - 1]}';
-}
-
 // ── Loading + error states ───────────────────────────────────────────────
 
 class _HomeSkeleton extends StatelessWidget {
@@ -751,124 +594,3 @@ class _HomeError extends StatelessWidget {
     );
   }
 }
-
-
-// ── Movement ─────────────────────────────────────────────────────────────
-
-/// Today's throughput, what is inbound, and what was lost — the four flow
-/// figures, in a 2x2 grid.
-///
-/// The hero above answers "what do I hold". None of that tells an owner
-/// whether today is a normal day, whether more stock is on its way, or how
-/// much simply went missing. Shrinkage in particular lived only in a report
-/// three taps deep, which is the same as not existing.
-class _Movement extends ConsumerWidget {
-  const _Movement({required this.k});
-  final InvKpis k;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = RT(context);
-    // Tapping through to POs would bounce a user without the purchase grant
-    // off the module gate in router.dart, so the tile is inert for them
-    // rather than being a trapdoor.
-    final canSeePurchase = ref.watch(authProvider).modules.contains('purchase');
-
-    final tiles = <Widget>[
-      InvMiniStat(
-        icon: Icons.south_west_rounded,
-        iconColor: InvColors.success,
-        value: compactINR(k.todayInValue),
-        // Keeps the document count: raw milk posts to stock at zero value
-        // (the GL capitalises it at cycle lock, not receipt), so a dairy can
-        // legitimately read ₹0 in on a morning that took 12 deliveries. The
-        // count is what proves the stock actually moved.
-        label: 'Today in · ${_docs(k.todayInCount)}',
-        onTap: () => context.push(
-          '/inventory/activity?direction=in&period=today',
-        ),
-      ),
-      InvMiniStat(
-        icon: Icons.north_east_rounded,
-        iconColor: InvColors.amberDeep,
-        value: compactINR(k.todayOutValue),
-        label: _todayOutLabel(k),
-        onTap: () => context.push(
-          '/inventory/activity?direction=out&period=today',
-        ),
-      ),
-      InvMiniStat(
-        icon: Icons.local_shipping_outlined,
-        iconColor: InvColors.info,
-        value: compactINR(k.incomingValue),
-        label: k.incomingDueSoon > 0
-            ? 'Arriving · ${k.incomingDueSoon} due in 7d'
-            : 'Arriving · on open POs',
-        onTap: canSeePurchase ? () => context.push('/purchase/pos') : null,
-      ),
-      InvMiniStat(
-        icon: Icons.delete_outline,
-        // Only red once something has actually been lost — a red ₹0 trains
-        // the eye to ignore the tile on the months it matters.
-        iconColor:
-            k.writeOffMonthValue > 0 ? InvColors.error : t.muted,
-        value: compactINR(k.writeOffMonthValue),
-        label: _writeOffLabel(k),
-        onTap: () => context.push('/inventory/reports/write-offs'),
-      ),
-    ];
-
-    return Column(children: [
-      // The tiles answer "how much moved today"; the day summary answers
-      // "what moved" — same question at the next level of detail, so it
-      // belongs on this header rather than three taps away under More.
-      InvSectionHeader(
-        title: 'Movement',
-        action: 'Day summary',
-        actionIcon: Icons.today_outlined,
-        onAction: () => context.push('/inventory/day'),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(children: [
-          for (var i = 0; i < tiles.length; i += 2) ...[
-            if (i > 0) const SizedBox(height: 10),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: tiles[i]),
-                  const SizedBox(width: 10),
-                  Expanded(child: tiles[i + 1]),
-                ],
-              ),
-            ),
-          ],
-        ]),
-      ),
-    ]);
-  }
-
-  /// Today's outward value against the 30-day daily average.
-  ///
-  /// Deliberately states the baseline rather than a "23% below average"
-  /// verdict: today is a partial day, and at 10am every business on earth is
-  /// below its own daily average. The owner knows what time it is; the
-  /// dashboard does not get to call that a slump.
-  static String _todayOutLabel(InvKpis k) {
-    if (k.avgDailyOut <= 0) return 'Today out';
-    return 'Today out · avg ${compactINR(k.avgDailyOut)}/day';
-  }
-
-  static String _writeOffLabel(InvKpis k) {
-    final pct = k.writeOffPctOfOut;
-    if (k.writeOffMonthValue <= 0) return 'Written off · none this month';
-    // The share matters more than the rupees: ₹44K means nothing alone, but
-    // 3.7% against last month's 0.9% is a conversation with the plant.
-    if (pct == null) return 'Written off · this month';
-    return 'Written off · ${pct.toStringAsFixed(1)}% of issues';
-  }
-
-  static String _docs(int n) => n == 1 ? '1 doc' : '$n docs';
-}
-

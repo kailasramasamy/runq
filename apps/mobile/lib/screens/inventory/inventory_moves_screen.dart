@@ -15,6 +15,7 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_primitives.dart';
+import 'widgets/inv_recent_activity_card.dart';
 
 class InventoryMovesScreen extends ConsumerWidget {
   const InventoryMovesScreen({super.key});
@@ -109,9 +110,11 @@ class _MovesBody extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _ActionGrid(k: k),
         ),
-        // Recent activity is deferred to batch 2 (needs the dashboard
-        // recentActivity API wired through to a provider). The hub still
-        // works without it — users can dive into any list to see history.
+        // The screen is named after movements, so it ends with the actual
+        // ones — the grid above only says what kinds of movement exist.
+        // Ten rows: the endpoint already returns that many, and Home's
+        // five-row read is the one that needed to stay short.
+        const InvRecentActivityCard(limit: 10, title: 'Recent Movements'),
       ],
     );
   }
