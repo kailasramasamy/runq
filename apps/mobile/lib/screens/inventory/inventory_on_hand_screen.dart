@@ -1,7 +1,9 @@
 // Stock on Hand — live, filterable list of every (item, warehouse, batch)
-// row. Tinted 3-col summary strip, search bar, searchable warehouse
-// picker, category / sub-category pickers, low-only / hide-zero toggles,
-// then a list of stock tiles (avatar + name + stock-bar + qty/value column).
+// row. One compact header band — search + Filters button, class-group tabs,
+// a one-line summary — then the list of stock tiles (avatar + name +
+// stock-bar + qty/value column). Warehouse, the category tree and the
+// low-only / hide-zero toggles live in the Filters sheet: stacked inline
+// they pushed the first tile off the bottom of the screen.
 
 library;
 
@@ -16,9 +18,9 @@ import 'widgets/inv_category_filter.dart';
 import 'widgets/inv_class_tabs.dart';
 import 'widgets/inv_colors.dart';
 import 'widgets/inv_on_hand_sections.dart';
+import 'widgets/inv_on_hand_toolbar.dart';
 import 'widgets/inv_primitives.dart';
 import 'widgets/inv_stock_tile.dart';
-import 'widgets/warehouse_picker.dart';
 
 class InventoryOnHandScreen extends ConsumerStatefulWidget {
   const InventoryOnHandScreen({super.key});
@@ -27,10 +29,17 @@ class InventoryOnHandScreen extends ConsumerStatefulWidget {
 }
 
 class _State extends ConsumerState<InventoryOnHandScreen> {
-  String? warehouseId; // null = All
-  bool lowOnly = false;
-  bool hideZero = false;
+  /// Warehouse + category tree + the two toggles, all owned by the Filters
+  /// sheet. Held as one object so the sheet can hand back a whole state
+  /// rather than five callbacks.
+  OnHandFilters filters = const OnHandFilters();
   String query = '';
+
+  String? get warehouseId => filters.warehouseId;
+  bool get lowOnly => filters.lowOnly;
+  bool get hideZero => filters.hideZero;
+  String? get category => filters.category;
+  String? get subcategory => filters.subcategory;
 
   /// On-hand opens on "All" — this screen answers "what's in the godown",
   /// and hiding three quarters of it behind a pill made the total on the
@@ -38,11 +47,6 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   /// narrows to one bucket; until then the list is sectioned by group.
   String classGroup = classGroupAll;
 
-  /// Category tree filter. [category] is the parent heading, [subcategory] the
-  /// leaf under it — both null means "everything", and picking a new parent
-  /// clears a leaf that no longer belongs to it.
-  String? category;
-  String? subcategory;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -93,12 +97,8 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   /// True when anything is narrowing the list — the reset affordance only
   /// earns its place on the row once there is something to reset.
   bool get _hasFilters =>
-      warehouseId != null ||
-      category != null ||
-      subcategory != null ||
+      filters.activeCount > 0 ||
       classGroup != classGroupAll ||
-      lowOnly ||
-      hideZero ||
       query.isNotEmpty;
 
   /// Back to the unfiltered godown view in one tap. Clears the search box
@@ -107,12 +107,8 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   void _clearFilters() {
     _searchCtrl.clear();
     setState(() {
-      warehouseId = null;
-      category = null;
-      subcategory = null;
+      filters = const OnHandFilters();
       classGroup = classGroupAll;
-      lowOnly = false;
-      hideZero = false;
       query = '';
     });
   }
@@ -121,27 +117,35 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
   /// filters allow, so the option list never offers a branch that would come
   /// back empty — and never hides one just because a category is already
   /// picked.
-  List<InvOnHandRow> _catScope(List<InvOnHandRow> rows) => rows
+  List<InvOnHandRow> _catScope(List<InvOnHandRow> rows, OnHandFilters f) => rows
       .where(
         (r) =>
-            (!hideZero || r.qty > 0) &&
+            (!f.hideZero || r.qty > 0) &&
             (classGroup == classGroupAll ||
                 classGroupForItemClass(r.itemClass) == classGroup),
       )
       .toList();
 
-  /// Parent categories present in [scope], with a position count each.
-  /// Counted on collapsed positions so the number matches the tiles below.
-  /// Unfiled stock sorts last — an unnamed tail shouldn't head the sheet.
-  List<InvCatOption> _catOptions(List<InvOnHandRow> scope) =>
-      _tally(scope, onHandCategoryOf);
-
-  /// Leaves under the selected parent (or across all of them when none is
-  /// picked). Items filed straight on a parent have no leaf and drop out.
-  List<InvCatOption> _subOptions(List<InvOnHandRow> scope) => _tally(
-    scope.where((r) => category == null || onHandCategoryOf(r) == category),
-    onHandSubcategoryOf,
-  );
+  /// Options for the sheet's two category triggers, under the filter state
+  /// the sheet currently holds — it recomputes as each control is touched,
+  /// so a branch the other filters just emptied stops being offered.
+  ///
+  /// Parents are counted on collapsed positions so the number matches the
+  /// tiles below; unfiled stock sorts last. Leaves are the ones under the
+  /// selected parent (or across all of them when none is picked) — items
+  /// filed straight on a parent have no leaf and drop out.
+  OnHandFilterOptions _optionsFor(List<InvOnHandRow> rows, OnHandFilters f) {
+    final scope = _catScope(rows, f);
+    return (
+      cats: _tally(scope, onHandCategoryOf),
+      subs: _tally(
+        scope.where(
+          (r) => f.category == null || onHandCategoryOf(r) == f.category,
+        ),
+        onHandSubcategoryOf,
+      ),
+    );
+  }
 
   static List<InvCatOption> _tally(
     Iterable<InvOnHandRow> rows,
@@ -197,7 +201,6 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
           ),
           data: (rows) {
             final counts = _bucketCounts(rows);
-            final scope = _catScope(rows);
             final filtered = collapseOnHandRows(_apply(rows));
             // Category → subcategory sections. A tenant that files nothing
             // gets one "Uncategorised" section, where the header says
@@ -210,58 +213,30 @@ class _State extends ConsumerState<InventoryOnHandScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(child: _Summary(rows: filtered)),
                 SliverToBoxAdapter(
-                  child: _SearchRow(
+                  child: InvOnHandToolbar(
                     controller: _searchCtrl,
-                    onChanged: (v) => setState(() => query = v),
+                    onSearch: (v) => setState(() => query = v),
+                    filters: filters,
+                    onFilters: (f) => setState(() => filters = f),
+                    optionsFor: (f) => _optionsFor(rows, f),
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                    child: WarehousePicker(
-                      value: warehouseId,
-                      onChanged: (v) => setState(() => warehouseId = v),
-                      dense: true,
-                    ),
+                  child: InvClassTabs(
+                    selected: classGroup,
+                    counts: counts,
+                    onChanged: (g) => setState(() => classGroup = g),
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: InvCategoryFilter(
-                      categories: _catOptions(scope),
-                      subcategories: _subOptions(scope),
-                      category: category,
-                      subcategory: subcategory,
-                      // A new parent invalidates a leaf that lived under the
-                      // old one, so the leaf resets with it.
-                      onCategory: (v) => setState(() {
-                        category = v;
-                        subcategory = null;
-                      }),
-                      onSubcategory: (v) => setState(() => subcategory = v),
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: InvClassTabs(
-                      selected: classGroup,
-                      counts: counts,
-                      onChanged: (g) => setState(() => classGroup = g),
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _Toggles(
-                    lowOnly: lowOnly,
-                    hideZero: hideZero,
-                    onLow: () => setState(() => lowOnly = !lowOnly),
-                    onZero: () => setState(() => hideZero = !hideZero),
-                    onClear: _hasFilters ? _clearFilters : null,
+                  child: InvOnHandSummary(
+                    items: filtered.length,
+                    value: filtered.fold<double>(0, (a, r) => a + r.value),
+                    low: filtered.where((r) => r.isLow).length,
+                    lowActive: lowOnly,
+                    onTapLow: () =>
+                        setState(() => filters = filters.toggleLowOnly()),
                   ),
                 ),
                 if (filtered.isEmpty)
@@ -353,119 +328,3 @@ class _SectionSliver extends StatelessWidget {
   }
 }
 
-// ── Summary strip ─────────────────────────────────────────────────────────
-
-class _Summary extends StatelessWidget {
-  const _Summary({required this.rows});
-  final List<OnHandGroup> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    final totalValue = rows.fold<double>(0, (a, r) => a + r.value);
-    final lowCount = rows.where((r) => r.isLow).length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      // IntrinsicHeight — slivers pass infinite height, `stretch` propagates it.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: InvKpiCard(
-                label: 'Items',
-                value: rows.length.toString(),
-                sub: 'in stock',
-                tint: InvColors.amberTint,
-                borderTint: InvColors.amberHairline,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: InvKpiCard(
-                label: 'Value',
-                value: compactINR(totalValue),
-                sub: 'total',
-                tint: InvColors.amberTint,
-                borderTint: InvColors.amberHairline,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: InvKpiCard(
-                label: 'Low Stock',
-                value: lowCount.toString(),
-                sub: 'items',
-                accent: lowCount > 0,
-                tint: InvColors.amberTint,
-                borderTint: InvColors.amberHairline,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SearchRow extends StatelessWidget {
-  const _SearchRow({required this.controller, required this.onChanged});
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: InvSearchBar(
-        controller: controller,
-        onChanged: onChanged,
-        hint: 'Item, SKU, warehouse, batch…',
-      ),
-    );
-  }
-}
-
-class _Toggles extends StatelessWidget {
-  const _Toggles({
-    required this.lowOnly,
-    required this.hideZero,
-    required this.onLow,
-    required this.onZero,
-    required this.onClear,
-  });
-  final bool lowOnly;
-  final bool hideZero;
-  final VoidCallback onLow;
-  final VoidCallback onZero;
-
-  /// Null when nothing is filtered — the pill is hidden rather than shown
-  /// dead, so its presence alone says "something is narrowing this list".
-  final VoidCallback? onClear;
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-      child: Row(
-        children: [
-          InvFilterPill(
-            label: 'Low only',
-            active: lowOnly,
-            onTap: onLow,
-            activeColor: InvColors.orangeAlert,
-            icon: Icons.warning_amber_rounded,
-          ),
-          const SizedBox(width: 6),
-          InvFilterPill(label: 'Hide zero', active: hideZero, onTap: onZero),
-          if (onClear != null) ...[
-            const Spacer(),
-            InvFilterPill(
-              label: 'Clear',
-              active: false,
-              onTap: onClear!,
-              icon: Icons.filter_alt_off_outlined,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
