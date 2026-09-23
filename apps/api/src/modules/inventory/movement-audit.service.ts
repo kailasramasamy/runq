@@ -217,9 +217,20 @@ export class ItemMovementAuditService {
    * Batch-resolve every (source_type, source_id) on the page. Keys are
    * "<sourceType>|<sourceId>" so a reversal and its original never collide.
    */
+  /**
+   * Same resolution for a feed that spans many items — the Inventory home
+   * movements list. Substitutions are per-item, so they are left out here;
+   * everything else (document no, party, linked invoice/PO) applies.
+   */
+  async docsForMovements(
+    rows: Array<{ sourceType: string; sourceId: string }>,
+  ): Promise<DocMap> {
+    return this.resolveDocs(rows);
+  }
+
   private async resolveDocs(
     rows: Array<{ sourceType: string; sourceId: string }>,
-    itemId: string,
+    itemId?: string,
   ): Promise<DocMap> {
     const byType = new Map<string, string[]>();
     for (const r of rows) {
@@ -296,8 +307,10 @@ export class ItemMovementAuditService {
   }
 
   /** Dispatches and customer returns share the delivery-note document. */
-  private async dnDocs(ids: string[], itemId: string): Promise<Array<[string, MovementDoc]>> {
-    const substituted = await this.substitutionsOn(ids, itemId);
+  private async dnDocs(ids: string[], itemId?: string): Promise<Array<[string, MovementDoc]>> {
+    const substituted = itemId
+      ? await this.substitutionsOn(ids, itemId)
+      : new Map<string, string>();
     const rows = await this.db
       .select({
         id: deliveryNotes.id,

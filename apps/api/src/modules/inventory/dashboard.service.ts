@@ -5,6 +5,7 @@ import {
   type ItemClassGroup, type MovementFeedQuery,
 } from '@runq/validators';
 import { alertBaseCte } from './stock-alert.sql';
+import { ItemMovementAuditService } from './movement-audit.service';
 import { IST } from '../manufacturing/mfg-day.js';
 
 export class InventoryDashboardService {
@@ -232,7 +233,16 @@ export class InventoryDashboardService {
     };
   }
 
-  /** Recent activity feed — last N ledger movements with labels. */
+  /**
+   * Recent activity feed — last N ledger movements, each resolved back to the
+   * document that caused it.
+   *
+   * The home list is where a movement is first read, so it carries what makes
+   * it legible without opening anything: which document and counterparty, the
+   * batch it came out of, and what the quantity was worth. Resolution reuses
+   * the per-item audit trail's batched resolver — one query per source type on
+   * the page, never one per row.
+   */
   async recentActivity(limit = 8) {
     const result = await this.db.execute(sql`
       SELECT
@@ -240,16 +250,24 @@ export class InventoryDashboardService {
         sl.movement_type::text AS movement_type,
         sl.source_type,
         sl.source_id,
+        sl.batch_no,
         sl.qty_in::text AS qty_in,
         sl.qty_out::text AS qty_out,
+        sl.unit_cost::text AS unit_cost,
+        -- Signed, matching the mobile card's contract: negative on an issue.
+        ((sl.qty_in - sl.qty_out) * sl.unit_cost)::text AS value,
         sl.moved_at,
+        sl.posted_at,
+        sl.item_id,
         i.name AS item_name,
         i.sku AS item_sku,
         i.unit AS item_unit,
-        w.name AS warehouse_name
+        w.name AS warehouse_name,
+        u.name AS posted_by_name
       FROM stock_ledger sl
       INNER JOIN items i ON i.id = sl.item_id
       INNER JOIN warehouses w ON w.id = sl.warehouse_id
+      LEFT JOIN users u ON u.id = sl.posted_by
       WHERE sl.tenant_id = ${this.tenantId}
       -- Same chronology rule as the per-item audit trail: the IST day comes
       -- from moved_at (a dispatch stamps its document date at midnight, so
@@ -258,25 +276,40 @@ export class InventoryDashboardService {
       ORDER BY (sl.moved_at AT TIME ZONE ${IST})::date DESC, sl.posted_at DESC
       LIMIT ${limit}
     `);
-    return (result as unknown as {
+    const rows = (result as unknown as {
       rows: Array<{
         id: string; movement_type: string; source_type: string; source_id: string;
-        qty_in: string; qty_out: string; moved_at: string;
-        item_name: string; item_sku: string | null; item_unit: string | null;
-        warehouse_name: string;
+        batch_no: string | null; qty_in: string; qty_out: string;
+        unit_cost: string; value: string; moved_at: string; posted_at: string;
+        item_id: string; item_name: string; item_sku: string | null;
+        item_unit: string | null; warehouse_name: string; posted_by_name: string | null;
       }>;
-    }).rows.map((r) => ({
+    }).rows;
+
+    const docs = await new ItemMovementAuditService(this.db, this.tenantId)
+      .docsForMovements(rows.map((r) => ({
+        sourceType: r.source_type, sourceId: r.source_id,
+      })));
+
+    return rows.map((r) => ({
       id: r.id,
       movementType: r.movement_type,
       sourceType: r.source_type,
       sourceId: r.source_id,
+      batchNo: r.batch_no,
       qtyIn: Number(r.qty_in),
       qtyOut: Number(r.qty_out),
+      unitCost: Number(r.unit_cost),
+      value: Number(r.value),
       movedAt: r.moved_at,
+      postedAt: r.posted_at,
+      itemId: r.item_id,
       itemName: r.item_name,
       itemSku: r.item_sku,
       itemUnit: r.item_unit,
       warehouseName: r.warehouse_name,
+      postedByName: r.posted_by_name,
+      doc: docs.get(`${r.source_type}|${r.source_id}`) ?? null,
     }));
   }
 

@@ -1,12 +1,13 @@
 import { Link } from '@tanstack/react-router';
 import {
-  Boxes, PackagePlus, PackageMinus, AlertTriangle, Warehouse, CalendarClock,
-  PackageX, AlertOctagon, ArrowDownToLine, ArrowUpFromLine, History, AlarmClock, BarChart3,
-  Truck, MoveRight, PackageCheck, TrendingUp,
+  Boxes, PackagePlus, AlertTriangle, Warehouse, CalendarClock,
+  PackageX, AlertOctagon, ArrowDownToLine, ArrowUpFromLine,
+  MoveRight, PackageCheck,
 } from 'lucide-react';
 import { StockHighlightsCard } from '@/components/inventory/stock-highlights-card';
+import { RecentMovementsCard } from '@/components/inventory/recent-movements-card';
 import {
-  PageHeader, Card, CardContent, CardHeader, Badge, Skeleton, EmptyState,
+  PageHeader, Card, CardContent, Skeleton,
 } from '@/components/ui';
 import {
   useInventoryDashboard, useRecentActivity, useWarehouseBreakdown,
@@ -112,85 +113,6 @@ export function InventoryDashboardPage() {
         />
       </div>
 
-      {/* ── Two-column: actions + activity ─────────────────────── */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Quick actions */}
-        <div className="lg:col-span-1">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-            Quick actions
-          </h2>
-          <div className="space-y-2">
-            <ActionCard icon={PackagePlus} title="Receive stock" body="Create a GRN" to="/inventory/grn/new" />
-            <ActionCard icon={PackageMinus} title="Dispatch stock" body="Generate a delivery note" to="/inventory/delivery/new" />
-            <ActionCard icon={MoveRight} title="Transfer" body="Move stock between warehouses" to="/inventory/transfers/new" />
-            <ActionCard icon={Truck} title="On-hand stock" body="Live qty + value" to="/inventory/stock/on-hand" />
-            <ActionCard icon={TrendingUp} title="Analytics" body="Turnover, risk, what runs out next" to="/inventory/analytics" />
-            <ActionCard icon={BarChart3} title="Reports" body="Valuation, ageing, movement" to="/inventory/reports/valuation" />
-          </div>
-        </div>
-
-        {/* Recent activity */}
-        <div className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
-              Recent movements
-            </h2>
-            {recent && recent.length > 0 && (
-              <Link
-                to="/inventory/stock/ledger"
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                View all
-              </Link>
-            )}
-          </div>
-          <Card>
-            <CardContent className="!p-0">
-              {!recent ? (
-                <div className="space-y-2 p-4">
-                  {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
-                </div>
-              ) : recent.length === 0 ? (
-                <EmptyState
-                  icon={History}
-                  title="No movements yet"
-                  description="Post a GRN to start seeing activity here."
-                />
-              ) : (
-                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {recent.slice(0, 6).map((r) => (
-                    <li key={r.id} className="flex items-center gap-3 p-3">
-                      <MovementBadge type={r.movementType} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{r.itemName}</div>
-                        <div className="text-xs text-zinc-500">
-                          {r.warehouseName} · {formatTime(r.movedAt)}
-                        </div>
-                      </div>
-                      <div className="text-right tabular-nums">
-                        {r.qtyIn > 0 && (
-                          <div className="text-sm font-semibold text-green-600">
-                            +{r.qtyIn.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
-                          </div>
-                        )}
-                        {r.qtyOut > 0 && (
-                          <div className="text-sm font-semibold text-red-600">
-                            −{r.qtyOut.toLocaleString('en-IN', { maximumFractionDigits: 3 })}
-                          </div>
-                        )}
-                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-                          {r.itemUnit ?? ''}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
       {/* ── What's in stock right now ──────────────────────────── */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Titles say what the strips now are: the first five items in
@@ -211,6 +133,11 @@ export function InventoryDashboardPage() {
           emptyBody="Add an item to start tracking input balances."
           showValue={false}
         />
+      </div>
+
+      {/* ── Recent movements ───────────────────────────────────── */}
+      <div className="mt-6">
+        <RecentMovementsCard rows={recent} />
       </div>
 
       {/* ── Warehouse value breakdown ──────────────────────────── */}
@@ -344,49 +271,6 @@ function AttentionTile({
   );
 }
 
-function ActionCard({
-  icon: Icon, title, body, to,
-}: { icon: typeof Boxes; title: string; body: string; to: string }) {
-  return (
-    <Link
-      to={to as never}
-      className="group flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
-    >
-      <span
-        className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg"
-        style={{ background: 'var(--accent-soft)', color: 'var(--accent-text)' }}
-      >
-        <Icon size={18} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{title}</p>
-        <p className="mt-0.5 truncate text-[12px] text-zinc-500">{body}</p>
-      </div>
-    </Link>
-  );
-}
-
-function MovementBadge({ type }: { type: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    grn:             { label: 'IN',  cls: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400' },
-    delivery:        { label: 'OUT', cls: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400' },
-    transfer_in:     { label: 'T-IN', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
-    transfer_out:    { label: 'T-OUT', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
-    adjustment_in:   { label: 'ADJ+', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
-    adjustment_out:  { label: 'ADJ−', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
-    opening:         { label: 'OPEN', cls: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' },
-    reversal:        { label: 'REV', cls: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' },
-    stock_take_in:   { label: 'ST+', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400' },
-    stock_take_out:  { label: 'ST−', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400' },
-  };
-  const cfg = map[type] ?? { label: type.toUpperCase(), cls: 'bg-zinc-100 text-zinc-700' };
-  return (
-    <span className={`inline-flex h-9 w-12 shrink-0 items-center justify-center rounded-md text-[10px] font-bold tracking-wide ${cfg.cls}`}>
-      {cfg.label}
-    </span>
-  );
-}
-
 // ─── helpers ───────────────────────────────────────────────────────────
 
 function formatInrShort(v: number): string {
@@ -396,16 +280,3 @@ function formatInrShort(v: number): string {
   return `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diffH = (now.getTime() - d.getTime()) / 3_600_000;
-  if (diffH < 1) return `${Math.max(1, Math.round(diffH * 60))}m ago`;
-  if (diffH < 24) return `${Math.round(diffH)}h ago`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) return `${diffD}d ago`;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-}
-
-// Use these — keep imports tidy
-void AlarmClock;

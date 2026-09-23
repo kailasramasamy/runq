@@ -198,13 +198,20 @@ export interface RecentActivityRow {
   movementType: string;
   sourceType: string;
   sourceId: string;
+  batchNo: string | null;
   qtyIn: number;
   qtyOut: number;
+  unitCost: number;
+  value: number;
   movedAt: string;
+  postedAt: string;
+  itemId: string;
   itemName: string;
   itemSku: string | null;
   itemUnit: string | null;
   warehouseName: string;
+  postedByName: string | null;
+  doc: MovementDoc | null;
 }
 
 export interface WarehouseBreakdownRow {
@@ -373,7 +380,7 @@ export function useLedger(filter: Record<string, unknown> = {}) {
 
 export type MovementDocKind =
   | 'grn' | 'delivery_note' | 'work_order' | 'transfer' | 'adjustment'
-  | 'stock_take' | 'reclaim' | 'consignment' | 'invoice' | 'purchase_order'
+  | 'stock_take' | 'reclaim' | 'consignment' | 'farmer_sale' | 'invoice' | 'purchase_order'
   | 'bill' | 'bom';
 
 export interface MovementDocRef {
