@@ -505,6 +505,15 @@ function RecordPaymentDialog({
 
   const banks = bankData?.data ?? [];
 
+  // Pre-select the default bank — the oldest active account, which is how the
+  // API orders them and how the rest of Banking picks its default. Only fires
+  // while the field is untouched, so it never overrides a manual pick.
+  useEffect(() => {
+    if (source) return;
+    const defaultBank = banks.find((b) => b.isActive);
+    if (defaultBank) setSource(defaultBank.id);
+  }, [banks, source]);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
