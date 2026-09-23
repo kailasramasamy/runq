@@ -360,6 +360,17 @@ class ItemTile extends StatelessWidget {
   static bool _isUntracked(InvItemListRow row) =>
       row.type == 'service' || !row.trackInventory;
 
+  /// Status pills for a row, in the order they are read. The availability
+  /// pair is exclusive — both say why the rail is not the colour a bare
+  /// quantity would imply, and only one can be true.
+  static List<Widget> _pills(InvItemListRow row) => [
+    if (row.madeOnDispatch)
+      const _MadeOnDispatchPill()
+    else if (_isUntracked(row))
+      const _AlwaysAvailablePill(),
+    if (!row.isActive) _InactivePill(),
+  ];
+
   Widget _content(RunqTokens t, String meta) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,52 +389,52 @@ class ItemTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              // The name owns its line outright. Status pills used to sit
+              // beside it, and every one of them was taken out of the name:
+              // "Made on dispatch" is wide enough that a paneer SKU read as
+              // "Paneer - unpacked 2…" on the one screen whose job is to
+              // tell you which item you are looking at. They say something
+              // about the row, not about the name, so they belong on the
+              // line that already carries the row's particulars.
+              Text.rich(
+                TextSpan(
                   // UOM trails the name in muted type — it qualifies the
                   // product ("Milk, sold in 500ml") and belongs with it,
                   // not stacked under the balance where it read as a
                   // second number.
-                  Expanded(
-                    child: Text.rich(
+                  text: row.name,
+                  style: RunqText.bodyStrong.copyWith(color: t.ink),
+                  children: [
+                    if (row.unit?.isNotEmpty == true)
                       TextSpan(
-                        text: row.name,
-                        style: RunqText.bodyStrong.copyWith(color: t.ink),
-                        children: [
-                          if (row.unit?.isNotEmpty == true)
-                            TextSpan(
-                              text: '  ${row.unit}',
-                              style: RunqText.caption.copyWith(color: t.muted2),
-                            ),
-                        ],
+                        text: '  ${row.unit}',
+                        style: RunqText.caption.copyWith(color: t.muted2),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  // Says why the rail is green on a row carrying no
-                  // quantity — an untracked item never runs out.
-                  if (row.madeOnDispatch) ...[
-                    const SizedBox(width: 6),
-                    const _MadeOnDispatchPill(),
-                  ] else if (_isUntracked(row)) ...[
-                    const SizedBox(width: 6),
-                    const _AlwaysAvailablePill(),
                   ],
-                  if (!row.isActive) ...[
-                    const SizedBox(width: 6),
-                    _InactivePill(),
-                  ],
-                ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (meta.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  meta,
-                  style: RunqText.caption.copyWith(color: t.muted),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              if (_pills(row).isNotEmpty || meta.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    for (final pill in _pills(row)) ...[
+                      pill,
+                      const SizedBox(width: 6),
+                    ],
+                    // Last, and the only thing that gives way: a pill that
+                    // ellipsised would say nothing at all.
+                    if (meta.isNotEmpty)
+                      Flexible(
+                        child: Text(
+                          meta,
+                          style: RunqText.caption.copyWith(color: t.muted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ],
@@ -471,7 +482,6 @@ class _MadeOnDispatchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: InvColors.info.withValues(alpha: 0.12),
@@ -495,7 +505,6 @@ class _AlwaysAvailablePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: InvColors.successBg,
@@ -517,7 +526,6 @@ class _InactivePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     return Container(
-      margin: const EdgeInsets.only(top: 1),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: t.bgWarmer,

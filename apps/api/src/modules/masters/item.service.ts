@@ -208,7 +208,7 @@ export class ItemService {
         // would fragment those sections and is dropped.
         .orderBy(
           ...(filters.sort === 'category'
-            ? ITEM_CATEGORY_ASC
+            ? [...ITEM_CATEGORY_ASC, this.onDemandLast]
             : [ITEM_CLASS_RANK, ...(filters.sort === 'recent' ? [ITEM_RECENCY_DESC] : [])]),
           items.name,
         )
@@ -255,15 +255,31 @@ export class ItemService {
   }
 
   /** Restrict to (or exclude) items backed by an auto-repack BOM. */
-  private madeOnDispatchClause(wanted: boolean) {
-    const repackable = sql`EXISTS (
+  /** An item a BOM repacks on demand, rather than one held on a shelf. */
+  private get repackableExists() {
+    return sql`EXISTS (
       SELECT 1 FROM boms b
       WHERE b.tenant_id = ${this.tenantId}
         AND b.output_item_id = ${items.id}
         AND b.is_active = true
         AND b.allow_auto_repack = true
     )`;
+  }
+
+  private madeOnDispatchClause(wanted: boolean) {
+    const repackable = this.repackableExists;
     return wanted ? repackable : sql`NOT ${repackable}`;
+  }
+
+  /** Made-on-dispatch SKUs sink to the bottom of the section they are in.
+   *  They are *meant* to sit at zero — nothing is repacked until a delivery
+   *  needs it — so interleaving them with stock that is really on the shelf
+   *  puts dashes in the middle of a column of quantities and reads as gaps
+   *  in the count. Last within the section, not last overall: the SKU still
+   *  belongs to its category, and the sections are what people navigate by.
+   *  False sorts before true, so this is a plain ascending key. */
+  private get onDemandLast() {
+    return sql`${this.repackableExists} ASC`;
   }
 
   /** Total on-hand qty per item for the given ids. Kept as its own query

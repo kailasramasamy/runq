@@ -1,15 +1,19 @@
 // The scrolling body of the Items screen: category sections with pinned
-// headers, and the rail that jumps between them.
+// headers.
 //
 // Two shapes, chosen by [sectioned]. Unsearched, the catalogue is filed by
 // category and reads best that way — headers pin so the section you are in
-// never scrolls off, and the rail turns the section list into a scrubber.
-// Searched, results arrive ranked best-first and headers would scatter the
-// best answers down the page, so the list goes flat and the rail hides.
+// never scrolls off. Searched, results arrive ranked best-first and headers
+// would scatter the best answers down the page, so the list goes flat.
 //
-// Every row and header is laid out at a fixed extent, which is what lets
-// [_jumpTo] convert a section index into a scroll offset by arithmetic
-// instead of measuring built widgets that may not exist yet.
+// A jump rail used to run down the right edge, scrubbing between sections.
+// It cost every row 44px of width on a screen whose whole job is to say
+// which item you are looking at — long names were truncating to pay for a
+// scrubber over a list that search already answers faster. The width is
+// better spent on the names.
+//
+// Every row and header is laid out at a fixed extent, so the list lays out
+// in constant time however long the catalogue gets.
 
 library;
 
@@ -18,10 +22,13 @@ import 'package:flutter/material.dart';
 import '../../../api/inventory_models.dart';
 import '../../../theme/runq_tokens.dart';
 import 'inv_colors.dart';
-import 'item_jump_rail.dart';
 import 'item_list_tiles.dart';
 
 class ItemSectionedList extends StatelessWidget {
+  /// Side margin for rows and headers alike. Was the rail's width plus a gap
+  /// on the right; now the list is symmetric.
+  static const _gutter = 16.0;
+
   const ItemSectionedList({
     super.key,
     required this.rows,
@@ -52,53 +59,34 @@ class ItemSectionedList extends StatelessWidget {
     final sections = sectioned
         ? groupItemsByCategory(rows)
         : const <ItemCategorySection>[];
-    final showRail = sections.length >= kMinRailSections;
-    final gutter = showRail ? kRailWidth + 10 : 16.0;
     return RefreshIndicator(
       color: InvColors.brand(context),
       onRefresh: onRefresh,
-      child: Stack(
-        children: [
-          CustomScrollView(
-            controller: controller,
-            physics: const AlwaysScrollableScrollPhysics(),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            slivers: [
-              if (sections.isEmpty)
-                _rowsSliver(rows, gutter)
-              else
-                for (final s in sections) _sectionSliver(t, s, gutter),
-              if (showFooterSpinner)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
+      child: CustomScrollView(
+        controller: controller,
+        physics: const AlwaysScrollableScrollPhysics(),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          if (sections.isEmpty)
+            _rowsSliver(rows)
+          else
+            for (final s in sections) _sectionSliver(t, s),
+          if (showFooterSpinner)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
-          ),
-          if (showRail)
-            Positioned(
-              top: 4,
-              bottom: 24,
-              right: 4,
-              child: ItemJumpRail(
-                targets: [
-                  for (final s in sections)
-                    (tick: jumpTickFor(s.label), label: s.label),
-                ],
-                onJump: (i) => _jumpTo(sections, i),
               ),
             ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
     );
   }
 
-  Widget _sectionSliver(RunqTokens t, ItemCategorySection s, double gutter) {
+  Widget _sectionSliver(RunqTokens t, ItemCategorySection s) {
     return SliverMainAxisGroup(
       slivers: [
         SliverPersistentHeader(
@@ -107,7 +95,7 @@ class ItemSectionedList extends StatelessWidget {
             label: s.label,
             count: s.count,
             background: t.bgWarm,
-            trailingGutter: gutter,
+            trailingGutter: _gutter,
           ),
         ),
         for (final run in s.runs) ...[
@@ -116,7 +104,7 @@ class ItemSectionedList extends StatelessWidget {
               child: SizedBox(
                 height: kItemSubHeaderExtent,
                 child: Padding(
-                  padding: EdgeInsets.only(left: 30, right: gutter + 14),
+                  padding: const EdgeInsets.only(left: 30, right: _gutter + 14),
                   child: ItemSectionHeader(
                     label: run.subcategory!,
                     count: run.rows.length,
@@ -126,7 +114,7 @@ class ItemSectionedList extends StatelessWidget {
                 ),
               ),
             ),
-          _rowsSliver(run.rows, gutter),
+          _rowsSliver(run.rows),
         ],
       ],
     );
@@ -144,10 +132,9 @@ class ItemSectionedList extends StatelessWidget {
     return s.runs.length > 1;
   }
 
-  /// Fixed-extent so the list lays out in constant time however long it is,
-  /// and so [_jumpTo] can compute an offset instead of guessing one.
-  Widget _rowsSliver(List<InvItemListRow> list, double gutter) => SliverPadding(
-    padding: EdgeInsets.only(left: 16, right: gutter),
+  /// Fixed-extent so the list lays out in constant time however long it is.
+  Widget _rowsSliver(List<InvItemListRow> list) => SliverPadding(
+    padding: const EdgeInsets.symmetric(horizontal: _gutter),
     sliver: SliverFixedExtentList(
       itemExtent: kItemRowExtent,
       delegate: SliverChildBuilderDelegate(
@@ -156,19 +143,4 @@ class ItemSectionedList extends StatelessWidget {
       ),
     ),
   );
-
-  /// Offset of a section's header, summed from the extents the slivers were
-  /// built with — exact, because every row and header has a fixed height.
-  void _jumpTo(List<ItemCategorySection> sections, int index) {
-    if (!controller.hasClients || index >= sections.length) return;
-    var offset = 0.0;
-    for (var i = 0; i < index; i++) {
-      offset += kItemHeaderExtent;
-      for (final run in sections[i].runs) {
-        if (_showsSubHeader(sections[i], run)) offset += kItemSubHeaderExtent;
-        offset += run.rows.length * kItemRowExtent;
-      }
-    }
-    controller.jumpTo(offset.clamp(0.0, controller.position.maxScrollExtent));
-  }
 }

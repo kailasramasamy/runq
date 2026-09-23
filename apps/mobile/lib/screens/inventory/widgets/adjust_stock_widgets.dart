@@ -34,21 +34,72 @@ extension AdjustModeLabels on AdjustMode {
 
 // ── Location ─────────────────────────────────────────────────────────────
 
-/// Dropdown over the (warehouse, batch) rows the item is held in, plus a
-/// trailing "somewhere else" option. Null selection means that last option.
+/// Everything an item holds in one warehouse: the pooled quantity, and the
+/// lots it is spread across.
+///
+/// Stock is kept per (warehouse, batch), but nobody counting a shelf counts
+/// per lot — they count what is there. So the adjust screen works at this
+/// level: one number per location, whatever it is split into underneath.
+/// `batches` keeps the order the server sent, which is FEFO (soonest expiry
+/// first, undated last, oldest intake breaking the tie), so a withdrawal can
+/// draw straight down the list.
+class AdjustHolding {
+  const AdjustHolding({
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.qty,
+    required this.batches,
+  });
+
+  final String warehouseId;
+  final String warehouseName;
+  final double qty;
+  final List<InvItemStockRow> batches;
+
+  /// Lots carrying a batch number. A non-batch-tracked item holds one
+  /// unnamed row, which is a holding of one pool rather than a lot list.
+  int get lotCount => batches.where((b) => b.batchNo.isNotEmpty).length;
+
+  String get displayName => warehouseName.isEmpty ? 'Warehouse' : warehouseName;
+}
+
+/// Groups stock rows into one entry per warehouse, biggest holding first.
+///
+/// Emptied lots are dropped: they are history, not somewhere anyone is
+/// counting. Row order within a warehouse is left exactly as it arrived so
+/// the FEFO draw order survives the grouping.
+List<AdjustHolding> groupHoldings(List<InvItemStockRow> stock) {
+  final live = stock.where((r) => r.qty > 0).toList();
+  final rows = live.isEmpty ? [...stock] : live;
+  final byWarehouse = <String, List<InvItemStockRow>>{};
+  for (final r in rows) {
+    byWarehouse.putIfAbsent(r.warehouseId, () => []).add(r);
+  }
+  final out = byWarehouse.entries.map((e) => AdjustHolding(
+    warehouseId: e.key,
+    warehouseName: e.value.first.warehouseName,
+    qty: e.value.fold<double>(0, (sum, r) => sum + r.qty),
+    batches: List.unmodifiable(e.value),
+  )).toList();
+  out.sort((a, b) => b.qty.compareTo(a.qty));
+  return out;
+}
+
+/// Dropdown over the locations the item is held in, plus a trailing
+/// "somewhere else" option. Null selection means that last option.
 class AdjustLocationField extends StatelessWidget {
   const AdjustLocationField({
     super.key,
-    required this.rows,
+    required this.holdings,
     required this.selected,
     required this.newLocationLabel,
     required this.onChanged,
   });
 
-  final List<InvItemStockRow> rows;
-  final InvItemStockRow? selected;
+  final List<AdjustHolding> holdings;
+  final AdjustHolding? selected;
   final String newLocationLabel;
-  final ValueChanged<InvItemStockRow?> onChanged;
+  final ValueChanged<AdjustHolding?> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +111,7 @@ class AdjustLocationField extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () async {
           final picked = await _open(context);
-          if (picked != null) onChanged(picked.row);
+          if (picked != null) onChanged(picked.holding);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -78,16 +129,17 @@ class AdjustLocationField extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      r == null
-                          ? newLocationLabel
-                          : (r.warehouseName.isEmpty ? 'Warehouse' : r.warehouseName),
+                      r == null ? newLocationLabel : r.displayName,
                       style: RunqText.bodyStrong.copyWith(color: t.ink),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (r != null && r.batchNo.isNotEmpty)
+                    // Says where the pooled figure came from. Not a lot
+                    // picker — the adjustment works on the total — just the
+                    // reason the total is bigger than any one lot.
+                    if (r != null && r.lotCount > 1)
                       Text(
-                        'Batch ${r.batchNo}',
+                        '${r.lotCount} lots pooled',
                         style: RunqText.caption.copyWith(color: t.muted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -133,13 +185,15 @@ class AdjustLocationField extends StatelessWidget {
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    for (final r in rows)
+                    for (final h in holdings)
                       _LocationRow(
-                        title: r.warehouseName.isEmpty ? 'Warehouse' : r.warehouseName,
-                        subtitle: r.batchNo.isEmpty ? 'No batch' : 'Batch ${r.batchNo}',
-                        trailing: invFmtQty(r.qty),
-                        selected: identical(r, selected),
-                        onTap: () => Navigator.of(context).pop(_LocationChoice(r)),
+                        title: h.displayName,
+                        subtitle: h.lotCount > 1
+                            ? '${h.lotCount} lots pooled'
+                            : 'On hand here',
+                        trailing: invFmtQty(h.qty),
+                        selected: h.warehouseId == selected?.warehouseId,
+                        onTap: () => Navigator.of(context).pop(_LocationChoice(h)),
                       ),
                     _LocationRow(
                       title: newLocationLabel,
@@ -162,8 +216,8 @@ class AdjustLocationField extends StatelessWidget {
 /// Wrapper so "picked the new-location option" (a real choice) is telling
 /// apart from "dismissed the sheet" — both would otherwise arrive as null.
 class _LocationChoice {
-  const _LocationChoice(this.row);
-  final InvItemStockRow? row;
+  const _LocationChoice(this.holding);
+  final AdjustHolding? holding;
 }
 
 class _LocationRow extends StatelessWidget {
@@ -217,9 +271,18 @@ class _LocationRow extends StatelessWidget {
 // ── Mode ─────────────────────────────────────────────────────────────────
 
 class AdjustModeToggle extends StatelessWidget {
-  const AdjustModeToggle({super.key, required this.mode, required this.onChanged});
+  const AdjustModeToggle({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+    this.disabled = const {},
+  });
   final AdjustMode mode;
   final ValueChanged<AdjustMode> onChanged;
+
+  /// Modes that cannot be posted from the current selection — shown greyed
+  /// rather than hidden, so the choice doesn't move around under the thumb.
+  final Set<AdjustMode> disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +303,8 @@ class AdjustModeToggle extends StatelessWidget {
   }
 
   Widget _segment(BuildContext context, AdjustMode m, RunqTokens t) {
-    final active = m == mode;
+    final off = disabled.contains(m);
+    final active = m == mode && !off;
     // Add and Remove carry the ledger's own colours so the choice is legible
     // before the preview line is read; Set-to is directionless until a number
     // exists, so it stays on the brand.
@@ -254,14 +318,16 @@ class AdjustModeToggle extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => onChanged(m),
+        onTap: off ? null : () => onChanged(m),
         child: SizedBox(
           height: 36,
           child: Center(
             child: Text(
               m.label,
               style: RunqText.bodyStrong.copyWith(
-                color: active ? Colors.white : t.muted,
+                color: active
+                    ? Colors.white
+                    : (off ? t.muted2.withValues(alpha: 0.5) : t.muted),
               ),
             ),
           ),
@@ -312,94 +378,6 @@ class AdjustReasonChips extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-/// Where stock being added should land: a lot of its own, or the lot already
-/// selected.
-///
-/// Defaults to a new lot. Merging an addition into the selected lot leaves the
-/// two indistinguishable afterwards — 20 L added to a milk consignment made
-/// the batch read 128 L from one collection when 108 came from there, and only
-/// the movement trail could tell you otherwise. Adding into the existing lot
-/// is still the right call when the lot itself was miscounted, so it stays a
-/// tap away rather than being removed.
-class AdjustBatchDestination extends StatelessWidget {
-  const AdjustBatchDestination({
-    super.key,
-    required this.existingBatchNo,
-    required this.intoExisting,
-    required this.onChanged,
-  });
-
-  final String existingBatchNo;
-  final bool intoExisting;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Expanded(
-        child: _Option(
-          label: 'New batch',
-          hint: 'Kept separate',
-          selected: !intoExisting,
-          onTap: () => onChanged(false),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: _Option(
-          label: existingBatchNo.isEmpty ? 'This lot' : existingBatchNo,
-          hint: 'Miscounted',
-          selected: intoExisting,
-          onTap: () => onChanged(true),
-        ),
-      ),
-    ]);
-  }
-}
-
-class _Option extends StatelessWidget {
-  const _Option({
-    required this.label,
-    required this.hint,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final String hint;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final brand = InvColors.brand(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? InvColors.amberSubtle : t.surface,
-          border: Border.all(color: selected ? brand : t.hairline),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: RunqText.caption.copyWith(
-              color: selected ? InvColors.amberDarkest : t.ink,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(hint, style: RunqText.micro.copyWith(color: t.muted)),
-        ]),
-      ),
     );
   }
 }
