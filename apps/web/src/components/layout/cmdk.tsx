@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Search, Sparkles, FileText, CreditCard, Landmark, Receipt, BarChart3,
-  ArrowRight, LayoutDashboard, Users, ShieldCheck, Building2, FileInput,
-  Briefcase, Check,
+  ArrowRight, Users, FileInput, Briefcase, Check,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCustomers } from '../../hooks/queries/use-customers';
 import { useInvoices } from '../../hooks/queries/use-invoices';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth, canManageHrModule } from '@/providers/auth-provider';
+import {
+  NAV_GROUPS, HR_NAV_GROUPS, INVENTORY_NAV_GROUPS, PURCHASE_NAV_GROUPS,
+  MANUFACTURING_NAV_GROUPS, MILK_NAV_GROUPS, VIEWER_HR_KEYS,
+} from './sidebar';
+import type { ModuleKey, NavGroup } from './sidebar';
 
 type CmdItem = {
   id: string;
@@ -30,19 +34,46 @@ const ITEMS: CmdItem[] = [
   { id: 'a-bill', label: 'New bill', icon: FileInput, to: '/finance/ap/bills/new', section: 'actions' },
   { id: 'a-rep', label: 'Run report', icon: BarChart3, to: '/finance/reports', section: 'actions' },
   { id: 'a-rcp', label: 'Record receipt', icon: Receipt, to: '/finance/ar/receipts/new', section: 'actions' },
-  // Navigate
-  { id: 'n-dash', label: 'Go to Dashboard', icon: LayoutDashboard, to: '/finance', section: 'navigate' },
-  { id: 'n-bills', label: 'Go to Bills', icon: FileInput, to: '/finance/ap/bills', section: 'navigate' },
-  { id: 'n-inv', label: 'Go to Invoices', icon: FileText, to: '/finance/ar/invoices', section: 'navigate' },
-  { id: 'n-vend', label: 'Go to Vendors', icon: Building2, to: '/finance/ap/vendors', section: 'navigate' },
-  { id: 'n-cust', label: 'Go to Customers', icon: Users, to: '/finance/ar/customers', section: 'navigate' },
-  { id: 'n-bank', label: 'Go to Banking', icon: Landmark, to: '/finance/banking', section: 'navigate' },
-  { id: 'n-gst', label: 'Go to GST filing', icon: ShieldCheck, to: '/finance/gst', section: 'navigate' },
   // Ask runQ
   { id: 'q-ar', label: 'Why is my AR up this month?', icon: Sparkles, prompt: 'Why is my AR up this month?', section: 'ask' },
   { id: 'q-cash', label: 'Forecast cash for the next 60 days', icon: Sparkles, prompt: 'Forecast cash for the next 60 days', section: 'ask' },
   { id: 'q-late', label: 'Which customers are paying late?', icon: Sparkles, prompt: 'Which customers are paying late?', section: 'ask' },
 ];
+
+// Every sidebar destination is reachable from the palette. Derived from the
+// same NAV_GROUPS the sidebar renders, so a new menu entry is searchable
+// without touching this file.
+const MODULE_NAV: { key: ModuleKey; label: string; groups: NavGroup[] }[] = [
+  { key: 'finance', label: 'Finance', groups: NAV_GROUPS },
+  { key: 'hr', label: 'HR & Payroll', groups: HR_NAV_GROUPS },
+  { key: 'purchase', label: 'Purchase', groups: PURCHASE_NAV_GROUPS },
+  { key: 'inventory', label: 'Inventory', groups: INVENTORY_NAV_GROUPS },
+  { key: 'manufacturing', label: 'Manufacturing', groups: MANUFACTURING_NAV_GROUPS },
+  { key: 'milk_procurement', label: 'Milk Procurement', groups: MILK_NAV_GROUPS },
+];
+
+function buildNavItems(modules: string[], hrAdmin: boolean): CmdItem[] {
+  const seen = new Set<string>();
+  const out: CmdItem[] = [];
+  MODULE_NAV.filter((m) => modules.includes(m.key)).forEach((mod) => {
+    mod.groups.forEach((group) => {
+      group.items.forEach((it) => {
+        if (mod.key === 'hr' && !hrAdmin && !VIEWER_HR_KEYS.has(it.key)) return;
+        if (seen.has(it.path)) return;
+        seen.add(it.path);
+        out.push({
+          id: `n-${mod.key}-${it.key}`,
+          label: it.label,
+          sublabel: group.label ? `${mod.label} \u00b7 ${group.label}` : mod.label,
+          icon: it.icon,
+          to: it.path,
+          section: 'navigate',
+        });
+      });
+    });
+  });
+  return out;
+}
 
 const SECTION_LABELS: Record<CmdItem['section'], string> = {
   records: 'Results',
@@ -65,7 +96,7 @@ function useDebounced<T>(value: T, delay = 200): T {
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const { tenants, activeTenantId, switchTenant, refreshTenants } = useAuth();
+  const { tenants, activeTenantId, switchTenant, refreshTenants, modules, user } = useAuth();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,13 +162,24 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       }));
   }, [tenants, activeTenantId, q]);
 
+  const navItems = useMemo(
+    () => buildNavItems(modules, canManageHrModule(user?.role)),
+    [modules, user?.role],
+  );
+
   const filtered = useMemo(() => {
     const ql = q.toLowerCase();
-    const staticFiltered = !ql
-      ? ITEMS
-      : ITEMS.filter((i) => i.label.toLowerCase().includes(ql) || i.section.includes(ql));
-    return [...recordItems, ...tenantItems, ...staticFiltered];
-  }, [q, recordItems, tenantItems]);
+    // With no query the full nav list (100+ rows) would bury the shortcuts,
+    // so only the curated items show until the user types.
+    if (!ql) return [...recordItems, ...tenantItems, ...ITEMS];
+    const match = (i: CmdItem) =>
+      i.label.toLowerCase().includes(ql)
+      || i.sublabel?.toLowerCase().includes(ql)
+      || i.section.includes(ql);
+    const rank = (i: CmdItem) => (i.label.toLowerCase().startsWith(ql) ? 0 : 1);
+    const nav = navItems.filter(match).sort((a, b) => rank(a) - rank(b));
+    return [...recordItems, ...tenantItems, ...ITEMS.filter(match), ...nav];
+  }, [q, recordItems, tenantItems, navItems]);
 
   const grouped = useMemo(() => {
     const g: Record<CmdItem['section'], CmdItem[]> = { records: [], tenants: [], actions: [], navigate: [], ask: [] };

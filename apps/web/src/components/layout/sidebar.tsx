@@ -198,13 +198,13 @@ export const NAV_GROUPS: NavGroup[] = [
 // HR nav keys a non-admin (`viewer` / line manager) may see — self-service
 // and manager-scoped pages only. Everything else (setup, payroll, TDS,
 // onboarding, lifecycle…) is HR-admin only. Mirrors the API allow-lists.
-const VIEWER_HR_KEYS = new Set<string>([
+export const VIEWER_HR_KEYS = new Set<string>([
   'hr-dashboard', 'hr-announcements', 'hr-employees', 'hr-org-chart',
   'hr-attendance', 'hr-regularizations', 'hr-holidays',
   'hr-leave-requests', 'hr-leave-balances', 'hr-expenses',
 ]);
 
-type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing' | 'milk_procurement';
+export type ModuleKey = 'finance' | 'hr' | 'inventory' | 'purchase' | 'manufacturing' | 'milk_procurement';
 // `chipLabel` overrides `label` inside the sidebar header pill where space
 // is tight (232px sidebar, ~200px content area). Longer module names overlap
 // the logo otherwise. Falls back to `label` when not provided.
