@@ -83,4 +83,19 @@ void main() {
       '/hr/pay?tab=expenses&status=pending',
     );
   });
+
+  test('finance deep links drop the web-only /finance prefix', () {
+    // GST reminders are emitted once, with the web path. Mobile mounts the
+    // same screens at the root, so the prefix has to come off or the push
+    // tap lands nowhere.
+    expect(
+      resolveNotificationTarget('/finance/gst/returns/abc'),
+      '/gst/returns/abc',
+    );
+    expect(resolveNotificationTarget('/finance/gst/returns'), '/gst/returns');
+  });
+
+  test('a path that merely starts with the word finance is left alone', () {
+    expect(resolveNotificationTarget('/financex/thing'), '/financex/thing');
+  });
 }

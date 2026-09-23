@@ -350,3 +350,47 @@ export function use2bSummary(period: string) {
     enabled: !!period,
   });
 }
+
+// ── Deadline alert ─────────────────────────────────────────────────────
+
+export type GstAlertTier = 'strip' | 'modal' | 'critical';
+
+export interface GstDeadlineAlert {
+  returnId: string | null;
+  returnType: 'gstr1' | 'gstr3b';
+  returnLabel: string;
+  period: string;
+  periodLabel: string;
+  dueDate: string;
+  daysLeft: number;
+  status: string;
+  tier: GstAlertTier;
+  lateFeeEstimate: number;
+}
+
+/**
+ * The single most urgent unfiled return, or null when nothing is close enough
+ * to warrant interrupting. The server owns the escalation ladder — see
+ * `alertTierFor` in the API's gst-due-dates module.
+ */
+export function useGstDeadlineAlert(enabled: boolean) {
+  return useQuery({
+    queryKey: ['gst', 'deadline-alert'] as const,
+    queryFn: () => api.get<ApiSuccess<GstDeadlineAlert | null>>('/gst/deadline-alert'),
+    enabled,
+    staleTime: 300_000,
+  });
+}
+
+export function useMarkFiledExternally() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { returnType: 'gstr1' | 'gstr3b'; period: string; arn?: string }) =>
+      api.post<ApiSuccess<GstReturn>>('/gst/returns/mark-filed', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['gst'] });
+      qc.invalidateQueries({ queryKey: GST_KEYS.all });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}

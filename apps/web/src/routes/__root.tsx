@@ -8,6 +8,7 @@ import { FinanceAgent } from '../components/agent/finance-agent';
 import { AgentActivityPage } from './agent/activity';
 import { SupportWidget } from '../components/support/support-widget';
 import { ImpersonationBanner } from '../components/admin/impersonation-banner';
+import { GstDeadlineAlert } from '../components/gst/gst-deadline-alert';
 import { PageWidthProvider, usePageWidth } from '../lib/page-width';
 import { LoginPage } from './login';
 import { ProfilePage } from './profile';
@@ -381,6 +382,7 @@ function DashboardLayout() {
     <PageWidthProvider>
       <div className="flex h-screen flex-col overflow-hidden">
         <ImpersonationBanner />
+        <GstDeadlineAlert />
         <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
           <MobileHeader />
           <Sidebar />

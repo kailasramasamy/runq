@@ -155,6 +155,66 @@ class GstReturnStatus {
   }
 }
 
+/// How loudly to surface a nearing filing deadline. Decided server-side
+/// (`alertTierFor`) so mobile and web escalate in lockstep.
+enum GstAlertTier { strip, modal, critical }
+
+/// The single most urgent unfiled GST return, or null when nothing is close
+/// enough to interrupt for.
+class GstDeadlineAlert {
+  final String? returnId;
+  final String returnType, returnLabel, period, periodLabel, status;
+  final DateTime? dueDate;
+  final int daysLeft;
+  final GstAlertTier tier;
+  final int lateFeeEstimate;
+
+  GstDeadlineAlert({
+    required this.returnId,
+    required this.returnType,
+    required this.returnLabel,
+    required this.period,
+    required this.periodLabel,
+    required this.status,
+    required this.dueDate,
+    required this.daysLeft,
+    required this.tier,
+    required this.lateFeeEstimate,
+  });
+
+  factory GstDeadlineAlert.fromJson(Map<String, dynamic> j) => GstDeadlineAlert(
+        returnId: j['returnId'] as String?,
+        returnType: _strOr(j['returnType'], 'gstr1'),
+        returnLabel: _strOr(j['returnLabel'], 'GSTR-1'),
+        period: _strOr(j['period'], ''),
+        periodLabel: _strOr(j['periodLabel'], ''),
+        status: _strOr(j['status'], 'pending'),
+        dueDate: _dt(j['dueDate']),
+        daysLeft: _int(j['daysLeft']),
+        tier: _alertTier(j['tier']),
+        lateFeeEstimate: _int(j['lateFeeEstimate']),
+      );
+
+  bool get isOverdue => daysLeft < 0;
+
+  /// Stable identity for the per-day snooze — one return of one period.
+  String get snoozeKey => 'gst-alert:$returnType:$period';
+
+  /// "is due in 2 days" / "is due today" / "is 3 days overdue"
+  String get urgencyPhrase {
+    if (daysLeft > 0) return 'is due in $daysLeft ${daysLeft == 1 ? 'day' : 'days'}';
+    if (daysLeft == 0) return 'is due today';
+    final late = daysLeft.abs();
+    return 'is $late ${late == 1 ? 'day' : 'days'} overdue';
+  }
+}
+
+GstAlertTier _alertTier(dynamic v) => switch (v) {
+      'critical' => GstAlertTier.critical,
+      'modal' => GstAlertTier.modal,
+      _ => GstAlertTier.strip,
+    };
+
 class GstReadiness {
   final String period, periodLabel;
   final ReadinessTarget target;

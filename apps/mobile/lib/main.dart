@@ -9,6 +9,7 @@ import 'services/wo_run_queue.dart';
 import 'theme/runq_theme.dart';
 import 'utils/app_info.dart';
 import 'widgets/app_update_gate.dart';
+import 'widgets/gst_deadline_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +50,9 @@ class RunqApp extends ConsumerWidget {
       themeMode: ref.watch(themeModeProvider),
       builder: (ctx, child) => ShareIntakeHost(
         child: AppUpdateGate(
-          child: _SystemChromeSync(child: child ?? const SizedBox()),
+          child: GstDeadlineGate(
+            child: _SystemChromeSync(child: child ?? const SizedBox()),
+          ),
         ),
       ),
       routerConfig: ref.watch(routerProvider),

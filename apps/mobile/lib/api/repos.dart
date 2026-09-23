@@ -967,6 +967,32 @@ class GstRepo {
   }
 
   /// Company GSTN identity (gstin + username) to pre-fill the auth sheet.
+  /// Most urgent unfiled return, or null when nothing needs interrupting for.
+  /// Owner/accountant only — the API 403s everyone else.
+  Future<GstDeadlineAlert?> deadlineAlert() async {
+    final res = await apiClient.get('/gst/deadline-alert');
+    // `{ data: null }` is the common case — nothing is close enough to alert
+    // on. _data() would hand that back as `{data: null}`, which is not empty,
+    // so unwrap it here instead.
+    final d = res is Map ? res['data'] : null;
+    if (d is! Map) return null;
+    return GstDeadlineAlert.fromJson(d.cast<String, dynamic>());
+  }
+
+  /// Record a return as filed directly on the GST portal, so the reminders
+  /// stop escalating against something that is already done.
+  Future<void> markFiledExternally({
+    required String returnType,
+    required String period,
+    String? arn,
+  }) async {
+    await apiClient.post('/gst/returns/mark-filed', {
+      'returnType': returnType,
+      'period': period,
+      if (arn != null && arn.isNotEmpty) 'arn': arn,
+    });
+  }
+
   Future<GstCompanyProfile> companyGstProfile() async {
     final res = await apiClient.get('/settings/company');
     return GstCompanyProfile.fromJson(_data(res));

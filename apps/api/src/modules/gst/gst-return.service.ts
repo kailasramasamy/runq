@@ -629,6 +629,64 @@ export class GstReturnService {
     return result;
   }
 
+  /**
+   * Record a return as filed directly on the GST portal, outside runQ.
+   *
+   * Needed because a tenant can file on gst.gov.in at any time; without a way
+   * to say so, the deadline banner would keep escalating against a return that
+   * is already done. Upserts, because the period may never have been drafted
+   * here at all.
+   */
+  async markFiledExternally(
+    returnType: 'gstr1' | 'gstr3b',
+    period: string,
+    userId: string,
+    arn?: string,
+  ): Promise<GstReturn> {
+    const [existing] = await this.db
+      .select()
+      .from(gstReturns)
+      .where(and(
+        eq(gstReturns.tenantId, this.tenantId),
+        eq(gstReturns.returnType, returnType),
+        eq(gstReturns.period, period),
+      ));
+
+    if (existing?.status === 'filed') return existing;
+
+    const note = `Filed on the GST portal outside runQ; recorded ${new Date().toISOString().slice(0, 10)}.`;
+    const filing = {
+      status: 'filed' as const,
+      arn: arn ?? existing?.arn ?? null,
+      filedAt: new Date(),
+      filedBy: userId,
+      errorDetails: null,
+      updatedAt: new Date(),
+    };
+
+    if (existing) {
+      const [row] = await this.db
+        .update(gstReturns)
+        .set({ ...filing, notes: [existing.notes, note].filter(Boolean).join('\n') })
+        .where(eq(gstReturns.id, existing.id))
+        .returning();
+      return row;
+    }
+
+    const [row] = await this.db
+      .insert(gstReturns)
+      .values({
+        tenantId: this.tenantId,
+        gstin: await this.getGstin(),
+        returnType,
+        period,
+        notes: note,
+        ...filing,
+      })
+      .returning();
+    return row;
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────
 
   /**
@@ -661,6 +719,17 @@ export class GstReturnService {
     } catch (err) {
       console.error(`${tag} fetch failed — continuing to save`, err);
     }
+  }
+
+  /** GSTIN alone — for paths that don't need the full filing profile. */
+  private async getGstin(): Promise<string> {
+    const [tenant] = await this.db
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, this.tenantId));
+    const gstin = (tenant?.settings as Record<string, unknown> | undefined)?.gstin as string | undefined;
+    if (!gstin) throw new ConflictError('Company GSTIN not configured in settings');
+    return gstin;
   }
 
   private async getTenantGstProfile(): Promise<TenantGstProfile> {

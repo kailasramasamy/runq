@@ -12,6 +12,7 @@ import '../widgets/section_head.dart';
 import 'dashboard/cash_hero_card.dart';
 import 'dashboard/quick_actions_row.dart';
 import 'dashboard/spotlight_cards.dart';
+import 'dashboard/gst_deadline_card.dart';
 import 'dashboard/gst_section.dart';
 import 'dashboard/activity_list.dart';
 import 'dashboard/recent_lists.dart';
@@ -47,6 +48,13 @@ class DashboardScreen extends ConsumerWidget {
             ),
             slivers: [
               const SliverToBoxAdapter(child: _Header()),
+              // Above the cash hero on purpose: a filing deadline outranks
+              // every other number on this screen, and renders to nothing
+              // when there's no deadline near.
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+                sliver: SliverToBoxAdapter(child: GstDeadlineCard()),
+              ),
               const SliverPadding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                 sliver: SliverToBoxAdapter(child: CashHeroCard()),

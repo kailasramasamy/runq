@@ -172,6 +172,13 @@ String resolveNotificationTarget(String path) {
   final uri = Uri.parse(path);
   var basePath = uri.path;
 
+  // Web nests Finance under /finance (/finance/gst/returns/<id>); mobile
+  // mounts the same screens at the root. Strip the prefix so one targetUrl
+  // deep-links correctly on both.
+  if (basePath.startsWith('/finance/')) {
+    basePath = basePath.substring('/finance'.length);
+  }
+
   // Notification deep links point at a single record (e.g. /hr/rewards/<id>),
   // but mobile has no detail screen for these — only a list. Collapse such a
   // "<base>/<id>" path to its list base. Bases that *do* have a mobile :id

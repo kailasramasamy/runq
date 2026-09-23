@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/models.dart';
 import '../api/repos.dart';
 import 'auth_provider.dart';
+import 'app_role_provider.dart';
 
 // Re-fetch all domain data when the auth token changes.
 T _watchAuth<T>(Ref ref, T Function() build) {
@@ -19,6 +20,14 @@ final cashTrendProvider = FutureProvider<CashTrend>((ref) async {
 
 final gstReadinessProvider = FutureProvider<GstReadiness?>((ref) async {
   return _watchAuth(ref, () => dashboardRepo.gstReadiness());
+});
+
+/// Most urgent unfiled return, for the app-wide deadline banner + dialog.
+/// Gated on the Finance role because the endpoint 403s everyone else — an
+/// operator or farmer should never pay for a request they can't be served.
+final gstDeadlineAlertProvider = FutureProvider<GstDeadlineAlert?>((ref) async {
+  if (!ref.watch(appRoleProvider).canAccessFinance) return null;
+  return _watchAuth(ref, () => gstRepo.deadlineAlert());
 });
 
 final gstReturnsProvider = FutureProvider<List<GstReturn>>((ref) async {

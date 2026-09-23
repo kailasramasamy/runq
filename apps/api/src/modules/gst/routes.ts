@@ -4,6 +4,7 @@ import { rbacHook } from '../../hooks/rbac';
 import { GstReturnService } from './gst-return.service';
 import { Gstr2bReconciliationService } from './gstr2b-reconciliation';
 import { GstReadinessService } from './gst-readiness.service';
+import { GstDeadlineService } from './gst-deadline.service';
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
 const WRITE_ROLES = ['owner', 'accountant'] as const;
@@ -30,6 +31,12 @@ const fileSchema = z.object({
 
 const idParam = z.object({
   id: z.string().uuid(),
+});
+
+const markFiledSchema = z.object({
+  returnType: z.enum(['gstr1', 'gstr3b']),
+  period: z.string().regex(/^\d{6}$/, 'Period must be MMYYYY format'),
+  arn: z.string().min(1).max(50).optional(),
 });
 
 const listQuerySchema = z.object({
@@ -278,6 +285,23 @@ export const gstRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // ─── GST Readiness (dashboard widget) ──────────────────────────────
+
+  // ─── Deadline alert (in-app banner + modal) ─────────────────────────
+  // Owners and accountants only: a viewer can't act on a filing deadline, so
+  // nagging them about one is pure noise.
+
+  app.get('/deadline-alert', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const svc = new GstDeadlineService(request.server.db, request.tenantId);
+    return { data: await svc.getAlert() };
+  });
+
+  // ─── Record a return filed on the portal, outside runQ ───────────────
+
+  app.post('/returns/mark-filed', { preHandler: [rbacHook([...WRITE_ROLES])] }, async (request) => {
+    const { returnType, period, arn } = markFiledSchema.parse(request.body);
+    const svc = new GstReturnService(request.server.db, request.tenantId);
+    return { data: await svc.markFiledExternally(returnType, period, request.user!.userId, arn) };
+  });
 
   app.get('/readiness', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const svc = new GstReadinessService(request.server.db, request.tenantId);

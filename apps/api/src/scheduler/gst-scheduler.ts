@@ -7,12 +7,13 @@
  * Per-tenant: only runs for tenants with `settings.gstin` configured.
  */
 
-import { eq, and, lte, sql, ne, isNotNull } from 'drizzle-orm';
-import { tenants, gstReturns, gspAuthTokens } from '@runq/db';
+import { eq, and, lte, sql, ne, isNotNull, inArray } from 'drizzle-orm';
+import { tenants, gstReturns, gspAuthTokens, users, userTenants } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Redis } from 'ioredis';
 import type { TenantSettings } from '@runq/types';
 import { GstReturnService } from '../modules/gst/gst-return.service';
+import { NotificationsService } from '../modules/dashboard/notifications.service';
 import { Gstr2bReconciliationService } from '../modules/gst/gstr2b-reconciliation';
 import { createEmailProvider } from '../utils/email-provider';
 import { sendEmail } from '../utils/email';
@@ -21,6 +22,14 @@ import {
   gstDueReminder,
   gstOverdueEscalation,
 } from '../utils/gst-email-templates';
+import {
+  istNow,
+  previousMonthPeriod,
+  periodIsBefore,
+  periodToLabel,
+  daysUntilDue,
+  estimateLateFee,
+} from '../modules/gst/gst-due-dates';
 
 interface Logger {
   info(msg: string, ...args: unknown[]): void;
@@ -58,44 +67,6 @@ export function stopGstScheduler(): void {
   if (twobHandle) clearInterval(twobHandle);
   if (dailyHandle) clearInterval(dailyHandle);
   monthlyHandle = twobHandle = dailyHandle = null;
-}
-
-// ── IST time helpers ───────────────────────────────────────────────────
-
-function istNow(): { date: Date; hour: number; min: number; day: number } {
-  const nowUTC = new Date();
-  const istHour = (nowUTC.getUTCHours() + 5 + Math.floor((nowUTC.getUTCMinutes() + 30) / 60)) % 24;
-  const istMin = (nowUTC.getUTCMinutes() + 30) % 60;
-  const istDate = new Date(nowUTC.getTime() + 5.5 * 60 * 60 * 1000);
-  return { date: istDate, hour: istHour, min: istMin, day: istDate.getDate() };
-}
-
-// ── Period helpers ─────────────────────────────────────────────────────
-
-/** Format a Date as MMYYYY (GSTN period format). */
-function periodFor(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${mm}${d.getFullYear()}`;
-}
-
-function previousMonthPeriod(): string {
-  const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return periodFor(prev);
-}
-
-/** Returns true if periodA (MMYYYY) is strictly before periodB (MMYYYY). */
-function periodIsBefore(a: string, b: string): boolean {
-  const aY = parseInt(a.substring(2), 10), aM = parseInt(a.substring(0, 2), 10);
-  const bY = parseInt(b.substring(2), 10), bM = parseInt(b.substring(0, 2), 10);
-  return aY < bY || (aY === bY && aM < bM);
-}
-
-function periodToLabel(period: string): string {
-  const month = parseInt(period.substring(0, 2), 10);
-  const year = parseInt(period.substring(2), 10);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[month - 1]} ${year}`;
 }
 
 // ── Tenant helpers ─────────────────────────────────────────────────────
@@ -236,6 +207,45 @@ async function runMonthly2bPull(db: Db, redis: Redis, logger: Logger): Promise<v
   }
 }
 
+// ── In-app bell notifications ──────────────────────────────────────────
+
+/** Roles that can actually act on a filing deadline. */
+const FILING_ROLES = ['owner', 'client_owner', 'accountant'] as const;
+
+/**
+ * Drop the same reminder into the in-app bell for everyone who can act on it.
+ * The email reaches one address from tenant settings; the bell reaches the
+ * accountant who actually prepares the return.
+ *
+ * Routed through NotificationsService rather than a bulk insert so each notice
+ * also fires an FCM push to that user's runQ devices — GST returns get filed
+ * from the phone, so the phone is where the reminder has to land.
+ */
+async function notifyFilingUsers(
+  db: Db,
+  tenantId: string,
+  notice: { title: string; body: string; targetUrl: string; urgent: boolean },
+): Promise<void> {
+  const recipients = await db
+    .select({ userId: userTenants.userId })
+    .from(userTenants)
+    .innerJoin(users, eq(users.id, userTenants.userId))
+    .where(and(
+      eq(userTenants.tenantId, tenantId),
+      inArray(userTenants.role, [...FILING_ROLES]),
+      eq(users.isActive, true),
+    ));
+  for (const { userId } of recipients) {
+    await new NotificationsService(db, tenantId, userId).create({
+      type: notice.urgent ? 'warn' : 'info',
+      source: 'gst',
+      title: notice.title,
+      body: notice.body,
+      targetUrl: notice.targetUrl,
+    });
+  }
+}
+
 // ── A4 + A5: Daily reminders + overdue escalation ──────────────────────
 
 function maybeDailyReminders(db: Db, redis: Redis, logger: Logger): void {
@@ -245,19 +255,6 @@ function maybeDailyReminders(db: Db, redis: Redis, logger: Logger): void {
   runDailyReminders(db, redis, logger).catch((err) =>
     logger.error('GST reminders error:', err),
   );
-}
-
-/** Due date map (monthly filers): GSTR-1 = 11th, GSTR-3B = 20th */
-const DUE_DAY: Record<'gstr1' | 'gstr3b', number> = { gstr1: 11, gstr3b: 20 };
-
-/** Days remaining/overdue between due-date for `period` and today (IST). */
-function daysUntilDue(returnType: 'gstr1' | 'gstr3b', period: string, todayIst: Date): number {
-  const month = parseInt(period.substring(0, 2), 10);
-  const year = parseInt(period.substring(2), 10);
-  // Due is in the FOLLOWING month
-  const dueDate = new Date(year, month, DUE_DAY[returnType]);
-  const today = new Date(todayIst.getFullYear(), todayIst.getMonth(), todayIst.getDate());
-  return Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<void> {
@@ -299,8 +296,11 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
       const days = daysUntilDue(ret.returnType, ret.period, ist.date);
 
       // Reminder thresholds: T-6, T-1, T+0 (due today), and overdue every 3 days
+      // Mirrors the in-app escalation ladder (see `alertTierFor`): a nudge as
+      // the strip appears, again when the modal starts, then daily to the wire.
       const shouldRemind =
         days === 6 ||
+        days === 2 ||
         days === 1 ||
         days === 0 ||
         (days < 0 && days % 3 === 0);
@@ -312,7 +312,7 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
 
       if (days < 0) {
         // Overdue escalation
-        const lateFee = estimateLateFee(ret.returnType, Math.abs(days));
+        const lateFee = estimateLateFee(Math.abs(days));
         const tpl = gstOverdueEscalation({
           companyName: ret.tenantName,
           returnLabel,
@@ -322,6 +322,12 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
         });
         if (provider) await provider.send({ to: ownerEmail, ...tpl });
         else await sendEmail({ to: ownerEmail, ...tpl, fromName: ret.tenantName });
+        await notifyFilingUsers(db, ret.tenantId, {
+          title: `${returnLabel} for ${periodLabel} is ${Math.abs(days)} days overdue`,
+          body: `Late fee so far is about Rs ${lateFee.toLocaleString('en-IN')}. File it as soon as you can.`,
+          targetUrl: `/finance/gst/returns/${ret.id}`,
+          urgent: true,
+        });
         logger.info(`GST reminders: tenant ${ret.tenantId} — sent overdue (${Math.abs(days)}d) for ${returnLabel}`);
       } else {
         const tpl = gstDueReminder({
@@ -332,6 +338,14 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
         });
         if (provider) await provider.send({ to: ownerEmail, ...tpl });
         else await sendEmail({ to: ownerEmail, ...tpl, fromName: ret.tenantName });
+        await notifyFilingUsers(db, ret.tenantId, {
+          title: days === 0
+            ? `${returnLabel} for ${periodLabel} is due today`
+            : `${returnLabel} for ${periodLabel} is due in ${days} day${days === 1 ? '' : 's'}`,
+          body: 'Review the draft and file it before the deadline.',
+          targetUrl: `/finance/gst/returns/${ret.id}`,
+          urgent: days <= 1,
+        });
         logger.info(`GST reminders: tenant ${ret.tenantId} — sent T-${days} for ${returnLabel}`);
       }
     } catch (err) {
@@ -339,11 +353,4 @@ async function runDailyReminders(db: Db, redis: Redis, logger: Logger): Promise<
       logger.error(`GST reminders: failed return ${ret.id}: ${msg}`);
     }
   }
-}
-
-/** Late fee estimate per CGST + SGST (Rs 50/day for nil, capped at Rs 5000). */
-function estimateLateFee(returnType: 'gstr1' | 'gstr3b', daysOverdue: number): number {
-  // Rs 50/day combined CGST+SGST (Rs 25 each), capped at Rs 5,000
-  // This is an estimate — actual depends on nil vs non-nil and turnover slab
-  return Math.min(50 * daysOverdue, 5000);
 }
