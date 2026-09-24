@@ -11,6 +11,7 @@ import '../../../api/inventory_models.dart';
 import '../../../theme/runq_theme.dart';
 import '../../../theme/runq_tokens.dart';
 import '../inventory_adjustment_common.dart';
+import 'inv_primitives.dart';
 import 'inv_colors.dart';
 
 /// What the typed number means. Spelled out rather than inferred from the
@@ -30,6 +31,77 @@ extension AdjustModeLabels on AdjustMode {
     AdjustMode.remove => 'Quantity to remove',
     AdjustMode.setTo => 'New quantity on hand',
   };
+}
+
+/// The lots behind a pooled warehouse figure, one line each.
+///
+/// Read-only on purpose. The adjustment posts against the warehouse total and
+/// the server draws FEFO underneath, so this is not a lot picker — it is the
+/// arithmetic, shown so a count of 354.43 can be checked against the four
+/// lots it came from instead of taken on trust. Rows keep the order they
+/// arrived in, which is the order a withdrawal will consume them.
+///
+/// Each line carries the collection date and shift behind the batch, because
+/// a consignment code alone says nothing about which milk it is: CON/.../02433
+/// and CON/.../02434 are the same centre on the same day, one AM and one PM.
+class AdjustLotBreakdown extends StatelessWidget {
+  const AdjustLotBreakdown({super.key, required this.holding, this.indent = 0});
+
+  final AdjustHolding holding;
+
+  /// Left inset, so the list can sit under a sheet row's title.
+  final double indent;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    if (holding.batches.length < 2) return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(indent, 6, 0, 0),
+      child: Column(
+        children: [
+          for (final b in holding.batches) _line(t, b),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(RunqTokens t, InvItemStockRow b) {
+    final label = b.batchNo.isEmpty ? 'No batch number' : b.batchNo;
+    final collected = _collectedAt(b);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              collected == null ? label : '$label · $collected',
+              style: RunqText.caption.copyWith(color: t.muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            invFmtQty(b.qty),
+            style: RunqText.caption.copyWith(color: t.muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "28 Aug PM" — the collection that filled this lot. Null for batches with
+  /// no dated origin (a GRN, an adjustment), where there is nothing to add
+  /// beyond the batch number itself.
+  String? _collectedAt(InvItemStockRow b) {
+    final date = b.origin?.date;
+    if (date == null || date.isEmpty) return null;
+    final shift = b.origin?.shift;
+    final when = prettyShortDate(date);
+    return shift == null || shift.isEmpty ? when : '$when ${shift.toUpperCase()}';
+  }
 }
 
 // ── Location ─────────────────────────────────────────────────────────────
@@ -185,7 +257,7 @@ class AdjustLocationField extends StatelessWidget {
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    for (final h in holdings)
+                    for (final h in holdings) ...[
                       _LocationRow(
                         title: h.displayName,
                         subtitle: h.lotCount > 1
@@ -195,6 +267,15 @@ class AdjustLocationField extends StatelessWidget {
                         selected: h.warehouseId == selected?.warehouseId,
                         onTap: () => Navigator.of(context).pop(_LocationChoice(h)),
                       ),
+                      // Aligned to the ListTile's own 16pt inset so the lots
+                      // read as a breakdown of the row above, not siblings
+                      // of it.
+                      if (h.batches.length > 1)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                          child: AdjustLotBreakdown(holding: h),
+                        ),
+                    ],
                     _LocationRow(
                       title: newLocationLabel,
                       subtitle: 'Nothing on hand there yet',
