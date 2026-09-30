@@ -73,6 +73,21 @@ export function blendedBillRate(bills: readonly BilledLeg[]): number {
   return litres > 0 ? round2(cost / litres) : 0;
 }
 
+/**
+ * What a receipt's variance cost, at the leg's purchase rate. A zero rate means
+ * no pour or prior bill priced the milk, so both stay null — "unpriced", which
+ * the variance report counts separately rather than summing as a ₹0 loss.
+ */
+export function varianceValuation(
+  varianceQty: number, unitCost: number,
+): { varianceUnitCost: string | null; varianceValue: string | null } {
+  if (!(unitCost > 0)) return { varianceUnitCost: null, varianceValue: null };
+  return {
+    varianceUnitCost: String(unitCost),
+    varianceValue: String(round2(varianceQty * unitCost)),
+  };
+}
+
 export class RawMilkCostService {
   constructor(private readonly tenantId: string) {}
 

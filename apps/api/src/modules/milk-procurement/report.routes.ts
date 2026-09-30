@@ -1,7 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
-import { collectionReportSchema, receivedDailySchema, poursDailySchema, suppliedDailySchema, qualityTrendSchema, nodeDailySchema, farmerDailySchema, flowReportSchema } from '@runq/validators';
+import { collectionReportSchema, receivedDailySchema, poursDailySchema, suppliedDailySchema, qualityTrendSchema, nodeDailySchema, farmerDailySchema, flowReportSchema, receiptVarianceSchema, receiptVarianceStatementSchema } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReportService } from './report.service';
+import { ReceiptVarianceService } from './receipt-variance.service';
+import { renderReceiptVarianceHTML, receiptVarianceFilename } from './variance-statement-template';
 import { resolveMpPrincipal, assertNodeAccess } from './access-scope';
 
 // field_operator reads their own node's rollup (service scopes pours to it)
@@ -73,6 +75,34 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
     if (principal.kind === 'operator' && q.nodeId) assertNodeAccess(principal, q.nodeId);
     const service = new ReportService(request.server.db, request.tenantId);
     return { data: await service.farmerDaily(q, principal) };
+  });
+
+  // Dispatch-vs-measured litres per received leg, valued at purchase cost.
+  // Operators see legs at either end of their own nodes (scopeConsignments).
+  app.get('/receipt-variance', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const q = receiptVarianceSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator' && q.toNodeId) assertNodeAccess(principal, q.toNodeId);
+    const service = new ReceiptVarianceService(request.server.db, request.tenantId);
+    return { data: await service.report(q, principal) };
+  });
+
+  // The variance report as a shareable PDF (?format=html to debug the layout).
+  app.get('/receipt-variance/statement', { preHandler: [rbacHook([...READ_ROLES])] }, async (request, reply) => {
+    const q = receiptVarianceStatementSchema.parse(request.query);
+    const principal = await resolveMpPrincipal(request);
+    if (principal.kind === 'operator') assertNodeAccess(principal, q.toNodeId);
+    const data = await new ReceiptVarianceService(request.server.db, request.tenantId)
+      .statement(q, principal);
+    const html = renderReceiptVarianceHTML(data);
+    if (q.format === 'html') return reply.type('text/html').send(html);
+    const { renderHtmlToPdf } = await import('../ar/invoice-pdf');
+    const pdf = await renderHtmlToPdf(html);
+    return reply.type('application/pdf')
+      .header('Content-Disposition', `inline; filename="${receiptVarianceFilename(data)}"`)
+      // The app reads the filename back rather than inventing its own.
+      .header('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(pdf);
   });
 
   app.get('/flow', { preHandler: [rbacHook([...FLOW_ROLES])] }, async (request) => {

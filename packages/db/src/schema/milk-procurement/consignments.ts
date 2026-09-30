@@ -40,6 +40,10 @@ export const mpConsignments = pgTable('mp_consignments', {
   receivedBy: uuid('received_by').references(() => users.id),
   varianceQty: decimal('variance_qty', { precision: 12, scale: 3 }),
   variancePct: decimal('variance_pct', { precision: 6, scale: 3 }),
+  // Purchase cost of the variance, snapshotted at receipt (RawMilkCostService).
+  // Null unit cost = no pour or prior bill knew the price — unpriced, not free.
+  varianceUnitCost: decimal('variance_unit_cost', { precision: 12, scale: 2 }),
+  varianceValue: decimal('variance_value', { precision: 14, scale: 2 }),
   stockLedgerId: uuid('stock_ledger_id').references(() => stockLedger.id),
   // True for ad-hoc receipts entered at the destination with no upstream
   // dispatch (directReceive). Gates the deletable-mis-entry path.

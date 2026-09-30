@@ -86,3 +86,28 @@ export const flowReportSchema = z.object({
 });
 
 export type FlowReportQuery = z.infer<typeof flowReportSchema>;
+
+/** Received legs where the measured litres differ from dispatch, valued at the
+ * leg's purchase rate — powers the receipt-variance screen. `stage` picks the
+ * receiving tier: `cc` = VMCC→CC legs, `pp` = CC→PP tankers. */
+export const receiptVarianceSchema = z.object({
+  from: z.string().date(),
+  to: z.string().date(),
+  stage: z.enum(['cc', 'pp']).optional(),
+  toNodeId: z.string().uuid().optional(),
+  fromNodeId: z.string().uuid().optional(),
+  milkType: z.enum(['cow', 'buffalo', 'mixed', 'cow_a1', 'cow_a2']).optional(),
+});
+
+export type ReceiptVarianceQuery = z.infer<typeof receiptVarianceSchema>;
+
+/** The receipt-variance statement for one receiving centre — the shareable PDF
+ * of the same report. `label` is the cycle's display name for the header. */
+export const receiptVarianceStatementSchema = receiptVarianceSchema.extend({
+  toNodeId: z.string().uuid(),
+  stage: z.enum(['cc', 'pp']),
+  label: z.string().max(40).optional(),
+  format: z.enum(['pdf', 'html']).default('pdf'),
+});
+
+export type ReceiptVarianceStatementQuery = z.infer<typeof receiptVarianceStatementSchema>;

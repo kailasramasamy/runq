@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  latestBillPerNode, blendedBillRate, type BilledLeg,
+  latestBillPerNode, blendedBillRate, varianceValuation, type BilledLeg,
 } from './raw-milk-cost';
 
 const bill = (
@@ -40,5 +40,15 @@ describe('blendedBillRate', () => {
   it('returns 0 rather than dividing by nothing', () => {
     expect(blendedBillRate([])).toBe(0);
     expect(blendedBillRate([bill('x', '2026-08-15', 100, 0)])).toBe(0);
+  });
+});
+
+describe('varianceValuation', () => {
+  it('values a short delivery as a negative amount at the leg rate', () => {
+    expect(varianceValuation(-10, 37.33)).toEqual({ varianceUnitCost: '37.33', varianceValue: '-373.3' });
+  });
+
+  it('leaves an unpriced leg null rather than a ₹0 loss', () => {
+    expect(varianceValuation(-10, 0)).toEqual({ varianceUnitCost: null, varianceValue: null });
   });
 });

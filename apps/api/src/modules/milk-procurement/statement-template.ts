@@ -88,27 +88,27 @@ export interface PourStatementData {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 }
-function fmtDate(iso: string): string {
+export function fmtDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return `${String(d).padStart(2, '0')} ${MONTHS[(m ?? 1) - 1]} ${y}`;
 }
-function inr(n: number): string {
+export function inr(n: number): string {
   return `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-function num(n: number | null, dp = 1): string {
+export function num(n: number | null, dp = 1): string {
   return n == null ? '–' : n.toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
-const milkLabel = (m: string): string =>
+export const milkLabel = (m: string): string =>
   ({ cow: 'Cow', buffalo: 'Buffalo', mixed: 'Mixed', cow_a1: 'Cow A1', cow_a2: 'Cow A2' }[m] ?? m);
 
-function metaRow(k: string, v: string): string {
+export function metaRow(k: string, v: string): string {
   return `<div class="meta-row"><span class="meta-k">${esc(k)}</span><span class="meta-v">${esc(v)}</span></div>`;
 }
 
-function summaryCard(label: string, value: string): string {
+export function summaryCard(label: string, value: string): string {
   return `<div class="card"><div class="card-v">${value}</div><div class="card-l">${esc(label)}</div></div>`;
 }
 
@@ -426,7 +426,7 @@ export function vmccBillFilename(d: VmccBillStatementData): string {
 
 /** One ASCII-safe filename part. Farmer and centre names are often Kannada or
  * Devanagari, which sanitise away to nothing — hence the fallback. */
-function slug(value: string | null | undefined, fallback = ''): string {
+export function slug(value: string | null | undefined, fallback = ''): string {
   const out = (value ?? '')
     .normalize('NFKD')
     .replace(/[^\w.-]+/g, '-')
@@ -448,7 +448,7 @@ export function pourStatementFilename(d: PourStatementData): string {
   return `${parts.join('_')}.pdf`;
 }
 
-const STYLE = `<style>
+export const STYLE = `<style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 12px; color: #14150F; }

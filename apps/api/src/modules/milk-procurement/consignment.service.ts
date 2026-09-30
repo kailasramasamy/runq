@@ -20,7 +20,7 @@ import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
 import { MpNotifier } from './mp-notifier';
 import { RateChartService } from './rate-chart.service';
-import { RawMilkCostService } from './raw-milk-cost';
+import { RawMilkCostService, varianceValuation } from './raw-milk-cost';
 import { MpRejectionService } from './rejection.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -253,6 +253,7 @@ export class ConsignmentService {
     const varianceQty = round3(Number(input.receiptQty) - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
     const result = await this.db.transaction(async (tx) => {
+      const unitCost = await new RawMilkCostService(this.tenantId).unitCost(tx, c);
       const [row] = await tx.update(mpConsignments).set({
         receiptQty: String(input.receiptQty),
         receiptFat: numOrNull(input.receiptFat),
@@ -262,11 +263,12 @@ export class ConsignmentService {
         receivedBy: userId ?? null,
         varianceQty: String(varianceQty),
         variancePct: String(variancePct),
+        ...varianceValuation(varianceQty, unitCost),
         status: 'received',
         updatedAt: new Date(),
       }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
       // PP intake posts a raw-milk batch into stock_ledger (best-effort).
-      const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId);
+      const stockLedgerId = await this.postRawMilkReceipt(tx, row!, userId, unitCost);
       return stockLedgerId ? { ...row!, stockLedgerId } : row!;
     });
     // Close the loop back to the sender — a short delivery should reach the
@@ -400,6 +402,11 @@ export class ConsignmentService {
     const varianceQty = round3(Number(input.receiptQty) + refused - dispatched);
     const variancePct = dispatched > 0 ? round3((varianceQty / dispatched) * 100) : 0;
     return this.db.transaction(async (tx) => {
+      // Keep the rate struck at first receipt: a correction fixes the litres,
+      // not the price, and re-pricing would move a loss already reported.
+      const unitCost = c.varianceUnitCost != null
+        ? Number(c.varianceUnitCost)
+        : await new RawMilkCostService(this.tenantId).unitCost(tx, c);
       const [row] = await tx.update(mpConsignments).set({
         receiptQty: String(input.receiptQty),
         receiptFat: numOrNull(input.receiptFat),
@@ -409,6 +416,7 @@ export class ConsignmentService {
         receivedBy: userId ?? null,
         varianceQty: String(varianceQty),
         variancePct: String(variancePct),
+        ...varianceValuation(varianceQty, unitCost),
         updatedAt: new Date(),
       }).where(and(eq(mpConsignments.tenantId, this.tenantId), eq(mpConsignments.id, id))).returning();
       // Keep posted stock in lockstep with the corrected receipt qty.
@@ -856,7 +864,7 @@ export class ConsignmentService {
    *  carries a value the ledger doesn't yet mirror — step 2 of
    *  `docs/dhenu-raw-milk-valuation.md`. Returns the ledger id or null. */
   private async postRawMilkReceipt(
-    tx: Tx, c: MpConsignmentRow, userId: string | undefined,
+    tx: Tx, c: MpConsignmentRow, userId: string | undefined, knownUnitCost?: number,
   ): Promise<string | null> {
     const qty = Number(c.receiptQty ?? 0);
     if (qty <= 0) return null;
@@ -876,7 +884,7 @@ export class ConsignmentService {
       .where(and(eq(mpRawMilkItems.tenantId, this.tenantId),
         eq(mpRawMilkItems.milkType, c.milkType)));
     if (!map) return null;
-    const unitCost = await new RawMilkCostService(this.tenantId).unitCost(tx, c);
+    const unitCost = knownUnitCost ?? await new RawMilkCostService(this.tenantId).unitCost(tx, c);
     const { ledgerId } = await new StockLedgerService(this.tenantId).recordMovement(tx, {
       itemId: map.itemId, warehouseId: settings.wh, batchNo: c.consignmentNo,
       movementType: 'grn', sourceType: 'mp_receipt', sourceId: c.id,
