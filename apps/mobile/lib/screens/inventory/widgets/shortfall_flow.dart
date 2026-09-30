@@ -264,12 +264,17 @@ class _ShortfallIntro extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final items = result.shortItems;
+    // Capped below the status bar; only the item list scrolls, so the
+    // headline and both actions stay on screen however long the list gets.
     return Container(
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      padding: EdgeInsets.fromLTRB(
+          16, 10, 16, 20 + MediaQuery.paddingOf(context).bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,51 +324,57 @@ class _ShortfallIntro extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           // The data, as data.
-          Container(
-            decoration: BoxDecoration(
-              color: t.bgWarm,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Column(
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: t.hairlineSoft),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              text: items[i].itemName,
-                              style: RunqText.body.copyWith(color: t.ink),
-                              children: (items[i].uom ?? '').isEmpty
-                                  ? null
-                                  : [
-                                      // Muted and trailing: the pack size
-                                      // identifies the SKU without competing
-                                      // with the name for the first read.
-                                      TextSpan(
-                                        text: '  ${items[i].uom}',
-                                        style: RunqText.caption
-                                            .copyWith(color: t.muted),
-                                      ),
-                                    ],
+          Flexible(
+            child: Container(
+              decoration: BoxDecoration(
+                color: t.bgWarm,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < items.length; i++) ...[
+                      if (i > 0) Divider(height: 1, color: t.hairlineSoft),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text.rich(
+                                TextSpan(
+                                  text: items[i].itemName,
+                                  style: RunqText.body.copyWith(color: t.ink),
+                                  children: (items[i].uom ?? '').isEmpty
+                                      ? null
+                                      : [
+                                          // Muted and trailing: the pack size
+                                          // identifies the SKU without competing
+                                          // with the name for the first read.
+                                          TextSpan(
+                                            text: '  ${items[i].uom}',
+                                            style: RunqText.caption
+                                                .copyWith(color: t.muted),
+                                          ),
+                                        ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            const SizedBox(width: 8),
+                            Text('short ${_qty(items[i].qty)}',
+                                style: RunqText.bodyStrong
+                                    .copyWith(color: InvColors.error)),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text('short ${_qty(items[i].qty)}',
-                            style: RunqText.bodyStrong
-                                .copyWith(color: InvColors.error)),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 12),
