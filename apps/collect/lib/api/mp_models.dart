@@ -1050,6 +1050,157 @@ class MpRejectionStat {
       );
 }
 
+/// One received load with its measured litres against what was dispatched
+/// (matched loads included, withinTolerance = inside ±0.5%). Variance is
+/// measured − dispatched, so a NEGATIVE figure is a loss; a null value means no
+/// milk rate could be found for that day (unpriced, not free).
+class MpReceiptVarianceLine {
+  final String consignmentId, consignmentNo, date, stage;
+  final String? shift, milkType;
+  final String fromNodeId, fromNodeName, toNodeId, toNodeName;
+  final double dispatchedQty, measuredQty, varianceQty, variancePct;
+  final double? unitCost, varianceValue;
+  final bool flagged, withinTolerance;
+
+  MpReceiptVarianceLine({
+    required this.consignmentId,
+    required this.consignmentNo,
+    required this.date,
+    required this.stage,
+    required this.shift,
+    required this.milkType,
+    required this.fromNodeId,
+    required this.fromNodeName,
+    required this.toNodeId,
+    required this.toNodeName,
+    required this.dispatchedQty,
+    required this.measuredQty,
+    required this.varianceQty,
+    required this.variancePct,
+    required this.unitCost,
+    required this.varianceValue,
+    required this.flagged,
+    required this.withinTolerance,
+  });
+
+  factory MpReceiptVarianceLine.fromJson(Map<String, dynamic> j) => MpReceiptVarianceLine(
+        consignmentId: _s(j['consignmentId']),
+        consignmentNo: _s(j['consignmentNo']),
+        date: _s(j['date']),
+        stage: _s(j['stage']),
+        shift: _sn(j['shift']),
+        milkType: _sn(j['milkType']),
+        fromNodeId: _s(j['fromNodeId']),
+        fromNodeName: _s(j['fromNodeName']),
+        toNodeId: _s(j['toNodeId']),
+        toNodeName: _s(j['toNodeName']),
+        dispatchedQty: _d(j['dispatchedQty']),
+        measuredQty: _d(j['measuredQty']),
+        varianceQty: _d(j['varianceQty']),
+        variancePct: _d(j['variancePct']),
+        unitCost: _dn(j['unitCost']),
+        varianceValue: _dn(j['varianceValue']),
+        flagged: _b(j['flagged']),
+        withinTolerance: _b(j['withinTolerance']),
+      );
+}
+
+/// A roll-up of loads — the whole period, one source, or one day. Short and gain
+/// are kept apart (positive magnitudes) because netting them hides a bad source
+/// behind a good one; net is signed (negative = loss). Short/gain/matched count
+/// loads beyond / within the ±0.5% tolerance; flagged is beyond ±2%.
+class MpVarianceTally {
+  final int loads, shortLoads, gainLoads, matchedLoads, flaggedLoads;
+  final double dispatchedQty, measuredQty, shortQty, shortValue, gainQty, gainValue;
+  final double netQty, netValue, netPct, unpricedQty;
+
+  MpVarianceTally({
+    required this.loads,
+    required this.shortLoads,
+    required this.gainLoads,
+    required this.matchedLoads,
+    required this.flaggedLoads,
+    required this.dispatchedQty,
+    required this.measuredQty,
+    required this.shortQty,
+    required this.shortValue,
+    required this.gainQty,
+    required this.gainValue,
+    required this.netQty,
+    required this.netValue,
+    required this.netPct,
+    required this.unpricedQty,
+  });
+
+  factory MpVarianceTally.fromJson(Map<String, dynamic> j) => MpVarianceTally(
+        loads: _i(j['loads']),
+        shortLoads: _i(j['shortLoads']),
+        gainLoads: _i(j['gainLoads']),
+        matchedLoads: _i(j['matchedLoads']),
+        flaggedLoads: _i(j['flaggedLoads']),
+        dispatchedQty: _d(j['dispatchedQty']),
+        measuredQty: _d(j['measuredQty']),
+        shortQty: _d(j['shortQty']),
+        shortValue: _d(j['shortValue']),
+        gainQty: _d(j['gainQty']),
+        gainValue: _d(j['gainValue']),
+        netQty: _d(j['netQty']),
+        netValue: _d(j['netValue']),
+        netPct: _d(j['netPct']),
+        unpricedQty: _d(j['unpricedQty']),
+      );
+}
+
+/// A sending node's tally; the API returns these worst (most rupees lost) first.
+class MpVarianceBySource {
+  final String fromNodeId, fromNodeName;
+  final MpVarianceTally tally;
+  MpVarianceBySource({required this.fromNodeId, required this.fromNodeName, required this.tally});
+
+  factory MpVarianceBySource.fromJson(Map<String, dynamic> j) => MpVarianceBySource(
+        fromNodeId: _s(j['fromNodeId']),
+        fromNodeName: _s(j['fromNodeName']),
+        tally: MpVarianceTally.fromJson(j),
+      );
+}
+
+/// One calendar day's tally; the API returns only days that had loads.
+class MpVarianceByDay {
+  final String date;
+  final MpVarianceTally tally;
+  MpVarianceByDay({required this.date, required this.tally});
+
+  factory MpVarianceByDay.fromJson(Map<String, dynamic> j) =>
+      MpVarianceByDay(date: _s(j['date']), tally: MpVarianceTally.fromJson(j));
+}
+
+class MpReceiptVarianceReport {
+  final List<MpReceiptVarianceLine> lines;
+  final MpVarianceTally totals;
+  final List<MpVarianceBySource> bySource;
+  final List<MpVarianceByDay> byDay;
+  MpReceiptVarianceReport({
+    required this.lines,
+    required this.totals,
+    required this.bySource,
+    required this.byDay,
+  });
+
+  factory MpReceiptVarianceReport.fromJson(Map<String, dynamic> j) {
+    List<T> list<T>(String k, T Function(Map<String, dynamic>) f) =>
+        ((j[k] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => f(e.cast<String, dynamic>()))
+            .toList();
+    return MpReceiptVarianceReport(
+      lines: list('lines', MpReceiptVarianceLine.fromJson),
+      totals: MpVarianceTally.fromJson(((j['totals'] as Map?) ?? const {}).cast<String, dynamic>()),
+      bySource: list('bySource', MpVarianceBySource.fromJson),
+      byDay: list('byDay', MpVarianceByDay.fromJson),
+    );
+  }
+}
+
 /// One thing an end-to-end undo will do, in the order it must happen.
 class MpUnwindStep {
   final String kind, label, detail;

@@ -3687,4 +3687,80 @@ class AppLocalizationsKn extends AppLocalizations {
 
   @override
   String get unwindBlocked => 'ಕೆಲವು ಹಂತಗಳು ಈಗ ನಡೆಯುವುದಿಲ್ಲ — ಕೆಳಗೆ ನೋಡಿ.';
+
+  @override
+  String get varianceTitle => 'ವ್ಯತ್ಯಾಸ';
+
+  @override
+  String get varianceNetLoss => 'ನಿವ್ವಳ ನಷ್ಟ';
+
+  @override
+  String get varianceNetGain => 'ನಿವ್ವಳ ಲಾಭ';
+
+  @override
+  String varianceShortRow(Object qty, Object value) {
+    return 'ಕೊರತೆ · $qty · $value';
+  }
+
+  @override
+  String varianceGainedRow(Object qty, Object value) {
+    return 'ಹೆಚ್ಚುವರಿ · $qty · $value';
+  }
+
+  @override
+  String varianceFlaggedCaption(int flagged, int loads) {
+    return '$loads ರಲ್ಲಿ $flagged ಲೋಡ್‌ಗಳು ±2% ಮೀರಿವೆ';
+  }
+
+  @override
+  String varianceUnpricedCaption(Object qty) {
+    return '$qty ಗೆ ಬೆಲೆ ನಿಗದಿಯಾಗಿಲ್ಲ — ಆ ದಿನದ ಹಾಲಿನ ದರ ಸಿಗಲಿಲ್ಲ';
+  }
+
+  @override
+  String get varianceNoneTitle => 'ವ್ಯತ್ಯಾಸವಿಲ್ಲ';
+
+  @override
+  String get varianceNoneSubtitle =>
+      'ಈ ಅವಧಿಯಲ್ಲಿ ಪ್ರತಿ ಲೋಡ್ ಕಳುಹಿಸಿದಷ್ಟೇ ಅಳತೆಯಾಗಿದೆ.';
+
+  @override
+  String get varianceLoadError => 'ವ್ಯತ್ಯಾಸ ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ';
+
+  @override
+  String get varianceShare => 'ಹಂಚಿಕೊಳ್ಳಿ';
+
+  @override
+  String varianceShareTitle(Object node, Object period) {
+    return 'ಸ್ವೀಕೃತಿ ವ್ಯತ್ಯಾಸ · $node · $period';
+  }
+
+  @override
+  String get varianceShareSeePdf =>
+      'ಮೂಲ, ದಿನ ಮತ್ತು ಲೋಡ್ ಪ್ರಕಾರ ಪೂರ್ಣ ವಿವರ ಲಗತ್ತಿಸಿದ PDF ನಲ್ಲಿ.';
+
+  @override
+  String varianceShareNetLoss(Object value, Object qty, Object pct) {
+    return 'ನಿವ್ವಳ ನಷ್ಟ $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareNetGain(Object value, Object qty, Object pct) {
+    return 'ನಿವ್ವಳ ಲಾಭ $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareShortOver(
+    Object shortQty,
+    Object shortValue,
+    Object gainQty,
+    Object gainValue,
+  ) {
+    return 'ಕೊರತೆ $shortQty · $shortValue | ಹೆಚ್ಚುವರಿ $gainQty · $gainValue';
+  }
+
+  @override
+  String varianceShareFlagged(Object flagged, Object matched, Object loads) {
+    return '$flagged ಲೋಡ್ ±2% ಮೀರಿವೆ · $matched/$loads ±0.5% ಒಳಗೆ';
+  }
 }

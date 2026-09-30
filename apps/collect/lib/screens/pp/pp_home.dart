@@ -14,13 +14,13 @@ import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/quality_badge.dart';
-import '../../widgets/section_header.dart';
 import '../../widgets/tank_gauge.dart';
 import '../../widgets/quick_link_card.dart';
 import '../../utils/friendly_error.dart';
 import '../role_shell.dart';
 import '../shared/node_qc_report.dart';
 import '../shared/receive_history.dart';
+import '../shared/receipt_variance_report.dart';
 import '../shared/receive_leg.dart';
 
 /// Per-CC inbound-to-this-PP tally derived from today's tankers.
@@ -110,8 +110,11 @@ class PpHome extends ConsumerWidget {
   // No sync chip here: the offline queue only ever holds VMCC farmer pours, so
   // at a plant it could only read "Synced" — and "saved on device" when offline,
   // which is untrue. The bell is the only header affordance that means anything.
-  Widget _header() => DhenuSectionHeader(node.name,
-      leadingTrailing: const CentreSwitcherButton(), trailing: const NotificationBell());
+  Widget _header() => Row(children: [
+        Expanded(child: Align(
+            alignment: Alignment.centerLeft, child: CentreSwitcherTitle(node.name))),
+        const NotificationBell(),
+      ]);
 
   Widget _hero(BuildContext context, AppLocalizations l, DhenuTokens t, AsyncValue<List<MpConsignment>> consAsync, QualityBands bands, MilkType milkType) {
     return consAsync.when(
@@ -271,9 +274,9 @@ class PpHome extends ConsumerWidget {
         ),
       );
 
-  /// Everything on this page is today; these two are the way back through it.
-  /// A plant has no rate chart and no collection report of its own, so the pair
-  /// sits on one row rather than the CC's 2×2 grid.
+  /// Everything on this page is today; these are the way back through it.
+  /// A plant has no rate chart and no collection report of its own, so the three
+  /// sit on one row rather than the CC's 2×2 grid.
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) {
     final leg = ReceiveLeg.ccToPp(l);
     return IntrinsicHeight(
@@ -285,6 +288,10 @@ class PpHome extends ConsumerWidget {
         Expanded(
             child: _linkCard(context, t, DhenuIcons.barChart, l.ccHomeQcReportLink,
                 NodeQcReport(node: node, leg: leg))),
+        const SizedBox(width: DhenuSpacing.md),
+        Expanded(
+            child: _linkCard(context, t, DhenuIcons.scale, l.varianceTitle,
+                ReceiptVarianceReport(node: node, leg: leg))),
       ]),
     );
   }

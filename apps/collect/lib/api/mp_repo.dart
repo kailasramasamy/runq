@@ -676,6 +676,41 @@ class MpRepo {
     return _list(res).map(MpRejectionStat.fromJson).toList();
   }
 
+  /// Loads whose measured litres differ from what was dispatched, with the
+  /// period's short/gain totals. [stage] is 'cc' (VMCC→CC) or 'pp' (CC→plant);
+  /// [toNodeId] is the receiving node.
+  Future<MpReceiptVarianceReport> receiptVariance({
+    required String from,
+    required String to,
+    String? stage,
+    String? toNodeId,
+  }) async {
+    final res = await _api.get(
+      '$_base/reports/receipt-variance${_qs({'from': from, 'to': to, 'stage': stage, 'toNodeId': toNodeId})}',
+    );
+    return MpReceiptVarianceReport.fromJson(_one(res) ?? const {});
+  }
+
+  /// The variance report as the server-rendered PDF, with the server's own
+  /// file name (centre · cycle) read back off Content-Disposition.
+  Future<({Uint8List bytes, String filename})> receiptVarianceStatementPdf({
+    required String from,
+    required String to,
+    required String stage,
+    required String toNodeId,
+    String? label,
+  }) async {
+    final qs = _qs({
+      'from': from, 'to': to, 'stage': stage, 'toNodeId': toNodeId,
+      'label': label, 'format': 'pdf',
+    });
+    final res = await _api.getBytes('$_base/reports/receipt-variance/statement$qs');
+    return (
+      bytes: Uint8List.fromList(res.bytes),
+      filename: res.filename ?? 'variance.pdf',
+    );
+  }
+
   /// A farmer's refused milk over a window, charge by charge — what their
   /// payment breakdown lists under the deduction.
   Future<List<MpRejectionLine>> farmerRejectionLines({

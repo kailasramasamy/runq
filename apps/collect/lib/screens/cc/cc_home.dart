@@ -14,7 +14,6 @@ import '../../widgets/profile_avatar_button.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
-import '../../widgets/section_header.dart';
 import '../../widgets/pending_dispatch_alert.dart';
 import '../../widgets/quick_link_card.dart';
 import '../shared/pending_work.dart';
@@ -23,6 +22,7 @@ import '../../widgets/tank_gauge.dart';
 import '../../utils/friendly_error.dart';
 import '../shared/node_qc_report.dart';
 import '../shared/receive_history.dart';
+import '../shared/receipt_variance_report.dart';
 import '../shared/receive_leg.dart';
 import 'cc_rate_charts.dart';
 import 'cc_report_tab.dart';
@@ -122,13 +122,13 @@ class CcHome extends ConsumerWidget {
         children: [
           // No sync chip: the offline queue only holds VMCC farmer pours, so a
           // CC has nothing to sync and the chip was permanently inert.
-          DhenuSectionHeader(node.name,
-              leadingTrailing: const CentreSwitcherButton(),
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                const NotificationBell(),
-                const SizedBox(width: DhenuSpacing.sm),
-                ProfileAvatarButton(subtitle: node.name),
-              ])),
+          Row(children: [
+            Expanded(child: Align(
+                alignment: Alignment.centerLeft, child: CentreSwitcherTitle(node.name))),
+            const NotificationBell(),
+            const SizedBox(width: DhenuSpacing.sm),
+            ProfileAvatarButton(subtitle: node.name),
+          ]),
           const SizedBox(height: DhenuSpacing.lg),
           PendingDispatchAlert(nodeId: node.id, onOpenSlot: _openSlot),
           _hero(context, t, l, vmccsAsync, flow, inTransit, overnight),
@@ -318,8 +318,9 @@ class CcHome extends ConsumerWidget {
         ]),
       );
 
-  /// 2×2 grid. Four across left each card ~a quarter of the width, which wrapped
-  /// the two-word labels onto a second line and left the cards visibly uneven.
+  /// 2×2 grid, with Variance full-width beneath. Four across left each card
+  /// ~a quarter of the width, which wrapped the two-word labels onto a second
+  /// line and left the cards visibly uneven.
   /// IntrinsicHeight keeps a pair level even if a translation still wraps.
   Widget _quickLinks(BuildContext context, DhenuTokens t, AppLocalizations l) {
     final leg = ReceiveLeg.vmccToCc(l);
@@ -340,6 +341,12 @@ class CcHome extends ConsumerWidget {
       pair(0, 1),
       const SizedBox(height: DhenuSpacing.md),
       pair(2, 3),
+      const SizedBox(height: DhenuSpacing.md),
+      SizedBox(
+        width: double.infinity,
+        child: _linkCard(context, t, (DhenuIcons.scale, l.varianceTitle,
+            ReceiptVarianceReport(node: node, leg: leg))),
+      ),
     ]);
   }
 

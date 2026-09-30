@@ -6333,6 +6333,113 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some steps cannot run yet — see below.'**
   String get unwindBlocked;
+
+  /// No description provided for @varianceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Variance'**
+  String get varianceTitle;
+
+  /// No description provided for @varianceNetLoss.
+  ///
+  /// In en, this message translates to:
+  /// **'Net loss'**
+  String get varianceNetLoss;
+
+  /// No description provided for @varianceNetGain.
+  ///
+  /// In en, this message translates to:
+  /// **'Net gain'**
+  String get varianceNetGain;
+
+  /// No description provided for @varianceShortRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Short · {qty} · {value}'**
+  String varianceShortRow(Object qty, Object value);
+
+  /// No description provided for @varianceGainedRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Gained · {qty} · {value}'**
+  String varianceGainedRow(Object qty, Object value);
+
+  /// No description provided for @varianceFlaggedCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'{flagged} of {loads} loads beyond ±2%'**
+  String varianceFlaggedCaption(int flagged, int loads);
+
+  /// No description provided for @varianceUnpricedCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} couldn\'t be priced — no milk rate found for that day'**
+  String varianceUnpricedCaption(Object qty);
+
+  /// No description provided for @varianceNoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No variance'**
+  String get varianceNoneTitle;
+
+  /// No description provided for @varianceNoneSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Every load measured what was dispatched in this period.'**
+  String get varianceNoneSubtitle;
+
+  /// No description provided for @varianceLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load variance'**
+  String get varianceLoadError;
+
+  /// No description provided for @varianceShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get varianceShare;
+
+  /// No description provided for @varianceShareTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt variance · {node} · {period}'**
+  String varianceShareTitle(Object node, Object period);
+
+  /// No description provided for @varianceShareSeePdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Full breakdown by source, day and load in the attached PDF.'**
+  String get varianceShareSeePdf;
+
+  /// No description provided for @varianceShareNetLoss.
+  ///
+  /// In en, this message translates to:
+  /// **'Net loss {value} ({qty}, {pct})'**
+  String varianceShareNetLoss(Object value, Object qty, Object pct);
+
+  /// No description provided for @varianceShareNetGain.
+  ///
+  /// In en, this message translates to:
+  /// **'Net gain {value} ({qty}, {pct})'**
+  String varianceShareNetGain(Object value, Object qty, Object pct);
+
+  /// No description provided for @varianceShareShortOver.
+  ///
+  /// In en, this message translates to:
+  /// **'Short {shortQty} · {shortValue} | Over {gainQty} · {gainValue}'**
+  String varianceShareShortOver(
+    Object shortQty,
+    Object shortValue,
+    Object gainQty,
+    Object gainValue,
+  );
+
+  /// No description provided for @varianceShareFlagged.
+  ///
+  /// In en, this message translates to:
+  /// **'{flagged} loads beyond ±2% · {matched}/{loads} within ±0.5%'**
+  String varianceShareFlagged(Object flagged, Object matched, Object loads);
 }
 
 class _AppLocalizationsDelegate

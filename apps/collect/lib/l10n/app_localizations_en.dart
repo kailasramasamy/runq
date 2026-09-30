@@ -3700,4 +3700,80 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unwindBlocked => 'Some steps cannot run yet — see below.';
+
+  @override
+  String get varianceTitle => 'Variance';
+
+  @override
+  String get varianceNetLoss => 'Net loss';
+
+  @override
+  String get varianceNetGain => 'Net gain';
+
+  @override
+  String varianceShortRow(Object qty, Object value) {
+    return 'Short · $qty · $value';
+  }
+
+  @override
+  String varianceGainedRow(Object qty, Object value) {
+    return 'Gained · $qty · $value';
+  }
+
+  @override
+  String varianceFlaggedCaption(int flagged, int loads) {
+    return '$flagged of $loads loads beyond ±2%';
+  }
+
+  @override
+  String varianceUnpricedCaption(Object qty) {
+    return '$qty couldn\'t be priced — no milk rate found for that day';
+  }
+
+  @override
+  String get varianceNoneTitle => 'No variance';
+
+  @override
+  String get varianceNoneSubtitle =>
+      'Every load measured what was dispatched in this period.';
+
+  @override
+  String get varianceLoadError => 'Could not load variance';
+
+  @override
+  String get varianceShare => 'Share';
+
+  @override
+  String varianceShareTitle(Object node, Object period) {
+    return 'Receipt variance · $node · $period';
+  }
+
+  @override
+  String get varianceShareSeePdf =>
+      'Full breakdown by source, day and load in the attached PDF.';
+
+  @override
+  String varianceShareNetLoss(Object value, Object qty, Object pct) {
+    return 'Net loss $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareNetGain(Object value, Object qty, Object pct) {
+    return 'Net gain $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareShortOver(
+    Object shortQty,
+    Object shortValue,
+    Object gainQty,
+    Object gainValue,
+  ) {
+    return 'Short $shortQty · $shortValue | Over $gainQty · $gainValue';
+  }
+
+  @override
+  String varianceShareFlagged(Object flagged, Object matched, Object loads) {
+    return '$flagged loads beyond ±2% · $matched/$loads within ±0.5%';
+  }
 }

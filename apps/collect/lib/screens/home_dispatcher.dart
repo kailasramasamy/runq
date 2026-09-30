@@ -80,8 +80,8 @@ class _AdminHome extends ConsumerWidget {
       if (r == null) return const CentrePickerScreen();
       node = r;
     }
-    // No switcher bar: the home title carries the centre name and its chevron
-    // ([CentreSwitcherButton]) reopens the switcher, so a strip above every tab
+    // No switcher bar: the home title ([CentreSwitcherTitle]) is the centre name
+    // and reopens the switcher when tapped, so a strip above every tab
     // only restated what was already on screen.
     return _shellFor(node, null);
   }

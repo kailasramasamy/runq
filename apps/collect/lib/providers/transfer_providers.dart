@@ -178,6 +178,14 @@ final rejectionStatsProvider =
   );
 });
 
+/// Receipt variance at a receiving node over a period. Stage is 'cc' or 'pp'.
+typedef ReceiptVarianceArgs = ({String nodeId, String stage, String from, String to});
+
+final receiptVarianceProvider =
+    FutureProvider.family<MpReceiptVarianceReport, ReceiptVarianceArgs>((ref, a) {
+  return mpRepo.receiptVariance(from: a.from, to: a.to, stage: a.stage, toNodeId: a.nodeId);
+});
+
 /// Which shifts are closed for collection at a node today. Drives the close
 /// banner on Record Collection and the hard dispatch gate. Key: nodeId.
 final shiftStatusProvider =

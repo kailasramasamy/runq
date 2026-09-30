@@ -21,32 +21,46 @@ IconData nodeTierIcon(MpNode n) => _iconForType(n.nodeType);
 IconData _iconForType(String type) =>
     type == 'pp' ? DhenuIcons.tankers : (type == 'cc' ? DhenuIcons.snowflake : DhenuIcons.store);
 
-/// The chevron beside a centre's name that reopens the switcher.
+/// A home's title — the centre's name — and, for an admin, the way to switch it.
 ///
-/// Replaces the full-width switcher bar that used to sit above every tab: it
-/// restated the centre name the home title already carries, and cost a strip of
-/// screen on all four tabs to do it. The bar's home button is gone with it —
-/// the switcher sheet reaches every centre directly, so a trip back to the
-/// picker was a longer route to the same place.
+/// The name and chevron are one pill-shaped tap target. The chevron alone was
+/// ~30px wide and easy to miss; the name is what the eye lands on, so it is
+/// what the thumb reaches for. Replaces the full-width switcher bar that used
+/// to sit above every tab and only restated this name.
 ///
-/// Renders nothing for an operator: their centres come from their assignments
-/// and are switched by [OperatorSwitcherBar], so a chevron here would open a
-/// sheet listing centres they cannot run.
-class CentreSwitcherButton extends ConsumerWidget {
-  const CentreSwitcherButton({super.key});
+/// Plain text for an operator: their centres come from their assignments and
+/// are switched by [OperatorSwitcherBar], so this sheet would list centres they
+/// cannot run.
+class CentreSwitcherTitle extends ConsumerWidget {
+  const CentreSwitcherTitle(this.name, {super.key});
+
+  final String name;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(authProvider).persona != Persona.admin) {
-      return const SizedBox.shrink();
-    }
     final t = DT(context);
-    return InkWell(
-      onTap: () => showCentreSwitcher(context, ref),
-      borderRadius: BorderRadius.circular(DhenuRadii.pill),
-      child: Padding(
-        padding: const EdgeInsets.all(DhenuSpacing.xs),
-        child: Icon(DhenuIcons.chevronDown, size: 22, color: t.brand),
+    final text = Text(name,
+        style: DhenuText.h2.copyWith(color: t.ink),
+        maxLines: 1, overflow: TextOverflow.ellipsis);
+    if (ref.watch(authProvider).persona != Persona.admin) return text;
+    return Material(
+      color: t.brand.withValues(alpha: 0.10),
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showCentreSwitcher(context, ref),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                DhenuSpacing.md, DhenuSpacing.xs, DhenuSpacing.sm, DhenuSpacing.xs),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(child: text),
+              const SizedBox(width: DhenuSpacing.xs),
+              Icon(DhenuIcons.chevronDown, size: 22, color: t.brand),
+            ]),
+          ),
+        ),
       ),
     );
   }

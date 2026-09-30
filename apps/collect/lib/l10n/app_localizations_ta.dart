@@ -3715,4 +3715,80 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get unwindBlocked => 'சில படிகள் இப்போது இயங்காது — கீழே பார்க்கவும்.';
+
+  @override
+  String get varianceTitle => 'வேறுபாடு';
+
+  @override
+  String get varianceNetLoss => 'நிகர இழப்பு';
+
+  @override
+  String get varianceNetGain => 'நிகர லாபம்';
+
+  @override
+  String varianceShortRow(Object qty, Object value) {
+    return 'குறைவு · $qty · $value';
+  }
+
+  @override
+  String varianceGainedRow(Object qty, Object value) {
+    return 'கூடுதல் · $qty · $value';
+  }
+
+  @override
+  String varianceFlaggedCaption(int flagged, int loads) {
+    return '$loads இல் $flagged லோடுகள் ±2% ஐ மீறின';
+  }
+
+  @override
+  String varianceUnpricedCaption(Object qty) {
+    return '$qty க்கு விலை நிர்ணயிக்க முடியவில்லை — அந்த நாளுக்கான பால் விலை கிடைக்கவில்லை';
+  }
+
+  @override
+  String get varianceNoneTitle => 'வேறுபாடு இல்லை';
+
+  @override
+  String get varianceNoneSubtitle =>
+      'இந்தக் காலத்தில் ஒவ்வொரு லோடும் அனுப்பிய அளவே அளக்கப்பட்டது.';
+
+  @override
+  String get varianceLoadError => 'வேறுபாட்டை ஏற்ற முடியவில்லை';
+
+  @override
+  String get varianceShare => 'பகிர்';
+
+  @override
+  String varianceShareTitle(Object node, Object period) {
+    return 'பெறுதல் வேறுபாடு · $node · $period';
+  }
+
+  @override
+  String get varianceShareSeePdf =>
+      'மூலம், நாள், லோடு வாரியான முழு விவரம் இணைக்கப்பட்ட PDF இல்.';
+
+  @override
+  String varianceShareNetLoss(Object value, Object qty, Object pct) {
+    return 'நிகர இழப்பு $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareNetGain(Object value, Object qty, Object pct) {
+    return 'நிகர லாபம் $value ($qty, $pct)';
+  }
+
+  @override
+  String varianceShareShortOver(
+    Object shortQty,
+    Object shortValue,
+    Object gainQty,
+    Object gainValue,
+  ) {
+    return 'குறைவு $shortQty · $shortValue | கூடுதல் $gainQty · $gainValue';
+  }
+
+  @override
+  String varianceShareFlagged(Object flagged, Object matched, Object loads) {
+    return '$flagged லோடுகள் ±2% ஐ தாண்டியவை · $matched/$loads ±0.5% க்குள்';
+  }
 }

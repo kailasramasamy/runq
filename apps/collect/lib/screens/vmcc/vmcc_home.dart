@@ -150,18 +150,10 @@ class VmccHome extends ConsumerWidget {
   Widget _header(BuildContext context, WidgetRef ref, DhenuTokens t, AppLocalizations l, SyncSnapshot sync) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          // The name and its chevron take everything up to the bell; a Flexible
-          // beside a Spacer would hand half the row to empty space.
-          Expanded(
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Flexible(
-                child: Text(node.name,
-                    style: DhenuText.h2.copyWith(color: t.ink),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const CentreSwitcherButton(),
-            ]),
-          ),
+          // The name takes everything up to the bell; a Flexible beside a
+          // Spacer would hand half the row to empty space.
+          Expanded(child: Align(
+              alignment: Alignment.centerLeft, child: CentreSwitcherTitle(node.name))),
           const NotificationBell(),
           const SizedBox(width: DhenuSpacing.sm),
           ProfileAvatarButton(subtitle: node.name),
