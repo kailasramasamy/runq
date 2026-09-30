@@ -580,7 +580,6 @@ class _ItemRow extends StatelessWidget {
     final taxLabel = _taxLabel(item);
     final uom = item.uom?.trim();
     final metaParts = <String>[
-      if (uom != null && uom.isNotEmpty) uom,
       '$qtyStr × ${formatINR(item.unitPrice)}',
       if (taxLabel != null) taxLabel,
     ];
@@ -591,8 +590,19 @@ class _ItemRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.itemName.isEmpty ? item.description : item.itemName,
+              // Pack size rides beside the name, muted: it identifies the SKU
+              // (Paneer 200g vs 500g) without competing for the first read.
+              Text.rich(
+                TextSpan(
+                  text: item.itemName.isEmpty ? item.description : item.itemName,
+                  children: [
+                    if (uom != null && uom.isNotEmpty)
+                      TextSpan(
+                        text: '  $uom',
+                        style: RunqText.caption.copyWith(color: t.muted),
+                      ),
+                  ],
+                ),
                 style: RunqText.bodyStrong.copyWith(color: t.ink, height: 1.3),
               ),
               const SizedBox(height: 4),
@@ -608,7 +618,8 @@ class _ItemRow extends StatelessWidget {
         // the web invoice and PDF so the per-row figure matches what the
         // customer pays for that line.
         Text(
-          formatINR(item.amount + item.taxAmount),
+          // Paise always shown so the column's decimals line up down the card.
+          formatINR(item.amount + item.taxAmount, paise: true),
           style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink),
         ),
       ],
@@ -639,23 +650,23 @@ class _GstBreakdownCard extends StatelessWidget {
         children: [
           Text('SUMMARY', style: RunqText.label),
           const SizedBox(height: 10),
-          _LineRow(label: 'Subtotal', value: formatINR(invoice.subtotal)),
+          _LineRow(label: 'Subtotal', value: formatINR(invoice.subtotal, paise: true)),
           if (invoice.taxAmount > 0) ...[
-            if (invoice.igst > 0) _LineRow(label: 'IGST', value: formatINR(invoice.igst)),
-            if (invoice.cgst > 0) _LineRow(label: 'CGST', value: formatINR(invoice.cgst)),
-            if (invoice.sgst > 0) _LineRow(label: 'SGST', value: formatINR(invoice.sgst)),
-            if (invoice.cess > 0) _LineRow(label: 'Cess', value: formatINR(invoice.cess)),
+            if (invoice.igst > 0) _LineRow(label: 'IGST', value: formatINR(invoice.igst, paise: true)),
+            if (invoice.cgst > 0) _LineRow(label: 'CGST', value: formatINR(invoice.cgst, paise: true)),
+            if (invoice.sgst > 0) _LineRow(label: 'SGST', value: formatINR(invoice.sgst, paise: true)),
+            if (invoice.cess > 0) _LineRow(label: 'Cess', value: formatINR(invoice.cess, paise: true)),
           ] else
             // Always render a Tax line so the breakdown's structure is
             // consistent even when this invoice happens to be GST-0% (e.g.
             // exempt staples like milk). Without this, users see "Subtotal
             // → Total" with no tax row and wonder if the calculation skipped.
-            _LineRow(label: 'GST', value: formatINR(0)),
+            _LineRow(label: 'GST', value: formatINR(0, paise: true)),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Container(height: 1, color: t.muted2.withValues(alpha: 0.30)),
           ),
-          _LineRow(label: 'Total', value: formatINR(invoice.totalAmount), strong: true),
+          _LineRow(label: 'Total', value: formatINR(invoice.totalAmount, paise: true), strong: true),
         ],
       ),
     );
