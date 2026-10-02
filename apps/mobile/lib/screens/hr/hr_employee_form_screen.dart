@@ -199,7 +199,9 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
       'uan': clean(_uan),
       'pfNumber': clean(_pfNumber),
       'esiNumber': clean(_esiNumber),
-      'ctcAnnual': double.tryParse(_ctcAnnual.text.trim()),
+      // Salary is only set here on create; an existing employee's salary
+      // changes through "Assign salary", which asks when it starts.
+      if (widget.existing == null) 'ctcAnnual': double.tryParse(_ctcAnnual.text.trim()),
       'bankName': clean(_bankName),
       'bankAccountNumber': clean(_bankAcct),
       'bankIfsc': clean(_bankIfsc, upper: true, regex: _ifscRegex),
@@ -390,6 +392,7 @@ class _HrEmployeeFormScreenState extends ConsumerState<HrEmployeeFormScreen> {
           canAdvance: _canAdvancePay,
           build: (_) => _PayBankStep(
             employmentType: _employmentType,
+            editing: widget.existing != null,
             ctcAnnual: _ctcAnnual,
             bankName: _bankName,
             bankAcct: _bankAcct,
@@ -695,10 +698,12 @@ class _StatutoryStep extends StatelessWidget {
 
 class _PayBankStep extends StatelessWidget {
   final String employmentType;
+  final bool editing;
   final TextEditingController ctcAnnual, bankName, bankAcct, bankIfsc, agency, dailyWage;
   final VoidCallback onChanged;
   const _PayBankStep({
     required this.employmentType,
+    required this.editing,
     required this.ctcAnnual,
     required this.bankName,
     required this.bankAcct,
@@ -722,7 +727,13 @@ class _PayBankStep extends StatelessWidget {
             // contract worker never enters — they are paid per contract
             // engagement instead. Offering the field would invite someone to
             // fill it and expect a payslip that never comes.
-            if (!_isWageOrContract)
+            if (!_isWageOrContract && editing)
+              Text(
+                'To change salary, use Actions → Assign salary on the employee page. '
+                'It asks when the new salary starts.',
+                style: RunqText.caption.copyWith(color: RT(context).muted),
+              ),
+            if (!_isWageOrContract && !editing)
               HrTextField(
                 label: 'Annual CTC (₹)',
                 hint: '600000',

@@ -35,7 +35,9 @@ class _AssignSheet extends ConsumerStatefulWidget {
 
 class _AssignSheetState extends ConsumerState<_AssignSheet> {
   HrSalaryStructure? _structure;
-  DateTime _effectiveFrom = DateTime.now();
+  // Revisions usually start on a month boundary; payroll prices each month on
+  // the salary in force on its last day.
+  DateTime _effectiveFrom = DateTime(DateTime.now().year, DateTime.now().month);
   late final TextEditingController _ctc;
   bool _saving = false;
 
@@ -146,7 +148,7 @@ class _AssignSheetState extends ConsumerState<_AssignSheet> {
                       label: 'Effective from',
                       value: _effectiveFrom,
                       required: true,
-                      onChanged: (d) => setState(() => _effectiveFrom = d ?? DateTime.now()),
+                      onChanged: (d) => setState(() => _effectiveFrom = d ?? _effectiveFrom),
                     ),
                     HrSelectField<HrSalaryStructure>(
                       label: 'Salary structure',

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
+import { ReviseSalaryButton, SalaryHistory } from './_revise-salary';
 import {
   useEmployee, useLeaveBalances, useLeaveRequests,
   type LeaveRequestStatus,
@@ -99,6 +100,10 @@ export function OverviewTab({ employee }: { employee: EmployeeRecord }) {
         <Field label="Employment type" value={employee.employmentType.replace('_', ' ')} />
         <Field label="Status" value={employee.status.replace('_', ' ')} />
         <Field label="Reporting manager" value={employee.reportingToName} />
+        <div className="col-span-2">
+          <ReviseSalaryButton employeeId={employee.id} current={current} />
+          <SalaryHistory salaries={salaryData?.data ?? []} />
+        </div>
       </SectionCard>
 
       <SectionCard title="Bank details">

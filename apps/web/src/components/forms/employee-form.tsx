@@ -66,7 +66,10 @@ function buildInitial(e?: Employee): FormState {
   };
 }
 
-function clean(s: FormState, { partial = false }: { partial?: boolean } = {}) {
+function clean(
+  s: FormState,
+  { partial = false, editing = false }: { partial?: boolean; editing?: boolean } = {},
+) {
   const out: any = { ...s };
   for (const k of Object.keys(out)) {
     if (out[k] === '') out[k] = null;
@@ -80,7 +83,9 @@ function clean(s: FormState, { partial = false }: { partial?: boolean } = {}) {
   out.status = s.status;
   out.employmentType = s.employmentType;
   if (out.gender === null) delete out.gender;
-  if (s.ctcAnnual) out.ctcAnnual = Number(s.ctcAnnual);
+  // Salary is only set here on create; an existing employee's salary changes
+  // through "Revise salary", which carries an effective date.
+  if (s.ctcAnnual && !editing) out.ctcAnnual = Number(s.ctcAnnual);
   else delete out.ctcAnnual;
   if (s.dailyWageRate) out.dailyWageRate = Number(s.dailyWageRate);
   else delete out.dailyWageRate;
@@ -114,7 +119,7 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit(clean(form));
+    onSubmit(clean(form, { editing: !!initialData }));
   }
 
   const deptOptions = (deptData?.data ?? []).map((d) => ({ value: d.id, label: d.name }));
@@ -237,7 +242,10 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
                 const monthly = e.target.value;
                 up('ctcAnnual', monthly === '' ? '' : String(Number(monthly) * 12));
               }}
-              helper="What the employee sees per month. Annual CTC updates automatically."
+              helper={initialData
+                ? 'To change it, use "Revise salary" on the employee page — it asks when the new salary starts.'
+                : 'What the employee sees per month. Annual CTC updates automatically.'}
+              disabled={!!initialData}
             />
             <Input
               label="Annual CTC (₹)"
@@ -245,6 +253,7 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
               value={form.ctcAnnual}
               onChange={(e) => up('ctcAnnual', e.target.value)}
               helper="Total cost to company per year."
+              disabled={!!initialData}
             />
             <Input label="Daily wage rate (₹)" type="number" min="0" step="1" value={form.dailyWageRate} onChange={(e) => up('dailyWageRate', e.target.value)} helper="For wage/contract workers — used by wage register" />
             <Input label="Contractor agency" value={form.agency} onChange={(e) => up('agency', e.target.value)} helper="For contract labour through an agency" />
@@ -283,7 +292,7 @@ export function EmployeeForm({ initialData, onSubmit, onSaveDraft, onCancel, isL
             type="button"
             variant="outline"
             disabled={isLoading || !form.firstName.trim() || (!!initialData && !form.employeeCode.trim())}
-            onClick={() => onSaveDraft(clean(form, { partial: true }))}
+            onClick={() => onSaveDraft(clean(form, { partial: true, editing: !!initialData }))}
             title="Save what you have now — finish details anytime"
           >
             Save draft
