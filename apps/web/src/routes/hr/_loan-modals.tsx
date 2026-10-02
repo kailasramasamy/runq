@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreHorizontal, Pencil, Ban, Trash2 } from 'lucide-react';
 import { Modal, Combobox, Input, Button, useToast } from '@/components/ui';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
@@ -210,7 +211,26 @@ export function LoanRowActions({
   onWriteOff: () => void;
   onDelete: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // Viewport coords of the menu's top-right corner while open. The menu is
+  // portalled to <body> at a fixed position, so the table's overflow container
+  // can't clip it.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const close = () => setPos(null);
+  const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (pos) return close();
+    const r = e.currentTarget.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+  };
+  // A fixed menu would drift off its button on scroll — close it instead.
+  useEffect(() => {
+    if (!pos) return;
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [pos]);
   const canEdit = ['draft', 'requested', 'manager_approved', 'active'].includes(loan.status);
   const canWriteOffThis = canWriteOff && loan.status === 'active' && Number(loan.outstanding) > 0;
   const canDelete = ['draft', 'requested', 'manager_approved', 'closed'].includes(loan.status);
@@ -221,7 +241,7 @@ export function LoanRowActions({
     return (
       <button
         type="button"
-        onClick={() => { setOpen(false); onClick(); }}
+        onClick={() => { close(); onClick(); }}
         className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 ${danger ? 'text-red-600' : ''}`}
       >
         {icon} {label}
@@ -230,20 +250,24 @@ export function LoanRowActions({
   }
 
   return (
-    <div className="relative">
-      <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)} title="More actions">
+    <>
+      <Button variant="outline" size="sm" onClick={toggle} title="More actions">
         <MoreHorizontal className="h-4 w-4" />
       </Button>
-      {open && (
+      {pos && createPortal(
         <>
-          <button type="button" onClick={() => setOpen(false)} className="fixed inset-0 z-10" tabIndex={-1} aria-hidden="true" />
-          <div className="absolute right-0 mt-1 z-20 w-48 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <button type="button" onClick={close} className="fixed inset-0 z-40" tabIndex={-1} aria-hidden="true" />
+          <div
+            style={{ position: 'fixed', top: pos.top, right: pos.right }}
+            className="z-50 w-48 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          >
             {canEdit && item(<Pencil className="h-4 w-4" />, 'Edit', onEdit)}
             {canWriteOffThis && item(<Ban className="h-4 w-4" />, 'Write off', onWriteOff, true)}
             {canDelete && item(<Trash2 className="h-4 w-4" />, 'Delete', onDelete, true)}
           </div>
-        </>
+        </>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }

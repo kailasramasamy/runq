@@ -216,6 +216,15 @@ export function useMyPayslips() {
     queryFn: () => api.get<ApiSuccess<MyPayslip[]>>('/hr/me/payslips'),
   });
 }
+// `/hr/employees/:id/payslips` — one employee's last 24 payslips, newest
+// first, same row shape as the self-service list.
+export function useEmployeePayslips(employeeId: string) {
+  return useQuery({
+    queryKey: ['hr', 'payroll', 'employee-payslips', employeeId],
+    queryFn: () => api.get<ApiSuccess<MyPayslip[]>>(`/hr/employees/${employeeId}/payslips`),
+    enabled: !!employeeId,
+  });
+}
 export function useCreatePayrollRun() {
   const qc = useQueryClient();
   return useMutation({

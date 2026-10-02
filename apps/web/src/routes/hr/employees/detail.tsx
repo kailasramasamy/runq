@@ -11,6 +11,7 @@ import {
 import { OverviewTab, LeaveTab, PayrollTab } from './_employee-tabs';
 import { DocumentsTab } from './_documents-tab';
 import { ResumeTab } from './_resume-tab';
+import { LoansSection } from './_loans-section';
 import { PhotoCropModal } from '@/components/hr/photo-crop-modal';
 import { formatIndianNumber } from '@/lib/utils';
 
@@ -177,7 +178,12 @@ export function EmployeeDetailPage({ employeeId }: Props) {
       {tab === 'documents' && <DocumentsTab employeeId={employeeId} />}
       {tab === 'resume' && <ResumeTab employeeId={employeeId} />}
       {tab === 'leave' && <LeaveTab employeeId={employeeId} />}
-      {tab === 'payroll' && <PayrollTab employeeId={employeeId} />}
+      {tab === 'payroll' && (
+        <div className="flex flex-col gap-5">
+          <LoansSection employeeId={employeeId} />
+          <PayrollTab employeeId={employeeId} />
+        </div>
+      )}
 
       <ConfirmationDialog
         open={resetOpen}
