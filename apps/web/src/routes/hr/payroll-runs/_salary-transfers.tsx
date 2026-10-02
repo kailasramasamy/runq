@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle, Undo2 } from 'lucide-react';
-import { Modal, Input, Combobox, Button, Badge, useToast } from '@/components/ui';
+import { Modal, Input, Combobox, Button, Badge, useToast, ConfirmationDialog } from '@/components/ui';
 import { formatINR } from '@/lib/utils';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import {
@@ -14,163 +14,133 @@ const METHODS = [
   { value: 'cheque', label: 'Cheque' },
 ];
 
-const who = (t: SalaryTransfer) =>
-  `${t.employeeName ?? '—'}${t.employeeLastName ? ` ${t.employeeLastName}` : ''}`;
+// Salaries usually go out in one sitting from one bank — carry the last
+// date / bank / method into the next dialog so only the UTR changes.
+let lastChoice = {
+  paymentDate: new Date().toISOString().slice(0, 10),
+  bankAccountId: '',
+  paymentMethod: 'bank_transfer' as EmployeePaymentMethod,
+};
 
-/** Badge for one payslip row: pending, or transferred with its UTR. */
-export function TransferBadge({ transfer }: { transfer?: SalaryTransfer }) {
-  if (!transfer) return null;
-  if (transfer.status === 'pending') return <Badge variant="warning">Pending</Badge>;
-  return (
-    <Badge variant="success" title={`${transfer.paymentDate}${transfer.reference ? ` · UTR ${transfer.reference}` : ''}`}>
-      Transferred
-    </Badge>
-  );
-}
-
-/** Header summary: how much of the run has actually gone out. */
+/** Paid vs balance across the run's transfers, for the KPI tiles. */
 export function transferProgress(transfers: SalaryTransfer[]) {
-  const pending = transfers.filter((t) => t.status === 'pending');
+  const paid = transfers.filter((t) => t.status === 'paid');
+  const sum = (ts: SalaryTransfer[]) => ts.reduce((s, t) => s + Number(t.amount), 0);
   return {
-    done: transfers.length - pending.length,
-    total: transfers.length,
-    pendingAmount: pending.reduce((s, t) => s + Number(t.amount), 0),
+    paidCount: paid.length,
+    pendingCount: transfers.length - paid.length,
+    paidAmount: sum(paid),
+    balanceAmount: sum(transfers) - sum(paid),
   };
 }
 
-/** Record transfers as they go out (each with its UTR), or undo a mistake. */
-export function SalaryTransfersModal({ runId, period, transfers, readOnly, onClose }: {
-  runId: string; period: string; transfers: SalaryTransfer[]; readOnly: boolean; onClose: () => void;
+/** Transfer column: "Mark transferred" while pending; badge + undo once done. */
+export function TransferCell({ runId, transfer, employeeName, readOnly }: {
+  runId: string; transfer?: SalaryTransfer; employeeName: string; readOnly: boolean;
 }) {
-  const pending = transfers.filter((t) => t.status === 'pending');
-  const done = transfers.filter((t) => t.status === 'paid');
-  return (
-    <Modal open onClose={onClose} title={`Salary transfers — ${period}`} size="lg">
-      <div className="space-y-5">
-        {!readOnly && pending.length > 0 && <PendingForm runId={runId} pending={pending} />}
-        {pending.length === 0 && (
-          <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>Every salary in this run has been transferred.</p>
+  const [marking, setMarking] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  if (!transfer) return null;
+  // The row itself opens the payslip; keep these clicks to themselves.
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  if (transfer.status === 'pending') {
+    return (
+      <div onClick={stop}>
+        {readOnly ? <Badge variant="warning">Pending</Badge> : (
+          <Button size="sm" variant="outline" onClick={() => setMarking(true)}>Mark transferred</Button>
         )}
-        {done.length > 0 && <TransferredList runId={runId} done={done} readOnly={readOnly} />}
+        {marking && (
+          <MarkTransferredModal runId={runId} transfer={transfer} employeeName={employeeName} onClose={() => setMarking(false)} />
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5" onClick={stop}>
+      <Badge variant="success">Transferred</Badge>
+      <span className="num text-[11px]" style={{ color: 'var(--text-3)' }}>
+        {transfer.paymentDate}{transfer.reference ? ` · ${transfer.reference}` : ''}
+      </span>
+      {!readOnly && (
+        <button type="button" title="Undo — back to pending" onClick={() => setUndoing(true)}
+          className="rounded p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ color: 'var(--text-3)' }}>
+          <Undo2 size={13} />
+        </button>
+      )}
+      {undoing && <UndoTransfer runId={runId} transfer={transfer} employeeName={employeeName} onClose={() => setUndoing(false)} />}
+    </div>
+  );
+}
+
+function MarkTransferredModal({ runId, transfer, employeeName, onClose }: {
+  runId: string; transfer: SalaryTransfer; employeeName: string; onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const { data: banksData } = useBankAccounts();
+  const mark = useMarkSalaryTransfers(runId);
+  const [reference, setReference] = useState('');
+  const [paymentDate, setPaymentDate] = useState(lastChoice.paymentDate);
+  const [bankAccountId, setBankAccountId] = useState(lastChoice.bankAccountId);
+  const [method, setMethod] = useState<EmployeePaymentMethod>(lastChoice.paymentMethod);
+  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
+    value: b.id, label: `${b.name} · ${b.bankName}`,
+  }));
+
+  const submit = () => {
+    lastChoice = { paymentDate, bankAccountId, paymentMethod: method };
+    mark.mutate(
+      { paymentDate, bankAccountId, paymentMethod: method, items: [{ paymentId: transfer.id, reference: reference.trim() || null }] },
+      {
+        onSuccess: () => { toast(`${employeeName} marked transferred`, 'success'); onClose(); },
+        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+      },
+    );
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`Mark transferred — ${employeeName}`} size="md">
+      <div className="space-y-3">
+        <p className="text-[13px]" style={{ color: 'var(--text-2)' }}>
+          Net pay <span className="num font-semibold" style={{ color: 'var(--text-1)' }}>{formatINR(Number(transfer.amount))}</span>
+        </p>
+        <Input
+          label={method === 'bank_transfer' ? 'UTR / confirmation number' : 'Reference (optional)'}
+          value={reference} onChange={(e) => setReference(e.target.value)} maxLength={100} autoFocus
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Transfer date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+          <Combobox label="Method" options={METHODS} value={method} onChange={(v) => setMethod(v as EmployeePaymentMethod)} />
+        </div>
+        <Combobox label="Paid from" required options={bankOptions} value={bankAccountId} onChange={setBankAccountId} placeholder="Bank account…" />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button loading={mark.isPending} disabled={!bankAccountId || !paymentDate} onClick={submit}>
+            <CheckCircle size={13} /> Mark transferred
+          </Button>
+        </div>
       </div>
     </Modal>
   );
 }
 
-function PendingForm({ runId, pending }: { runId: string; pending: SalaryTransfer[] }) {
-  const { toast } = useToast();
-  const { data: banksData } = useBankAccounts();
-  const mark = useMarkSalaryTransfers(runId);
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [bankAccountId, setBankAccountId] = useState('');
-  const [method, setMethod] = useState<EmployeePaymentMethod>('bank_transfer');
-  const [picked, setPicked] = useState<Record<string, string>>({});
-
-  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
-    value: b.id, label: `${b.name} · ${b.bankName}`,
-  }));
-  const ids = Object.keys(picked);
-  const total = pending.filter((t) => ids.includes(t.id)).reduce((s, t) => s + Number(t.amount), 0);
-  const toggle = (id: string) => setPicked((p) => {
-    const next = { ...p };
-    if (id in next) delete next[id]; else next[id] = '';
-    return next;
-  });
-  const allPicked = ids.length === pending.length;
-
-  const submit = () => mark.mutate(
-    {
-      paymentDate, bankAccountId, paymentMethod: method,
-      items: ids.map((paymentId) => ({ paymentId, reference: picked[paymentId] || null })),
-    },
-    {
-      onSuccess: () => { toast(`${ids.length} marked transferred`, 'success'); setPicked({}); },
-      onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
-    },
-  );
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Input label="Transfer date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-        <Combobox label="Paid from" required options={bankOptions} value={bankAccountId} onChange={setBankAccountId} placeholder="Bank account…" />
-        <Combobox label="Method" options={METHODS} value={method} onChange={(v) => setMethod(v as EmployeePaymentMethod)} />
-      </div>
-      <div className="rounded-md border" style={{ borderColor: 'var(--border)' }}>
-        <label className="flex items-center gap-2 border-b px-3 py-2 text-[12px] font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}>
-          <input type="checkbox" checked={allPicked}
-            onChange={() => setPicked(allPicked ? {} : Object.fromEntries(pending.map((t) => [t.id, picked[t.id] ?? ''])))} />
-          Pending ({pending.length})
-        </label>
-        {pending.map((t) => (
-          <PendingRow
-            key={t.id}
-            t={t}
-            picked={t.id in picked}
-            reference={picked[t.id] ?? ''}
-            placeholder={method === 'bank_transfer' ? 'UTR / ref no.' : 'Ref (optional)'}
-            onToggle={() => toggle(t.id)}
-            onReference={(v) => setPicked((p) => ({ ...p, [t.id]: v }))}
-          />
-        ))}
-      </div>
-      <div className="flex justify-end">
-        <Button loading={mark.isPending} disabled={!ids.length || !bankAccountId || !paymentDate} onClick={submit}>
-          <CheckCircle size={13} /> Mark {ids.length || ''} transferred{ids.length ? ` · ${formatINR(total)}` : ''}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function PendingRow({ t, picked, reference, placeholder, onToggle, onReference }: {
-  t: SalaryTransfer; picked: boolean; reference: string; placeholder: string;
-  onToggle: () => void; onReference: (v: string) => void;
+function UndoTransfer({ runId, transfer, employeeName, onClose }: {
+  runId: string; transfer: SalaryTransfer; employeeName: string; onClose: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-3 border-b px-3 py-2 last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
-      <input type="checkbox" checked={picked} onChange={onToggle} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium" style={{ color: 'var(--text-1)' }}>{who(t)}</div>
-        <div className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{t.employeeCode}</div>
-      </div>
-      <span className="num w-24 text-right text-[13px]" style={{ color: 'var(--text-1)' }}>{formatINR(Number(t.amount))}</span>
-      <input
-        className="w-40 rounded-md border border-zinc-300 bg-white px-2 py-1 text-[13px] disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-        placeholder={placeholder}
-        maxLength={100}
-        disabled={!picked}
-        value={reference}
-        onChange={(e) => onReference(e.target.value)}
-      />
-    </div>
-  );
-}
-
-function TransferredList({ runId, done, readOnly }: { runId: string; done: SalaryTransfer[]; readOnly: boolean }) {
   const { toast } = useToast();
   const undo = useUndoSalaryTransfer(runId);
   return (
-    <div>
-      <div className="mb-1.5 text-[12px] font-semibold" style={{ color: 'var(--text-3)' }}>Transferred ({done.length})</div>
-      {done.map((t) => (
-        <div key={t.id} className="flex items-center gap-3 border-b py-2 text-[13px] last:border-0" style={{ borderColor: 'var(--border-soft)' }}>
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium" style={{ color: 'var(--text-1)' }}>{who(t)}</div>
-            <div className="num text-[11px]" style={{ color: 'var(--text-3)' }}>
-              {t.paymentDate} · {METHODS.find((m) => m.value === t.paymentMethod)?.label}
-              {t.reference ? ` · ${t.reference}` : ''}
-            </div>
-          </div>
-          <span className="num" style={{ color: 'var(--text-1)' }}>{formatINR(Number(t.amount))}</span>
-          {!readOnly && (
-            <Button variant="ghost" size="sm" title="Undo — back to pending"
-              onClick={() => undo.mutate(t.id, { onError: (e: any) => toast(e?.message ?? 'Failed', 'error') })}>
-              <Undo2 size={13} />
-            </Button>
-          )}
-        </div>
-      ))}
-    </div>
+    <ConfirmationDialog
+      open
+      onClose={onClose}
+      title="Undo transfer?"
+      description={`${employeeName}'s ${formatINR(Number(transfer.amount))} goes back to pending and its accounting entry is removed.`}
+      confirmLabel="Undo transfer"
+      loading={undo.isPending}
+      onConfirm={() => undo.mutate(transfer.id, {
+        onSuccess: onClose,
+        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
+      })}
+    />
   );
 }

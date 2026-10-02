@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Landmark, HeartPulse, Coins, Wallet } from 'lucide-react';
+import { Play, CheckCircle, Lock, Eye, Download, FileText, Building, Banknote, Landmark, HeartPulse, Coins } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import {
   PageHeader, Button, Card, CardHeader, CardContent, Badge, useToast, Modal, Input, Combobox,
@@ -19,7 +19,7 @@ import {
 import { CheckCircle2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { useIsReadOnly } from '@/providers/auth-provider';
-import { TransferBadge, transferProgress, SalaryTransfersModal } from './_salary-transfers';
+import { TransferCell, transferProgress } from './_salary-transfers';
 
 const STATUS_VARIANT: Record<PayrollRunStatus, any> = {
   draft: 'default', processed: 'info', approved: 'success', closed: 'outline',
@@ -40,7 +40,6 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const [showPfChallan, setShowPfChallan] = useState(false);
   const [showEsiChallan, setShowEsiChallan] = useState(false);
   const [showPtChallan, setShowPtChallan] = useState(false);
-  const [showTransfers, setShowTransfers] = useState(false);
   const [search, setSearch] = useState('');
   const runStatus = runData?.data?.status;
   const { data: transfersData } = useSalaryTransfers(runId, runStatus === 'approved' || runStatus === 'closed');
@@ -92,19 +91,6 @@ export function PayrollRunDetailPage({ runId }: Props) {
               })}>
                 <CheckCircle size={13} /> Approve
               </Button>
-            )}
-            {locked && progress.total > 0 && (
-              <>
-                <Badge
-                  variant={progress.done === progress.total ? 'success' : 'warning'}
-                  title={progress.pendingAmount > 0 ? `${formatINR(progress.pendingAmount)} pending` : undefined}
-                >
-                  {progress.done} of {progress.total} transferred
-                </Badge>
-                <Button size="sm" onClick={() => setShowTransfers(true)}>
-                  <Wallet size={13} /> Salary transfers
-                </Button>
-              </>
             )}
             {!readOnly && run.status === 'approved' && (
               <Button size="sm" variant="outline" onClick={() => close.mutate(runId, {
@@ -178,11 +164,19 @@ export function PayrollRunDetailPage({ runId }: Props) {
         />
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className={`mb-5 grid grid-cols-2 gap-3 ${transfers.length ? 'md:grid-cols-3 xl:grid-cols-6' : 'md:grid-cols-4'}`}>
         <StatTile label="Employees" value={run.totalEmployees} sub={locked ? 'Locked' : 'Live'} />
         <StatTile label="Gross" value={formatINR(Number(run.totalGross))} />
         <StatTile label="Deductions" value={formatINR(Number(run.totalDeductions))} accentColor="#dc2626" tone="neg" />
         <StatTile label="Net pay" value={formatINR(Number(run.totalNet))} accentColor="#16a34a" />
+        {transfers.length > 0 && (
+          <>
+            <StatTile label="Paid" value={formatINR(progress.paidAmount)} tone="pos"
+              sub={`${progress.paidCount} of ${transfers.length} transferred`} />
+            <StatTile label="Balance" value={formatINR(progress.balanceAmount)}
+              tone={progress.balanceAmount > 0 ? 'warn' : 'neutral'} sub={`${progress.pendingCount} pending`} />
+          </>
+        )}
       </div>
 
       {/* Processing skips anyone without a salary assignment, so a run can
@@ -256,7 +250,11 @@ export function PayrollRunDetailPage({ runId }: Props) {
               <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pfEmployee)} / {Number(s.esiEmployee)}</TableCell>
               <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pt)} / {Number(s.tds)}</TableCell>
               <TableCell align="right" className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(Number(s.netPay))}</TableCell>
-              {locked && <TableCell><TransferBadge transfer={transferOf.get(s.employeeId)} /></TableCell>}
+              {locked && (
+                <TableCell>
+                  <TransferCell runId={runId} transfer={transferOf.get(s.employeeId)} employeeName={s.employeeName} readOnly={readOnly} />
+                </TableCell>
+              )}
               <TableCell align="right">
                 <Eye size={14} style={{ color: 'var(--text-3)' }} />
               </TableCell>
@@ -271,15 +269,6 @@ export function PayrollRunDetailPage({ runId }: Props) {
       {showPfChallan && <PfChallanModal runId={runId} period={period} onClose={() => setShowPfChallan(false)} />}
       {showEsiChallan && <EsiChallanModal runId={runId} period={period} onClose={() => setShowEsiChallan(false)} />}
       {showPtChallan && <PtChallanModal runId={runId} period={period} onClose={() => setShowPtChallan(false)} />}
-      {showTransfers && (
-        <SalaryTransfersModal
-          runId={runId}
-          period={period}
-          transfers={transfers}
-          readOnly={readOnly}
-          onClose={() => setShowTransfers(false)}
-        />
-      )}
     </div>
   );
 }
