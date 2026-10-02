@@ -22,6 +22,7 @@ import {
   mergeRecoveryLines,
 } from './recovery';
 import { EmployeeDeductionService } from './deduction.service';
+import { SalaryTransferService } from './salary-transfer.service';
 
 type LineItem = { code: string; name: string; amount: number };
 
@@ -747,6 +748,9 @@ export class PayrollRunService {
       .set({ status: 'approved', approvedBy: userId, approvedAt: new Date(), updatedAt: new Date() })
       .where(eq(payrollRuns.id, id))
       .returning();
+
+    // Amounts are final now — open a pending salary transfer per employee.
+    await new SalaryTransferService(this.db, this.tenantId).ensurePending(id);
 
     // Post a draft journal entry for the run. Failure here doesn't roll back
     // the approval — accounting can be edited or re-posted manually.

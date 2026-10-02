@@ -536,47 +536,49 @@ export function useRecordStatutoryDeposit() {
 export type EmployeePaymentStatus = 'pending' | 'paid';
 export type EmployeePaymentMethod = 'bank_transfer' | 'cash' | 'cheque';
 
-export interface EmployeePayment {
+/** One employee's net-pay transfer for an approved run. 'paid' = transferred. */
+export interface SalaryTransfer {
   id: string;
-  sourceType: 'payroll_run' | 'expense_claim';
-  payrollRunId: string | null;
-  expenseClaimId: string | null;
   employeeId: string | null;
-  paymentDate: string;
+  employeeName: string | null;
+  employeeLastName: string | null;
+  employeeCode: string | null;
   amount: string;
-  bankAccountId: string | null;
+  status: 'pending' | 'paid';
+  paymentDate: string;
   paymentMethod: EmployeePaymentMethod;
+  bankAccountId: string | null;
   reference: string | null;
-  status: EmployeePaymentStatus;
-  journalEntryId: string | null;
-  notes: string | null;
 }
-
-export function useEmployeePaymentsForRun(runId: string | null) {
-  return useQuery({
-    queryKey: ['hr', 'employee-payments', 'run', runId],
-    queryFn: () => api.get<ApiSuccess<EmployeePayment[]>>(`/hr/employee-payments?payrollRunId=${runId}`),
-    enabled: !!runId,
-  });
-}
-
-export interface RecordSalaryPaymentInput {
-  payrollRunId: string;
+export interface MarkSalaryTransfersInput {
   paymentDate: string;
   bankAccountId: string;
-  paymentMethod?: EmployeePaymentMethod;
-  reference?: string | null;
-  notes?: string | null;
+  paymentMethod: EmployeePaymentMethod;
+  items: Array<{ paymentId: string; reference?: string | null }>;
 }
-export function useRecordSalaryPayment() {
+const transfersKey = (runId: string) => ['hr', 'payroll', 'runs', runId, 'transfers'] as const;
+
+export function useSalaryTransfers(runId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: transfersKey(runId),
+    queryFn: () => api.get<ApiSuccess<SalaryTransfer[]>>(`/hr/payroll-runs/${runId}/transfers`),
+    enabled,
+  });
+}
+export function useMarkSalaryTransfers(runId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (d: RecordSalaryPaymentInput) =>
-      api.post<ApiSuccess<EmployeePayment>>(`/hr/employee-payments`, d),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['hr', 'employee-payments', 'run', vars.payrollRunId] });
-      qc.invalidateQueries({ queryKey: PR_KEYS.run(vars.payrollRunId) });
-    },
+    mutationFn: (d: MarkSalaryTransfersInput) =>
+      api.post<ApiSuccess<SalaryTransfer[]>>(`/hr/payroll-runs/${runId}/transfers`, d),
+    onSuccess: () => qc.invalidateQueries({ queryKey: transfersKey(runId) }),
+  });
+}
+export function useUndoSalaryTransfer(runId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentId: string) =>
+      api.post<ApiSuccess<SalaryTransfer>>(`/hr/employee-payments/${paymentId}/undo-transfer`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: transfersKey(runId) }),
   });
 }
 

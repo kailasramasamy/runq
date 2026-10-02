@@ -1,12 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { eq, and } from 'drizzle-orm';
-import { payslips } from '@runq/db';
 import {
-  uuidParamSchema, recordSalaryPaymentSchema, recordReimbursementPaymentSchema,
+  uuidParamSchema, markSalaryTransfersSchema, recordReimbursementPaymentSchema,
 } from '@runq/validators';
 import { rbacHook } from '../../../hooks/rbac';
 import { EmployeePaymentService } from './employee-payment.service';
+import { SalaryTransferService } from './salary-transfer.service';
 import { HrNotifier } from '../hr-notifier';
 
 // Employee payment records carry per-employee pay — admin roles only,
@@ -16,31 +15,23 @@ const WRITE = ['owner', 'accountant'] as const;
 
 const runIdQuery = z.object({ payrollRunId: z.string().uuid().optional() });
 
-/**
- * Fan-out a "Payment credited" push to every employee in a payroll run,
- * personalised with their net pay and payment reference.
- */
-async function notifySalaryPaid(
+/** "Salary credited" push to each employee whose transfer just went out. */
+function notifyTransferred(
   req: { server: { db: import('@runq/db').Db }; tenantId: string; log: { error: (...a: any[]) => void } },
-  payrollRunId: string,
-  reference: string | undefined,
-): Promise<void> {
-  const slips = await req.server.db
-    .select({ employeeId: payslips.employeeId, netPay: payslips.netPay })
-    .from(payslips)
-    .where(and(eq(payslips.payrollRunId, payrollRunId), eq(payslips.tenantId, req.tenantId)));
-  if (slips.length === 0) return;
+  rows: Array<{ employeeId: string | null; amount: string; reference: string | null }>,
+): void {
   const notifier = new HrNotifier(req.server.db, req.tenantId);
-  for (const slip of slips) {
-    const amt = Math.round(Number(slip.netPay)).toLocaleString('en-IN');
-    const refPart = reference ? ` (${reference})` : '';
-    notifier.notifyEmployee(slip.employeeId, {
+  for (const r of rows) {
+    if (!r.employeeId) continue;
+    const amt = Math.round(Number(r.amount)).toLocaleString('en-IN');
+    const refPart = r.reference ? ` (${r.reference})` : '';
+    notifier.notifyEmployee(r.employeeId, {
       type: 'ok',
       source: 'hr_payroll',
-      title: 'Payment credited',
+      title: 'Salary credited',
       body: `₹${amt} has been paid to your account${refPart}.`,
       targetUrl: '/hr/pay',
-    }).catch((e) => req.log.error(e, 'hr-notify: salary credited per employee'));
+    }).catch((e) => req.log.error(e, 'hr-notify: salary transferred'));
   }
 }
 
@@ -57,13 +48,26 @@ export const employeePaymentRoutes: FastifyPluginAsync = async (app) => {
     return { data: await svc.getById(id) };
   });
 
-  app.post('/employee-payments', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
-    const input = recordSalaryPaymentSchema.parse(req.body);
-    const svc = new EmployeePaymentService(req.server.db, req.tenantId);
-    const payment = await svc.recordSalaryPayment(input, req.user!.userId);
-    notifySalaryPaid(req, input.payrollRunId, payment.reference ?? undefined)
-      .catch((e) => req.log.error(e, 'hr-notify: salary payment credited'));
-    return { data: payment };
+  // Per-employee salary transfers for a payroll run (pending → transferred).
+  app.get('/payroll-runs/:id/transfers', { preHandler: [rbacHook([...MANAGE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SalaryTransferService(req.server.db, req.tenantId);
+    return { data: await svc.listForRun(id) };
+  });
+
+  app.post('/payroll-runs/:id/transfers', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = markSalaryTransfersSchema.parse(req.body);
+    const svc = new SalaryTransferService(req.server.db, req.tenantId);
+    const rows = await svc.markTransferred(id, input, req.user!.userId);
+    notifyTransferred(req, rows);
+    return { data: rows };
+  });
+
+  app.post('/employee-payments/:id/undo-transfer', { preHandler: [rbacHook([...WRITE])] }, async (req) => {
+    const { id } = uuidParamSchema.parse(req.params);
+    const svc = new SalaryTransferService(req.server.db, req.tenantId);
+    return { data: await svc.undo(id) };
   });
 
   // Reimbursement settlement for a posted expense claim — Dr 2111 / Cr bank.

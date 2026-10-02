@@ -1,19 +1,17 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import {
-  employeePayments, payrollRuns, payslips, expenseClaims, employeeRewards,
+  employeePayments, expenseClaims, employeeRewards,
   employeeLoans, bankAccounts, accounts,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type {
-  RecordSalaryPaymentInput, RecordReimbursementPaymentInput, PayRewardInput,
+  RecordReimbursementPaymentInput, PayRewardInput,
   DisburseLoanInput,
 } from '@runq/validators';
 import { GLService } from '../../gl/gl.service';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const r2 = (n: number): number => Math.round(n * 100) / 100;
-const monthLabel = (year: number, month: number): string => `${MONTHS[month - 1]} ${year}`;
 
 /**
  * Payroll subledger settlement: records that net pay (or, later, an expense
@@ -57,96 +55,6 @@ export class EmployeePaymentService {
   }
 
   /**
-   * Record a salary disbursement for an approved payroll run. Atomic: creates
-   * the payment row, posts the settlement JE (Dr 2110 Salary Payable / Cr
-   * bank-GL), links the JE, and marks the payment 'paid' — all in one
-   * transaction.
-   */
-  async recordSalaryPayment(input: RecordSalaryPaymentInput, userId: string) {
-    const [run] = await this.db
-      .select()
-      .from(payrollRuns)
-      .where(and(
-        eq(payrollRuns.id, input.payrollRunId),
-        eq(payrollRuns.tenantId, this.tenantId),
-      ))
-      .limit(1);
-    if (!run) throw new NotFoundError('Payroll run');
-    if (run.status !== 'approved' && run.status !== 'closed') {
-      throw new ConflictError('Payroll run must be approved before recording payment');
-    }
-
-    // Refuse if this run is already marked paid — a second disbursement would
-    // double-debit Salary Payable. The user can reverse and re-record.
-    const [existingPaid] = await this.db
-      .select({ id: employeePayments.id })
-      .from(employeePayments)
-      .where(and(
-        eq(employeePayments.tenantId, this.tenantId),
-        eq(employeePayments.payrollRunId, input.payrollRunId),
-        eq(employeePayments.status, 'paid'),
-      ))
-      .limit(1);
-    if (existingPaid) {
-      throw new ConflictError('This run is already marked paid');
-    }
-
-    // Total to settle = sum of net pay on the run's payslips. This matches
-    // the credit posted to 2110 when the run was approved.
-    const [totalRow] = await this.db
-      .select({ total: sql<string>`COALESCE(SUM(${payslips.netPay}), '0')` })
-      .from(payslips)
-      .where(eq(payslips.payrollRunId, input.payrollRunId));
-    const amount = r2(Number(totalRow?.total ?? 0));
-    if (amount <= 0) {
-      throw new ConflictError('Run has no net pay to disburse');
-    }
-
-    const bankGlCode = await this.bankGlAccountCode(input.bankAccountId);
-
-    return this.db.transaction(async (tx) => {
-      const [payment] = await tx
-        .insert(employeePayments)
-        .values({
-          tenantId: this.tenantId,
-          sourceType: 'payroll_run',
-          payrollRunId: input.payrollRunId,
-          paymentDate: input.paymentDate,
-          amount: String(amount),
-          bankAccountId: input.bankAccountId,
-          paymentMethod: input.paymentMethod ?? 'bank_transfer',
-          reference: input.reference ?? null,
-          status: 'paid',
-          notes: input.notes ?? null,
-          createdBy: userId,
-        })
-        .returning();
-
-      // Nested-via-savepoint: GLService opens its own transaction internally;
-      // Drizzle pg handles it as a SAVEPOINT under the outer tx.
-      const gl = new GLService(tx as unknown as Db, this.tenantId);
-      const je = await gl.createJournalEntry({
-        date: input.paymentDate,
-        description: `Salary payment — ${monthLabel(run.year, run.month)}`,
-        sourceType: 'employee_payment',
-        sourceId: payment.id,
-        lines: [
-          { accountCode: '2110', debit: amount, description: 'Salary Payable cleared' },
-          { accountCode: bankGlCode, credit: amount, description: 'Net pay disbursement' },
-        ],
-        createdBy: userId,
-      });
-
-      const [updated] = await tx
-        .update(employeePayments)
-        .set({ journalEntryId: je.id, updatedAt: new Date() })
-        .where(eq(employeePayments.id, payment.id))
-        .returning();
-      return updated;
-    });
-  }
-
-  /**
    * Record a reimbursement payment for a posted expense claim. Atomic: creates
    * the payment row (sourceType='expense_claim'), posts the settlement JE
    * (Dr 2111 Employee Reimbursements Payable / Cr bank-GL), links the JE,
@@ -173,7 +81,7 @@ export class EmployeePaymentService {
     if (amount <= 0) {
       throw new ConflictError('Claim has zero amount — nothing to reimburse');
     }
-    const bankGlCode = await this.bankGlAccountCode(input.bankAccountId);
+    const bankGlCode = await bankGlAccountCode(this.db, this.tenantId, input.bankAccountId);
 
     return this.db.transaction(async (tx) => {
       const [payment] = await tx
@@ -247,7 +155,7 @@ export class EmployeePaymentService {
     }
     const amount = r2(Number(reward.amount));
     if (amount <= 0) throw new ConflictError('Reward has zero amount — nothing to pay');
-    const bankGlCode = await this.bankGlAccountCode(input.bankAccountId);
+    const bankGlCode = await bankGlAccountCode(this.db, this.tenantId, input.bankAccountId);
 
     return this.db.transaction(async (tx) => {
       const [payment] = await tx
@@ -326,7 +234,7 @@ export class EmployeePaymentService {
 
     const amount = r2(Number(loan.principal));
     const creditCode = input.bankAccountId
-      ? await this.bankGlAccountCode(input.bankAccountId)
+      ? await bankGlAccountCode(this.db, this.tenantId, input.bankAccountId)
       : '1102'; // cash-in-hand payout, no bank account named
     return this.postLoanDisbursement(loan, amount, creditCode, input, userId);
   }
@@ -378,24 +286,21 @@ export class EmployeePaymentService {
       return updated;
     });
   }
+}
 
-  /** Resolve the GL account code for a bank account; falls back to 1101 cash. */
-  private async bankGlAccountCode(bankAccountId: string): Promise<string> {
-    const [row] = await this.db
-      .select({ glAccountId: bankAccounts.glAccountId })
-      .from(bankAccounts)
-      .where(and(
-        eq(bankAccounts.id, bankAccountId),
-        eq(bankAccounts.tenantId, this.tenantId),
-      ))
-      .limit(1);
-    if (!row) throw new NotFoundError('Bank account');
-    if (!row.glAccountId) return '1101';
-    const [acct] = await this.db
-      .select({ code: accounts.code })
-      .from(accounts)
-      .where(eq(accounts.id, row.glAccountId))
-      .limit(1);
-    return acct?.code ?? '1101';
-  }
+/** Resolve the GL account code for a bank account; falls back to 1101 cash. */
+export async function bankGlAccountCode(db: Db, tenantId: string, bankAccountId: string): Promise<string> {
+  const [row] = await db
+    .select({ glAccountId: bankAccounts.glAccountId })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.tenantId, tenantId)))
+    .limit(1);
+  if (!row) throw new NotFoundError('Bank account');
+  if (!row.glAccountId) return '1101';
+  const [acct] = await db
+    .select({ code: accounts.code })
+    .from(accounts)
+    .where(eq(accounts.id, row.glAccountId))
+    .limit(1);
+  return acct?.code ?? '1101';
 }

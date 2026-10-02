@@ -12,13 +12,14 @@ import { downloadCSV } from '@/lib/csv-export';
 import {
   usePayrollRun, usePayslips, useProcessPayrollRun, useApprovePayrollRun, useClosePayrollRun,
   usePfChallan, useEsiChallan, usePtChallan,
-  useEmployeePaymentsForRun, useRecordSalaryPayment,
+  useSalaryTransfers,
   useStatutoryChallansForRun, useRecordStatutoryDeposit,
   type PayrollRunStatus, type Payslip,
 } from '@/hooks/queries/use-hr-payroll';
 import { CheckCircle2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/queries/use-bank-accounts';
 import { useIsReadOnly } from '@/providers/auth-provider';
+import { TransferBadge, transferProgress, SalaryTransfersModal } from './_salary-transfers';
 
 const STATUS_VARIANT: Record<PayrollRunStatus, any> = {
   draft: 'default', processed: 'info', approved: 'success', closed: 'outline',
@@ -39,9 +40,10 @@ export function PayrollRunDetailPage({ runId }: Props) {
   const [showPfChallan, setShowPfChallan] = useState(false);
   const [showEsiChallan, setShowEsiChallan] = useState(false);
   const [showPtChallan, setShowPtChallan] = useState(false);
-  const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const [showTransfers, setShowTransfers] = useState(false);
   const [search, setSearch] = useState('');
-  const { data: paymentsData } = useEmployeePaymentsForRun(runId);
+  const runStatus = runData?.data?.status;
+  const { data: transfersData } = useSalaryTransfers(runId, runStatus === 'approved' || runStatus === 'closed');
 
   if (isLoading) return <div className="p-6 text-sm" style={{ color: 'var(--text-3)' }}>Loading…</div>;
   const run = runData?.data;
@@ -56,9 +58,10 @@ export function PayrollRunDetailPage({ runId }: Props) {
     : slips;
   const period = `${MONTHS[run.month - 1]} ${run.year}`;
   const locked = run.status === 'approved' || run.status === 'closed';
-  const paidPayment = paymentsData?.data.find((p) => p.status === 'paid');
-  // Net pay can only be settled after approval — and only once per run.
-  const canRecordPayment = !readOnly && locked && !paidPayment;
+  // Transfers open at approval, once the payslip amounts are final.
+  const transfers = transfersData?.data ?? [];
+  const transferOf = new Map(transfers.map((t) => [t.employeeId, t]));
+  const progress = transferProgress(transfers);
 
   return (
     <div>
@@ -90,15 +93,18 @@ export function PayrollRunDetailPage({ runId }: Props) {
                 <CheckCircle size={13} /> Approve
               </Button>
             )}
-            {canRecordPayment && (
-              <Button size="sm" onClick={() => setShowRecordPayment(true)}>
-                <Wallet size={13} /> Record salary payment
-              </Button>
-            )}
-            {paidPayment && (
-              <Badge variant="success" title={`UTR ${paidPayment.reference ?? '—'}`}>
-                Paid {paidPayment.paymentDate}
-              </Badge>
+            {locked && progress.total > 0 && (
+              <>
+                <Badge
+                  variant={progress.done === progress.total ? 'success' : 'warning'}
+                  title={progress.pendingAmount > 0 ? `${formatINR(progress.pendingAmount)} pending` : undefined}
+                >
+                  {progress.done} of {progress.total} transferred
+                </Badge>
+                <Button size="sm" onClick={() => setShowTransfers(true)}>
+                  <Wallet size={13} /> Salary transfers
+                </Button>
+              </>
             )}
             {!readOnly && run.status === 'approved' && (
               <Button size="sm" variant="outline" onClick={() => close.mutate(runId, {
@@ -220,12 +226,13 @@ export function PayrollRunDetailPage({ runId }: Props) {
             <Th align="right">PF / ESI</Th>
             <Th align="right">PT / TDS</Th>
             <Th align="right">Net pay</Th>
+            {locked && <Th>Transfer</Th>}
             <Th align="right" />
           </tr>
         </TableHeader>
         <TableBody>
           {filteredSlips.length === 0 ? (
-            <tr><td colSpan={7}>
+            <tr><td colSpan={locked ? 8 : 7}>
               <EmptyState
                 icon={<Play size={18} />}
                 title={slips.length > 0 ? 'No payslips match' : 'No payslips yet'}
@@ -249,6 +256,7 @@ export function PayrollRunDetailPage({ runId }: Props) {
               <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pfEmployee)} / {Number(s.esiEmployee)}</TableCell>
               <TableCell align="right" className="num text-[11px]" style={{ color: 'var(--text-3)' }}>{Number(s.pt)} / {Number(s.tds)}</TableCell>
               <TableCell align="right" className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(Number(s.netPay))}</TableCell>
+              {locked && <TableCell><TransferBadge transfer={transferOf.get(s.employeeId)} /></TableCell>}
               <TableCell align="right">
                 <Eye size={14} style={{ color: 'var(--text-3)' }} />
               </TableCell>
@@ -263,93 +271,16 @@ export function PayrollRunDetailPage({ runId }: Props) {
       {showPfChallan && <PfChallanModal runId={runId} period={period} onClose={() => setShowPfChallan(false)} />}
       {showEsiChallan && <EsiChallanModal runId={runId} period={period} onClose={() => setShowEsiChallan(false)} />}
       {showPtChallan && <PtChallanModal runId={runId} period={period} onClose={() => setShowPtChallan(false)} />}
-      {showRecordPayment && (
-        <RecordSalaryPaymentModal
+      {showTransfers && (
+        <SalaryTransfersModal
           runId={runId}
           period={period}
-          netTotal={Number(run.totalNet)}
-          onClose={() => setShowRecordPayment(false)}
+          transfers={transfers}
+          readOnly={readOnly}
+          onClose={() => setShowTransfers(false)}
         />
       )}
     </div>
-  );
-}
-
-function RecordSalaryPaymentModal({
-  runId, period, netTotal, onClose,
-}: { runId: string; period: string; netTotal: number; onClose: () => void }) {
-  const { toast } = useToast();
-  const { data: banksData } = useBankAccounts();
-  const record = useRecordSalaryPayment();
-  const [bankAccountId, setBankAccountId] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reference, setReference] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const bankOptions = (banksData?.data ?? []).map((b: { id: string; name: string; bankName: string }) => ({
-    value: b.id,
-    label: `${b.name} · ${b.bankName}`,
-  }));
-
-  function submit() {
-    record.mutate(
-      { payrollRunId: runId, paymentDate, bankAccountId, reference: reference || null, notes: notes || null },
-      {
-        onSuccess: () => { toast('Salary payment recorded', 'success'); onClose(); },
-        onError: (e: any) => toast(e?.message ?? 'Failed', 'error'),
-      },
-    );
-  }
-
-  return (
-    <Modal open onClose={onClose} title={`Record salary payment — ${period}`} size="md">
-      <div className="space-y-4">
-        <p className="text-[12px]" style={{ color: 'var(--text-3)' }}>
-          Settles <span className="num font-medium" style={{ color: 'var(--text-1)' }}>{formatINR(netTotal)}</span>{' '}
-          of net pay against the bank: posts <span className="num">Dr 2110 Salary Payable / Cr bank</span> and makes the
-          transaction reconcilable on the banking screen.
-        </p>
-
-        <Combobox
-          label="Bank account"
-          required
-          options={bankOptions}
-          value={bankAccountId}
-          onChange={setBankAccountId}
-          placeholder="Pick the bank the salaries went out of…"
-        />
-
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Payment date"
-            type="date"
-            value={paymentDate}
-            onChange={(e) => setPaymentDate(e.target.value)}
-          />
-          <Input
-            label="Reference (UTR / batch)"
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="NEFT UTR or batch ID"
-            maxLength={100}
-          />
-        </div>
-
-        <Input
-          label="Notes (optional)"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          maxLength={500}
-        />
-
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button loading={record.isPending} disabled={!bankAccountId || !paymentDate} onClick={submit}>
-            <CheckCircle size={13} /> Record payment
-          </Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
