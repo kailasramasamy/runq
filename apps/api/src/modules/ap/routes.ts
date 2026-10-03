@@ -7,6 +7,7 @@ import { purchaseInvoiceRoutes } from './purchase-invoice.routes';
 import { paymentRunRoutes } from './payment-run.routes';
 import { extractRoutes } from './extract.routes';
 import { neftExportRoutes } from './neft-export.routes';
+import { recurringBillRoutes } from './recurring-bill.routes';
 
 export const apRoutes: FastifyPluginAsync = async (app) => {
   // Vendor routes
@@ -36,4 +37,7 @@ export const apRoutes: FastifyPluginAsync = async (app) => {
 
   // NEFT/RTGS batch payment export
   await app.register(neftExportRoutes, { prefix: '/neft-export' });
+
+  // Recurring monthly bills — rent, transport (fixed amounts, advances, part payments)
+  await app.register(recurringBillRoutes, { prefix: '/recurring-bills' });
 };

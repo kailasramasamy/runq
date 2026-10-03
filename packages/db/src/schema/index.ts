@@ -8,6 +8,7 @@ export * from './extraction-corrections';
 export * from './ap/vendors';
 export * from './ap/purchase-orders';
 export * from './ap/grns';
+export * from './ap/recurring-bills';
 export * from './ap/purchase-invoices';
 export * from './ap/payments';
 export * from './ap/payment-runs';

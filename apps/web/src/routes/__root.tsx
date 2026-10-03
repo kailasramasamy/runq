@@ -30,6 +30,8 @@ import { ImportVendorsPage } from './ap/vendors/import';
 import { DebitNoteListPage } from './ap/debit-notes/index';
 import { NewDebitNotePage } from './ap/debit-notes/new';
 import { DebitNoteDetailPage } from './ap/debit-notes/detail';
+import { RecurringListPage } from './ap/recurring/index';
+import { RecurringDetailPage } from './ap/recurring/detail';
 import { PurchaseOrderListPage } from './purchase/pos/index';
 import { NewPurchaseOrderPage } from './purchase/pos/new';
 import { PurchaseOrderDetailPage } from './purchase/pos/detail';
@@ -683,6 +685,21 @@ const debitNoteDetailRoute = createRoute({
   component: () => {
     const { debitNoteId } = debitNoteDetailRoute.useParams();
     return <DebitNoteDetailPage debitNoteId={debitNoteId} />;
+  },
+});
+
+const recurringRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/recurring',
+  component: RecurringListPage,
+});
+
+const recurringDetailRoute = createRoute({
+  getParentRoute: () => apRoute,
+  path: '/recurring/$id',
+  component: () => {
+    const { id } = recurringDetailRoute.useParams();
+    return <RecurringDetailPage id={id} />;
   },
 });
 
@@ -2875,6 +2892,8 @@ export const routeTree = rootRoute.addChildren([
         debitNotesRoute,
         debitNoteNewRoute,
         debitNoteDetailRoute,
+        recurringRoute,
+        recurringDetailRoute,
       ]),
       arRoute.addChildren([
         arIndexRoute,

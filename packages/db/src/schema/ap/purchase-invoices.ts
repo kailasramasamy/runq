@@ -7,6 +7,7 @@ import { goodsReceiptNotes } from './grns';
 import { users } from '../user';
 import { billSyncSources } from '../integrations/bill-sync-sources';
 import { warehouses } from '../inventory/warehouses';
+import { recurringBills } from './recurring-bills';
 
 export const purchaseInvoiceStatusEnum = pgEnum('purchase_invoice_status', ['draft', 'pending_match', 'matched', 'approved', 'partially_paid', 'paid', 'cancelled']);
 export const matchStatusEnum = pgEnum('match_status', ['unmatched', 'matched', 'mismatch']);
@@ -64,6 +65,10 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   matchOverrideReason: text('match_override_reason'),
   matchOverrideBy: uuid('match_override_by').references(() => users.id),
   matchCommittedAt: timestamp('match_committed_at', { withTimezone: true }),
+  // Monthly bill raised by a recurring agreement (rent / transport); the
+  // period is the 1st of the month billed. One bill per agreement per month.
+  recurringBillId: uuid('recurring_bill_id').references(() => recurringBills.id),
+  recurringPeriod: date('recurring_period'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -71,6 +76,7 @@ export const purchaseInvoices = pgTable('purchase_invoices', {
   index('idx_pi_tenant_vendor').on(t.tenantId, t.vendorId),
   index('idx_pi_tenant_due_date').on(t.tenantId, t.dueDate),
   uniqueIndex('uq_pi_source_external').on(t.sourceId, t.externalId),
+  uniqueIndex('uq_pi_recurring_period').on(t.recurringBillId, t.recurringPeriod),
 ]);
 
 export const purchaseInvoiceItems = pgTable('purchase_invoice_items', {

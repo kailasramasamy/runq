@@ -5,7 +5,7 @@ import { usePendingPaymentClaimsCount } from '@/hooks/queries/use-payment-claims
 import {
   LayoutDashboard, Sparkles, Inbox, Folder,
   FileText, ClipboardList, Truck, FileMinus, FilePlus, Receipt, Users, AlarmClock,
-  FileInput, ClipboardCheck, PackageCheck, FileX, CreditCard, Building2, Wallet, Split,
+  FileInput, ClipboardCheck, PackageCheck, FileX, Repeat, CreditCard, Building2, Wallet, Split,
   Package, Warehouse, MoveRight,
   Landmark, NotebookPen, BookOpen, Boxes, BarChart3, Target, PieChart,
   ShieldCheck, ScrollText, History,
@@ -149,6 +149,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: 'bills', label: 'Bills', icon: FileInput, path: '/finance/ap/bills' },
       { key: 'debitnotes', label: 'Debit notes', icon: FileX, path: '/finance/ap/debit-notes' },
       { key: 'payments', label: 'Payments', icon: CreditCard, path: '/finance/ap/payments' },
+      { key: 'recurring', label: 'Rent & transport', icon: Repeat, path: '/finance/ap/recurring' },
       { key: 'vendors', label: 'Vendors', icon: Building2, path: '/finance/ap/vendors' },
       { key: 'expenses', label: 'Expenses', icon: Wallet, path: '/finance/expenses' },
       { key: 'payruns', label: 'Pay runs', icon: Split, path: '/finance/ap/pay-runs' },

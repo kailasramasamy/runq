@@ -10,6 +10,7 @@ import { startAnalyticsScheduler, stopAnalyticsScheduler } from './modules/analy
 import { startCycleRollScheduler, stopCycleRollScheduler } from './scheduler/cycle-roll-scheduler';
 import { startMpTransitScheduler, stopMpTransitScheduler } from './scheduler/mp-transit-scheduler';
 import { startStockAlertScheduler, stopStockAlertScheduler } from './scheduler/stock-alert-scheduler';
+import { startRecurringBillScheduler, stopRecurringBillScheduler } from './scheduler/recurring-bill-scheduler';
 
 async function main() {
   const env = loadEnv();
@@ -26,6 +27,7 @@ async function main() {
     stopCycleRollScheduler();
     stopMpTransitScheduler();
     stopStockAlertScheduler();
+    stopRecurringBillScheduler();
   });
 
   try {
@@ -40,6 +42,7 @@ async function main() {
     startCycleRollScheduler(app.db, app.redis, app.log);
     startMpTransitScheduler(app.db, app.redis, app.log);
     startStockAlertScheduler(app.db, app.redis, app.log);
+    startRecurringBillScheduler(app.db, app.redis, app.log);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

@@ -303,12 +303,22 @@ export class PaymentService {
       .limit(1);
 
     const gl = new GLService(this.db, this.tenantId);
-    await gl.postPayment({
+    // An advance has no bill to clear yet — it sits in 1104 Advance to
+    // Suppliers until applyAdvancesToBill moves it (Dr 2101 / Cr 1104).
+    // Posting it as an ordinary payment would debit AP twice.
+    const [advance] = await this.db
+      .select({ id: advancePayments.id })
+      .from(advancePayments)
+      .where(eq(advancePayments.paymentId, paymentId))
+      .limit(1);
+    const posting = {
       amount: result.amount,
       date: result.paymentDate,
       id: result.id,
       vendorName: vendorRow?.name ?? '',
-    });
+    };
+    if (advance) await gl.postVendorAdvance(posting);
+    else await gl.postPayment(posting);
 
     void this.sendPaymentConfirmationEmail(result, updated.vendorId);
     return result;

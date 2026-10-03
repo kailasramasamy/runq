@@ -333,6 +333,8 @@ ${ledgers.join('\n')}
         matchOverrideReason: purchaseInvoices.matchOverrideReason,
         matchOverrideBy: purchaseInvoices.matchOverrideBy,
         matchCommittedAt: purchaseInvoices.matchCommittedAt,
+        recurringBillId: purchaseInvoices.recurringBillId,
+        recurringPeriod: purchaseInvoices.recurringPeriod,
         createdAt: purchaseInvoices.createdAt, updatedAt: purchaseInvoices.updatedAt,
         vendorName: vendors.name,
       })

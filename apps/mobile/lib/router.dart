@@ -12,6 +12,9 @@ import 'screens/expenses_screen.dart';
 import 'screens/new_expense_screen.dart';
 import 'screens/payment_made_screen.dart';
 import 'screens/payments_made_screen.dart';
+import 'screens/recurring/recurring_bill_detail_screen.dart';
+import 'screens/recurring/recurring_bill_form_screen.dart';
+import 'screens/recurring/recurring_bills_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/customer_orders_screen.dart';
 import 'screens/quick_invoice_generate_screen.dart';
@@ -1221,6 +1224,28 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/expenses/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const NewExpenseScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/recurring-bills',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const RecurringBillsScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/recurring-bills/new',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const RecurringBillFormScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/recurring-bills/:id',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(RecurringBillDetailScreen(id: state.pathParameters['id']!), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/recurring-bills/:id/edit',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) =>
+              _slidePage(RecurringBillFormScreen(editId: state.pathParameters['id']), key: state.pageKey),
         ),
         GoRoute(
           path: '/payments-made',

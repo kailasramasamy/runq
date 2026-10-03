@@ -11,6 +11,7 @@ export * from './ap/vendor-catalog.schema';
 export * from './ap/bill-import.schema';
 export * from './ap/payment.schema';
 export * from './ap/debit-note.schema';
+export * from './ap/recurring-bill.schema';
 export * from './ar/customer.schema';
 export * from './ar/customer-analytics.schema';
 export * from './ar/invoice.schema';
