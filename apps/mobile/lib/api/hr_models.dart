@@ -1361,6 +1361,28 @@ class HrPayslipLine {
       );
 }
 
+/// One employee's net-pay transfer for an approved run: 'pending' until HR
+/// marks it transferred ('paid', with the date and UTR).
+class HrSalaryTransfer {
+  final String employeeId, status, paymentDate;
+  final String? reference;
+  const HrSalaryTransfer({
+    required this.employeeId,
+    required this.status,
+    required this.paymentDate,
+    this.reference,
+  });
+
+  bool get isPaid => status == 'paid';
+
+  factory HrSalaryTransfer.fromJson(Map<String, dynamic> j) => HrSalaryTransfer(
+        employeeId: _strOr(j['employeeId'], ''),
+        status: _strOr(j['status'], 'pending'),
+        paymentDate: _strOr(j['paymentDate'], ''),
+        reference: _str(j['reference']),
+      );
+}
+
 class HrPayslip {
   final String id, payrollRunId, employeeId;
   /// Joined fields — populated by `/hr/payroll-runs/:id/payslips` (which

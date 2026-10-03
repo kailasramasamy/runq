@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/data_providers.dart';
 import '../providers/spends_feed_provider.dart';
+import '../providers/to_pay_provider.dart';
 import '../theme/runq_theme.dart';
 import '../theme/runq_tokens.dart';
 import '../utils/format_inr.dart';
 import '../widgets/hub_header.dart';
 import '../widgets/hub_section_tile.dart';
+import '../widgets/runq_card.dart';
 import '../widgets/section_head.dart';
 import '../widgets/sparkline.dart';
 
@@ -37,6 +39,10 @@ class MoneyHubScreen extends ConsumerWidget {
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               sliver: SliverToBoxAdapter(child: _MoneyHero()),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              sliver: SliverToBoxAdapter(child: _ToPayEntry()),
             ),
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -159,6 +165,52 @@ class _MoneyHero extends ConsumerWidget {
             )
           else
             const SizedBox(height: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToPayEntry extends ConsumerWidget {
+  const _ToPayEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = RT(context);
+    final total = ref.watch(toPayProvider(null)).maybeWhen(
+          data: (d) => formatINR(d.balance, compact: true),
+          orElse: () => null,
+        );
+    return RunqCard(
+      onTap: () => context.push('/to-pay'),
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: t.brand.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.payments_outlined, color: t.brand, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('To pay', style: RunqText.bodyStrong.copyWith(color: t.ink)),
+                Text('bills, rent, salaries, statutory & more',
+                    style: RunqText.caption.copyWith(color: t.muted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          if (total != null)
+            Text(total, style: RunqText.tabular(size: 16, w: FontWeight.w700, color: t.ink)),
+          Icon(Icons.chevron_right_rounded, size: 18, color: t.muted2),
         ],
       ),
     );

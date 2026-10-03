@@ -984,6 +984,13 @@ class HrRepo {
     return _dataList(res).map(HrPayslip.fromJson).toList();
   }
 
+  /// Salary transfers for an approved run, keyed by employee.
+  Future<Map<String, HrSalaryTransfer>> runTransfers(String runId) async {
+    final res = await apiClient.get('/hr/payroll-runs/$runId/transfers');
+    final list = _dataList(res).map(HrSalaryTransfer.fromJson);
+    return {for (final t in list) t.employeeId: t};
+  }
+
   Future<HrPayrollRun> createPayrollRun({
     required int month,
     required int year,

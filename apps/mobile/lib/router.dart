@@ -13,6 +13,7 @@ import 'screens/new_expense_screen.dart';
 import 'screens/payment_made_screen.dart';
 import 'screens/payments_made_screen.dart';
 import 'screens/recurring/recurring_bill_detail_screen.dart';
+import 'screens/to_pay/to_pay_screen.dart';
 import 'screens/recurring/recurring_bill_form_screen.dart';
 import 'screens/recurring/recurring_bills_screen.dart';
 import 'screens/inbox_screen.dart';
@@ -1224,6 +1225,11 @@ GoRouter _buildRouter(Ref ref) => GoRouter(
           path: '/expenses/new',
           parentNavigatorKey: rootKey,
           pageBuilder: (ctx, state) => _slidePage(const NewExpenseScreen(), key: state.pageKey),
+        ),
+        GoRoute(
+          path: '/to-pay',
+          parentNavigatorKey: rootKey,
+          pageBuilder: (ctx, state) => _slidePage(const ToPayScreen(), key: state.pageKey),
         ),
         GoRoute(
           path: '/recurring-bills',

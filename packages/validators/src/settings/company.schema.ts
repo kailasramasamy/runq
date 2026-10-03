@@ -62,6 +62,7 @@ export const companySettingsSchema = z.object({
   payrollEsiEnabled: z.boolean().nullish(),
   payrollAttendanceMode: z.enum(['tracked', 'assume_present']).nullish(),
   payrollHolidaysAreWorkingDays: z.boolean().nullish(),
+  payrollPayDay: z.number().int().min(1).max(31).nullish(),
   payrollPtEnabled: z.boolean().nullish(),
   payrollTdsEnabled: z.boolean().nullish(),
 });

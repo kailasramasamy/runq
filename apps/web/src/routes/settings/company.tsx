@@ -8,6 +8,7 @@ import {
   Button,
   Input,
   Select,
+  Combobox,
 } from '@/components/ui';
 import { Tabs } from '@/components/ar/primitives';
 import { useCompanySettings, useUpdateCompanySettings } from '@/hooks/queries/use-settings';
@@ -95,6 +96,20 @@ function StatutoryToggle(props: {
   );
 }
 
+function ordinal(n: number): string {
+  const rem = n % 100;
+  if (rem >= 11 && rem <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+}
+
+const PAY_DAY_OPTIONS = [
+  { value: '', label: 'Last day of the month' },
+  ...Array.from({ length: 31 }, (_, i) => ({
+    value: String(i + 1),
+    label: `${ordinal(i + 1)} of next month`,
+  })),
+];
+
 export function CompanySettingsPage() {
   const { data, isLoading } = useCompanySettings();
   const update = useUpdateCompanySettings();
@@ -140,6 +155,7 @@ export function CompanySettingsPage() {
   const [payrollEpsEnabled, setPayrollEpsEnabled] = useState(true);
   const [payrollEsiEnabled, setPayrollEsiEnabled] = useState(true);
   const [payrollAssumePresent, setPayrollAssumePresent] = useState(false);
+  const [payrollPayDay, setPayrollPayDay] = useState('');
   const [payrollHolidaysAreWorkingDays, setPayrollHolidaysAreWorkingDays] = useState(false);
   const [payrollPtEnabled, setPayrollPtEnabled] = useState(true);
   const [payrollTdsEnabled, setPayrollTdsEnabled] = useState(true);
@@ -188,6 +204,7 @@ export function CompanySettingsPage() {
       setPayrollEpsEnabled((data.data as any).payrollEpsEnabled !== false);
       setPayrollEsiEnabled((data.data as any).payrollEsiEnabled !== false);
       setPayrollAssumePresent((data.data as any).payrollAttendanceMode === 'assume_present');
+      setPayrollPayDay(String((data.data as any).payrollPayDay ?? ''));
       setPayrollHolidaysAreWorkingDays((data.data as any).payrollHolidaysAreWorkingDays === true);
       setPayrollPtEnabled((data.data as any).payrollPtEnabled !== false);
       setPayrollTdsEnabled((data.data as any).payrollTdsEnabled !== false);
@@ -245,6 +262,7 @@ export function CompanySettingsPage() {
         payrollEpsEnabled,
         payrollEsiEnabled,
         payrollAttendanceMode: payrollAssumePresent ? 'assume_present' as const : 'tracked' as const,
+        payrollPayDay: payrollPayDay ? Number(payrollPayDay) : null,
         payrollHolidaysAreWorkingDays,
         payrollPtEnabled,
         payrollTdsEnabled,
@@ -365,6 +383,15 @@ export function CompanySettingsPage() {
                   checked={payrollHolidaysAreWorkingDays}
                   onChange={setPayrollHolidaysAreWorkingDays}
                 />
+                <Combobox
+                  label="Salary pay day"
+                  options={PAY_DAY_OPTIONS}
+                  value={payrollPayDay}
+                  onChange={setPayrollPayDay}
+                />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  When salaries are paid. Used for the due date on the To pay overview.
+                </p>
               </div>
             </CardContent>
 

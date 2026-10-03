@@ -146,6 +146,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Money out',
     items: [
+      { key: 'to-pay', label: 'To pay', icon: CalendarClock, path: '/finance/to-pay' },
       { key: 'bills', label: 'Bills', icon: FileInput, path: '/finance/ap/bills' },
       { key: 'debitnotes', label: 'Debit notes', icon: FileX, path: '/finance/ap/debit-notes' },
       { key: 'payments', label: 'Payments', icon: CreditCard, path: '/finance/ap/payments' },

@@ -396,6 +396,12 @@ final hrRunPayslipsProvider =
   return _watchAuth(ref, () => hrRepo.runPayslips(runId));
 });
 
+/// Which employees' salaries have been transferred, for an approved run.
+final hrRunTransfersProvider =
+    FutureProvider.family<Map<String, HrSalaryTransfer>, String>((ref, runId) async {
+  return _watchAuth(ref, () => hrRepo.runTransfers(runId));
+});
+
 // ─── Dashboard-derived providers ───────────────────────────────────────────
 
 /// Employees who are away today — derived from approved leave requests

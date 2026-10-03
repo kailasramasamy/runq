@@ -88,6 +88,10 @@ export interface TenantSettings {
   // that run through public holidays — the holiday list stays for display,
   // it just stops shortening the payroll month.
   payrollHolidaysAreWorkingDays?: boolean;
+  // Day of the following month salaries are paid (1–31, clamped to the month's
+  // length). Unset = last day of the payroll month. Drives the salary due date
+  // on the owner's To-pay overview.
+  payrollPayDay?: number;
   // Chosen at signup from a fixed list (Manufacturing, Trading / Distribution,
   // Retail, Services, Construction, Food & Beverage, Healthcare, Hospitality,
   // Education, IT / Software, Other). Drives catalogue attribute seeding.

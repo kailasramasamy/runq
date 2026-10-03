@@ -6,6 +6,7 @@ import { KpiStrip } from '@/components/dashboard/kpi-strip';
 import { CashflowForecast } from '@/components/dashboard/cashflow-forecast';
 import { AgentFeed } from '@/components/dashboard/agent-feed';
 import { ApprovalsAndQuickActions } from '@/components/dashboard/approvals-quick';
+import { ToPayCard } from '@/components/dashboard/to-pay-card';
 import { AgingBars } from '@/components/dashboard/aging-bars';
 import { GstAndPeriodClose } from '@/components/dashboard/gst-period-close';
 import { RecentActivity } from '@/components/dashboard/recent-activity';
@@ -64,6 +65,7 @@ export function DashboardPage() {
         </div>
       </div>
 
+      <ToPayCard />
       <ApprovalsAndQuickActions />
       <AgingBars />
       <GstAndPeriodClose />

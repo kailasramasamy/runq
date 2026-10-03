@@ -30,6 +30,7 @@ import { ImportVendorsPage } from './ap/vendors/import';
 import { DebitNoteListPage } from './ap/debit-notes/index';
 import { NewDebitNotePage } from './ap/debit-notes/new';
 import { DebitNoteDetailPage } from './ap/debit-notes/detail';
+import { ToPayPage } from './to-pay/index';
 import { RecurringListPage } from './ap/recurring/index';
 import { RecurringDetailPage } from './ap/recurring/detail';
 import { PurchaseOrderListPage } from './purchase/pos/index';
@@ -495,6 +496,12 @@ const analyticsRoute = createRoute({
 });
 
 // ─── AP Routes ───────────────────────────────────────────────────────────────
+
+const toPayRoute = createRoute({
+  getParentRoute: () => financeRoute,
+  path: '/to-pay',
+  component: ToPayPage,
+});
 
 const apRoute = createRoute({
   getParentRoute: () => financeRoute,
@@ -2864,6 +2871,7 @@ export const routeTree = rootRoute.addChildren([
     profileRoute,
     financeRoute.addChildren([
       dashboardRoute,
+      toPayRoute,
       inboxRoute,
       analyticsRoute,
       agentActivityRoute,

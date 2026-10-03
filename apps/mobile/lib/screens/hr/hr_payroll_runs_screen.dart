@@ -23,6 +23,7 @@ import '../../providers/hr_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
+import 'hr_run_payslips.dart';
 import 'widgets/hr_colors.dart';
 import 'widgets/hr_form.dart';
 import 'widgets/hr_widgets.dart';
@@ -363,6 +364,7 @@ class _HrPayrollRunDetailScreenState extends ConsumerState<HrPayrollRunDetailScr
                     onRefresh: () async {
                       ref.invalidate(hrPayrollRunProvider(widget.id));
                       ref.invalidate(hrRunPayslipsProvider(widget.id));
+                      ref.invalidate(hrRunTransfersProvider(widget.id));
                       await Future<void>.delayed(const Duration(milliseconds: 250));
                     },
                     child: ListView(
@@ -382,7 +384,7 @@ class _HrPayrollRunDetailScreenState extends ConsumerState<HrPayrollRunDetailScr
                             if (slips.isEmpty) {
                               return _EmptyPayslips(run: run);
                             }
-                            return _PayslipsCard(runId: run.id, slips: slips);
+                            return RunPayslipsCard(run: run, slips: slips);
                           },
                         ),
                       ],
@@ -516,95 +518,6 @@ class _EmptyPayslips extends StatelessWidget {
             style: RunqText.caption.copyWith(color: t.muted),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PayslipsCard extends StatelessWidget {
-  final String runId;
-  final List<HrPayslip> slips;
-  const _PayslipsCard({required this.runId, required this.slips});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
-          child: Text('PAYSLIPS (${slips.length})',
-              style: RunqText.label.copyWith(color: t.muted2, letterSpacing: 0.5)),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(RunqRadii.smallCard),
-            border: Border.all(color: t.hairline, width: 0.5),
-            boxShadow: RunqShadows.card,
-          ),
-          child: Column(
-            children: [
-              for (var i = 0; i < slips.length; i++) ...[
-                _PayslipRow(runId: runId, ps: slips[i]),
-                if (i < slips.length - 1)
-                  Divider(height: 1, thickness: 0.5, color: t.hairlineSoft, indent: 14),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PayslipRow extends StatelessWidget {
-  final String runId;
-  final HrPayslip ps;
-  const _PayslipRow({required this.runId, required this.ps});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return InkWell(
-      onTap: () => context.push('/hr/payslips/$runId/${ps.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            HrAvatar(
-              name: ps.employeeName ?? ps.employeeId,
-              employeeId: ps.employeeId,
-              size: 36,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(ps.employeeName ?? '—',
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: RunqText.bodyStrong.copyWith(color: t.ink)),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      if (ps.employeeCode != null) ps.employeeCode!,
-                      'Paid ${ps.paidDays.toStringAsFixed(ps.paidDays % 1 == 0 ? 0 : 1)}d',
-                      if (ps.lopDays > 0)
-                        'LOP ${ps.lopDays.toStringAsFixed(ps.lopDays % 1 == 0 ? 0 : 1)}d',
-                    ].join(' · '),
-                    style: RunqText.caption.copyWith(color: t.muted),
-                  ),
-                ],
-              ),
-            ),
-            Text(hrFormatINR(ps.netPay),
-                style: RunqText.tabular(size: 14, w: FontWeight.w700, color: t.ink)),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, size: 16, color: t.muted2),
-          ],
-        ),
       ),
     );
   }

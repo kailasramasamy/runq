@@ -26,6 +26,7 @@ import { billPrintRoutes } from './modules/ap/bill-print.routes';
 import { bankingRoutes } from './modules/banking/routes';
 import { pgReconRoutes } from './modules/pg-recon/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
+import { toPayRoutes } from './modules/to-pay/routes';
 import { analyticsRoutes } from './modules/analytics/routes';
 import { settingsRoutes } from './modules/settings/routes';
 import { webhookRoutes } from './modules/webhook/routes';
@@ -159,6 +160,8 @@ export async function buildApp() {
     // needs masters, settings, attachments, reports, audit, agent, etc.
     await scope.register(accountRoutes, { prefix: '/api/v1/account' });
     await scope.register(dashboardRoutes, { prefix: '/api/v1/dashboard' });
+    // Cross-module payables overview; each category self-gates on module access.
+    await scope.register(toPayRoutes, { prefix: '/api/v1/to-pay' });
     await scope.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
     await scope.register(settingsRoutes, { prefix: '/api/v1/settings' });
     await scope.register(mastersRoutes, { prefix: '/api/v1/masters' });
