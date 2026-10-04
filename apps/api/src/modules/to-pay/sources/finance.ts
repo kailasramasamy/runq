@@ -73,6 +73,6 @@ function toItem(r: Row): ToPayItem {
     period: monthOf(r.invoiceDate),
     ...WHOLE_MONTH,
     webLink: `/finance/ap/bills/${r.id}`,
-    mobileLink: '/purchases/bills',
+    mobileLink: `/bills/${r.id}`,
   };
 }

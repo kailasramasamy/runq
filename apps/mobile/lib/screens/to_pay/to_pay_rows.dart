@@ -38,6 +38,10 @@ class ToPayCategoryRow extends StatelessWidget {
             Expanded(child: month ? _monthMiddle(context) : _outstandingMiddle(context)),
             const SizedBox(width: 8),
             _trailing(context),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, size: 18, color: RT(context).muted2),
+            ],
           ],
         ),
       ),

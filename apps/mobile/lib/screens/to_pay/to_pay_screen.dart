@@ -22,6 +22,17 @@ class ToPayScreen extends ConsumerStatefulWidget {
 class _ToPayScreenState extends ConsumerState<ToPayScreen> {
   bool _byMonth = false;
   String? _category;
+  final Map<String, GlobalKey> _sections = {};
+
+  GlobalKey _sectionKey(String key) => _sections.putIfAbsent(key, GlobalKey.new);
+
+  /// Bring a category's section into view (month view lists items by category).
+  void _jumpTo(String key) {
+    final ctx = _sections[key]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic, alignment: 0.02);
+  }
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   String? get _key => _byMonth ? monthKey(_month) : null;
@@ -125,7 +136,7 @@ class _ToPayScreenState extends ConsumerState<ToPayScreen> {
           const SizedBox(height: 16),
           _categories(data),
           const SizedBox(height: 24),
-          ...toPaySections(data, _category),
+          ...toPaySections(data, _category, _sectionKey),
         ],
       ),
     );
@@ -143,7 +154,7 @@ class _ToPayScreenState extends ConsumerState<ToPayScreen> {
             month: data.isMonth,
             selected: !data.isMonth && _category == c.key,
             onTap: data.isMonth
-                ? null
+                ? () => _jumpTo(c.key)
                 : () => setState(() => _category = _category == c.key ? null : c.key),
           ),
       ],
