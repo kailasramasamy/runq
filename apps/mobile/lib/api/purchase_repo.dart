@@ -118,6 +118,10 @@ class PurchaseRepo {
     String? lrNo,
     String? notes,
     required List<Map<String, dynamic>> lines,
+    /// Items not on the PO — each becomes a new PO line on receipt.
+    List<Map<String, dynamic>> extraItems = const [],
+    /// Rates entered → no invoice will follow; bill in the same step.
+    bool createBill = false,
   }) async {
     final body = <String, dynamic>{
       'warehouseId': warehouseId,
@@ -126,6 +130,8 @@ class PurchaseRepo {
       if (lrNo != null) 'lrNo': lrNo,
       if (notes != null) 'notes': notes,
       'lines': lines,
+      if (extraItems.isNotEmpty) 'extraItems': extraItems,
+      'createBill': createBill,
     };
     final res = await apiClient.post('/purchase/pos/$poId/receive', body);
     return ReceiveResult.fromJson((res['data'] as Map).cast<String, dynamic>());

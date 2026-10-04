@@ -26,6 +26,56 @@ import { PURCHASE_ORDER_STATUS_VALUES } from '@runq/validators';
 import type { PaginationMeta } from '@runq/types';
 import { applyPagination, calcTotalPages } from '@runq/db';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { planLineAmend, statusFromLines } from './po-line-amend';
+
+type PoLineInput = NonNullable<UpdatePurchaseOrderInput['lines']>[number];
+
+/** Statuses a PO can be edited in; received/closed/cancelled are history. */
+const EDITABLE_STATUSES: PurchaseOrderStatus[] = ['draft', 'sent', 'partially_received'];
+
+/** Once sent, the vendor holds the PO — its vendor and date can't move. */
+function assertHeaderUnchanged(po: PurchaseOrderWithLines, input: UpdatePurchaseOrderInput) {
+  if (input.vendorId !== undefined && input.vendorId !== po.vendorId) {
+    throw new ConflictError('The vendor can\'t be changed after the PO is sent');
+  }
+  if (input.poDate !== undefined && input.poDate !== po.poDate) {
+    throw new ConflictError('The PO date can\'t be changed after the PO is sent');
+  }
+}
+
+function headerPatch(input: UpdatePurchaseOrderInput): Partial<typeof purchaseOrdersV2.$inferInsert> {
+  const patch: Partial<typeof purchaseOrdersV2.$inferInsert> = { updatedAt: new Date() };
+  if (input.vendorId !== undefined) patch.vendorId = input.vendorId;
+  if (input.poDate !== undefined) patch.poDate = input.poDate;
+  if (input.expectedDate !== undefined) patch.expectedDate = input.expectedDate ?? null;
+  if (input.deliveryAddress !== undefined) patch.deliveryAddress = input.deliveryAddress ?? null;
+  if (input.paymentTerms !== undefined) patch.paymentTerms = input.paymentTerms ?? null;
+  if (input.notes !== undefined) patch.notes = input.notes ?? null;
+  return patch;
+}
+
+/** Header money derived from the lines, so a stale total can't survive an edit. */
+function totalsOf(lines: PoLineInput[]) {
+  const subtotal = lines.reduce((s, l) => s + l.amount, 0);
+  const taxTotal = lines.reduce((s, l) => s + (l.taxAmount ?? 0), 0);
+  return { subtotal: String(subtotal), taxTotal: String(taxTotal), total: String(subtotal + taxTotal) };
+}
+
+function lineValues(l: PoLineInput, lineNo: number) {
+  return {
+    lineNo,
+    description: l.description,
+    catalogItemId: l.catalogItemId ?? null,
+    uom: l.uom ?? null,
+    hsnSacCode: l.hsnSacCode ?? null,
+    qtyOrdered: String(l.qtyOrdered),
+    unitRate: String(l.unitRate),
+    amount: String(l.amount),
+    taxRate: l.taxRate != null ? String(l.taxRate) : null,
+    taxAmount: l.taxAmount != null ? String(l.taxAmount) : null,
+    notes: l.notes ?? null,
+  };
+}
 
 /**
  * PP Phase 1 — Purchase Order CRUD + status transitions.
@@ -39,7 +89,8 @@ import { NotFoundError, ConflictError } from '../../utils/errors';
  */
 
 export interface PurchaseOrderListResult {
-  data: Array<PurchaseOrder & { vendorName: string; lineCount: number }>;
+  /** billedTotal: sum of bills matched to the PO — the PO's value once priced at receipt / invoice. */
+  data: Array<PurchaseOrder & { vendorName: string; lineCount: number; billedTotal: number }>;
   meta: PaginationMeta;
 }
 
@@ -79,11 +130,13 @@ export class PurchaseOrderService {
     ]);
 
     const total = countResult[0]?.count ?? 0;
+    const billed = await this.billedTotals(rows.map((r) => r.po.id));
     return {
       data: rows.map((r) => ({
         ...this.toPO(r.po),
         vendorName: r.vendorName,
         lineCount: r.lineCount,
+        billedTotal: billed.get(r.po.id) ?? 0,
       })),
       meta: { page, limit, total, totalPages: calcTotalPages(total, limit) },
     };
@@ -293,63 +346,61 @@ export class PurchaseOrderService {
     throw lastErr ?? new Error('Failed to allocate a unique PO number after retries');
   }
 
+  /**
+   * Edit a PO. A draft is fully editable. Once sent (or partly received) the
+   * vendor already holds it, so vendor and PO date are fixed; lines can be
+   * amended in place or added — never below what's been received or billed,
+   * and a line with receipts/bills can't be removed. Received, closed and
+   * cancelled POs are read-only.
+   */
   async update(id: string, input: UpdatePurchaseOrderInput): Promise<PurchaseOrderWithLines> {
     const existing = await this.getById(id);
-    if (existing.status !== 'draft') {
-      throw new ConflictError(`Only draft POs can be edited (current: ${existing.status})`);
+    if (!EDITABLE_STATUSES.includes(existing.status)) {
+      throw new ConflictError(`A ${existing.status.replace('_', ' ')} PO can't be edited`);
     }
+    const isDraft = existing.status === 'draft';
+    if (!isDraft) assertHeaderUnchanged(existing, input);
 
     await this.db.transaction(async (tx) => {
-      const patch: Partial<typeof purchaseOrdersV2.$inferInsert> = { updatedAt: new Date() };
-      if (input.vendorId !== undefined) patch.vendorId = input.vendorId;
-      if (input.poDate !== undefined) patch.poDate = input.poDate;
-      if (input.expectedDate !== undefined) patch.expectedDate = input.expectedDate ?? null;
-      if (input.deliveryAddress !== undefined) patch.deliveryAddress = input.deliveryAddress ?? null;
-      if (input.paymentTerms !== undefined) patch.paymentTerms = input.paymentTerms ?? null;
-      if (input.notes !== undefined) patch.notes = input.notes ?? null;
-      if (input.subtotal !== undefined) patch.subtotal = String(input.subtotal);
-      if (input.taxTotal !== undefined) patch.taxTotal = String(input.taxTotal);
-      if (input.total !== undefined) patch.total = String(input.total);
-
-      // Lines are replaced wholesale, and callers no longer send money (a PO
-      // commits qty, not price). Derive the header from the new lines so a
-      // legacy priced PO can't keep a stale total after its rates are gone.
-      if (input.lines && input.subtotal === undefined) {
-        const subtotal = input.lines.reduce((s, l) => s + l.amount, 0);
-        const taxTotal = input.lines.reduce((s, l) => s + (l.taxAmount ?? 0), 0);
-        patch.subtotal = String(subtotal);
-        patch.taxTotal = String(taxTotal);
-        patch.total = String(subtotal + taxTotal);
+      const patch = headerPatch(input);
+      if (input.lines) {
+        await this.amendLines(tx as unknown as Db, id, existing.lines, input.lines);
+        Object.assign(patch, totalsOf(input.lines));
+        if (!isDraft) patch.status = await this.statusAfterAmend(tx as unknown as Db, id);
       }
-
       await tx
         .update(purchaseOrdersV2)
         .set(patch)
         .where(and(eq(purchaseOrdersV2.id, id), eq(purchaseOrdersV2.tenantId, this.tenantId)));
-
-      if (input.lines) {
-        await tx.delete(purchaseOrderLinesV2).where(eq(purchaseOrderLinesV2.poId, id));
-        await tx.insert(purchaseOrderLinesV2).values(
-          input.lines.map((l, i) => ({
-            tenantId: this.tenantId,
-            poId: id,
-            lineNo: i + 1,
-            description: l.description,
-            catalogItemId: l.catalogItemId ?? null,
-            uom: l.uom ?? null,
-            hsnSacCode: l.hsnSacCode ?? null,
-            qtyOrdered: String(l.qtyOrdered),
-            unitRate: String(l.unitRate),
-            amount: String(l.amount),
-            taxRate: l.taxRate != null ? String(l.taxRate) : null,
-            taxAmount: l.taxAmount != null ? String(l.taxAmount) : null,
-            notes: l.notes ?? null,
-          })),
-        );
-      }
     });
 
     return this.getById(id);
+  }
+
+  /** Update kept lines in place, insert new ones, drop removed ones; renumber in the given order. */
+  private async amendLines(
+    db: Db, poId: string, current: PurchaseOrderLine[], lines: NonNullable<UpdatePurchaseOrderInput['lines']>,
+  ) {
+    const plan = planLineAmend(current, lines);
+    if (plan.remove.length) {
+      await db.delete(purchaseOrderLinesV2).where(inArray(purchaseOrderLinesV2.id, plan.remove));
+    }
+    for (const [i, l] of lines.entries()) {
+      const values = lineValues(l, i + 1);
+      if (l.id) {
+        await db.update(purchaseOrderLinesV2).set(values).where(eq(purchaseOrderLinesV2.id, l.id));
+      } else {
+        await db.insert(purchaseOrderLinesV2).values({ ...values, tenantId: this.tenantId, poId });
+      }
+    }
+  }
+
+  private async statusAfterAmend(db: Db, poId: string) {
+    const rows = await db
+      .select({ qtyOrdered: purchaseOrderLinesV2.qtyOrdered, qtyReceived: purchaseOrderLinesV2.qtyReceived })
+      .from(purchaseOrderLinesV2)
+      .where(eq(purchaseOrderLinesV2.poId, poId));
+    return statusFromLines(rows.map((r) => ({ qtyOrdered: Number(r.qtyOrdered), qtyReceived: Number(r.qtyReceived) })));
   }
 
   async send(id: string, userId?: string): Promise<PurchaseOrderWithLines> {
@@ -463,6 +514,21 @@ export class PurchaseOrderService {
       filters.dateFrom ? gte(purchaseOrdersV2.poDate, filters.dateFrom) : undefined,
       filters.dateTo ? lte(purchaseOrdersV2.poDate, filters.dateTo) : undefined,
     );
+  }
+
+  /** Sum of non-cancelled bills matched to each PO (POs carry qty, bills carry price). */
+  private async billedTotals(poIds: string[]): Promise<Map<string, number>> {
+    if (!poIds.length) return new Map();
+    const rows = await this.db
+      .select({ poId: purchaseInvoices.matchedPoId, total: sql<string>`sum(${purchaseInvoices.totalAmount})` })
+      .from(purchaseInvoices)
+      .where(and(
+        eq(purchaseInvoices.tenantId, this.tenantId),
+        inArray(purchaseInvoices.matchedPoId, poIds),
+        sql`${purchaseInvoices.status} not in ('draft', 'cancelled')`,
+      ))
+      .groupBy(purchaseInvoices.matchedPoId);
+    return new Map(rows.map((r) => [r.poId!, Number(r.total)]));
   }
 
   private toPO(row: typeof purchaseOrdersV2.$inferSelect): PurchaseOrder {

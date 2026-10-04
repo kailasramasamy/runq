@@ -18,11 +18,17 @@ interface Props {
   isLoading: boolean;
   submitLabel?: string;
   editingId?: string;
+  /** Sent PO: the vendor already holds it, so vendor and PO date are fixed. */
+  lockedHeader?: boolean;
+  /** Per saved line id: qty already received / billed — the floor for its qty. */
+  lineFloors?: Record<string, { qty: number; why: 'received' | 'billed' }>;
 }
 
 // A PO commits QUANTITY, not price — the rate is only known once the
 // vendor's invoice arrives, so there are no money fields on this form.
 interface POLineUI {
+  /** Saved line being amended; empty for a line added in this edit. */
+  id?: string;
   description: string;
   catalogItemId: string;
   uom: string;
@@ -34,7 +40,7 @@ const EMPTY_LINE: POLineUI = {
   description: '', catalogItemId: '', uom: '', hsnSacCode: '', qtyOrdered: '',
 };
 
-export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingId }: Props) {
+export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingId, lockedHeader, lineFloors }: Props) {
   const { data: vendorsData } = useVendors({ limit: 100 });
   const vendors = vendorsData?.data?.filter((v) => v.isActive) ?? [];
   const vendorOptions = [
@@ -73,6 +79,7 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
     if (initialData.notes) setNotes(initialData.notes);
     if (initialData.lines?.length) {
       setLines(initialData.lines.map((l) => ({
+        id: l.id,
         description: l.description ?? '',
         catalogItemId: l.catalogItemId ?? '',
         uom: l.uom ?? '',
@@ -114,6 +121,7 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
       deliveryAddress: deliveryAddress || null,
       notes: notes || null,
       lines: lines.map((l) => ({
+        ...(l.id ? { id: l.id } : {}),
         description: l.description,
         catalogItemId: l.catalogItemId || null,
         uom: l.uom || null,
@@ -153,12 +161,14 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
               onChange={(v) => setVendorId(v)}
               placeholder="Search vendor…"
               error={errors.vendorId}
+              disabled={lockedHeader}
             />
             <DateInput
               label="PO Date" required
               value={poDate}
               onChange={(e) => setPoDate(e.target.value)}
               error={errors.poDate}
+              disabled={lockedHeader}
             />
             <DateInput
               label="Expected Delivery"
@@ -219,11 +229,16 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
                   </TableCell>
                   <TableCell align="right">
                     <Input
-                      type="number" min="0" step="0.001"
+                      type="number" min={line.id ? lineFloors?.[line.id]?.qty ?? 0 : 0} step="0.001"
                       value={line.qtyOrdered}
                       onChange={(e) => updateLine(idx, 'qtyOrdered', e.target.value)}
                       placeholder="0" className="text-right"
                     />
+                    {line.id && lineFloors?.[line.id] && (
+                      <p className="mt-1 text-right text-[11px] text-zinc-500 dark:text-zinc-400">
+                        ≥ {lineFloors[line.id].qty} {lineFloors[line.id].why}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Input
@@ -239,7 +254,7 @@ export function PoForm({ onSubmit, initialData, isLoading, submitLabel, editingI
                     />
                   </TableCell>
                   <TableCell align="right">
-                    {lines.length > 1 && (
+                    {lines.length > 1 && !(line.id && lineFloors?.[line.id]) && (
                       <Button
                         type="button" variant="ghost" size="sm"
                         className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"

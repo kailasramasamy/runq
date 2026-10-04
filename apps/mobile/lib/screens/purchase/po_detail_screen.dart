@@ -12,12 +12,13 @@ import '../../providers/purchase_providers.dart';
 import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
+import 'po_items_section.dart';
 import 'widgets/pur_colors.dart';
 import 'widgets/pur_primitives.dart';
 
 /// PO detail — redesigned to mirror the create-screen polish:
-/// vendor hero, date chips, line cards with a received-progress bar,
-/// violet-deep totals, and a sticky bar whose secondary actions live in
+/// vendor hero, date chips, one grouped items section (rows with a
+/// received-progress bar, totals at its foot), and a sticky bar whose secondary actions live in
 /// an overflow menu so the primary CTA always has room.
 class PurchaseOrderDetailScreen extends ConsumerStatefulWidget {
   final String poId;
@@ -170,7 +171,7 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                 _MoreSheetTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit PO',
-                  subtitle: 'Modify vendor, dates, lines',
+                  subtitle: 'Change items, quantities and dates',
                   onTap: () => Navigator.pop(ctx, 'edit'),
                 ),
               if (canClose)
@@ -243,7 +244,8 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Failed to load: $e', style: RunqText.body)),
           data: (po) {
-            final canEdit = po.status == 'draft';
+            // Items can be amended until goods are fully in; vendor/date only in draft.
+            final canEdit = const {'draft', 'sent', 'partially_received'}.contains(po.status);
             final canSend = po.status == 'draft' && po.lines.isNotEmpty;
             final canReceive = ['sent', 'partially_received'].contains(po.status);
             final canClose = ['sent', 'partially_received', 'received'].contains(po.status);
@@ -320,17 +322,13 @@ class _PurchaseOrderDetailScreenState extends ConsumerState<PurchaseOrderDetailS
                         ),
                       ],
                       const SizedBox(height: 16),
-                      _ItemsHeader(count: po.lines.length),
-                      const SizedBox(height: 8),
-                      for (final l in po.lines)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _LineCard(line: l, priced: priced),
-                        ),
-                      if (priced) ...[
-                        const SizedBox(height: 6),
-                        _TotalsCard(subtotal: po.subtotal, tax: po.taxTotal, total: po.total),
-                      ],
+                      PoDetailItemsSection(
+                        lines: po.lines,
+                        priced: priced,
+                        subtotal: po.subtotal,
+                        tax: po.taxTotal,
+                        total: po.total,
+                      ),
                       if ((po.notes ?? '').isNotEmpty) ...[
                         const SizedBox(height: 12),
                         _NotesCard(notes: po.notes!),
@@ -533,281 +531,6 @@ class _InfoStrip extends StatelessWidget {
 }
 
 // ── Items header (label + count badge) ─────────────────────────────────────
-
-class _ItemsHeader extends StatelessWidget {
-  final int count;
-  const _ItemsHeader({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 0, 2, 0),
-      child: Row(
-        children: [
-          Text('ITEMS', style: RunqText.label.copyWith(color: t.muted)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-            decoration: BoxDecoration(
-              color: PurColors.violetSubtle,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text('$count',
-                style: RunqText.micro.copyWith(
-                    color: PurColors.brand(context), fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Line card with receive-progress bar ────────────────────────────────────
-
-class _LineCard extends StatelessWidget {
-  final PurchaseOrderLine line;
-  final bool priced;
-  const _LineCard({required this.line, required this.priced});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final ordered = line.qtyOrdered;
-    final received = line.qtyReceived;
-    final fullyReceived = ordered > 0 && received >= ordered;
-    final partial = received > 0 && received < ordered;
-    final pct = ordered <= 0 ? 0.0 : (received / ordered).clamp(0.0, 1.0);
-
-    final progressColor = fullyReceived
-        ? PurColors.success
-        : (partial ? PurColors.orangeAlert : t.hairline);
-
-    final lineTotal = priced ? line.amount + (line.taxAmount ?? 0) : 0.0;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: t.hairline),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6, offset: const Offset(0, 1)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: line# + description + total
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 22, height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: PurColors.violetSubtle,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text('${line.lineNo}',
-                    style: RunqText.micro.copyWith(
-                        color: PurColors.brand(context), fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(line.description,
-                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              ),
-              if (priced) ...[
-                const SizedBox(width: 8),
-                Text(indianINR(lineTotal, decimals: 2),
-                    style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Qty / Received / Rate row
-          Row(
-            children: [
-              Expanded(
-                child: _StatCell(
-                  label: 'Qty',
-                  value: _qty(ordered),
-                  trailing: line.uom,
-                ),
-              ),
-              Expanded(
-                child: _StatCell(
-                  label: 'Received',
-                  value: _qty(received),
-                  color: fullyReceived
-                      ? PurColors.success
-                      : (partial ? PurColors.orangeAlert : t.muted2),
-                ),
-              ),
-              if (priced)
-                Expanded(
-                  child: _StatCell(
-                    label: 'Rate',
-                    value: indianINR(line.unitRate, decimals: 2),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Receive progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 4,
-              backgroundColor: t.hairlineSoft,
-              valueColor: AlwaysStoppedAnimation(progressColor),
-            ),
-          ),
-          if ((line.taxRate != null && line.taxRate! > 0) ||
-              (line.hsnSacCode ?? '').isNotEmpty ||
-              line.qtyBilled > 0) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6, runSpacing: 6,
-              children: [
-                if (line.taxRate != null && line.taxRate! > 0)
-                  _MetaChip(label: 'Tax ${line.taxRate}%'),
-                if ((line.hsnSacCode ?? '').isNotEmpty)
-                  _MetaChip(label: 'HSN ${line.hsnSacCode}'),
-                if (line.qtyBilled > 0)
-                  _MetaChip(
-                    label: 'Billed ${_qty(line.qtyBilled)}',
-                    icon: Icons.receipt_long_outlined,
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  static String _qty(double v) {
-    if (v == v.truncateToDouble()) return v.toStringAsFixed(0);
-    return v.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
-  }
-}
-
-class _StatCell extends StatelessWidget {
-  final String label;
-  final String value;
-  final String? trailing;
-  final Color? color;
-  const _StatCell({required this.label, required this.value, this.trailing, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label.toUpperCase(),
-            style: RunqText.micro.copyWith(color: t.muted, letterSpacing: 0.6)),
-        const SizedBox(height: 2),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Flexible(
-              child: Text(
-                value,
-                style: RunqText.bodyStrong.copyWith(color: color ?? t.ink),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 3),
-              Text(trailing!,
-                  style: RunqText.caption.copyWith(color: t.muted)),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  const _MetaChip({required this.label, this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: t.bgWarm,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: t.hairline),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 11, color: t.muted),
-            const SizedBox(width: 4),
-          ],
-          Text(label, style: RunqText.micro.copyWith(color: t.muted)),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Totals card ────────────────────────────────────────────────────────────
-
-class _TotalsCard extends StatelessWidget {
-  final double subtotal, tax, total;
-  const _TotalsCard({required this.subtotal, required this.tax, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return PurCard(
-      child: Column(
-        children: [
-          _row(t, 'Subtotal', subtotal),
-          const SizedBox(height: 4),
-          _row(t, 'Tax', tax),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Container(height: 1, color: t.hairline),
-          ),
-          Row(
-            children: [
-              Text('Total', style: RunqText.bodyStrong.copyWith(color: t.ink)),
-              const Spacer(),
-              Text(
-                indianINR(total, decimals: 2),
-                style: RunqText.h3.copyWith(
-                    color: PurColors.violetDeep, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(RunqTokens t, String label, double v) => Row(
-        children: [
-          Text(label, style: RunqText.body.copyWith(color: t.muted)),
-          const Spacer(),
-          Text(indianINR(v, decimals: 2), style: RunqText.body.copyWith(color: t.ink)),
-        ],
-      );
-}
 
 // ── Notes / Closed reason ──────────────────────────────────────────────────
 

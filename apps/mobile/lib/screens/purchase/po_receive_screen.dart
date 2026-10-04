@@ -9,6 +9,9 @@ import '../../theme/runq_theme.dart';
 import '../../theme/runq_tokens.dart';
 import '../../widgets/runq_snack.dart';
 import '../inventory/widgets/warehouse_picker.dart' as inv_picker;
+import '../../api/inventory_models.dart' show InvWarehouse;
+import '../../providers/inventory_providers.dart';
+import 'po_receive_extras.dart';
 import 'widgets/po_form_widgets.dart';
 import 'widgets/pur_colors.dart';
 import 'widgets/pur_primitives.dart';
@@ -32,6 +35,8 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
   final _lrCtl = TextEditingController();
   final _notesCtl = TextEditingController();
   final Map<String, _RowState> _rows = {};
+  /// Items the vendor added on the spot — received as new PO lines.
+  final List<ReceiveTemplateLine> _extras = [];
   bool _busy = false;
   bool _seeded = false;
 
@@ -51,8 +56,35 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
     for (final l in tpl.lines) {
       _rows[l.poLineId] = _RowState.fromTemplate(l);
     }
+    _warehouseId ??= tpl.warehouseId;
     _seeded = true;
   }
+
+  /// Pre-select a warehouse — the PO's own, else the tenant default (else the
+  /// only one) — so a routine receipt needs no picking.
+  void _defaultWarehouse(List<InvWarehouse>? all) {
+    if (_warehouseId != null || all == null || all.isEmpty) return;
+    _warehouseId = (all.where((w) => w.isDefault).firstOrNull ?? all.first).id;
+  }
+
+  Future<void> _addExtra(ReceiveTemplate tpl) async {
+    final line = await pickExtraItem(
+      context,
+      vendorId: tpl.vendorId,
+      nextLineNo: tpl.lines.length + _extras.length + 1,
+      taken: _rows.keys.toSet(),
+    );
+    if (line == null || !mounted) return;
+    setState(() {
+      _extras.add(line);
+      _rows[line.poLineId] = _RowState.fromTemplate(line)..qty.text = '1';
+    });
+  }
+
+  void _removeExtra(ReceiveTemplateLine line) => setState(() {
+        _extras.remove(line);
+        _rows.remove(line.poLineId)?.dispose();
+      });
 
   Future<void> _pickReceivedDate() async {
     final picked = await showDatePicker(
@@ -79,6 +111,15 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
     return t;
   }
 
+  /// Rates on every item being received → bill now (no invoice will come);
+  /// on none → receipt only (the invoice becomes the bill later).
+  _Pricing get _pricing {
+    final receiving = _rows.values.where((r) => (double.tryParse(r.qty.text) ?? 0) > 0).toList();
+    final priced = receiving.where((r) => (double.tryParse(r.rate.text) ?? 0) > 0).length;
+    if (priced == 0) return _Pricing.none;
+    return priced == receiving.length ? _Pricing.all : _Pricing.mixed;
+  }
+
   bool _canSubmit() {
     if (_warehouseId == null) return false;
     return _rows.values.any((r) => (double.tryParse(r.qty.text) ?? 0) > 0);
@@ -91,35 +132,36 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
       return;
     }
     final lines = <Map<String, dynamic>>[];
+    final extras = <Map<String, dynamic>>[];
     for (final r in _rows.values) {
       final qty = double.tryParse(r.qty.text) ?? 0;
-      if (qty <= 0 || r.catalogItemId == null) continue;
+      // A free-text PO line has no catalog row yet — the server links one.
+      if (qty <= 0) continue;
       final rate = double.tryParse(r.rate.text) ?? 0;
-      // A line with no rate posts a zero-value GRN: stock valued at zero for
-      // tracked items, and a GL entry with nothing to debit either way.
-      if (rate <= 0) {
-        showRunqSnack(context,
-            'Enter a rate for ${r.description} — receiving at ₹0 posts no value',
-            kind: SnackKind.error);
-        return;
-      }
       final serials = r.serials.text
           .split(RegExp(r'\r?\n'))
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList();
-      lines.add({
-        'poLineId': r.poLineId,
-        'catalogItemId': r.catalogItemId,
+      (isExtraKey(r.poLineId) ? extras : lines).add({
+        if (!isExtraKey(r.poLineId)) 'poLineId': r.poLineId,
+        if (r.catalogItemId != null) 'catalogItemId': r.catalogItemId,
         'qty': qty,
-        'unitCost': rate,
+        if (rate > 0) 'unitCost': rate,
         if (r.batch.text.trim().isNotEmpty) 'batchNo': r.batch.text.trim(),
         if (r.expiry.text.trim().isNotEmpty) 'expiryDate': r.expiry.text.trim(),
         if (serials.isNotEmpty) 'serialNos': serials,
       });
     }
-    if (lines.isEmpty) {
+    if (lines.isEmpty && extras.isEmpty) {
       showRunqSnack(context, 'Every row needs qty > 0', kind: SnackKind.error);
+      return;
+    }
+    final pricing = _pricing;
+    if (pricing == _Pricing.mixed) {
+      showRunqSnack(context,
+          'Enter a rate for every item to bill now — or clear all rates to receive only',
+          kind: SnackKind.error);
       return;
     }
     setState(() => _busy = true);
@@ -132,12 +174,18 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
         lrNo: _lrCtl.text.trim().isEmpty ? null : _lrCtl.text.trim(),
         notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
         lines: lines,
+        extraItems: extras,
+        createBill: pricing == _Pricing.all,
       );
       ref.invalidate(purchaseOrderDetailProvider(widget.poId));
       ref.invalidate(purchaseOrderListProvider);
       ref.invalidate(poReceiveTemplateProvider(widget.poId));
       if (!mounted) return;
-      showRunqSnack(context, 'GRN ${res.grnNo} posted', kind: SnackKind.success);
+      showRunqSnack(
+        context,
+        res.billNumber == null ? 'GRN ${res.grnNo} posted' : 'GRN ${res.grnNo} posted · bill ${res.billNumber} created',
+        kind: SnackKind.success,
+      );
       context.pop();
     } catch (e) {
       if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);
@@ -150,6 +198,7 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
   Widget build(BuildContext context) {
     final t = RT(context);
     final tplAsync = ref.watch(poReceiveTemplateProvider(widget.poId));
+    _defaultWarehouse(ref.watch(invWarehousesProvider).value);
     return Scaffold(
       backgroundColor: t.bgWarm,
       body: SafeArea(
@@ -198,18 +247,26 @@ class _PurchaseOrderReceiveScreenState extends ConsumerState<PurchaseOrderReceiv
                       const SizedBox(height: 16),
                       _ItemsHeader(count: tpl.lines.length),
                       const SizedBox(height: 8),
-                      for (var i = 0; i < tpl.lines.length; i++)
+                      for (final (i, line) in [...tpl.lines, ..._extras].indexed)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _ReceiveLineCard(
                             index: i + 1,
-                            line: tpl.lines[i],
-                            row: _rows[tpl.lines[i].poLineId]!,
+                            line: line,
+                            row: _rows[line.poLineId]!,
                             onChange: () => setState(() {}),
+                            onRemove: isExtraKey(line.poLineId) ? () => _removeExtra(line) : null,
                           ),
                         ),
+                      AddExtraItemButton(onTap: () => _addExtra(tpl)),
                       const SizedBox(height: 12),
                       PoNotesCard(controller: _notesCtl),
+                      const SizedBox(height: 12),
+                      ReceiveBillingNote(
+                        billing: _pricing == _Pricing.all,
+                        mixed: _pricing == _Pricing.mixed,
+                        total: _totalValue,
+                      ),
                       const SizedBox(height: 16),
                     ],
                   ),
@@ -350,11 +407,14 @@ class _ReceiveLineCard extends StatefulWidget {
   final ReceiveTemplateLine line;
   final _RowState row;
   final VoidCallback onChange;
+  /// Set for an item added at receipt (not on the PO) — shows a remove action.
+  final VoidCallback? onRemove;
   const _ReceiveLineCard({
     required this.index,
     required this.line,
     required this.row,
     required this.onChange,
+    this.onRemove,
   });
 
   @override
@@ -392,12 +452,7 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
     final l = widget.line;
     final r = widget.row;
     final tracked = r.stockTracked;
-    final qty = double.tryParse(r.qty.text) ?? 0;
-    final ordered = l.qtyOrdered.toDouble();
-    final open = l.qtyOpen.toDouble();
-    final receiving = qty.clamp(0, open).toDouble();
-    final pct = open <= 0 ? 0.0 : (receiving / open).clamp(0.0, 1.0);
-    final over = qty > open;
+    final extra = widget.onRemove != null;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -433,21 +488,18 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
                     style: RunqText.bodyStrong.copyWith(color: t.ink),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
+              if (extra)
+                InkWell(
+                  onTap: widget.onRemove,
+                  child: Icon(Icons.close_rounded, size: 18, color: t.muted),
+                ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _StatBox(label: 'Open', value: _qtyText(open)),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatBox(label: 'Ordered', value: _qtyText(ordered)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+          if (extra) ...[
+            const _MetaPill(label: 'Added now — joins the PO on receipt', icon: Icons.add_circle_outline_rounded),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(
@@ -476,31 +528,6 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
                 ),
               ),
             ],
-          ),
-          if (over) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(Icons.warning_amber_rounded,
-                    size: 14, color: PurColors.orangeAlert),
-                const SizedBox(width: 4),
-                Text(
-                  'Exceeds open qty (${_qtyText(open)})',
-                  style: RunqText.caption.copyWith(color: PurColors.orangeAlert),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 4,
-              backgroundColor: t.hairlineSoft,
-              valueColor: AlwaysStoppedAnimation(
-                  over ? PurColors.orangeAlert : PurColors.success),
-            ),
           ),
           if ((l.hsnSacCode ?? '').isNotEmpty || !tracked) ...[
             const SizedBox(height: 8),
@@ -591,29 +618,6 @@ class _ReceiveLineCardState extends State<_ReceiveLineCard> {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _StatBox extends StatelessWidget {
-  final String label;
-  final String value;
-  const _StatBox({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label.toUpperCase(),
-            style: RunqText.micro.copyWith(color: t.muted, letterSpacing: 0.6)),
-        const SizedBox(height: 2),
-        Text(value,
-            style: RunqText.bodyStrong.copyWith(color: t.ink),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-      ],
     );
   }
 }
@@ -796,3 +800,5 @@ class _RowState {
     serials.dispose();
   }
 }
+
+enum _Pricing { none, all, mixed }

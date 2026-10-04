@@ -207,8 +207,9 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
       ref.invalidate(dashboardSummaryProvider);
       ref.invalidate(activityProvider);
       showRunqSnack(context, msg, kind: kind);
-      // Land on the purchases → bills list so the new bill is in context.
-      context.pushReplacement('/purchases/bills');
+      // Land on the new bill — its Match panel offers the vendor's open POs,
+      // so an invoice for goods already received is reconciled right here.
+      context.pushReplacement(billId != null ? '/bills/$billId' : '/purchases/bills');
     } on ApiException catch (e) {
       if (!mounted) return;
       // Surface field-path validation errors so the user knows where to look.

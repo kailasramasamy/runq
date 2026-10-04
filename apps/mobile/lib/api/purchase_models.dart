@@ -28,9 +28,16 @@ class PurchaseOrder {
   final double taxTotal;
   final double total;
   final int lineCount;
+  /// Sum of bills matched to the PO (list endpoint only).
+  final double billedTotal;
   final String? sentAt;
   final String? closedAt;
   final String? closedReason;
+
+  /// What the PO is worth, if known: its own priced total, else what's been
+  /// billed against it (POs usually carry qty only; the price lands on the
+  /// bill). Null when neither is known yet.
+  double? get displayTotal => total > 0 ? total : (billedTotal > 0 ? billedTotal : null);
 
   PurchaseOrder({
     required this.id,
@@ -47,6 +54,7 @@ class PurchaseOrder {
     this.deliveryAddress,
     this.notes,
     this.lineCount = 0,
+    this.billedTotal = 0,
     this.sentAt,
     this.closedAt,
     this.closedReason,
@@ -67,6 +75,7 @@ class PurchaseOrder {
         taxTotal: _num(j['taxTotal']),
         total: _num(j['total']),
         lineCount: _int(j['lineCount']),
+        billedTotal: _num(j['billedTotal']),
         sentAt: j['sentAt'] as String?,
         closedAt: j['closedAt'] as String?,
         closedReason: j['closedReason'] as String?,
@@ -135,7 +144,13 @@ class OpenPoSummary {
   final String poDate;
   final double total;
   final double openValue;
+  /// Qty ordered/received but not yet billed.
+  final double openQty;
   final String status;
+
+  /// A qty-only PO (the norm) has no value to compare a bill against — it
+  /// matches on quantity, so the amount tolerance doesn't apply.
+  bool get priced => total > 0;
 
   OpenPoSummary({
     required this.id,
@@ -143,6 +158,7 @@ class OpenPoSummary {
     required this.poDate,
     required this.total,
     required this.openValue,
+    this.openQty = 0,
     required this.status,
   });
 
@@ -152,6 +168,7 @@ class OpenPoSummary {
         poDate: j['poDate'] as String,
         total: _num(j['total']),
         openValue: _num(j['openValue']),
+        openQty: _num(j['openQty']),
         status: j['status'] as String,
       );
 }
@@ -410,6 +427,8 @@ class ReceiveResult {
   final double totalValue;
   final int lineCount;
   final String newPoStatus;
+  /// Set when the receipt was priced and billed in the same step.
+  final String? billNumber;
 
   ReceiveResult({
     required this.grnId,
@@ -417,14 +436,17 @@ class ReceiveResult {
     required this.totalValue,
     required this.lineCount,
     required this.newPoStatus,
+    this.billNumber,
   });
 
+  // The receive-and-bill path reports `newStatus` + `billNumber`.
   factory ReceiveResult.fromJson(Map<String, dynamic> j) => ReceiveResult(
         grnId: j['grnId'] as String,
         grnNo: j['grnNo'] as String,
         totalValue: _num(j['totalValue']),
         lineCount: _int(j['lineCount']),
-        newPoStatus: j['newPoStatus'] as String,
+        newPoStatus: (j['newPoStatus'] ?? j['newStatus'] ?? '').toString(),
+        billNumber: j['billNumber'] as String?,
       );
 }
 

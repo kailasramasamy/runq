@@ -9,6 +9,7 @@ import {
 import type { Db } from '@runq/db';
 import type { CommitMatchInput } from '@runq/validators';
 import { NotFoundError, ConflictError } from '../../utils/errors';
+import { autoMapLines, openQty } from './match-auto-map';
 
 /**
  * PP Phase 3 — 3-way match service.
@@ -30,6 +31,8 @@ export interface OpenPoSummary {
   poDate: string;
   total: number;
   openValue: number;     // total - amount already billed (driven by qty_billed)
+  /** Qty ordered/received but not yet billed — keeps unpriced (qty-only) POs matchable. */
+  openQty: number;
   status: string;
 }
 
@@ -201,6 +204,11 @@ export class MatchService {
     }
 
     const status: 'matched' | 'mismatch' = matchedOk ? 'matched' : 'mismatch';
+    // Without hand-picked pairs, pair bill items to PO lines by name so the
+    // PO still learns what's been billed (qty_billed).
+    const billedMappings = input.lineMappings?.length
+      ? input.lineMappings
+      : await this.autoMappings(input.billId, input.matchedPoId);
 
     await this.db.transaction(async (tx) => {
       await tx
@@ -218,8 +226,8 @@ export class MatchService {
       // Increment qty_billed on PO lines. When line mappings are supplied
       // we apply per-line; otherwise we apply a single bill-total/po-subtotal
       // proportional pro-rate across all PO lines (good enough for v1).
-      if (input.lineMappings && input.lineMappings.length > 0) {
-        for (const m of input.lineMappings) {
+      if (billedMappings.length > 0) {
+        for (const m of billedMappings) {
           const qty = m.qty ?? 0;
           if (qty > 0) {
             await tx
@@ -240,6 +248,25 @@ export class MatchService {
 
   // ─── Internals ──────────────────────────────────────────────────────────
 
+  private async autoMappings(billId: string, poId: string) {
+    const [items, lines] = await Promise.all([
+      this.db.select({ id: purchaseInvoiceItems.id, itemName: purchaseInvoiceItems.itemName, quantity: purchaseInvoiceItems.quantity })
+        .from(purchaseInvoiceItems).where(eq(purchaseInvoiceItems.invoiceId, billId)),
+      this.db.select({
+        id: purchaseOrderLinesV2.id, description: purchaseOrderLinesV2.description,
+        qtyOrdered: purchaseOrderLinesV2.qtyOrdered, qtyReceived: purchaseOrderLinesV2.qtyReceived,
+        qtyBilled: purchaseOrderLinesV2.qtyBilled,
+      }).from(purchaseOrderLinesV2).where(eq(purchaseOrderLinesV2.poId, poId)),
+    ]);
+    return autoMapLines(
+      items.map((i) => ({ id: i.id, itemName: i.itemName, quantity: Number(i.quantity) })),
+      lines.map((l) => ({
+        id: l.id, description: l.description, qtyOrdered: Number(l.qtyOrdered),
+        qtyReceived: Number(l.qtyReceived), qtyBilled: Number(l.qtyBilled),
+      })),
+    );
+  }
+
   private async effectiveTolerance(vendorId: string): Promise<number> {
     const [v] = await this.db
       .select({ pct: vendors.matchTolerancePct })
@@ -250,22 +277,17 @@ export class MatchService {
     return DEFAULT_TOLERANCE_PCT;
   }
 
+  /**
+   * The vendor's POs with something still to bill. Judged on quantity, not
+   * value: a PO commits qty, and most carry no price — so an unpriced PO with
+   * goods received but not billed is exactly the one an incoming invoice
+   * belongs to. Lines are read separately (no correlated subquery).
+   */
   private async findOpenPos(vendorId: string): Promise<OpenPoSummary[]> {
-    const rows = await this.db
+    const pos = await this.db
       .select({
-        id: purchaseOrdersV2.id,
-        poNumber: purchaseOrdersV2.poNumber,
-        poDate: purchaseOrdersV2.poDate,
-        total: purchaseOrdersV2.total,
-        subtotal: purchaseOrdersV2.subtotal,
-        status: purchaseOrdersV2.status,
-        // Sum unit_rate * qty_billed across this PO's lines to compute
-        // already-billed value. Subtract from subtotal to get open value.
-        billedValue: sql<string>`COALESCE((
-          SELECT SUM(${purchaseOrderLinesV2.unitRate}::numeric * ${purchaseOrderLinesV2.qtyBilled}::numeric)
-          FROM ${purchaseOrderLinesV2}
-          WHERE ${purchaseOrderLinesV2.poId} = ${purchaseOrdersV2.id}
-        ), 0)`,
+        id: purchaseOrdersV2.id, poNumber: purchaseOrdersV2.poNumber, poDate: purchaseOrdersV2.poDate,
+        total: purchaseOrdersV2.total, subtotal: purchaseOrdersV2.subtotal, status: purchaseOrdersV2.status,
       })
       .from(purchaseOrdersV2)
       .where(and(
@@ -274,21 +296,29 @@ export class MatchService {
         inArray(purchaseOrdersV2.status, ['sent', 'partially_received', 'received']),
       ))
       .orderBy(desc(purchaseOrdersV2.poDate));
-
-    return rows.map((r) => {
-      const subtotal = Number(r.subtotal);
-      const billed = Number(r.billedValue);
-      const openValue = Math.max(0, subtotal - billed);
+    if (!pos.length) return [];
+    const lines = await this.db
+      .select({
+        poId: purchaseOrderLinesV2.poId, unitRate: purchaseOrderLinesV2.unitRate,
+        qtyOrdered: purchaseOrderLinesV2.qtyOrdered, qtyReceived: purchaseOrderLinesV2.qtyReceived,
+        qtyBilled: purchaseOrderLinesV2.qtyBilled,
+      })
+      .from(purchaseOrderLinesV2)
+      .where(inArray(purchaseOrderLinesV2.poId, pos.map((p) => p.id)));
+    return pos.map((p) => {
+      const mine = lines.filter((l) => l.poId === p.id);
+      const billedValue = mine.reduce((s2, l) => s2 + Number(l.unitRate) * Number(l.qtyBilled), 0);
+      const open = mine.reduce((s2, l) => s2 + openQty({
+        id: '', description: '', qtyOrdered: Number(l.qtyOrdered),
+        qtyReceived: Number(l.qtyReceived), qtyBilled: Number(l.qtyBilled),
+      }), 0);
       return {
-        id: r.id,
-        poNumber: r.poNumber,
-        poDate: r.poDate,
-        total: Number(r.total),
-        openValue,
-        status: r.status,
+        id: p.id, poNumber: p.poNumber, poDate: p.poDate, total: Number(p.total),
+        openValue: Math.max(0, Number(p.subtotal) - billedValue), openQty: open, status: p.status,
       };
-    }).filter((p) => p.openValue > 0);
+    }).filter((p) => p.openQty > 0 || p.openValue > 0);
   }
+
 
   private async computePoOpenValue(poId: string): Promise<number> {
     const [row] = await this.db

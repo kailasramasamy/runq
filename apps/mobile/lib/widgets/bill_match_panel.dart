@@ -170,7 +170,7 @@ class _SuggestionRow extends StatelessWidget {
     final t = RT(context);
     final absDelta = (billTotal - po.openValue).abs();
     final pctDelta = po.openValue > 0 ? (absDelta / po.openValue) * 100 : 100;
-    final withinTolerance = pctDelta <= tolerancePct;
+    final withinTolerance = !po.priced || pctDelta <= tolerancePct;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -188,7 +188,9 @@ class _SuggestionRow extends StatelessWidget {
                     style: RunqText.bodyStrong.copyWith(color: t.ink)),
                 const SizedBox(height: 2),
                 Text(
-                  'Open ${formatINR(po.openValue)} · Bill ${formatINR(billTotal)} · Δ ${formatINR(absDelta)} (${pctDelta.toStringAsFixed(1)}%)',
+                  po.priced
+                      ? 'Open ${formatINR(po.openValue)} · Bill ${formatINR(billTotal)} · Δ ${formatINR(absDelta)} (${pctDelta.toStringAsFixed(1)}%)'
+                      : 'Qty only · ${_qty(po.openQty)} not yet billed · Bill ${formatINR(billTotal)}',
                   style: RunqText.caption.copyWith(color: t.muted),
                 ),
               ],
@@ -332,7 +334,7 @@ class _CommitMatchSheetState extends State<_CommitMatchSheet> {
     final t = RT(context);
     final absDelta = (widget.billTotal - widget.po.openValue).abs();
     final pctDelta = widget.po.openValue > 0 ? (absDelta / widget.po.openValue) * 100 : 100;
-    final withinTolerance = pctDelta <= widget.tolerancePct;
+    final withinTolerance = !widget.po.priced || pctDelta <= widget.tolerancePct;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.55,
@@ -382,7 +384,9 @@ class _CommitMatchSheetState extends State<_CommitMatchSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bill ${formatINR(widget.billTotal)} vs PO open ${formatINR(widget.po.openValue)}',
+                          widget.po.priced
+                              ? 'Bill ${formatINR(widget.billTotal)} vs PO open ${formatINR(widget.po.openValue)}'
+                              : 'Bill ${formatINR(widget.billTotal)} · PO has ${_qty(widget.po.openQty)} not yet billed — items pair by name',
                           style: RunqText.bodyStrong.copyWith(color: t.ink),
                         ),
                         const SizedBox(height: 4),
@@ -450,3 +454,5 @@ class _CommitMatchSheetState extends State<_CommitMatchSheet> {
     );
   }
 }
+
+String _qty(double v) => v == v.truncateToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);

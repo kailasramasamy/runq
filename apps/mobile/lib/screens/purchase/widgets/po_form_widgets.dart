@@ -41,6 +41,12 @@ String _isoDate(DateTime d) => d.toIso8601String().substring(0, 10);
 /// serialisation. The host state class owns the list of rows and is
 /// responsible for calling [dispose].
 class PoLineRow {
+  /// The saved line this row edits; null for a line added in this edit.
+  String? id;
+  /// Already received / billed against the line — the qty can't go below
+  /// it, and the line can't be removed while it's above zero.
+  double floor = 0;
+  String floorReason = 'received';
   String? catalogItemId;
   final TextEditingController description = TextEditingController();
   final TextEditingController qty = TextEditingController();
@@ -51,6 +57,9 @@ class PoLineRow {
 
   /// Seed from an existing PO line — used by the edit screen.
   PoLineRow.fromExisting(PurchaseOrderLine l) {
+    id = l.id;
+    floor = l.qtyBilled > l.qtyReceived ? l.qtyBilled : l.qtyReceived;
+    floorReason = l.qtyBilled > l.qtyReceived ? 'billed' : 'received';
     catalogItemId = l.catalogItemId;
     description.text = l.description;
     qty.text = trimZeros(l.qtyOrdered);
@@ -68,7 +77,10 @@ class PoLineRow {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
+  bool get locked => floor > 0;
+
   Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
         'description': description.text.trim(),
         if (catalogItemId != null) 'catalogItemId': catalogItemId,
         if (uom.text.trim().isNotEmpty) 'uom': uom.text.trim(),
@@ -647,9 +659,13 @@ class PoLineEditorSheet extends StatefulWidget {
 class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
   bool _hsnOpen = false;
 
+  double get _qty => double.tryParse(widget.row.qty.text) ?? 0;
+
+  /// Below what's already received / billed isn't allowed.
+  bool get _belowFloor => widget.row.locked && _qty < widget.row.floor;
+
   bool get _canCommit =>
-      widget.row.description.text.trim().isNotEmpty &&
-      (double.tryParse(widget.row.qty.text) ?? 0) > 0;
+      widget.row.description.text.trim().isNotEmpty && _qty > 0 && !_belowFloor;
 
   Future<void> _pickCatalog() async {
     await widget.onPickCatalog();
@@ -710,7 +726,7 @@ class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
                         style: RunqText.h3.copyWith(
                             color: t.ink, fontWeight: FontWeight.w700)),
                     const Spacer(),
-                    if (!widget.isNew)
+                    if (!widget.isNew && !r.locked)
                       IconButton(
                         onPressed: _confirmDelete,
                         icon: Icon(Icons.delete_outline_rounded,
@@ -832,6 +848,17 @@ class _PoLineEditorSheetState extends State<PoLineEditorSheet> {
                 ),
                 child: Row(
                   children: [
+                    if (r.locked) ...[
+                      Expanded(
+                        child: Text(
+                          '${PoLineRow.trimZeros(r.floor)} ${r.floorReason} — '
+                          '${_belowFloor ? 'qty can\'t be lower' : 'can\'t be removed'}',
+                          style: RunqText.caption.copyWith(
+                              color: _belowFloor ? PurColors.error : t.muted),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
                     Expanded(
                       child: PurPrimaryButton(
                         label: widget.isNew ? 'Add to PO' : 'Save',

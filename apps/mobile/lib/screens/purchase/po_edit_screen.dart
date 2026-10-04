@@ -44,6 +44,14 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
 
   static const _termPresets = ['Net 0', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
 
+  /// Statuses whose items can still change; once sent, vendor and PO date are fixed.
+  static const _editable = {'draft', 'sent', 'partially_received'};
+
+  bool get _sent => _statusGuard != 'draft';
+
+  void _lockedNote(String what) =>
+      showRunqSnack(context, '$what can\'t change after the PO is sent', kind: SnackKind.info);
+
   @override
   void dispose() {
     _notesCtl.dispose();
@@ -207,7 +215,12 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
       ref.invalidate(purchaseOrderDetailProvider(widget.poId));
       ref.invalidate(purchaseOrderListProvider);
       if (!mounted) return;
-      showRunqSnack(context, 'PO updated', kind: SnackKind.success);
+      // The vendor already holds the old version — nudge a re-share.
+      showRunqSnack(
+        context,
+        _sent ? 'PO updated — share the updated PO with the vendor' : 'PO updated',
+        kind: SnackKind.success,
+      );
       context.pop();
     } catch (e) {
       if (mounted) showRunqSnack(context, e.toString(), kind: SnackKind.error);
@@ -229,7 +242,7 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
           error: (e, _) => Center(child: Text('Failed to load: $e', style: RunqText.body)),
           data: (po) {
             _seedFrom(po);
-            final readOnly = _statusGuard != 'draft';
+            final readOnly = !_editable.contains(_statusGuard);
             if (readOnly) {
               return Column(
                 children: [
@@ -239,7 +252,7 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
                       icon: Icons.lock_outline_rounded,
                       title: 'Cannot edit ${po.poNumber}',
                       description:
-                          'This PO is ${po.status}. Cancel and recreate if changes are needed.',
+                          'This PO is ${po.status.replaceAll('_', ' ')}. Create a new PO for further items.',
                       action: PurPrimaryButton(
                         label: 'Back to PO',
                         onPressed: () => context.pop(),
@@ -273,12 +286,12 @@ class _PurchaseOrderEditScreenState extends ConsumerState<PurchaseOrderEditScree
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
-              PoVendorCard(name: _vendorName, onTap: _pickVendor),
+              PoVendorCard(name: _vendorName, onTap: _sent ? () => _lockedNote('The vendor') : _pickVendor),
               const SizedBox(height: 12),
               PoScheduleRow(
                 poDate: _poDate,
                 expectedDate: _expectedDate,
-                onPickPo: () => _pickDate(expected: false),
+                onPickPo: _sent ? () => _lockedNote('The PO date') : () => _pickDate(expected: false),
                 onPickExpected: () => _pickDate(expected: true),
                 onClearExpected: () => setState(() => _expectedDate = null),
               ),

@@ -60,7 +60,8 @@ export function PurchaseOrderDetailPage({ poId }: Props) {
   if (isError || !po) return <p className="text-sm text-red-500">PO not found.</p>;
 
   const tone = STATUS_COLOR[po.status] ?? STATUS_COLOR.draft!;
-  const canEdit = po.status === 'draft';
+  // Items can be amended until goods are fully in (vendor/date only in draft).
+  const canEdit = ['draft', 'sent', 'partially_received'].includes(po.status);
   const canSend = po.status === 'draft' && po.lines.length > 0;
   const canReceive = ['sent', 'partially_received'].includes(po.status);
   const canClose = ['sent', 'partially_received', 'received'].includes(po.status);

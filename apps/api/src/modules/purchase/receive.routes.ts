@@ -6,6 +6,7 @@ import {
 } from '@runq/validators';
 import { rbacHook } from '../../hooks/rbac';
 import { ReceiveService } from './receive.service';
+import { receiveWithExtras } from './receive-extra-items';
 import { ScanReceiveService } from './scan-receive.service';
 
 const MAX_SCAN_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -48,8 +49,7 @@ export const receiveRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = uuidParamSchema.parse(request.params);
       const input = receiveAgainstPoSchema.parse(request.body);
-      const svc = new ReceiveService(request.server.db, request.tenantId, request.user?.userId);
-      const data = await svc.receive(id, input);
+      const data = await receiveWithExtras(request.server.db, request.server.redis, request.tenantId, request.user!.userId, id, input);
       return reply.status(201).send({ data });
     },
   );

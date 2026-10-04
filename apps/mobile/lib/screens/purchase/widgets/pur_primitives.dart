@@ -426,6 +426,8 @@ class PurDocListTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title shares its line only with the amount; the status
+                    // pill sits with the doc number so long names don't clip.
                     Row(
                       children: [
                         Expanded(
@@ -435,18 +437,28 @@ class PurDocListTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (status != null) ...[
-                          const SizedBox(width: 6),
-                          PurStatusPill(status: status!),
+                        if (rightValue != null) ...[
+                          const SizedBox(width: 8),
+                          Text(rightValue!, style: RunqText.bodyStrong.copyWith(color: t.ink)),
                         ],
                       ],
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: RunqText.caption.copyWith(color: t.muted),
-                        overflow: TextOverflow.ellipsis,
+                    if (subtitle != null || status != null) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              subtitle ?? '',
+                              style: RunqText.caption.copyWith(color: t.muted),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (status != null) ...[
+                            const SizedBox(width: 6),
+                            PurStatusPill(status: status!),
+                          ],
+                        ],
                       ),
                     ],
                     if (meta.isNotEmpty) ...[
@@ -460,13 +472,6 @@ class PurDocListTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (rightValue != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  rightValue!,
-                  style: RunqText.bodyStrong.copyWith(color: t.ink),
-                ),
-              ],
             ],
           ),
         ),

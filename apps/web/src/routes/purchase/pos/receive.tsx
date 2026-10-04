@@ -114,22 +114,24 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!warehouseId) { toast('Pick a warehouse', 'error'); return; }
-    const receiving = rows.filter((r) => parseFloat(r.qty) > 0 && r.catalogItemId);
-    // A line with no rate posts a zero-value GRN: stock valued at zero for
-    // tracked items, and a GL entry with nothing to debit either way.
-    const unpriced = receiving.find((r) => !(parseFloat(r.rate) > 0));
-    if (unpriced) {
-      toast(`Enter a rate for ${unpriced.description} — receiving at ₹0 posts no value`, 'error');
+    // A free-text PO line has no catalog row yet — the server links one.
+    const receiving = rows.filter((r) => parseFloat(r.qty) > 0);
+    // Rates on every item → no invoice will follow; bill with the receipt.
+    // No rates → receipt only; the vendor's invoice becomes the bill later.
+    const priced = receiving.filter((r) => parseFloat(r.rate) > 0).length;
+    if (priced > 0 && priced < receiving.length) {
+      toast('Enter a rate for every item to bill now — or clear all rates to receive only', 'error');
       return;
     }
+    const createBill = priced > 0;
     const lines = receiving
       .map((r) => {
         const serials = r.serialNos.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
         return {
           poLineId: r.poLineId,
-          catalogItemId: r.catalogItemId,
+          catalogItemId: r.catalogItemId || null,
           qty: parseFloat(r.qty),
-          unitCost: parseFloat(r.rate) || 0,
+          unitCost: parseFloat(r.rate) > 0 ? parseFloat(r.rate) : null,
           batchNo: r.batchNo || null,
           expiryDate: r.expiryDate || null,
           serialNos: serials.length > 0 ? serials : null,
@@ -141,11 +143,11 @@ export function ReceiveAgainstPoPage({ poId }: Props) {
       return;
     }
     mutation.mutate(
-      { poId, data: { warehouseId, receivedDate, vehicleNo: vehicleNo || null, lrNo: lrNo || null, notes: notes || null, lines } },
+      { poId, data: { warehouseId, receivedDate, vehicleNo: vehicleNo || null, lrNo: lrNo || null, notes: notes || null, lines, extraItems: [], createBill } },
       {
         onSuccess: (res) => {
-          const r = (res as { data?: { grnNo?: string } })?.data;
-          toast(`GRN ${r?.grnNo ?? ''} posted`, 'success');
+          const r = (res as { data?: { grnNo?: string; billNumber?: string } })?.data;
+          toast(r?.billNumber ? `GRN ${r.grnNo} posted · bill ${r.billNumber} created` : `GRN ${r?.grnNo ?? ''} posted`, 'success');
           navigate({ to: '/purchase/pos/$poId', params: { poId } });
         },
         onError: (err) => toast((err as Error).message || 'Failed to receive', 'error'),

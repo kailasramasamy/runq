@@ -33,6 +33,11 @@ import { DEFAULT_EXPENSE_ACCOUNT_CODE } from '../gl/inventory-accounts';
  * clears Dr GRNI / Cr AP. AP Pattern-B's match path (Phase 3) handles
  * the bill side.
  */
+/** A receipt whose every line is tied to a vendor catalog row (see receive-extra-items). */
+export type ResolvedReceiveInput = Omit<ReceiveAgainstPoInput, 'lines'> & {
+  lines: Array<ReceiveAgainstPoInput['lines'][number] & { catalogItemId: string }>;
+};
+
 export interface ReceiveTemplateLine {
   poLineId: string;
   lineNo: number;
@@ -147,7 +152,7 @@ export class ReceiveService {
 
   // ─── Receive ────────────────────────────────────────────────────────────
 
-  async receive(poId: string, input: ReceiveAgainstPoInput): Promise<ReceiveResult> {
+  async receive(poId: string, input: ResolvedReceiveInput): Promise<ReceiveResult> {
     // Load PO + lines in one shot for validation + counter updates.
     const [po] = await this.db
       .select()
@@ -271,12 +276,8 @@ export class ReceiveService {
         return { unitCost, lineTotal };
       });
       const totalValue = inventoryValue + expenseValue;
-      // Every Dr line is value-gated, so a zero-value receipt would leave a
-      // lone Cr GRNI line and the GL would reject the JE with a cryptic
-      // "at least 2 lines". Fail here with the reason the receiver can act on.
-      if (totalValue <= 0) {
-        throw new ConflictError('Receipt value is zero — enter a rate on at least one line');
-      }
+      // An unpriced receipt (the vendor's invoice comes later and becomes the
+      // bill) moves stock but has nothing to value yet — so no GRNI entry.
 
       const [grn] = await tx
         .insert(inventoryGrns)
@@ -369,32 +370,39 @@ export class ReceiveService {
 
       // Single JE for the GRN. Mixed Dr (Inventory + Expense) / Cr GRNI when
       // the receive includes a mix of stock-tracked and catalog-only lines.
-      const poster = new InventoryGlPoster(tx, this.tenantId, this.userId ?? undefined);
-      const jeId = await poster.postPoReceive({
-        date: input.receivedDate,
-        grnId: grn!.id,
-        grnNo: grn!.grnNo,
-        inventoryValue,
-        expenseValue,
-        expenseAccountCode,
-      });
+      if (totalValue > 0) {
+        const poster = new InventoryGlPoster(tx, this.tenantId, this.userId ?? undefined);
+        const jeId = await poster.postPoReceive({
+          date: input.receivedDate,
+          grnId: grn!.id,
+          grnNo: grn!.grnNo,
+          inventoryValue,
+          expenseValue,
+          expenseAccountCode,
+        });
+        // Backlink the JE on GRN row + ledger rows.
+        await tx
+          .update(inventoryGrns)
+          .set({ journalEntryId: jeId })
+          .where(eq(inventoryGrns.id, grn!.id));
+        await tx.execute(sql`
+          UPDATE stock_ledger SET journal_entry_id = ${jeId}
+          WHERE tenant_id = ${this.tenantId}
+            AND source_type = 'inventory_grn' AND source_id = ${grn!.id}
+        `);
+      }
 
-      // Backlink the JE on GRN row + ledger rows.
-      await tx
-        .update(inventoryGrns)
-        .set({ journalEntryId: jeId })
-        .where(eq(inventoryGrns.id, grn!.id));
-      await tx.execute(sql`
-        UPDATE stock_ledger SET journal_entry_id = ${jeId}
-        WHERE tenant_id = ${this.tenantId}
-          AND source_type = 'inventory_grn' AND source_id = ${grn!.id}
-      `);
-
-      // Update PO line denormalised counters.
+      // Update PO line denormalised counters. What arrived is the truth: a
+      // vendor who ships more than ordered (and it's accepted) lifts the
+      // ordered qty to match, so the PO reflects the actual shipment.
       for (const line of input.lines) {
+        const received = sql`${purchaseOrderLinesV2.qtyReceived}::numeric + ${line.qty}`;
         await tx
           .update(purchaseOrderLinesV2)
-          .set({ qtyReceived: sql`${purchaseOrderLinesV2.qtyReceived}::numeric + ${line.qty}` })
+          .set({
+            qtyReceived: received,
+            qtyOrdered: sql`greatest(${purchaseOrderLinesV2.qtyOrdered}::numeric, ${received})`,
+          })
           .where(eq(purchaseOrderLinesV2.id, line.poLineId));
       }
 

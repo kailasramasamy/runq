@@ -122,12 +122,12 @@ class _PoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return PurDocListTile(
       icon: Icons.shopping_cart_outlined,
-      title: po.poNumber,
-      subtitle: po.vendorName,
+      title: po.vendorName,
+      subtitle: po.poNumber,
       status: po.status,
-      // Unpriced (the norm now — rate lands with the vendor bill) shows no
-      // amount at all rather than a misleading ₹0.
-      rightValue: po.total > 0 ? indianINR(po.total) : null,
+      // Priced total, else what's been billed; unknown shows nothing rather
+      // than a misleading ₹0.
+      rightValue: po.displayTotal == null ? null : indianINR(po.displayTotal!),
       meta: [
         PurDocMeta(icon: Icons.event_outlined, label: prettyShortDate(po.poDate)),
         if (po.expectedDate != null)

@@ -110,10 +110,10 @@ class PurchaseHomeScreen extends ConsumerWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: PurDocListTile(
                               icon: Icons.shopping_cart_outlined,
-                              title: po.poNumber,
-                              subtitle: po.vendorName,
+                              title: po.vendorName,
+                              subtitle: po.poNumber,
                               status: po.status,
-                              rightValue: indianINR(po.total),
+                              rightValue: po.displayTotal == null ? null : indianINR(po.displayTotal!),
                               meta: [
                                 PurDocMeta(icon: Icons.event_outlined, label: prettyShortDate(po.poDate)),
                                 if (po.expectedDate != null)

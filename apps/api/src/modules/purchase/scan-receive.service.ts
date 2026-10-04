@@ -255,6 +255,8 @@ export class ScanReceiveService {
           .set({
             qtyReceived: sql`${purchaseOrderLinesV2.qtyReceived}::numeric + ${l.qty}`,
             qtyBilled:   sql`${purchaseOrderLinesV2.qtyBilled}::numeric + ${l.qty}`,
+            // Over-delivery accepted → the PO reflects what actually came.
+            qtyOrdered:  sql`greatest(${purchaseOrderLinesV2.qtyOrdered}::numeric, ${purchaseOrderLinesV2.qtyReceived}::numeric + ${l.qty})`,
           })
           .where(eq(purchaseOrderLinesV2.id, l.poLineId));
       }

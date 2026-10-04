@@ -21,6 +21,8 @@ export const PURCHASE_ORDER_STATUS_VALUES = [
 ] as const;
 
 const poLineSchema = z.object({
+  /** Existing line being amended (update only). Omitted = a new line. */
+  id: z.string().uuid().optional(),
   description: z.string().min(1).max(255),
   catalogItemId: z.string().uuid().nullish(),
   uom: z.string().max(20).nullish(),
