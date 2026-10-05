@@ -9,7 +9,13 @@
  *      actually struck (`rate_per_litre` against the rate chart), so a
  *      volume-weighted average of the day's pours is the real purchase cost.
  *
- *   2. The last VMCC bill. Centres whose VMCCs record no pours — Indus CC's
+ *   2. The CC's direct receipts. Centres like Indus CC take milk straight from
+ *      their VMCCs as manual receipts, so there is no pour — but each receipt
+ *      carries FAT/SNF and its VMCC has a rate chart. The day's receipts into
+ *      the CC, priced chart by chart and volume-weighted, are what the tanker's
+ *      milk cost.
+ *
+ *   3. The last VMCC bill. Centres whose VMCCs record no pours — Indus CC's
  *      twelve, entered as manual receipts — have no pour to average, so their
  *      milk landed at zero: ~600 L a day of the plant's intake with no cost on
  *      it. The bill that settled those VMCCs last cycle is a price the company
@@ -30,6 +36,7 @@ import {
   mpPours, mpNodes, mpConsignments, mpVmccBills, mpPayoutCycles,
 } from '@runq/db';
 import type { MpConsignmentRow } from '@runq/db';
+import { ReportService, type DrGross } from './report.service';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = any;
@@ -88,6 +95,21 @@ export function varianceValuation(
   };
 }
 
+/**
+ * Volume-weighted rate of the receipts a CC took in, for one milk type. Groups
+ * no chart priced are left out of the litres too — counting them would drag
+ * the rate toward zero rather than leave it unknown.
+ */
+export function receiptRate(
+  groups: readonly DrGross[], ccNodeId: string, milkType: string | null,
+): number {
+  const priced = groups.filter((g) => g.toNodeId === ccNodeId && g.ratePerLitre != null
+    && g.qty > 0 && (!milkType || g.milkType === milkType));
+  const litres = priced.reduce((sum, g) => sum + g.qty, 0);
+  const cost = priced.reduce((sum, g) => sum + g.gross, 0);
+  return litres > 0 ? round2(cost / litres) : 0;
+}
+
 export class RawMilkCostService {
   constructor(private readonly tenantId: string) {}
 
@@ -97,6 +119,8 @@ export class RawMilkCostService {
     if (nodeIds.length === 0) return 0;
     const fromPours = await this.pourRate(db, c, nodeIds);
     if (fromPours > 0) return fromPours;
+    const fromReceipts = await this.directReceiptRate(db, c);
+    if (fromReceipts > 0) return fromReceipts;
     return this.lastBillRate(db, c, nodeIds);
   }
 
@@ -130,6 +154,13 @@ export class RawMilkCostService {
     ));
     const qty = Number(r?.qty ?? 0);
     return qty > 0 ? round2(Number(r?.amount ?? 0) / qty) : 0;
+  }
+
+  /** The day's manual VMCC receipts into this leg's source CC, at their charts. */
+  private async directReceiptRate(db: Db | Tx, c: MpConsignmentRow): Promise<number> {
+    const groups = await new ReportService(db, this.tenantId)
+      .pricedDrGross(c.collectionDate, c.collectionDate, c.fromNodeId);
+    return receiptRate(groups, c.fromNodeId, c.milkType);
   }
 
   /**

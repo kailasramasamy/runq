@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  latestBillPerNode, blendedBillRate, varianceValuation, type BilledLeg,
+  latestBillPerNode, blendedBillRate, varianceValuation, receiptRate, type BilledLeg,
 } from './raw-milk-cost';
+import type { DrGross } from './report.service';
 
 const bill = (
   nodeId: string, periodEnd: string, milkCost: number | string, qtyLitres: number | string,
@@ -50,5 +51,30 @@ describe('varianceValuation', () => {
 
   it('leaves an unpriced leg null rather than a ₹0 loss', () => {
     expect(varianceValuation(-10, 0)).toEqual({ varianceUnitCost: null, varianceValue: null });
+  });
+});
+
+describe('receiptRate', () => {
+  const g = (
+    toNodeId: string, milkType: string, qty: number, rate: number | null,
+  ): DrGross => ({
+    fromNodeId: 'vmcc', toNodeId, milkType, date: '2026-09-20', shift: 'am',
+    qty, gross: rate == null ? 0 : qty * rate, fat: 4, snf: 8.5, water: null, ratePerLitre: rate,
+  });
+
+  it('weights each VMCC chart rate by the litres it priced', () => {
+    expect(receiptRate([g('indus', 'cow_a2', 300, 40), g('indus', 'cow_a2', 100, 44)], 'indus', 'cow_a2'))
+      .toBe(41);
+  });
+
+  it('leaves out unpriced groups, other milk types and other CCs', () => {
+    expect(receiptRate([
+      g('indus', 'cow_a2', 200, 40), g('indus', 'cow_a2', 500, null),
+      g('indus', 'buffalo', 100, 60), g('other', 'cow_a2', 100, 50),
+    ], 'indus', 'cow_a2')).toBe(40);
+  });
+
+  it('is zero when no receipt priced', () => {
+    expect(receiptRate([g('indus', 'cow_a2', 200, null)], 'indus', 'cow_a2')).toBe(0);
   });
 });

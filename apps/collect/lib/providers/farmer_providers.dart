@@ -230,6 +230,21 @@ List<MpCyclePeriod> buildCyclePeriods(MpCycleConfig cfg, DateTime now, int count
   });
 }
 
+/// The cycle window a yyyy-MM-dd [date] falls in — same calendar alignment as
+/// [buildCyclePeriods], whole month when no cadence is configured.
+MpCyclePeriod cyclePeriodFor(MpCycleConfig cfg, String date) {
+  final d = DateTime.parse(date);
+  final n = cfg.cycleDays;
+  if (n != null && n >= 1) {
+    return _monthCycles(d.year, d.month, n)
+        .lastWhere((c) => c.start.compareTo(date) <= 0);
+  }
+  final first = DateTime(d.year, d.month);
+  final last = DateTime(d.year, d.month + 1, 0);
+  return MpCyclePeriod(_isoDate(first), _isoDate(last),
+      '${_shortMonths[d.month - 1]} ${d.year}');
+}
+
 /// Tenant cadence for the signed-in farmer's views.
 final cycleConfigProvider = FutureProvider<MpCycleConfig>((ref) => mpRepo.cycleConfig());
 

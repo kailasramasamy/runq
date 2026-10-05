@@ -4,6 +4,7 @@ import '../../api/mp_models.dart';
 import '../../api/mp_repo.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_helpers.dart';
+import '../../providers/farmer_providers.dart' show cycleConfigProvider, cyclePeriodFor, MpCyclePeriod;
 import '../../providers/mp_payout_providers.dart';
 import '../../widgets/running_cycle_card.dart';
 import '../../theme/dhenu_icons.dart';
@@ -16,6 +17,7 @@ import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import '../../widgets/payout_status_chip.dart';
 import '../../widgets/primary_action.dart';
+import '../../widgets/section_header.dart';
 import 'farmer_ledger_sheet.dart';
 import 'farmer_sale_actions.dart';
 import 'farmer_sale_sheet.dart';
@@ -253,16 +255,45 @@ class _FarmerPaymentsTabState extends ConsumerState<FarmerPaymentsTab> {
         data: (sales) => sales.isEmpty
             ? DhenuEmptyState(
                 icon: DhenuIcons.milk, title: l.farmerSaleNoneYet)
-            : DhenuCard(
-                padding: EdgeInsets.zero,
-                child: Column(children: [
-                  for (var i = 0; i < sales.length; i++) ...[
-                    if (i > 0) Divider(height: 1, color: t.hairline),
-                    _saleRow(t, l, sales[i]),
-                  ],
-                ]),
-              ),
+            : _salesByCycle(t, l, sales),
       ),
+    ]);
+  }
+
+  /// Sales bucketed by the cycle they fall in, newest first, each headed by
+  /// what that cycle deducts. Reversed sales stay listed but add nothing.
+  Widget _salesByCycle(
+      DhenuTokens t, AppLocalizations l, List<MpFarmerSale> sales) {
+    // Until the cadence loads, every sale lands in its calendar month.
+    final cfg =
+        ref.watch(cycleConfigProvider).valueOrNull ?? const MpCycleConfig();
+    final groups = <MpCyclePeriod, List<MpFarmerSale>>{};
+    for (final s in sales) {
+      groups.putIfAbsent(cyclePeriodFor(cfg, s.saleDate), () => []).add(s);
+    }
+    return Column(children: [
+      for (final MapEntry(key: period, value: rows) in groups.entries) ...[
+        DhenuSectionHeader(
+          period.label,
+          trailing: Text(
+            rupees(rows
+                .where((s) => !s.isReversed)
+                .fold<double>(0, (sum, s) => sum + s.amount)),
+            style: DhenuText.number(size: 16, color: t.ink),
+          ),
+        ),
+        const SizedBox(height: DhenuSpacing.sm),
+        DhenuCard(
+          padding: EdgeInsets.zero,
+          child: Column(children: [
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: t.hairline),
+              _saleRow(t, l, rows[i]),
+            ],
+          ]),
+        ),
+        const SizedBox(height: DhenuSpacing.lg),
+      ],
     ]);
   }
 
