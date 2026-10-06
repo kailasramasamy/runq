@@ -91,3 +91,9 @@ const MODE_LABELS: Record<string, string> = {
 export function paymentModeLabel(m: string): string {
   return MODE_LABELS[m] ?? m;
 }
+
+// Litres with Indian grouping, up to 3 decimals ("1250.500" → "1,250.5"). '-' when absent.
+export function litres(v: string | null): string {
+  const n = Number(v ?? '');
+  return v != null && Number.isFinite(n) ? n.toLocaleString('en-IN', { maximumFractionDigits: 3 }) : '-';
+}

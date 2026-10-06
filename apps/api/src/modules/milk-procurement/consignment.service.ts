@@ -18,6 +18,7 @@ import {
 } from './procurement-window';
 import { MpPrincipal, scopeConsignments, assertNodeAccess } from './access-scope';
 import { sendDirectReceiptWhatsApp, type ReceiptPricing } from './mp-consignment-notify';
+import { sendShortageWhatsApp } from './mp-variance-notify';
 import { MpNotifier } from './mp-notifier';
 import { RateChartService } from './rate-chart.service';
 import { RawMilkCostService, varianceValuation } from './raw-milk-cost';
@@ -276,6 +277,9 @@ export class ConsignmentService {
     if (!opts.silent) {
       void new MpNotifier(this.db, this.tenantId).received(result)
         .catch((err) => console.error('mp receipt notification failed:', err));
+      // A short CC→PP load is a rupee loss — WhatsApp the CC and the owners.
+      void sendShortageWhatsApp(this.db, this.tenantId, result)
+        .catch((err) => console.error('shortage WhatsApp failed:', err));
     }
     return result;
   }
