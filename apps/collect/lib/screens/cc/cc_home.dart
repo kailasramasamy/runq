@@ -12,6 +12,7 @@ import '../../widgets/centre_switcher.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/profile_avatar_button.dart';
 import '../../widgets/dhenu_card.dart';
+import '../role_shell.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/hero_number_card.dart';
 import '../../widgets/pending_dispatch_alert.dart';
@@ -138,7 +139,7 @@ class CcHome extends ConsumerWidget {
                 current: received, capacity: node.capacityLitres!, label: l.ccHomeChillingTank)),
             const SizedBox(height: DhenuSpacing.md),
           ],
-          _statsRow(t, l, inTransit, ready),
+          _statsRow(context, t, l, inTransit, ready),
           if (overnight && nextPm > 0.05) ...[
             const SizedBox(height: DhenuSpacing.md),
             _nextPoolNote(t, l, nextPm),
@@ -384,22 +385,30 @@ class CcHome extends ConsumerWidget {
   }
 
 
-  Widget _statsRow(DhenuTokens t, AppLocalizations l, double inTransit, double ready) => Row(children: [
+  /// Stats that open where their milk is handled: in-transit on Receive,
+  /// ready-for-plant on Dispatch. Indices match CcShell's page order.
+  Widget _statsRow(BuildContext context, DhenuTokens t, AppLocalizations l,
+          double inTransit, double ready) =>
+      Row(children: [
         Expanded(child: _miniStat(t, l.ccInTransitLabel, litres(inTransit, unit: true),
-            DhenuIcons.truck, t.am)),
+            DhenuIcons.truck, t.am, () => RoleShell.goToTab(context, 1))),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: _miniStat(t, l.ccHomePlantReadyLabel, litres(ready, unit: true),
-            DhenuIcons.outbound, ready > 0.05 ? t.brand : t.inkSoft)),
+            DhenuIcons.outbound, ready > 0.05 ? t.brand : t.inkSoft,
+            () => RoleShell.goToTab(context, 2))),
       ]);
 
-  Widget _miniStat(DhenuTokens t, String label, String value, IconData icon, Color color) =>
+  Widget _miniStat(DhenuTokens t, String label, String value, IconData icon, Color color,
+          VoidCallback onTap) =>
       DhenuCard(
+        onTap: onTap,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(icon, size: 15, color: color),
             const SizedBox(width: DhenuSpacing.xs),
             Expanded(child: Text(label.toUpperCase(),
                 style: DhenuText.label.copyWith(color: t.inkSoft), overflow: TextOverflow.ellipsis)),
+            Icon(DhenuIcons.chevronRight, size: 16, color: t.inkSoft),
           ]),
           const SizedBox(height: DhenuSpacing.sm),
           Text(value, style: DhenuText.number(size: 20, color: t.ink)),

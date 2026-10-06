@@ -11,11 +11,11 @@ import '../../theme/dhenu_tokens.dart';
 import '../../api/api_client.dart';
 import '../../utils/format.dart';
 import '../../utils/friendly_error.dart';
-import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
 import '../../widgets/dhenu_toast.dart';
 import 'receive_leg.dart';
 import 'variance_share.dart';
+import 'variance_summary_card.dart';
 import 'variance_widgets.dart';
 
 /// Litres that arrived short (or over) of what the sender dispatched, in rupees.
@@ -167,7 +167,13 @@ class _ReceiptVarianceReportState extends ConsumerState<ReceiptVarianceReport> {
         DhenuSpacing.x4,
       ),
       children: [
-        _summary(t, l, r, p, moved.length),
+        VarianceSummaryCard(
+          totals: r.totals,
+          periodLabel: p.label,
+          movedLoads: moved.length,
+          sharing: _sharing,
+          onShare: () => _share(p, r),
+        ),
         for (final d in days.entries) ...[
           const SizedBox(height: DhenuSpacing.lg),
           Text(shortDate(d.key), style: DhenuText.title.copyWith(color: t.ink)),
@@ -175,77 +181,6 @@ class _ReceiptVarianceReportState extends ConsumerState<ReceiptVarianceReport> {
           VarianceLoadList(lines: d.value),
         ],
       ],
-    );
-  }
-
-  Widget _summary(
-    DhenuTokens t,
-    AppLocalizations l,
-    MpReceiptVarianceReport r,
-    MpCyclePeriod p,
-    int movedLoads,
-  ) {
-    final s = r.totals;
-    // A zero rupee net can still carry litres (all unpriced), so fall back to them.
-    final loss = s.netValue != 0 ? s.netValue < 0 : s.netQty < 0;
-    final color = loss ? t.gradeC : t.gradeA;
-    return DhenuCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  (loss ? l.varianceNetLoss : l.varianceNetGain).toUpperCase(),
-                  style: DhenuText.label.copyWith(color: t.inkSoft),
-                ),
-              ),
-              IconButton(
-                icon: _sharing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(DhenuIcons.share, size: 18, color: t.brand),
-                tooltip: l.varianceShare,
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                padding: EdgeInsets.zero,
-                onPressed: _sharing ? null : () => _share(p, r),
-              ),
-            ],
-          ),
-          const SizedBox(height: DhenuSpacing.xs),
-          Text(
-            rupees(s.netValue.abs()),
-            style: DhenuText.number(size: 28, color: color),
-          ),
-          const SizedBox(height: DhenuSpacing.md),
-          Text(
-            l.varianceShortRow(litres(s.shortQty, unit: true), rupees(s.shortValue)),
-            style: DhenuText.body.copyWith(color: t.gradeC, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: DhenuSpacing.xs),
-          Text(
-            l.varianceGainedRow(litres(s.gainQty, unit: true), rupees(s.gainValue)),
-            style: DhenuText.body.copyWith(color: t.gradeA, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: DhenuSpacing.md),
-          Text(
-            l.varianceFlaggedCaption(s.flaggedLoads, movedLoads),
-            style: DhenuText.caption.copyWith(color: t.inkSoft),
-          ),
-          if (s.unpricedQty > 0) ...[
-            const SizedBox(height: DhenuSpacing.xs),
-            Text(
-              l.varianceUnpricedCaption(litres(s.unpricedQty, unit: true)),
-              style: DhenuText.caption.copyWith(color: t.inkSoft),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

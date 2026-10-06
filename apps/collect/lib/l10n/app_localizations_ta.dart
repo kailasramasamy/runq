@@ -3726,13 +3726,25 @@ class AppLocalizationsTa extends AppLocalizations {
   String get varianceNetGain => 'நிகர லாபம்';
 
   @override
-  String varianceShortRow(Object qty, Object value) {
-    return 'குறைவு · $qty · $value';
+  String get varianceShortLabel => 'குறைவு';
+
+  @override
+  String get varianceGainedLabel => 'கூடுதல்';
+
+  @override
+  String varianceLoadCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count லோடுகள்',
+      one: '1 லோடு',
+    );
+    return '$_temp0';
   }
 
   @override
-  String varianceGainedRow(Object qty, Object value) {
-    return 'கூடுதல் · $qty · $value';
+  String varianceNetContext(Object qty, Object pct, Object sent) {
+    return '$qty · அனுப்பிய $sent இல் $pct';
   }
 
   @override

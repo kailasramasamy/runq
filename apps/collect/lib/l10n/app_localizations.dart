@@ -6352,17 +6352,29 @@ abstract class AppLocalizations {
   /// **'Net gain'**
   String get varianceNetGain;
 
-  /// No description provided for @varianceShortRow.
+  /// No description provided for @varianceShortLabel.
   ///
   /// In en, this message translates to:
-  /// **'Short · {qty} · {value}'**
-  String varianceShortRow(Object qty, Object value);
+  /// **'Short'**
+  String get varianceShortLabel;
 
-  /// No description provided for @varianceGainedRow.
+  /// No description provided for @varianceGainedLabel.
   ///
   /// In en, this message translates to:
-  /// **'Gained · {qty} · {value}'**
-  String varianceGainedRow(Object qty, Object value);
+  /// **'Gained'**
+  String get varianceGainedLabel;
+
+  /// No description provided for @varianceLoadCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 load} other{{count} loads}}'**
+  String varianceLoadCount(int count);
+
+  /// No description provided for @varianceNetContext.
+  ///
+  /// In en, this message translates to:
+  /// **'{qty} · {pct} of {sent} sent'**
+  String varianceNetContext(Object qty, Object pct, Object sent);
 
   /// No description provided for @varianceFlaggedCaption.
   ///

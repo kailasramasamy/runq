@@ -3711,13 +3711,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get varianceNetGain => 'Net gain';
 
   @override
-  String varianceShortRow(Object qty, Object value) {
-    return 'Short · $qty · $value';
+  String get varianceShortLabel => 'Short';
+
+  @override
+  String get varianceGainedLabel => 'Gained';
+
+  @override
+  String varianceLoadCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count loads',
+      one: '1 load',
+    );
+    return '$_temp0';
   }
 
   @override
-  String varianceGainedRow(Object qty, Object value) {
-    return 'Gained · $qty · $value';
+  String varianceNetContext(Object qty, Object pct, Object sent) {
+    return '$qty · $pct of $sent sent';
   }
 
   @override

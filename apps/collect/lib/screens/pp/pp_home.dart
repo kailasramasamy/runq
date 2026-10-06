@@ -80,7 +80,7 @@ class PpHome extends ConsumerWidget {
                 current: received, capacity: node.capacityLitres!, label: l.ppHomeRawMilkTank)),
             const SizedBox(height: DhenuSpacing.md),
           ],
-          _statsRow(l, t, inTransit, received),
+          _statsRow(context, l, t, inTransit, received),
           const SizedBox(height: DhenuSpacing.md),
           _quickLinks(context, t, l),
           const SizedBox(height: DhenuSpacing.lg),
@@ -215,22 +215,31 @@ class PpHome extends ConsumerWidget {
     return list.fold<double>(0, (s, c) => s + val(c) * weight(c)) / totalW;
   }
 
-  Widget _statsRow(AppLocalizations l, DhenuTokens t, double inTransit, double received) => Row(children: [
+  /// Day stats that open where their loads live: in-transit on Receive (where
+  /// they get cleared), received on Tankers (today's loads to this plant).
+  /// Indices match PpShell's page order.
+  Widget _statsRow(BuildContext context, AppLocalizations l, DhenuTokens t,
+          double inTransit, double received) =>
+      Row(children: [
         Expanded(child: _miniStat(t, l.ccInTransitLabel, litres(inTransit, unit: true),
-            DhenuIcons.truck, t.am)),
+            DhenuIcons.truck, t.am, () => RoleShell.goToTab(context, 1))),
         const SizedBox(width: DhenuSpacing.md),
         Expanded(child: _miniStat(t, l.ppHomeReceivedLabel, litres(received, unit: true),
-            DhenuIcons.package, received > 0.05 ? t.brand : t.inkSoft)),
+            DhenuIcons.package, received > 0.05 ? t.brand : t.inkSoft,
+            () => RoleShell.goToTab(context, 2))),
       ]);
 
-  Widget _miniStat(DhenuTokens t, String label, String value, IconData icon, Color color) =>
+  Widget _miniStat(DhenuTokens t, String label, String value, IconData icon, Color color,
+          VoidCallback onTap) =>
       DhenuCard(
+        onTap: onTap,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(icon, size: 15, color: color),
             const SizedBox(width: DhenuSpacing.xs),
             Expanded(child: Text(label.toUpperCase(),
                 style: DhenuText.label.copyWith(color: t.inkSoft), overflow: TextOverflow.ellipsis)),
+            Icon(DhenuIcons.chevronRight, size: 16, color: t.inkSoft),
           ]),
           const SizedBox(height: DhenuSpacing.sm),
           Text(value, style: DhenuText.number(size: 20, color: t.ink)),

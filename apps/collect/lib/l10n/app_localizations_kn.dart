@@ -3698,13 +3698,25 @@ class AppLocalizationsKn extends AppLocalizations {
   String get varianceNetGain => 'ನಿವ್ವಳ ಲಾಭ';
 
   @override
-  String varianceShortRow(Object qty, Object value) {
-    return 'ಕೊರತೆ · $qty · $value';
+  String get varianceShortLabel => 'ಕೊರತೆ';
+
+  @override
+  String get varianceGainedLabel => 'ಹೆಚ್ಚುವರಿ';
+
+  @override
+  String varianceLoadCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ಲೋಡ್‌ಗಳು',
+      one: '1 ಲೋಡ್',
+    );
+    return '$_temp0';
   }
 
   @override
-  String varianceGainedRow(Object qty, Object value) {
-    return 'ಹೆಚ್ಚುವರಿ · $qty · $value';
+  String varianceNetContext(Object qty, Object pct, Object sent) {
+    return '$qty · ಕಳುಹಿಸಿದ $sent ರಲ್ಲಿ $pct';
   }
 
   @override
