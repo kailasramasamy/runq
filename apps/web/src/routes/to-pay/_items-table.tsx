@@ -29,7 +29,7 @@ function DueCell({ asOf, item }: { asOf: string; item: ToPayItem }) {
 function StatusBadge({ asOf, item }: { asOf: string; item: ToPayItem }) {
   if (item.status === 'paid') return <Badge variant="success">Paid</Badge>;
   if (daysFrom(asOf, item.dueDate) < 0) return <Badge variant="danger">Overdue</Badge>;
-  if (item.status === 'partial') return <Badge variant="warning">Part paid · {formatINR(item.balance)} due</Badge>;
+  if (item.status === 'partial') return <Badge variant="warning">Part paid</Badge>;
   return <Badge variant="default">Due</Badge>;
 }
 
@@ -87,8 +87,13 @@ function ItemRow({ item, asOf, categoryLabel }: { item: ToPayItem; asOf: string;
       </TableCell>
       <TableCell><StatusBadge asOf={asOf} item={item} /></TableCell>
       <TableCell align="right" className="num">
-        <div>{formatINR(item.amount)}</div>
-        {item.status === 'partial' && <div className="text-[11.5px]" style={{ color: 'var(--text-3)' }}>{formatINR(item.paid)} paid</div>}
+        {/* A part-paid bill leads with what is still owed; the bill total is context. */}
+        <div>{formatINR(item.status === 'partial' ? item.balance : item.amount)}</div>
+        {item.status === 'partial' && (
+          <div className="text-[11.5px]" style={{ color: 'var(--text-3)' }}>
+            of {formatINR(item.amount)} · {formatINR(item.paid)} paid
+          </div>
+        )}
       </TableCell>
       <TableCell align="right"><ChevronRight size={14} style={{ color: 'var(--text-3)' }} /></TableCell>
     </TableRow>
