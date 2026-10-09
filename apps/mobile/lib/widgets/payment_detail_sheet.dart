@@ -85,7 +85,9 @@ class _PaymentDetailSheet extends StatelessWidget {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        _CategoryTag(label: category, code: item.glAccountCode),
+                        item.isLinked
+                            ? _CategoryTag(label: 'Bill #${item.linkedBillNumber}')
+                            : _CategoryTag(label: category, code: item.glAccountCode),
                         const SizedBox(width: 8),
                         _StatusPill(status: item.status),
                       ],
@@ -124,8 +126,8 @@ class _PaymentDetailSheet extends StatelessWidget {
                           label: const Text('View receipt'),
                         ),
                       ),
-                    if (item.hasAttachment && item.isPending) const SizedBox(width: 10),
-                    if (item.isPending)
+                    if (item.hasAttachment && item.isEditable) const SizedBox(width: 10),
+                    if (item.isEditable)
                       Expanded(
                         child: FilledButton.icon(
                           onPressed: () {
@@ -142,10 +144,12 @@ class _PaymentDetailSheet extends StatelessWidget {
                           label: const Text('Edit'),
                         ),
                       ),
-                    if (!item.hasAttachment && !item.isPending)
+                    if (!item.hasAttachment && !item.isEditable)
                       Expanded(
                         child: Text(
-                          'Locked — this payment is already matched to a bank transaction.',
+                          item.isLinked
+                              ? 'Locked — this payment settles bill #${item.linkedBillNumber}.'
+                              : 'Locked — this payment is already matched to a bank transaction.',
                           style: RunqText.caption.copyWith(color: t.muted),
                         ),
                       ),

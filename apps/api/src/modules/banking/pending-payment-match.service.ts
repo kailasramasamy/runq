@@ -1,5 +1,5 @@
 import { eq, and, inArray, isNull } from 'drizzle-orm';
-import { bankTransactions, bankAccounts, accounts, pendingPayments, documentAttachments } from '@runq/db';
+import { bankTransactions, bankAccounts, accounts, pendingPayments, documentAttachments, payments, reconciliationMatches } from '@runq/db';
 import type { Db } from '@runq/db';
 import { CategorizePostingService } from './categorize-posting.service';
 
@@ -45,15 +45,19 @@ export class PendingPaymentMatchService {
     await this.db.update(bankTransactions)
       .set({ glAccountId: p.glAccountId, memo: p.note ?? null, updatedAt: new Date() })
       .where(and(eq(bankTransactions.id, txn.id), eq(bankTransactions.tenantId, this.tenantId)));
-    await posting.postBankDebit({
-      transactionId: txn.id,
-      transactionDate: txn.transactionDate,
-      amount: parseFloat(txn.amount),
-      narration: txn.narration,
-      memo: p.note,
-      glAccountCode: glCode,
-      bankGlAccountCode: bankGlCode,
-    });
+    if (p.paymentId) {
+      await this.linkToBillPayment(txn.id, p.paymentId);
+    } else {
+      await posting.postBankDebit({
+        transactionId: txn.id,
+        transactionDate: txn.transactionDate,
+        amount: parseFloat(txn.amount),
+        narration: txn.narration,
+        memo: p.note,
+        glAccountCode: glCode,
+        bankGlAccountCode: bankGlCode,
+      });
+    }
     // Move the captured confirmation photo onto the reconciled bank txn.
     await this.db.update(documentAttachments)
       .set({ entityType: 'bank_transaction', entityId: txn.id })
@@ -65,6 +69,25 @@ export class PendingPaymentMatchService {
     await this.db.update(pendingPayments)
       .set({ status: 'matched', matchedBankTransactionId: txn.id, matchedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(pendingPayments.id, p.id), eq(pendingPayments.tenantId, this.tenantId)));
+  }
+
+  /**
+   * The capture already settled a bill, whose AP payment posted the cash side
+   * (Dr AP / Cr Bank) — link the bank line to that payment. Posting the
+   * capture's category here would book the bill's expense a second time.
+   */
+  private async linkToBillPayment(txnId: string, paymentId: string): Promise<void> {
+    const [payment] = await this.db.select({ vendorId: payments.vendorId }).from(payments)
+      .where(eq(payments.id, paymentId)).limit(1);
+    await this.db.insert(reconciliationMatches).values({
+      tenantId: this.tenantId,
+      bankTransactionId: txnId,
+      paymentId,
+      matchType: 'auto_amount_date',
+    });
+    await this.db.update(bankTransactions)
+      .set({ vendorId: payment?.vendorId ?? null, reconStatus: 'matched', updatedAt: new Date() })
+      .where(and(eq(bankTransactions.id, txnId), eq(bankTransactions.tenantId, this.tenantId)));
   }
 
   // Prefer an exact UPI-reference hit; else an exact amount within the date

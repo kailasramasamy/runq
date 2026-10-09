@@ -8,6 +8,7 @@ import {
   accounts,
   journalEntries,
   vendors,
+  pendingPayments,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { GLService } from '../gl/gl.service';
@@ -283,6 +284,15 @@ export class AutoBillPayService {
       await tx.update(bankTransactions)
         .set({ vendorId, glAccountId: expenseGlId, reconStatus: 'matched', updatedAt: new Date() })
         .where(eq(bankTransactions.id, bankTransactionId));
+      // A captured payment that settled this bill is now backed by the bank
+      // line — stop showing it as awaiting.
+      await tx.update(pendingPayments)
+        .set({ status: 'matched', matchedBankTransactionId: bankTransactionId, matchedAt: new Date(), updatedAt: new Date() })
+        .where(and(
+          eq(pendingPayments.tenantId, this.tenantId),
+          eq(pendingPayments.paymentId, paymentId),
+          eq(pendingPayments.status, 'pending'),
+        ));
     });
   }
 

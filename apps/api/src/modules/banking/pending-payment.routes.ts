@@ -14,6 +14,12 @@ const listQuerySchema = z.object({
   status: z.enum(['pending', 'matched', 'cancelled', 'all']).optional().default('all'),
 });
 
+const candidatesQuerySchema = z.object({
+  amount: z.coerce.number().positive(),
+  date: z.string().date(),
+  vendorName: z.string().max(255).optional(),
+});
+
 export const pendingPaymentRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     '/',
@@ -33,6 +39,18 @@ export const pendingPaymentRoutes: FastifyPluginAsync = async (app) => {
       const { status } = listQuerySchema.parse(request.query);
       const service = new PendingPaymentService(request.server.db, request.tenantId);
       return { data: await service.list(status === 'all' ? undefined : status) };
+    },
+  );
+
+  // Captures that could be the payment for a bill — lets a bill settle with
+  // money already logged instead of a second payment.
+  app.get(
+    '/candidates',
+    { preHandler: [rbacHook([...READ_ROLES])] },
+    async (request) => {
+      const q = candidatesQuerySchema.parse(request.query);
+      const service = new PendingPaymentService(request.server.db, request.tenantId);
+      return { data: await service.candidates(q) };
     },
   );
 

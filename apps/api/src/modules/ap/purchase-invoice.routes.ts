@@ -15,6 +15,7 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { WebhookEndpointService } from '../webhooks/webhook-endpoint.service';
 import { GLService } from '../gl/gl.service';
+import { CaptureSettlementService } from './capture-settlement.service';
 import { PurchaseInvoiceService } from './purchase-invoice.service';
 import { BillImportService } from './bill-import.service';
 import { ThreeWayMatchService } from './three-way-match.service';
@@ -107,6 +108,20 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       }).parse(request.body);
       const service = new PurchaseInvoiceService(request.server.db, request.tenantId);
       const result = await service.recordOwnerPayment(id, body);
+      return reply.status(201).send({ data: result });
+    },
+  );
+
+  // Settle with a payment already logged via "Payment made" — links the
+  // capture instead of booking a second payment for the same money.
+  app.post(
+    '/:id/settle-with-capture',
+    { preHandler: [rbacHook([...WRITE_ROLES])] },
+    async (request, reply) => {
+      const { id } = uuidParamSchema.parse(request.params);
+      const { pendingPaymentId } = z.object({ pendingPaymentId: z.string().uuid() }).parse(request.body);
+      const service = new CaptureSettlementService(request.server.db, request.tenantId);
+      const result = await service.settle(id, pendingPaymentId);
       return reply.status(201).send({ data: result });
     },
   );

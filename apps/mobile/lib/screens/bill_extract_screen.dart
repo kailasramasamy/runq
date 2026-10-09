@@ -16,6 +16,7 @@ import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/sparkle.dart';
 import '../widgets/goods_received_section.dart';
+import '../widgets/logged_payment_match.dart';
 
 enum _Step { extracting, review, error }
 
@@ -39,6 +40,10 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
   List<DuplicateMatch> _duplicates = const [];
   bool _checkingDuplicates = false;
   String? _lastDupKey;
+  // Payments already logged via "Payment made" that look like this bill's
+  // money — linking them later avoids booking the expense twice.
+  List<PendingPayment> _logged = const [];
+  String? _lastLoggedKey;
 
   @override
   void initState() {
@@ -68,6 +73,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
       // Kick off a duplicate check in the background — non-blocking; the
       // banner appears as soon as the API responds.
       _refreshDuplicates();
+      _refreshLogged();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -120,6 +126,19 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
     } finally {
       if (mounted) setState(() => _checkingDuplicates = false);
     }
+  }
+
+  /// Looks up logged payments for the bill's total + date. Advisory only.
+  Future<void> _refreshLogged() async {
+    final edited = _edited;
+    if (edited == null) return;
+    final total = double.tryParse(edited.totalAmount.text) ?? 0;
+    final date = DateTime.tryParse(edited.invoiceDate.text.trim());
+    final key = '$total|${edited.invoiceDate.text.trim()}';
+    if (total <= 0 || date == null || key == _lastLoggedKey) return;
+    _lastLoggedKey = key;
+    final found = await findLoggedPayments(amount: total, date: date, vendorName: edited.vendorName.text.trim());
+    if (mounted) setState(() => _logged = found);
   }
 
   /// If duplicates exist, ask before saving. Returns true to continue,
@@ -250,6 +269,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
             committing: _committing,
             duplicates: _duplicates,
             checkingDuplicates: _checkingDuplicates,
+            logged: _logged,
             onCommit: _commit,
             onApprove: isOwner ? () => _commit(approve: true) : null,
             onRetake: () {
@@ -261,6 +281,8 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
               _aiOriginal = null;
               _lastDupKey = null;
               _duplicates = const [];
+              _lastLoggedKey = null;
+              _logged = const [];
               _extract(widget.file);
             },
             onChange: () {
@@ -269,6 +291,7 @@ class _BillExtractScreenState extends ConsumerState<BillExtractScreen> {
               // invoice number / date / total. _refreshDuplicates
               // de-dupes via _lastDupKey so this is cheap.
               _refreshDuplicates();
+              _refreshLogged();
             },
           ),
         _Step.error => _ErrorView(message: _error ?? 'Something went wrong', onRetry: _restartIntake),
@@ -548,6 +571,7 @@ class _Review extends StatelessWidget {
   final bool committing;
   final List<DuplicateMatch> duplicates;
   final bool checkingDuplicates;
+  final List<PendingPayment> logged;
   final VoidCallback onCommit, onRetake, onChange;
   final VoidCallback? onApprove;
   const _Review({
@@ -556,6 +580,7 @@ class _Review extends StatelessWidget {
     required this.committing,
     required this.duplicates,
     required this.checkingDuplicates,
+    required this.logged,
     required this.onCommit,
     required this.onRetake,
     required this.onChange,
@@ -595,6 +620,13 @@ class _Review extends StatelessWidget {
                 const SizedBox(height: 12),
                 if (duplicates.isNotEmpty) ...[
                   _DuplicateBanner(matches: duplicates),
+                  const SizedBox(height: 12),
+                ],
+                if (logged.isNotEmpty) ...[
+                  LoggedPaymentBanner(
+                    payment: logged.first,
+                    message: 'After approving, tap "Link payment" on the bill instead of marking it paid.',
+                  ),
                   const SizedBox(height: 12),
                 ],
                 if (hasErrors) _IssuesBanner(issues: issues),

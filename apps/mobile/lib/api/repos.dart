@@ -475,6 +475,14 @@ class BillsRepo {
     });
   }
 
+  /// Settle a bill with a payment already logged via "Payment made", so the
+  /// same money isn't recorded twice.
+  Future<void> settleWithCapture(String billId, String pendingPaymentId) async {
+    await apiClient.post('/ap/purchase-invoices/$billId/settle-with-capture', {
+      'pendingPaymentId': pendingPaymentId,
+    });
+  }
+
   /// Delete a bill. Server dispatches based on status:
   ///   - draft → permanent removal (bill, items, attached scanned file)
   ///   - anything else → soft cancel (status flip, audit preserved)
@@ -547,6 +555,22 @@ class BankingRepo {
   Future<List<BillAttachment>> attachments(String entityType, String entityId) async {
     final res = await apiClient.get('/common/attachments/$entityType/$entityId');
     return _dataList(res).map(BillAttachment.fromJson).toList();
+  }
+
+  /// Captured payments that could be the money for a bill — same amount,
+  /// close in date, not yet used for another bill. Best match first.
+  Future<List<PendingPayment>> captureCandidates({
+    required double amount,
+    required DateTime date,
+    String? vendorName,
+  }) async {
+    final q = Uri(queryParameters: {
+      'amount': amount.toStringAsFixed(2),
+      'date': date.toIso8601String().substring(0, 10),
+      if (vendorName != null && vendorName.isNotEmpty) 'vendorName': vendorName,
+    }).query;
+    final res = await apiClient.get('/banking/pending-payments/candidates?$q');
+    return _dataList(res).map(PendingPayment.fromJson).toList();
   }
 
   /// Edit a still-pending capture (matched/cancelled rows are immutable).

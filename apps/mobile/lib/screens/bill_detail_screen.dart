@@ -11,6 +11,7 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/avatar.dart';
 import '../widgets/bill_match_panel.dart';
+import '../widgets/logged_payment_match.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
@@ -52,6 +53,7 @@ class BillDetailScreen extends ConsumerWidget {
       ref.invalidate(billDetailProvider(id));
       ref.invalidate(billsProvider);
       ref.invalidate(billsSummaryProvider);
+      ref.invalidate(pendingPaymentsProvider);
     }
     return Scaffold(
       body: SafeArea(
@@ -849,6 +851,44 @@ class _ActionsCard extends StatefulWidget {
 
 class _ActionsCardState extends State<_ActionsCard> {
   bool _busy = false;
+  // Payments logged via "Payment made" that look like this bill's money.
+  List<PendingPayment> _logged = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLogged();
+  }
+
+  @override
+  void didUpdateWidget(_ActionsCard old) {
+    super.didUpdateWidget(old);
+    if (old.bill.status != widget.bill.status || old.bill.balanceDue != widget.bill.balanceDue) _loadLogged();
+  }
+
+  Future<void> _loadLogged() async {
+    final b = widget.bill;
+    if (b.status == 'draft' || b.balanceDue <= 0) return;
+    final found = await findLoggedPayments(amount: b.balanceDue, date: b.invoiceDate, vendorName: b.vendorName);
+    if (mounted) setState(() => _logged = found);
+  }
+
+  /// One candidate: the banner already shows it, so the tap is the
+  /// confirmation. Several: ask which (or fall back to own money).
+  Future<void> _linkLogged() async {
+    var pick = _logged.length == 1 ? _logged.first : null;
+    if (pick == null) {
+      final choice = await showLoggedPaymentSheet(context, _logged);
+      if (choice == null || !mounted) return;
+      if (choice.payment == null) return _markPaid();
+      pick = choice.payment!;
+    }
+    setState(() => _busy = true);
+    final ok = await settleWithLoggedPayment(context, widget.bill.id, pick);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) widget.onChanged();
+  }
 
   Future<bool> _confirm({
     required String title,
@@ -924,6 +964,47 @@ class _ActionsCardState extends State<_ActionsCard> {
     }
   }
 
+  /// A logged payment matches — linking it is the primary action; marking
+  /// paid from own money stays available for when it isn't the same money.
+  Widget _linkCard(Widget? spinner) {
+    return RunqCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('ACTIONS', style: RunqText.label),
+          const SizedBox(height: 8),
+          LoggedPaymentBanner(
+            payment: _logged.first,
+            message: _logged.length == 1
+                ? 'Link it to settle this bill — marking it paid separately would count the money twice.'
+                : '${_logged.length} logged payments match. Link the right one to settle this bill.',
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 44,
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _busy ? null : _linkLogged,
+              icon: spinner ?? const Icon(Icons.link_rounded, size: 18),
+              label: const Text('Link payment', style: TextStyle(height: 1.0)),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF047857),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+          ),
+          Center(
+            child: TextButton(
+              onPressed: _busy ? null : _markPaid,
+              child: const Text('Paid another way'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDraft = widget.bill.status == 'draft';
@@ -935,6 +1016,8 @@ class _ActionsCardState extends State<_ActionsCard> {
     final spinner = _busy
         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
         : null;
+    final linkable = !isDraft && _logged.isNotEmpty;
+    if (linkable) return _linkCard(spinner);
     final button = isDraft
         ? FilledButton.icon(
             onPressed: _busy ? null : _approve,

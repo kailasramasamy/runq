@@ -4,6 +4,7 @@ import { users } from '../user';
 import { bankAccounts } from './bank-accounts';
 import { bankTransactions } from './bank-transactions';
 import { accounts } from '../gl/accounts';
+import { payments } from '../ap/payments';
 
 export const pendingPaymentStatusEnum = pgEnum('pending_payment_status', ['pending', 'matched', 'cancelled']);
 
@@ -28,6 +29,10 @@ export const pendingPayments = pgTable('pending_payments', {
   status: pendingPaymentStatusEnum('status').notNull().default('pending'),
   matchedBankTransactionId: uuid('matched_bank_transaction_id').references(() => bankTransactions.id),
   matchedAt: timestamp('matched_at', { withTimezone: true }),
+  // Set when the capture is used to settle a vendor bill — the AP payment now
+  // carries the cash side, so the bank match links to it instead of posting
+  // the capture's expense category (which would double the bill's expense).
+  paymentId: uuid('payment_id').references(() => payments.id),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

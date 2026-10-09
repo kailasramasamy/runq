@@ -11,6 +11,7 @@ import '../theme/runq_theme.dart';
 import '../utils/format_inr.dart';
 import '../widgets/avatar.dart';
 import '../widgets/list_filter_kit.dart';
+import '../widgets/logged_payment_match.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/runq_snack.dart';
 import '../widgets/status_pill.dart';
@@ -189,6 +190,8 @@ class BillRow extends ConsumerWidget {
     ref.invalidate(billsProvider);
     ref.invalidate(billsSummaryProvider);
     ref.invalidate(billDetailProvider(bill.id));
+    // A linked logged payment now shows its bill in Payments made.
+    ref.invalidate(pendingPaymentsProvider);
     if (onAfterAction != null) await onAfterAction!();
   }
 
@@ -247,9 +250,26 @@ class BillRow extends ConsumerWidget {
     }
   }
 
+  /// Logged payments come first: if one matches, linking it settles the bill
+  /// without recording the same money twice.
   Future<void> _markPaid(BuildContext context, WidgetRef ref) async {
     if (bill.id.isEmpty) return;
     final amount = bill.balanceDue > 0 ? bill.balanceDue : bill.totalAmount;
+    final logged = await findLoggedPayments(amount: amount, date: bill.invoiceDate, vendorName: bill.vendorName);
+    if (!context.mounted) return;
+    if (logged.isNotEmpty) {
+      final choice = await showLoggedPaymentSheet(context, logged);
+      if (choice == null || !context.mounted) return;
+      final pick = choice.payment;
+      if (pick != null) {
+        if (await settleWithLoggedPayment(context, bill.id, pick)) await _refreshAll(ref);
+        return;
+      }
+    }
+    await _markPaidOwnMoney(context, ref, amount);
+  }
+
+  Future<void> _markPaidOwnMoney(BuildContext context, WidgetRef ref, double amount) async {
     final ok = await showDialog<bool>(
       context: context,
       // Use the builder's context (dctx) — popping with the outer context
