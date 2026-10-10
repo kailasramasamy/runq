@@ -209,7 +209,7 @@ export function Gstr3bDetailPage({ returnId }: { returnId: string }) {
       <PageHeader
         title={`GSTR-3B — ${periodLabel(ret.period)}`}
         breadcrumbs={[
-          { label: 'GST Returns', href: '/gst/returns' },
+          { label: 'GST Returns', href: '/finance/gst/returns' },
           { label: `3B — ${periodLabel(ret.period)}` },
         ]}
         actions={

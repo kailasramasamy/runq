@@ -72,7 +72,7 @@ function B2BSection({ data }: { data: any[] }) {
             <TableCell>
               {inv.invoiceId ? (
                 <Link
-                  to={'/ar/invoices/$invoiceId' as '/'}
+                  to="/finance/ar/invoices/$invoiceId"
                   params={{ invoiceId: inv.invoiceId }}
                   className="text-primary-600 hover:underline"
                 >
@@ -309,7 +309,7 @@ function CDNSection({ data }: { data: any[] }) {
             <TableCell>
               {n.creditNoteId ? (
                 <Link
-                  to={'/ar/credit-notes/$creditNoteId' as '/'}
+                  to="/finance/ar/credit-notes/$creditNoteId"
                   params={{ creditNoteId: n.creditNoteId }}
                   className="text-primary-600 hover:underline"
                 >
@@ -476,7 +476,7 @@ export function GstReturnDetailPage({ returnId }: { returnId: string }) {
       <PageHeader
         title={`${ret.returnType.toUpperCase()} — ${periodLabel(ret.period)}`}
         breadcrumbs={[
-          { label: 'GST Returns', href: '/gst/returns' },
+          { label: 'GST Returns', href: '/finance/gst/returns' },
           { label: periodLabel(ret.period) },
         ]}
         actions={
