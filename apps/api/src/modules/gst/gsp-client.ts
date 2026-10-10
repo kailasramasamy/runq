@@ -723,8 +723,7 @@ export class WhiteBooksGspClient implements GspClient {
         if (e.supplyType === 'INTER') {
           base.iamt = Number(e.igstAmount.toFixed(2));
         } else {
-          base.camt = Number(e.cgstAmount.toFixed(2));
-          base.samt = Number(e.sgstAmount.toFixed(2));
+          base.camt = base.samt = evenHalf(e.cgstAmount + e.sgstAmount);
         }
         if (e.cessAmount > 0) base.csamt = Number(e.cessAmount.toFixed(2));
         return base;
@@ -879,19 +878,10 @@ export class WhiteBooksGspClient implements GspClient {
       // Inter-state — single IGST amount; if data was wrongly recorded as CGST/SGST, sum it up
       det.iamt = Number((it.igstAmount > 0 ? it.igstAmount : totalTax).toFixed(2));
     } else {
-      // Intra-state — split into CGST + SGST
-      if (it.cgstAmount > 0 || it.sgstAmount > 0) {
-        det.camt = Number(it.cgstAmount.toFixed(2));
-        det.samt = Number(it.sgstAmount.toFixed(2));
-      } else if (it.igstAmount > 0) {
-        // Wrongly recorded as IGST — split equally
-        const half = it.igstAmount / 2;
-        det.camt = Number(half.toFixed(2));
-        det.samt = Number(half.toFixed(2));
-      } else {
-        det.camt = 0;
-        det.samt = 0;
-      }
+      // Intra-state — CGST and SGST must be equal (RET00047). Stored lines
+      // split an odd-paisa tax unevenly, and IGST wrongly recorded on an
+      // intra-state line is split too, so always send equal halves.
+      det.camt = det.samt = evenHalf(totalTax);
     }
 
     if (it.cessAmount > 0) {
@@ -1212,4 +1202,9 @@ export function createGspClient(provider = 'whitebooks'): GspClient {
     default:
       throw new Error(`Unknown GSP provider: ${provider}`);
   }
+}
+
+/** Half of an intra-state tax total, to paise — GSTN rejects camt ≠ samt. */
+function evenHalf(total: number): number {
+  return Math.round(total * 50) / 100;
 }

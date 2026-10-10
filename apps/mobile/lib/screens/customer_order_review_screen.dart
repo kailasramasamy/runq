@@ -720,8 +720,8 @@ class _TotalsCard extends StatelessWidget {
       // rate.
       final rate = l.effectiveGstRate;
       if (rate != null && rate > 0) {
-        // Round per line to paise, matching the server's per-line CGST/SGST.
-        tax += (lineNet * rate).roundToDouble() / 100;
+        // Two equal halves rounded to paise, matching the server's CGST/SGST.
+        tax += 2 * (lineNet * rate / 2).roundToDouble() / 100;
       } else if (rate == null && l.matchedItemId == null) {
         anyMissingTax = true;
       }

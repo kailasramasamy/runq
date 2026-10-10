@@ -58,12 +58,12 @@ class InvoiceLineDraft {
   double get amount =>
       (double.tryParse(quantity) ?? 0) * (double.tryParse(unitPrice) ?? 0);
 
-  /// Rounded to paise per line, matching the server's per-line CGST/SGST, so
-  /// the previewed total ties to the invoice that gets saved.
+  /// Two equal CGST/SGST halves, each rounded to paise, matching the server,
+  /// so the previewed total ties to the invoice that gets saved.
   double get taxAmount {
     final r = taxRate;
     if (r == null || r <= 0) return 0;
-    return (amount * r).roundToDouble() / 100;
+    return 2 * (amount * r / 2).roundToDouble() / 100;
   }
 
   double get total => amount + taxAmount;

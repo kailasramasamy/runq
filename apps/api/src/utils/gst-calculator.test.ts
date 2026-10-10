@@ -1,28 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { calculateLineItemTax, calculateInvoiceTax } from './gst-calculator';
 
-// Regression cover for the CGST/SGST split. Rounding each half independently
-// let both halves round up on a .xx5 boundary, so cgst+sgst overshot the true
-// line tax by a paisa on some lines (curd, sunflower oil on PO-20260717-031)
-// while leaving others (paneer, ghee) exact. The split must round the full
-// line tax once, then take sgst as the remainder.
+// CGST and SGST must always be equal — GSTN rejects GSTR-1 (RET00047) when an
+// intra-state line splits an odd-paisa tax unevenly (8.04 / 8.03). Each half
+// is rounded once and reused, so an odd-paisa line tax lands a paisa high.
 describe('calculateLineItemTax — intra-state CGST/SGST split', () => {
   const intra = (amount: number, taxRate: number) =>
     calculateLineItemTax({ amount, taxRate, isInterState: false, taxCategory: 'taxable' });
 
-  it('does not overshoot on a .xx5 half-paisa boundary (curd: 321.43 @ 5%)', () => {
+  it('keeps halves equal on a .xx5 boundary (curd: 321.43 @ 5%)', () => {
     const t = intra(321.43, 5);
-    // round(321.43 × 5%) = 16.07; each half 8.035 must NOT independently round to 8.04+8.04=16.08
     expect(t.cgstAmount).toBe(8.04);
-    expect(t.sgstAmount).toBe(8.03);
-    expect(t.cgstAmount + t.sgstAmount).toBeCloseTo(16.07, 2);
+    expect(t.sgstAmount).toBe(8.04);
+    expect(t.totalTax).toBeCloseTo(16.08, 2);
   });
 
-  it('does not overshoot on sunflower oil (1085.41 @ 5%)', () => {
+  it('keeps halves equal on sunflower oil (1085.41 @ 5%)', () => {
     const t = intra(1085.41, 5);
     expect(t.cgstAmount).toBe(27.14);
-    expect(t.sgstAmount).toBe(27.13);
-    expect(t.cgstAmount + t.sgstAmount).toBeCloseTo(54.27, 2);
+    expect(t.sgstAmount).toBe(27.14);
   });
 
   it('stays exact where halves already divide cleanly (paneer 1200 @ 5%, ghee 712.86 @ 12%)', () => {
@@ -35,18 +31,18 @@ describe('calculateLineItemTax — intra-state CGST/SGST split', () => {
     expect(ghee.totalTax).toBe(85.54);
   });
 
-  it('always keeps cgst+sgst equal to the once-rounded line tax', () => {
-    for (const amount of [321.43, 1200, 712.86, 1085.41, 99.99, 7.5, 250.05]) {
+  it('always emits cgst === sgst', () => {
+    for (const amount of [321.43, 1200, 712.86, 1085.41, 99.99, 7.5, 250.05, 128.56, 32.14]) {
       for (const rate of [5, 12, 18, 28]) {
         const t = intra(amount, rate);
-        expect(t.cgstAmount + t.sgstAmount).toBeCloseTo(Math.round(amount * rate) / 100, 10);
+        expect(t.cgstAmount).toBe(t.sgstAmount);
       }
     }
   });
 });
 
-describe('calculateInvoiceTax — header reconciles with lines (PO-20260717-031)', () => {
-  it('sums per-line tax to a header that ties to the PO grand total', () => {
+describe('calculateInvoiceTax — header reconciles with lines', () => {
+  it('sums per-line tax into the header with no drift', () => {
     // taxable value × master GST rate; milk lines are exempt (0%).
     const lines = [
       { amount: 321.43, taxRate: 5, cat: 'taxable' },   // curd
@@ -70,8 +66,9 @@ describe('calculateInvoiceTax — header reconciles with lines (PO-20260717-031)
     const summary = calculateInvoiceTax(withTax);
 
     expect(summary.subtotal).toBe(5680.7);
-    expect(summary.taxAmount).toBe(215.88);
-    expect(summary.totalAmount).toBe(5896.58); // ties to the PO total exactly
+    // Curd and sunflower oil each land a paisa above the PO (equal halves).
+    expect(summary.taxAmount).toBe(215.9);
+    expect(summary.totalAmount).toBe(5896.6);
     // Header tax === sum of persisted per-line tax (no drift).
     const lineSum = withTax.reduce((s, l) => s + l.tax.totalTax, 0);
     expect(Math.round(lineSum * 100) / 100).toBe(summary.taxAmount);

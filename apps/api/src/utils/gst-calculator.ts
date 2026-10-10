@@ -70,14 +70,12 @@ export function calculateLineItemTax(input: LineItemTaxInput): TaxBreakdown {
     };
   }
 
-  // Round the full line tax ONCE, then split. Rounding each half
-  // independently lets both halves round up on a .xx5 boundary, so
-  // cgst+sgst would overshoot round(amount×rate) by a paisa. Deriving sgst
-  // as the remainder guarantees cgst+sgst === the line tax exactly.
+  // CGST and SGST must be equal (GSTN rejects GSTR-1 otherwise, RET00047).
+  // Round the half once and use it for both — on an odd-paisa line tax this
+  // lands a paisa above round(amount×rate), which is the accepted cost.
   const halfRate = taxRate / 2;
-  const lineTax = roundPaise(amount * taxRate / 100);
-  const cgstAmount = roundPaise(lineTax / 2);
-  const sgstAmount = roundPaise(lineTax - cgstAmount);
+  const cgstAmount = roundPaise(amount * halfRate / 100);
+  const sgstAmount = cgstAmount;
 
   return {
     taxableAmount: amount,

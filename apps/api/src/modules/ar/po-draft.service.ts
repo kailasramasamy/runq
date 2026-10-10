@@ -872,7 +872,7 @@ export class PoDraftService {
       // Round each line's tax to paise before summing, matching how
       // InvoiceService persists per-line CGST/SGST — so this advisory total
       // (used for the credit check) agrees with the invoice the server stores.
-      if (rate > 0) taxSum += Math.round(it.amount * rate) / 100;
+      if (rate > 0) taxSum += 2 * Math.round(it.amount * rate / 2) / 100;
     }
     const finalSubtotal = Number(subtotalSum.toFixed(2));
     const finalTax = Number(taxSum.toFixed(2));
