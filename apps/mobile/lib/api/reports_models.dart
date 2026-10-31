@@ -373,3 +373,158 @@ class ExpenseAnalytics {
     );
   }
 }
+
+/// One row of the monthly P&L: an amount per month plus the period total.
+class MonthlyPnlRow {
+  final String key;
+  final String label;
+  final List<double> values;
+  final double total;
+  MonthlyPnlRow({required this.key, required this.label, required this.values, required this.total});
+
+  factory MonthlyPnlRow.fromJson(Map<String, dynamic> j) => MonthlyPnlRow(
+        key: strAt(j['key']) ?? '',
+        label: strAt(j['label']) ?? '',
+        values: (j['values'] is List ? j['values'] as List : const []).map(numAt).toList(),
+        total: numAt(j['total']),
+      );
+}
+
+class MonthlyPnlSection {
+  /// revenue | milk | expenses | nonOperating
+  final String key;
+  final String label;
+  final List<MonthlyPnlRow> lines;
+  final MonthlyPnlRow totals;
+  MonthlyPnlSection({required this.key, required this.label, required this.lines, required this.totals});
+
+  factory MonthlyPnlSection.fromJson(Map<String, dynamic> j) => MonthlyPnlSection(
+        key: strAt(j['key']) ?? '',
+        label: strAt(j['label']) ?? '',
+        lines: (j['lines'] is List ? j['lines'] as List : const [])
+            .whereType<Map<String, dynamic>>()
+            .map(MonthlyPnlRow.fromJson)
+            .toList(),
+        totals: MonthlyPnlRow.fromJson((j['totals'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      );
+}
+
+/// Management P&L month by month — milk by pour date, stock movements left
+/// out, capital items below operating profit. Mirrors the web Monthly view.
+class MonthlyPnl {
+  final List<String> months;
+  final List<MonthlyPnlSection> sections;
+  final MonthlyPnlRow operatingProfit;
+  final MonthlyPnlRow netProfit;
+  /// Profit taken out through entries booked as expenses (owner-marked).
+  final MonthlyPnlRow profitBookedAsExpense;
+  /// Net profit less [profitBookedAsExpense] — the official books' figure.
+  final MonthlyPnlRow profitRetained;
+  final MonthlyPnlRow excludedStock;
+  final List<String> provisionalMonths;
+  MonthlyPnl({
+    required this.months,
+    required this.sections,
+    required this.operatingProfit,
+    required this.netProfit,
+    required this.profitBookedAsExpense,
+    required this.profitRetained,
+    required this.excludedStock,
+    required this.provisionalMonths,
+  });
+
+  MonthlyPnlSection? section(String key) {
+    for (final s in sections) {
+      if (s.key == key) return s;
+    }
+    return null;
+  }
+
+  factory MonthlyPnl.fromJson(Map<String, dynamic> j) {
+    MonthlyPnlRow row(String k) =>
+        MonthlyPnlRow.fromJson((j[k] as Map?)?.cast<String, dynamic>() ?? const {});
+    List<String> strings(Object? v) =>
+        (v is List ? v : const []).map((e) => e.toString()).toList();
+    return MonthlyPnl(
+      months: strings(j['months']),
+      sections: (j['sections'] is List ? j['sections'] as List : const [])
+          .whereType<Map<String, dynamic>>()
+          .map(MonthlyPnlSection.fromJson)
+          .toList(),
+      operatingProfit: row('operatingProfit'),
+      netProfit: row('netProfit'),
+      profitBookedAsExpense: row('profitBookedAsExpense'),
+      profitRetained: row('profitRetained'),
+      excludedStock: row('excludedStock'),
+      provisionalMonths: strings(j['provisionalMonths']),
+    );
+  }
+}
+
+/// One source entry behind a monthly P&L figure.
+/// The (journal entry, account) pair a profit mark points at.
+typedef ProfitMarkRef = ({String journalEntryId, String accountId});
+
+class MonthlyPnlEntry {
+  final ProfitMarkRef? ref;
+  /// An expense entry that can be marked as profit taken out (or restored).
+  final bool markable;
+  final String date;
+  final String description;
+  /// Who was paid (or who paid us). Null when the entry has no counterparty.
+  final String? party;
+  /// [party] was read off the bank narration, not a linked vendor/customer.
+  final bool partyFromBank;
+  final String source;
+  final String account;
+  final double amount;
+  MonthlyPnlEntry({
+    required this.ref,
+    required this.markable,
+    required this.date,
+    required this.description,
+    required this.party,
+    required this.partyFromBank,
+    required this.source,
+    required this.account,
+    required this.amount,
+  });
+
+  factory MonthlyPnlEntry.fromJson(Map<String, dynamic> j) {
+    final r = j['ref'];
+    return MonthlyPnlEntry(
+        ref: r is Map
+            ? (journalEntryId: r['journalEntryId'].toString(), accountId: r['accountId'].toString())
+            : null,
+        markable: j['markable'] == true,
+        date: strAt(j['date']) ?? '',
+        description: strAt(j['description']) ?? '',
+        party: strAt(j['party']),
+        partyFromBank: j['partyFromBank'] == true,
+        source: strAt(j['source']) ?? '',
+        account: strAt(j['account']) ?? '',
+        amount: numAt(j['amount']),
+      );
+  }
+}
+
+class MonthlyPnlLineDetail {
+  final String key;
+  final String label;
+  final double total;
+  final List<MonthlyPnlEntry> entries;
+  MonthlyPnlLineDetail({required this.key, required this.label, required this.total, required this.entries});
+
+  static const profitBookedKey = 'profitBookedAsExpense';
+  bool get isProfitBooked => key == profitBookedKey;
+
+  factory MonthlyPnlLineDetail.fromJson(Map<String, dynamic> j) => MonthlyPnlLineDetail(
+        key: strAt(j['key']) ?? '',
+        label: strAt(j['label']) ?? '',
+        total: numAt(j['total']),
+        entries: (j['entries'] is List ? j['entries'] as List : const [])
+            .whereType<Map<String, dynamic>>()
+            .map(MonthlyPnlEntry.fromJson)
+            .toList(),
+      );
+}

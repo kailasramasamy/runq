@@ -165,7 +165,8 @@ export class AutoBillPayService {
       .where(and(
         eq(payments.tenantId, this.tenantId),
         eq(payments.vendorId, params.vendorId),
-        sql`ABS(${payments.amount}::numeric - ${params.amount}) < 0.01`,
+        // NEFTs round to the rupee; bills carry paise.
+        sql`ABS(${payments.amount}::numeric - ${params.amount}) < 1`,
         sql`ABS(${payments.paymentDate}::date - ${params.transactionDate}::date) <= 5`,
         sql`NOT EXISTS (SELECT 1 FROM reconciliation_matches rm WHERE rm.payment_id = ${payments.id})`,
       ))

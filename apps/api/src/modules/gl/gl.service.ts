@@ -8,6 +8,7 @@ import {
   inventoryGrnLines,
   items,
   purchaseInvoices,
+  salesInvoices,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import type { Account, JournalEntry, JournalEntryWithLines, TrialBalanceRow } from '@runq/types';
@@ -598,8 +599,26 @@ export class GLService {
     return result.length;
   }
 
+  /**
+   * Sales invoice posting. Output GST goes to its liability accounts, not
+   * revenue — crediting the whole total to 4001 overstated sales by the tax.
+   * Tax splits are read off the invoice row so callers only pass the total.
+   *
+   *   Dr Accounts Receivable (1103)   = total
+   *   Cr Output CGST / SGST / IGST    = per invoice
+   *   Cr Sales Revenue (4001)         = remainder (taxable value, cess, round-off)
+   */
   async postSalesInvoice(invoice: { totalAmount: number; date: string; id: string; customerName: string }): Promise<void> {
     if (await this.isAlreadyPosted('sales_invoice', invoice.id)) return;
+    const [tax] = await this.db
+      .select({ cgst: salesInvoices.cgstAmount, sgst: salesInvoices.sgstAmount, igst: salesInvoices.igstAmount })
+      .from(salesInvoices)
+      .where(and(eq(salesInvoices.id, invoice.id), eq(salesInvoices.tenantId, this.tenantId)))
+      .limit(1);
+    const taxLines = ([['2103', tax?.cgst], ['2105', tax?.sgst], ['2106', tax?.igst]] as const)
+      .map(([accountCode, amt]) => ({ accountCode, credit: toNumber(amt ?? '0') }))
+      .filter((l) => l.credit > 0);
+    const taxTotal = taxLines.reduce((s, l) => s + l.credit, 0);
     await this.createJournalEntry({
       date: invoice.date,
       description: `Sales invoice to ${invoice.customerName}`,
@@ -607,7 +626,8 @@ export class GLService {
       sourceId: invoice.id,
       lines: [
         { accountCode: '1103', debit: invoice.totalAmount },
-        { accountCode: '4001', credit: invoice.totalAmount },
+        { accountCode: '4001', credit: Math.round((invoice.totalAmount - taxTotal) * 100) / 100 },
+        ...taxLines,
       ],
     });
   }

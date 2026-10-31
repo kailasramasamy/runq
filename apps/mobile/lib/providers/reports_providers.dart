@@ -65,6 +65,18 @@ final profitAndLossProvider =
   return _watchAuth(ref, () => reportsRepo.profitAndLoss(r.from, r.to));
 });
 
+final monthlyPnlProvider =
+    FutureProvider.family<MonthlyPnl, DateRange>((ref, r) async {
+  return _watchAuth(ref, () => reportsRepo.monthlyPnl(r.from, r.to));
+});
+
+/// Entries behind one monthly-P&L line for a range.
+final monthlyPnlLineProvider =
+    FutureProvider.family<MonthlyPnlLineDetail, (String, DateRange)>((ref, arg) async {
+  final (key, r) = arg;
+  return _watchAuth(ref, () => reportsRepo.monthlyPnlLine(key, r.from, r.to));
+});
+
 final revenueAnalyticsProvider =
     FutureProvider.family<RevenueAnalytics, DateRange>((ref, r) async {
   return _watchAuth(ref, () => reportsRepo.revenueAnalytics(r.from, r.to));

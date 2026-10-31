@@ -19,6 +19,29 @@ class ReportsRepo {
     return ProfitAndLoss.fromJson(_data(res));
   }
 
+  Future<MonthlyPnl> monthlyPnl(DateTime from, DateTime to) async {
+    final res = await apiClient
+        .get('/reports/monthly-pnl?dateFrom=${_iso(from)}&dateTo=${_iso(to)}');
+    return MonthlyPnl.fromJson(_data(res));
+  }
+
+  Future<MonthlyPnlLineDetail> monthlyPnlLine(String key, DateTime from, DateTime to) async {
+    final res = await apiClient
+        .get('/reports/monthly-pnl/lines/$key?dateFrom=${_iso(from)}&dateTo=${_iso(to)}');
+    return MonthlyPnlLineDetail.fromJson(_data(res));
+  }
+
+  /// Internal P&L only: count an expense entry as profit taken out, or undo it.
+  Future<void> setProfitMark(ProfitMarkRef ref, {required bool marked}) async {
+    if (marked) {
+      await apiClient.post('/reports/monthly-pnl/profit-marks',
+          {'journalEntryId': ref.journalEntryId, 'accountId': ref.accountId});
+    } else {
+      await apiClient.delete('/reports/monthly-pnl/profit-marks'
+          '?journalEntryId=${ref.journalEntryId}&accountId=${ref.accountId}');
+    }
+  }
+
   Future<CashFlowStatement> cashFlow(DateTime from, DateTime to) async {
     final res = await apiClient
         .get('/reports/cash-flow?dateFrom=${_iso(from)}&dateTo=${_iso(to)}');

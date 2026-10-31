@@ -84,3 +84,69 @@ export interface CashFlowForecast {
   projectedBalance60d: number;
   projectedBalance90d: number;
 }
+
+/** One row of the monthly P&L: an amount per month plus the period total. */
+export interface MonthlyPnlRow {
+  key: string;
+  label: string;
+  values: number[];
+  total: number;
+}
+
+export interface MonthlyPnlSection {
+  key: 'revenue' | 'milk' | 'expenses' | 'nonOperating';
+  label: string;
+  lines: MonthlyPnlRow[];
+  totals: MonthlyPnlRow;
+}
+
+/**
+ * Management P&L, month by month. Milk is costed by pour date (bulk VMCC milk
+ * by its billing cycle); everything else by its accounting date. Stock
+ * movements are left out (purchases are expensed when bought) and capital
+ * items sit below operating profit. Amounts are positive; sections say
+ * whether they add or subtract.
+ */
+export interface MonthlyPnl {
+  period: { from: string; to: string };
+  months: string[];
+  sections: MonthlyPnlSection[];
+  operatingProfit: MonthlyPnlRow;
+  netProfit: MonthlyPnlRow;
+  /** Profit taken out through entries booked as expenses (marked by the owner). */
+  profitBookedAsExpense: MonthlyPnlRow;
+  /** Net profit less what was booked as expense — what the official books show. */
+  profitRetained: MonthlyPnlRow;
+  /** Stock postings (COGS, write-offs, stock gains) left out of the figures above. */
+  excludedStock: MonthlyPnlRow;
+  /** Months whose milk cost is incomplete because a payout cycle is not billed yet. */
+  provisionalMonths: string[];
+}
+
+/** One source entry behind a monthly P&L figure. */
+export interface MonthlyPnlEntry {
+  /** Set on ledger entries: the (journal entry, account) pair a profit mark points at. */
+  ref: { journalEntryId: string; accountId: string } | null;
+  /** An expense entry that can be marked as profit taken out (or unmarked). */
+  markable: boolean;
+  date: string;
+  description: string;
+  /** Who was paid (or who paid us): vendor, customer, farmer, VMCC payee. */
+  party: string | null;
+  /** True when [party] was read off the bank narration rather than a linked record. */
+  partyFromBank: boolean;
+  /** Where it came from: a journal source (bank payment, bill, payroll…) or MP pours / VMCC bill. */
+  source: string;
+  account: string;
+  amount: number;
+}
+
+export interface MonthlyPnlLineDetail {
+  key: string;
+  label: string;
+  /** Column heading for [MonthlyPnlEntry.party]: "Paid to" for costs, "Received from" for income. */
+  partyLabel: string;
+  period: { from: string; to: string };
+  total: number;
+  entries: MonthlyPnlEntry[];
+}

@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
-import type { ProfitAndLoss, BalanceSheet, CashFlowStatement, ExpenseAnalytics, RevenueAnalytics, ComparisonReport, CashFlowForecast, ApiSuccess } from '@runq/types';
+import type { ProfitAndLoss, MonthlyPnl, MonthlyPnlLineDetail, BalanceSheet, CashFlowStatement, ExpenseAnalytics, RevenueAnalytics, ComparisonReport, CashFlowForecast, ApiSuccess } from '@runq/types';
 
 const REPORT_KEYS = {
   pnl: (dateFrom?: string, dateTo?: string) => ['reports', 'pnl', dateFrom, dateTo] as const,
+  monthlyPnl: (dateFrom?: string, dateTo?: string) => ['reports', 'monthly-pnl', dateFrom, dateTo] as const,
+  monthlyPnlLine: (key?: string, dateFrom?: string, dateTo?: string) => ['reports', 'monthly-pnl', 'line', key, dateFrom, dateTo] as const,
   balanceSheet: (asOfDate?: string) => ['reports', 'balance-sheet', asOfDate] as const,
   cashFlow: (dateFrom?: string, dateTo?: string) => ['reports', 'cash-flow', dateFrom, dateTo] as const,
   expenseAnalytics: (dateFrom?: string, dateTo?: string) => ['reports', 'expense-analytics', dateFrom, dateTo] as const,
@@ -41,6 +43,43 @@ export function useProfitAndLoss(dateFrom: string, dateTo: string) {
     queryFn: () => api.get<ApiSuccess<ProfitAndLoss>>(`/reports/profit-and-loss?dateFrom=${dateFrom}&dateTo=${dateTo}`),
     enabled: !!dateFrom && !!dateTo,
   });
+}
+
+export function useMonthlyPnl(dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: REPORT_KEYS.monthlyPnl(dateFrom, dateTo),
+    queryFn: () => api.get<ApiSuccess<MonthlyPnl>>(`/reports/monthly-pnl?dateFrom=${dateFrom}&dateTo=${dateTo}`),
+    enabled: !!dateFrom && !!dateTo,
+  });
+}
+
+export function useMonthlyPnlLine(key: string | null, dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: REPORT_KEYS.monthlyPnlLine(key ?? undefined, dateFrom, dateTo),
+    queryFn: () => api.get<ApiSuccess<MonthlyPnlLineDetail>>(
+      `/reports/monthly-pnl/lines/${key}?dateFrom=${dateFrom}&dateTo=${dateTo}`,
+    ),
+    enabled: !!key,
+  });
+}
+
+export interface ProfitMarkRef { journalEntryId: string; accountId: string }
+
+/** Count an expense entry as profit taken out (internal P&L only), or undo it. */
+export function useProfitMark() {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['reports', 'monthly-pnl'] });
+  const mark = useMutation({
+    mutationFn: (ref: ProfitMarkRef) => api.post('/reports/monthly-pnl/profit-marks', ref),
+    onSuccess: invalidate,
+  });
+  const unmark = useMutation({
+    mutationFn: (ref: ProfitMarkRef) => api.delete(
+      `/reports/monthly-pnl/profit-marks?journalEntryId=${ref.journalEntryId}&accountId=${ref.accountId}`,
+    ),
+    onSuccess: invalidate,
+  });
+  return { mark, unmark };
 }
 
 export function useBalanceSheet(asOfDate?: string) {

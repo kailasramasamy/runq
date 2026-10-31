@@ -6,6 +6,14 @@ import { GLService } from '../../gl/gl.service';
 import { NotFoundError, ConflictError } from '../../../utils/errors';
 import { bankGlAccountCode } from './employee-payment.service';
 
+/** A salary transfer as it appears on the bank statement. */
+export interface BankTransfer {
+  amount: number;
+  date: string;
+  bankAccountId: string;
+  reference: string | null;
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GL_SOURCE = 'employee_payment';
 
@@ -118,7 +126,7 @@ export class SalaryTransferService {
     tx: Db,
     p: { id: string; amount: string },
     o: Omit<MarkSalaryTransfersInput, 'items'> & {
-      bankGl: string; label: string; userId: string; reference: string | null;
+      bankGl: string; label: string; userId: string | null; reference: string | null;
     },
   ) {
     const amount = Number(p.amount);
@@ -131,10 +139,11 @@ export class SalaryTransferService {
         { accountCode: '2110', debit: amount, description: 'Salary Payable cleared' },
         { accountCode: o.bankGl, credit: amount, description: 'Net pay transfer' },
       ],
-      createdBy: o.userId,
+      createdBy: o.userId ?? undefined,
     });
     const [row] = await tx.update(employeePayments).set({
       status: 'paid',
+      amount: p.amount,
       paymentDate: o.paymentDate,
       bankAccountId: o.bankAccountId,
       paymentMethod: o.paymentMethod,
@@ -144,6 +153,41 @@ export class SalaryTransferService {
       updatedAt: new Date(),
     }).where(eq(employeePayments.id, p.id)).returning();
     return row!;
+  }
+
+  /**
+   * Record a transfer the way the bank statement shows it. A pending transfer
+   * is marked paid; one already marked at a different amount (net pay
+   * entered, less actually sent) is re-posted at the bank figure. A shortfall
+   * stays open as a new pending transfer, so Salary Payable still shows it.
+   * Runs on the caller's db/tx; returns the transfer's JE id.
+   */
+  async settleFromBank(paymentId: string, bank: BankTransfer): Promise<string> {
+    const [p] = await this.db.select().from(employeePayments).where(and(
+      eq(employeePayments.tenantId, this.tenantId),
+      eq(employeePayments.id, paymentId),
+      eq(employeePayments.sourceType, 'payroll_run'),
+    ));
+    if (!p?.payrollRunId) throw new NotFoundError('Salary transfer');
+    const run = await this.loadRun(p.payrollRunId);
+    const shortfall = Math.round((Number(p.amount) - bank.amount) * 100) / 100;
+    if (shortfall <= -1) throw new ConflictError('The bank transfer is more than the salary due');
+    if (p.status === 'paid') {
+      await this.db.update(employeePayments).set({ journalEntryId: null }).where(eq(employeePayments.id, p.id));
+      await new GLService(this.db, this.tenantId).deletePostingsFor(GL_SOURCE, p.id);
+    }
+    if (shortfall >= 1) {
+      await this.db.insert(employeePayments).values({
+        tenantId: this.tenantId, sourceType: 'payroll_run', payrollRunId: p.payrollRunId,
+        employeeId: p.employeeId, paymentDate: bank.date, amount: shortfall.toFixed(2), status: 'pending',
+      });
+    }
+    const row = await this.post(this.db, { id: p.id, amount: bank.amount.toFixed(2) }, {
+      paymentDate: bank.date, bankAccountId: bank.bankAccountId, paymentMethod: 'bank_transfer',
+      bankGl: await bankGlAccountCode(this.db, this.tenantId, bank.bankAccountId),
+      label: `${MONTHS[run.month - 1]} ${run.year}`, userId: p.createdBy, reference: bank.reference,
+    });
+    return row.journalEntryId!;
   }
 
   /** Undo a transfer recorded by mistake: drop its GL entry, back to pending. */

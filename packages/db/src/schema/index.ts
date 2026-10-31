@@ -58,6 +58,7 @@ export * from './ar/quotes';
 export * from './ar/sales-orders';
 export * from './ar/collection-assignments';
 export * from './gl/fiscal-periods';
+export * from './gl/pnl-profit-marks';
 export * from './workflows/approval-workflows';
 export * from './workflows/comments';
 export * from './workflows/tasks';

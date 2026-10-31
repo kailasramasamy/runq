@@ -9,6 +9,7 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/section_head.dart';
+import 'reports/monthly_pnl_panel.dart';
 
 enum _Period { thisMonth, lastMonth, quarter, fy }
 enum _Tab { pnl, revenue, expenses }
@@ -57,10 +58,10 @@ class ReportsScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: RT(context).brand,
           onRefresh: () async {
-            ref.invalidate(profitAndLossProvider(range));
+            ref.invalidate(monthlyPnlProvider(range));
             ref.invalidate(revenueAnalyticsProvider(range));
             ref.invalidate(expenseAnalyticsProvider(range));
-            await ref.read(profitAndLossProvider(range).future).catchError((_) => throw 0);
+            await ref.read(monthlyPnlProvider(range).future).catchError((_) => throw 0);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -78,7 +79,11 @@ class ReportsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                 sliver: SliverToBoxAdapter(
                   child: switch (tab) {
-                    _Tab.pnl => _ProfitAndLossPanel(range: range, period: period),
+                    _Tab.pnl => MonthlyPnlPanel(
+                        range: range,
+                        prevRange: _previousPeriodRange(period),
+                        periodLabel: _periodLabel(period),
+                      ),
                     _Tab.revenue => _RevenuePanel(range: range),
                     _Tab.expenses => _ExpensePanel(range: range),
                   },
@@ -263,62 +268,6 @@ class _Pill extends StatelessWidget {
 
 // ───────────────────────────────────────────────────────── P&L panel
 
-class _ProfitAndLossPanel extends ConsumerWidget {
-  final DateRange range;
-  final _Period period;
-  const _ProfitAndLossPanel({required this.range, required this.period});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pnl = ref.watch(profitAndLossProvider(range));
-    final prevRange = _previousPeriodRange(period);
-    final prev = ref.watch(profitAndLossProvider(prevRange));
-
-    return AsyncSlot<ProfitAndLoss>(
-      value: pnl,
-      onRetry: () => ref.invalidate(profitAndLossProvider(range)),
-      data: (cur) {
-        final prevNet = prev.maybeWhen(data: (p) => p.netProfit, orElse: () => 0.0);
-        return Column(
-          children: [
-            _PnlHero(
-              netProfit: cur.netProfit,
-              previous: prev.hasValue ? prevNet : null,
-              periodLabel: _periodLabel(period),
-            ),
-            const SizedBox(height: 16),
-            const SectionHead(title: 'Breakdown'),
-            RunqCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _PnlRow(label: 'Revenue', amount: cur.totalRevenue, positive: true),
-                  const SizedBox(height: 12),
-                  _PnlRow(label: 'Cost of goods', amount: -cur.totalCogs),
-                  const SizedBox(height: 12),
-                  _Divider(),
-                  const SizedBox(height: 12),
-                  _PnlRow(label: 'Gross profit', amount: cur.grossProfit, emphasize: true),
-                  const SizedBox(height: 12),
-                  _PnlRow(label: 'Operating expenses', amount: -cur.totalOperatingExpenses),
-                  const SizedBox(height: 12),
-                  _Divider(),
-                  const SizedBox(height: 12),
-                  _PnlRow(label: 'Operating profit', amount: cur.operatingProfit, emphasize: true),
-                  const SizedBox(height: 12),
-                  _Divider(),
-                  const SizedBox(height: 12),
-                  _PnlRow(label: 'Net profit', amount: cur.netProfit, emphasize: true, large: true),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 DateRange _previousPeriodRange(_Period p) {
   switch (p) {
     case _Period.thisMonth:
@@ -339,129 +288,6 @@ DateRange _previousPeriodRange(_Period p) {
         DateTime(fy.from.year - 1, 4, 1),
         DateTime(fy.from.year, 3, 31),
       );
-  }
-}
-
-class _PnlHero extends StatelessWidget {
-  final double netProfit;
-  final double? previous;
-  final String periodLabel;
-  const _PnlHero({
-    required this.netProfit,
-    required this.previous,
-    required this.periodLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final positive = netProfit >= 0;
-    final delta = previous == null ? null : (netProfit - previous!);
-    final deltaPositive = (delta ?? 0) >= 0;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: RunqColors.heroGradient,
-        borderRadius: BorderRadius.circular(RunqRadii.hero),
-        boxShadow: const [
-          BoxShadow(color: Color(0x331E1B4B), blurRadius: 24, offset: Offset(0, 8)),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'NET PROFIT · ${periodLabel.toUpperCase()}',
-            style: RunqText.label.copyWith(
-              color: Colors.white.withValues(alpha: 0.65),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              if (!positive)
-                Text('−',
-                    style: RunqText.display.copyWith(
-                        color: Colors.white, height: 1.05)),
-              Text(
-                formatINR(netProfit.abs()),
-                style: RunqText.display.copyWith(
-                    color: Colors.white, height: 1.05),
-              ),
-            ],
-          ),
-          if (delta != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  deltaPositive
-                      ? Icons.arrow_upward_rounded
-                      : Icons.arrow_downward_rounded,
-                  size: 14,
-                  color: deltaPositive
-                      ? const Color(0xFFA7F3D0)
-                      : const Color(0xFFFCA5A5),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${deltaPositive ? '+' : '−'}${formatINR(delta.abs(), compact: true)} vs prev period',
-                  style: RunqText.body.copyWith(
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PnlRow extends StatelessWidget {
-  final String label;
-  final double amount;
-  final bool positive;
-  final bool emphasize;
-  final bool large;
-  const _PnlRow({
-    required this.label,
-    required this.amount,
-    this.positive = false,
-    this.emphasize = false,
-    this.large = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RT(context);
-    final color = amount >= 0 ? const Color(0xFF047857) : RunqColors.redInk;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: emphasize
-                ? RunqText.bodyStrong
-                    .copyWith(color: t.ink, fontSize: large ? 16 : 14)
-                : RunqText.body.copyWith(color: t.muted),
-          ),
-        ),
-        Text(
-          amount >= 0
-              ? formatINR(amount, compact: true)
-              : '−${formatINR(amount.abs(), compact: true)}',
-          style: RunqText.tabular(
-            size: large ? 20 : (emphasize ? 16 : 14),
-            w: emphasize ? FontWeight.w700 : FontWeight.w600,
-            color: emphasize ? color : (positive ? color : t.ink),
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -788,12 +614,5 @@ class _CategoryRow extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(height: 0.5, color: RT(context).hairline);
   }
 }

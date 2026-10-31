@@ -10,6 +10,8 @@ import {
 import { CategorizePostingService } from './categorize-posting.service';
 import { AutoBillPayService } from './auto-bill-pay.service';
 import { AutoReceiptService } from './auto-receipt.service';
+import { MpSettlementMatchService } from './mp-settlement-match.service';
+import { PayrollSettlementMatchService } from './payroll-settlement-match.service';
 
 interface RuleMatch {
   accountCode?: string;
@@ -164,6 +166,14 @@ export class CategorizeService {
       return { categorized: 0, rulesMatched: 0, aiMatched: 0, suspensed: 0, skipped: 0 };
     }
 
+    // Milk payouts and payroll salary transfers already posted their cash JE —
+    // link those NEFTs before any rule books them as an expense a second time.
+    const debits = uncategorized.filter((t) => t.type === 'debit');
+    const settled = await new MpSettlementMatchService(this.db, this.tenantId).matchDebits(debits);
+    const salaryMatched = await new PayrollSettlementMatchService(this.db, this.tenantId)
+      .matchDebits(bankAccountId, debits.filter((t) => !settled.has(t.id)));
+    for (const id of salaryMatched) settled.add(id);
+
     const accountByCode = new Map(glAccounts.map((a) => [a.code, a]));
     const posting = new CategorizePostingService(this.db, this.tenantId);
     const autoBillPay = new AutoBillPayService(this.db, this.tenantId);
@@ -173,6 +183,7 @@ export class CategorizeService {
     const needsAI: typeof uncategorized = [];
 
     for (const txn of uncategorized) {
+      if (settled.has(txn.id)) continue;
       const match = this.applyAllRules(txn.narration, txn.type, narrationRules, vendorList, customerList);
       if (match) {
         // Vendor match on debit → auto-bill-and-pay (creates bill + payment + 2 JEs)
@@ -249,7 +260,10 @@ export class CategorizeService {
     const suspensed = await this.sweepDebitsToSuspense(needsAI, accountByCode, bankGlCode, posting);
     const skipped = needsAI.length - aiMatched - suspensed;
 
-    return { categorized: rulesMatched + aiMatched + suspensed, rulesMatched, aiMatched, suspensed, skipped };
+    return {
+      categorized: settled.size + rulesMatched + aiMatched + suspensed,
+      rulesMatched: settled.size + rulesMatched, aiMatched, suspensed, skipped,
+    };
   }
 
   private async sweepDebitsToSuspense(

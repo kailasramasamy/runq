@@ -8,6 +8,10 @@ import {
 import { rbacHook } from '../../hooks/rbac';
 import { z } from 'zod';
 import { ReportsService } from './reports.service';
+import { MonthlyPnlService } from './monthly-pnl.service';
+import { MonthlyPnlDetailService } from './monthly-pnl-detail.service';
+import { NotFoundError } from '../../utils/errors';
+import { ProfitMarkService } from './profit-mark.service';
 import { CAPortalService } from '../ca-portal/ca-portal.service';
 import {
   profitAndLossToCSV,
@@ -20,12 +24,42 @@ import {
 const trialBalanceQuerySchema = z.object({ asOfDate: z.string().date().optional() });
 
 const READ_ROLES = ['owner', 'accountant', 'viewer'] as const;
+const MARK_ROLES = ['owner', 'accountant'] as const;
+
+const profitMarkSchema = z.object({ journalEntryId: z.string().uuid(), accountId: z.string().uuid() });
 
 export const reportsRoutes: FastifyPluginAsync = async (app) => {
   app.get('/profit-and-loss', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
     const { dateFrom, dateTo } = reportPeriodSchema.parse(request.query);
     const svc = new ReportsService(request.server.db, request.tenantId);
     return { data: await svc.getProfitAndLoss(dateFrom, dateTo) };
+  });
+
+  app.get('/monthly-pnl', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { dateFrom, dateTo } = reportPeriodSchema.parse(request.query);
+    const svc = new MonthlyPnlService(request.server.db, request.tenantId);
+    return { data: await svc.get(dateFrom, dateTo) };
+  });
+
+  app.get('/monthly-pnl/lines/:key', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
+    const { key } = z.object({ key: z.string() }).parse(request.params);
+    const { dateFrom, dateTo } = reportPeriodSchema.parse(request.query);
+    if (!MonthlyPnlDetailService.isKnownLine(key)) throw new NotFoundError(`P&L line '${key}'`);
+    const svc = new MonthlyPnlDetailService(request.server.db, request.tenantId);
+    return { data: await svc.get(key, dateFrom, dateTo) };
+  });
+
+  /** Internal-only: count an expense entry as profit taken out (or undo it). The GL is untouched. */
+  app.post('/monthly-pnl/profit-marks', { preHandler: [rbacHook([...MARK_ROLES])] }, async (request, reply) => {
+    const ref = profitMarkSchema.parse(request.body);
+    await new ProfitMarkService(request.server.db, request.tenantId).mark(ref, request.user?.userId ?? null);
+    return reply.status(204).send();
+  });
+
+  app.delete('/monthly-pnl/profit-marks', { preHandler: [rbacHook([...MARK_ROLES])] }, async (request, reply) => {
+    const ref = profitMarkSchema.parse(request.query);
+    await new ProfitMarkService(request.server.db, request.tenantId).unmark(ref);
+    return reply.status(204).send();
   });
 
   app.get('/balance-sheet', { preHandler: [rbacHook([...READ_ROLES])] }, async (request) => {
