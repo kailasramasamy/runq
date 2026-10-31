@@ -16,15 +16,17 @@ const oneOf = (...codes: string[]) => (c: string) => codes.includes(c);
 
 /**
  * First match wins, so the catch-alls go last. Lines follow how the owner
- * reads the business (milk, transport, payroll…) rather than the CoA.
+ * reads the business (milk, transport, payroll…) rather than the CoA, keyed
+ * on the standard runq chart. A line with nothing in the period is dropped,
+ * so a tenant without milk procurement never sees the milk lines.
  */
 export const LINES: LineDef[] = [
   { key: 'sales', label: 'Sales', section: 'revenue', type: 'revenue',
     match: (c) => (c.startsWith('40') || c.startsWith('41')) && c !== '4006' && c !== '4010' },
   { key: 'farmerSales', label: 'Sales to farmers', section: 'revenue', type: 'revenue', match: oneOf('4006') },
   { key: 'otherIncome', label: 'Other income & capital gains', section: 'nonOperating', type: 'revenue', match: () => true },
-  { key: 'milk', label: 'Milk purchases', section: 'milk', type: 'expense', match: oneOf('5050', '5070') },
-  { key: 'vmccCommission', label: 'VMCC commission & handling', section: 'milk', type: 'expense', match: oneOf('5060') },
+  { key: 'milk', label: 'Milk purchases', section: 'expenses', type: 'expense', match: oneOf('5050', '5070') },
+  { key: 'vmccCommission', label: 'VMCC commission & handling', section: 'expenses', type: 'expense', match: oneOf('5060') },
   { key: 'rawMaterials', label: 'Raw materials & packing', section: 'expenses', type: 'expense',
     match: (c) => /^500[1-6]$/.test(c) || c.startsWith('51') },
   { key: 'transport', label: 'Transport', section: 'expenses', type: 'expense', match: (c) => c.startsWith('57') },
@@ -40,7 +42,6 @@ export const LINES: LineDef[] = [
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'revenue', label: 'Revenue' },
-  { key: 'milk', label: 'Milk' },
   { key: 'expenses', label: 'Expenses' },
   { key: 'nonOperating', label: 'Non-operating' },
 ];
@@ -174,8 +175,7 @@ function assemble(from: string, to: string, grid: Grid, provisionalMonths: strin
     return { key, label, lines, totals: toRow(key, `Total ${label.toLowerCase()}`, sumRows(grid.months, lines)) };
   });
   const total = (k: SectionKey) => sections.find((s) => s.key === k)!.totals.values;
-  const operating = grid.months.map((_, i) =>
-    total('revenue')[i]! - total('milk')[i]! - total('expenses')[i]!);
+  const operating = grid.months.map((_, i) => total('revenue')[i]! - total('expenses')[i]!);
   const net = operating.map((v, i) => v + total('nonOperating')[i]!);
   const booked = grid.row(PROFIT_BOOKED.key, PROFIT_BOOKED.label);
   return {

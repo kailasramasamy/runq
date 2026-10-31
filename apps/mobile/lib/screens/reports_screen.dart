@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../api/reports_models.dart';
 import '../providers/reports_providers.dart';
 import '../theme/runq_theme.dart';
@@ -9,16 +10,21 @@ import '../utils/format_inr.dart';
 import '../widgets/async_slot.dart';
 import '../widgets/runq_card.dart';
 import '../widgets/section_head.dart';
+import 'reports/month_picker_sheet.dart';
 import 'reports/monthly_pnl_panel.dart';
 
-enum _Period { thisMonth, lastMonth, quarter, fy }
+enum _Period { thisMonth, lastMonth, quarter, fy, month }
 enum _Tab { pnl, revenue, expenses }
 
 final _periodProvider = StateProvider<_Period>((_) => _Period.thisMonth);
 final _tabProvider = StateProvider<_Tab>((_) => _Tab.pnl);
+/// The month shown when the period is [_Period.month].
+final _monthProvider = StateProvider<DateTime>((_) => lastMonthRange().from);
 
-DateRange _resolveRange(_Period p) {
+DateRange _resolveRange(_Period p, DateTime month) {
   switch (p) {
+    case _Period.month:
+      return monthRange(month);
     case _Period.thisMonth:
       return currentMonthRange();
     case _Period.lastMonth:
@@ -30,8 +36,10 @@ DateRange _resolveRange(_Period p) {
   }
 }
 
-String _periodLabel(_Period p) {
+String _periodLabel(_Period p, DateTime month) {
   switch (p) {
+    case _Period.month:
+      return DateFormat('MMM yyyy').format(month);
     case _Period.thisMonth:
       return 'This month';
     case _Period.lastMonth:
@@ -50,7 +58,8 @@ class ReportsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final period = ref.watch(_periodProvider);
     final tab = ref.watch(_tabProvider);
-    final range = _resolveRange(period);
+    final month = ref.watch(_monthProvider);
+    final range = _resolveRange(period, month);
 
     return Scaffold(
       body: SafeArea(
@@ -81,8 +90,8 @@ class ReportsScreen extends ConsumerWidget {
                   child: switch (tab) {
                     _Tab.pnl => MonthlyPnlPanel(
                         range: range,
-                        prevRange: _previousPeriodRange(period),
-                        periodLabel: _periodLabel(period),
+                        prevRange: _previousPeriodRange(period, month),
+                        periodLabel: _periodLabel(period, month),
                       ),
                     _Tab.revenue => _RevenuePanel(range: range),
                     _Tab.expenses => _ExpensePanel(range: range),
@@ -134,6 +143,7 @@ class _PeriodSwitcher extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final period = ref.watch(_periodProvider);
+    final month = ref.watch(_monthProvider);
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -142,8 +152,17 @@ class _PeriodSwitcher extends ConsumerWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final p = _Period.values[i];
+          if (p == _Period.month) {
+            final active = period == p;
+            return _Pill(
+              label: active ? _periodLabel(p, month) : 'Pick month',
+              active: active,
+              trailing: Icons.expand_more_rounded,
+              onTap: () => _pickMonth(context, ref, active ? month : null),
+            );
+          }
           return _Pill(
-            label: _periodLabel(p),
+            label: _periodLabel(p, month),
             active: period == p,
             onTap: () => ref.read(_periodProvider.notifier).state = p,
           );
@@ -151,6 +170,13 @@ class _PeriodSwitcher extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _pickMonth(BuildContext context, WidgetRef ref, DateTime? selected) async {
+  final picked = await showMonthPickerSheet(context, selected: selected);
+  if (picked == null) return;
+  ref.read(_monthProvider.notifier).state = picked;
+  ref.read(_periodProvider.notifier).state = _Period.month;
 }
 
 class _TabSwitcher extends ConsumerWidget {
@@ -230,8 +256,9 @@ class _SegmentItem extends StatelessWidget {
 class _Pill extends StatelessWidget {
   final String label;
   final bool active;
+  final IconData? trailing;
   final VoidCallback onTap;
-  const _Pill({required this.label, required this.active, required this.onTap});
+  const _Pill({required this.label, required this.active, required this.onTap, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -254,12 +281,13 @@ class _Pill extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: RunqText.body.copyWith(
-              color: active ? Colors.white : t.ink,
-            ),
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label, style: RunqText.body.copyWith(color: active ? Colors.white : t.ink)),
+            if (trailing != null) ...[
+              const SizedBox(width: 2),
+              Icon(trailing, size: 18, color: active ? Colors.white : t.muted),
+            ],
+          ]),
         ),
       ),
     );
@@ -268,8 +296,10 @@ class _Pill extends StatelessWidget {
 
 // ───────────────────────────────────────────────────────── P&L panel
 
-DateRange _previousPeriodRange(_Period p) {
+DateRange _previousPeriodRange(_Period p, DateTime month) {
   switch (p) {
+    case _Period.month:
+      return monthRange(DateTime(month.year, month.month - 1));
     case _Period.thisMonth:
       return lastMonthRange();
     case _Period.lastMonth:

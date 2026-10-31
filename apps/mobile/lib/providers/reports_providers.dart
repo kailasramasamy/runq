@@ -25,6 +25,10 @@ DateRange currentMonthRange([DateTime? now]) {
   return DateRange(DateTime(n.year, n.month, 1), DateTime(n.year, n.month + 1, 0));
 }
 
+/// The calendar month containing [month].
+DateRange monthRange(DateTime month) =>
+    DateRange(DateTime(month.year, month.month, 1), DateTime(month.year, month.month + 1, 0));
+
 DateRange lastMonthRange([DateTime? now]) {
   final n = now ?? DateTime.now();
   final firstOfThis = DateTime(n.year, n.month, 1);

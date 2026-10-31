@@ -12,7 +12,7 @@ function monthLabel(month: string): string {
   return MONTH_LABEL.format(new Date(`${month}-01T00:00:00`));
 }
 
-const SECTION_SIGN: Record<string, string> = { revenue: '', milk: '−', expenses: '−', nonOperating: '+' };
+const SECTION_SIGN: Record<string, string> = { revenue: '', expenses: '−', nonOperating: '+' };
 
 function Cell({ amount, className = '', onClick }: { amount: number; className?: string; onClick?: () => void }) {
   const clickable = onClick && amount !== 0;
@@ -95,6 +95,7 @@ export function MonthlyPnlTable({ report }: { report: MonthlyPnl }) {
   const booked = report.profitBookedAsExpense.total !== 0;
   const provisional = new Set(report.provisionalMonths);
   const section = (key: string) => report.sections.find((s) => s.key === key)!;
+  const hasMilk = section('expenses').lines.some((l) => l.key === 'milk');
   const block = (key: string) => {
     const s = section(key);
     if (s.lines.length === 0) return null;
@@ -122,7 +123,6 @@ export function MonthlyPnlTable({ report }: { report: MonthlyPnl }) {
           </thead>
           <tbody>
             {block('revenue')}
-            {block('milk')}
             {block('expenses')}
             <Row row={report.operatingProfit} variant="profit" {...rowProps} />
             {block('nonOperating')}
@@ -136,7 +136,10 @@ export function MonthlyPnlTable({ report }: { report: MonthlyPnl }) {
         </table>
       </div>
       <div className="mt-4 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-        <p>Milk is costed by pour date; bulk VMCC milk by its billing cycle. Other costs fall in the month they were billed or paid.</p>
+        <p>
+          {hasMilk && 'Milk is costed by pour date; bulk VMCC milk by its billing cycle. '}
+          {hasMilk ? 'Other costs' : 'Costs'} fall in the month they were billed or paid.
+        </p>
         {provisional.size > 0 && <p>* Milk cost incomplete — a VMCC billing cycle in this month is not billed yet.</p>}
         {report.excludedStock.total !== 0 && (
           <p>

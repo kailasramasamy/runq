@@ -136,7 +136,6 @@ class _Breakdown extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ..._section(context, 'revenue'),
-          ..._section(context, 'milk'),
           ..._section(context, 'expenses'),
           _Line(label: 'Operating profit', amount: pnl.operatingProfit.total, profit: true),
           if (hasNonOp) ...[
@@ -248,8 +247,7 @@ class _MonthList extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RT(context);
     final revenue = pnl.section('revenue')?.totals.values ?? const <double>[];
-    double cost(int i) =>
-        (pnl.section('milk')?.totals.values[i] ?? 0) + (pnl.section('expenses')?.totals.values[i] ?? 0);
+    double cost(int i) => pnl.section('expenses')?.totals.values[i] ?? 0;
     return RunqCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(children: [
@@ -286,10 +284,11 @@ class _Notes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = RunqText.caption.copyWith(color: RT(context).muted);
+    final hasMilk = (pnl.section('expenses')?.lines ?? const []).any((l) => l.key == 'milk');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Milk is costed by pour date; bulk VMCC milk by its billing cycle.', style: style),
+        if (hasMilk) Text('Milk is costed by pour date; bulk VMCC milk by its billing cycle.', style: style),
         if (pnl.provisionalMonths.isNotEmpty)
           Text('* Milk cost incomplete — a VMCC cycle is not billed yet.', style: style),
         if (pnl.excludedStock.total != 0)

@@ -99,35 +99,65 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _EntryRow extends StatelessWidget {
+/// One line — who and how much; tap for the description, posting and mark action.
+class _EntryRow extends StatefulWidget {
   final MonthlyPnlEntry e;
   final bool booked;
   const _EntryRow(this.e, {required this.booked});
+
+  @override
+  State<_EntryRow> createState() => _EntryRowState();
+}
+
+class _EntryRowState extends State<_EntryRow> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RT(context);
+    final e = widget.e;
+    final italic = e.party != null && e.partyFromBank;
+    return InkWell(
+      onTap: () => setState(() => _open = !_open),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(e.party ?? e.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: RunqText.bodyStrong.copyWith(
+                      color: italic ? t.muted : t.ink, fontStyle: italic ? FontStyle.italic : null)),
+            ),
+            const SizedBox(width: 12),
+            Text(formatINR(e.amount), style: RunqText.tabular(color: t.ink)),
+            Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18, color: t.muted),
+          ]),
+          if (_open) _EntryDetail(e, booked: widget.booked),
+        ]),
+      ),
+    );
+  }
+}
+
+class _EntryDetail extends StatelessWidget {
+  final MonthlyPnlEntry e;
+  final bool booked;
+  const _EntryDetail(this.e, {required this.booked});
 
   @override
   Widget build(BuildContext context) {
     final t = RT(context);
     final date = DateFormat('d MMM').format(DateTime.parse(e.date));
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (e.party != null)
-              Text(e.party!,
-                  style: e.partyFromBank
-                      ? RunqText.bodyStrong.copyWith(color: t.muted, fontStyle: FontStyle.italic)
-                      : RunqText.bodyStrong.copyWith(color: t.ink)),
-            Text(e.description, style: RunqText.body.copyWith(color: e.party == null ? t.ink : t.ink2)),
-            const SizedBox(height: 2),
-            Text('$date · ${e.source} · ${e.account}', style: RunqText.caption.copyWith(color: t.muted)),
-          ]),
-        ),
-        const SizedBox(width: 12),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(formatINR(e.amount), style: RunqText.tabular(color: t.ink)),
-          if (e.markable && e.ref != null) _MarkButton(ref: e.ref!, booked: booked),
-        ]),
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (e.party != null) Text(e.description, style: RunqText.body.copyWith(color: t.ink2)),
+        const SizedBox(height: 2),
+        Text('$date · ${e.source} · ${e.account}', style: RunqText.caption.copyWith(color: t.muted)),
+        if (e.markable && e.ref != null)
+          Align(alignment: Alignment.centerRight, child: _MarkButton(ref: e.ref!, booked: booked)),
       ]),
     );
   }
@@ -164,15 +194,30 @@ class _MarkButtonState extends ConsumerState<_MarkButton> {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: _busy ? null : _toggle,
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 32),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    final t = RT(context);
+    final restore = widget.booked;
+    final fg = restore ? t.ink2 : t.brand;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Material(
+        color: restore ? Colors.transparent : t.brandSubtle,
+        shape: StadiumBorder(side: BorderSide(color: restore ? t.hairline : Colors.transparent)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: _busy ? null : _toggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              _busy
+                  ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+                  : Icon(restore ? Icons.undo_rounded : Icons.savings_outlined, size: 16, color: fg),
+              const SizedBox(width: 6),
+              Text(restore ? 'Count as expense' : 'Not an expense',
+                  style: RunqText.caption.copyWith(color: fg, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
       ),
-      child: Text(widget.booked ? 'Restore' : 'Not an expense',
-          style: RunqText.caption.copyWith(color: RT(context).brand)),
     );
   }
 }

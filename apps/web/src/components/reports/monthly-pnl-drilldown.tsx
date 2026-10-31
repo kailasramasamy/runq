@@ -62,7 +62,7 @@ function MarkButton({ entry, booked }: { entry: MonthlyPnlEntry; booked: boolean
     <button onClick={run} disabled={busy}
       title={booked ? 'Count this as an expense again' : 'Booked as an expense for the books, but really profit taken out'}
       className="whitespace-nowrap rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
-      {booked ? 'Restore' : 'Not an expense'}
+      {booked ? 'Count as expense' : 'Not an expense'}
     </button>
   );
 }

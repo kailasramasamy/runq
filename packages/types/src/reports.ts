@@ -94,7 +94,7 @@ export interface MonthlyPnlRow {
 }
 
 export interface MonthlyPnlSection {
-  key: 'revenue' | 'milk' | 'expenses' | 'nonOperating';
+  key: 'revenue' | 'expenses' | 'nonOperating';
   label: string;
   lines: MonthlyPnlRow[];
   totals: MonthlyPnlRow;
