@@ -11,6 +11,7 @@ import { NotFoundError, ValidationError } from '../../utils/errors';
 import type { RateChartPrintData } from './rate-chart-template';
 import { QualityBandService, gradeFromBands } from './quality-band.service';
 import type { MetricBands } from './quality-band.service';
+import { istToday } from './cycle-window';
 
 type Cell = typeof mpRateChartCells.$inferSelect;
 type Rule = typeof mpRateChartRules.$inferSelect;
@@ -499,7 +500,9 @@ export class RateChartService {
 
   /** Resolve the per-litre rate for a pour. Used by the pour-capture path (A3). */
   async resolveRate(input: ResolveRateInput): Promise<RateResolution> {
-    const onDate = input.onDate ?? new Date().toISOString().slice(0, 10);
+    // Collection days are IST days: a UTC default priced pours between midnight
+    // and 05:30 IST against yesterday's chart, so a new chart lagged the morning shift.
+    const onDate = input.onDate ?? istToday();
     // CLR supplied → lactometer (clr) chart; else fat/SNF → matrix/flat chart.
     const useClr = input.clr != null;
     const modes: PricingMode[] = useClr ? ['clr'] : ['matrix', 'flat'];
