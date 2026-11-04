@@ -160,10 +160,17 @@ class FarmerPaymentsTab extends ConsumerWidget {
     final boughtDed =
         (ledger?.saleDue ?? 0).clamp(0, estDeduction - rejectedDed).toDouble();
     final advanceDed = estDeduction - boughtDed - rejectedDed;
+    // Show what was bought, not the recovery: that is capped at the milk value,
+    // so for a trader it would only repeat the milk total. Earlier balance and
+    // carry-forward bridge the two so the card still adds up.
+    final purchased = purchases.fold<double>(0, (s, x) => s + x.amount);
+    final saleDue = ledger?.saleDue ?? 0;
+    final earlierDue = saleDue > purchased ? saleDue - purchased : 0.0;
+    final saleCarry = earlierDue + purchased - boughtDed;
     // What this payment can't cover. The rows above already name everything
     // being recovered, so repeating those totals in a warning strip said
     // nothing twice; only the leftover is news.
-    final carryForward = outstanding - estDeduction;
+    final carryForward = outstanding - estDeduction - saleCarry;
     final cycleLabel = periodLabel.isEmpty ? l.farmerHomeThisCycle : periodLabel.toUpperCase();
 
     final proj = period == null
@@ -240,13 +247,19 @@ class FarmerPaymentsTab extends ConsumerWidget {
             _itemRow(t, t.brand, l.farmerPaymentsQualityBonus,
                 '+ ${rupees(qualityBonus)}', t.gradeA),
           ],
-          if (boughtDed > 0) ...[
+          if (purchased > 0 || earlierDue > 0) ...[
             _hairline(t),
             _itemRow(t, t.gradeB, l.farmerPaymentsBought,
-                '− ${rupees(boughtDed)}', t.gradeC),
+                '− ${rupees(purchased)}', t.gradeC),
             // Always open, never behind a tap: one number quietly shrinking the
             // payment is exactly what a trader-farmer needs to be able to check.
-            ..._purchaseLines(t, l, purchases, boughtDed),
+            ..._purchaseLines(t, l, purchases),
+            if (earlierDue > 1)
+              _itemRow(t, t.gradeB, l.farmerPaymentsEarlierPurchases,
+                  '− ${rupees(earlierDue)}', t.gradeC),
+            if (saleCarry > 1)
+              _itemRow(t, t.gradeB, l.farmerPaymentsCarriedNext,
+                  '+ ${rupees(saleCarry)}', t.ink),
           ],
           if (rejectedDed > 0) ...[
             _hairline(t),
@@ -300,9 +313,7 @@ class FarmerPaymentsTab extends ConsumerWidget {
   /// long string wrapped mid-phrase and pushed the amount out of line, which is
   /// the opposite of checkable.
   List<Widget> _purchaseLines(
-      DhenuTokens t, AppLocalizations l, List<MpFarmerSale> sales, double deducted) {
-    final listed = sales.fold<double>(0, (s, x) => s + x.amount);
-    final earlier = deducted - listed;
+      DhenuTokens t, AppLocalizations l, List<MpFarmerSale> sales) {
     return [
       for (final s in sales)
         _detailLine(
@@ -315,8 +326,6 @@ class FarmerPaymentsTab extends ConsumerWidget {
               ' · ${rupees(s.ratePerUnit)}/${s.unit}',
           rupees(s.amount),
         ),
-      if (earlier > 1)
-        _detailLine(t, l.farmerPaymentsEarlierPurchases, null, rupees(earlier)),
     ];
   }
 

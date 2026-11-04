@@ -3,9 +3,11 @@ import { verifyStatementToken } from '../milk-procurement/mp-statement-token';
 import { VmccBillService } from '../milk-procurement/vmcc-bill.service';
 import { StatementService } from '../milk-procurement/statement.service';
 import {
-  renderVmccBillHTML, renderPourStatementHTML, vmccBillFilename, pourStatementFilename,
-  type VmccBillStatementData,
+  renderPourStatementHTML, pourStatementFilename,
 } from '../milk-procurement/statement-template';
+import {
+  renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData,
+} from '../milk-procurement/vmcc-bill-template';
 
 // Public, token-signed PDF for one VMCC bill or one farmer statement — the URL
 // WhatsApp (Interakt) fetches as the document header. Unauthenticated by design:

@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { rbacHook } from '../../hooks/rbac';
 import { VmccBillService, type PeriodSelection } from './vmcc-bill.service';
 import { MpPaymentHistoryService } from './payment-history.service';
-import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './statement-template';
+import { renderVmccBillHTML, vmccBillFilename, type VmccBillStatementData } from './vmcc-bill-template';
 import { resolveMpPrincipal } from './access-scope';
 import { sendVmccBillWhatsApp } from './mp-bill-notify';
 import { sendVmccPaymentWhatsApp, sendFarmerPaymentWhatsApp } from './mp-payment-notify';

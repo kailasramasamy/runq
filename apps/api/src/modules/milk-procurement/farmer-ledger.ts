@@ -66,6 +66,34 @@ export function foldOutstanding(rows: FoldRow[]): Outstanding {
 }
 
 /**
+ * The rows a cycle ending on `periodEnd` may recover against. Debt dated after
+ * the period waits for the cycle it belongs to, even when it is already on the
+ * ledger by the time this cycle is generated (cycles run days after they close).
+ * Unrecovered debt from earlier periods still counts, and so does every
+ * repayment, whatever its date: that money has already been taken.
+ */
+export function dueBy<T extends FoldRow & { occurredOn: string }>(rows: T[], periodEnd: string): T[] {
+  return rows.filter((r) => r.entryType === 'repayment' || r.occurredOn <= periodEnd);
+}
+
+/**
+ * What the farmer still owed for goods from before `date`. Never negative: a
+ * past cycle that recovered ahead of its period does not shrink what a later
+ * period's own purchases show.
+ */
+export function saleBalanceBefore(rows: (FoldRow & { occurredOn: string })[], date: string): number {
+  let owed = 0;
+  for (const r of rows) {
+    if (r.occurredOn >= date) continue;
+    if (r.entryType === 'farmer_sale') owed += Number(r.amount);
+    else if ((r.entryType === 'repayment' || r.entryType === 'adjustment') && r.refType === 'farmer_sale') {
+      owed -= Number(r.amount);
+    }
+  }
+  return Math.max(0, round2(owed));
+}
+
+/**
  * Total owed, summed rather than read off the newest row's `balance_after`.
  *
  * `balance_after` is a running total in CREATION order, so the newest row by

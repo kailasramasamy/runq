@@ -7,7 +7,7 @@ import type { Db } from '@runq/db';
 import { NotFoundError } from '../../utils/errors';
 import { MpPrincipal, assertNodeAccess } from './access-scope';
 import {
-  BUCKET_BY_DEDUCTION, foldOutstanding, waterfall, zeroOutstanding, type Outstanding,
+  BUCKET_BY_DEDUCTION, dueBy, foldOutstanding, waterfall, zeroOutstanding, type Outstanding,
 } from './farmer-ledger';
 import { computeCurrentPeriod, istToday } from './cycle-window';
 import { OperatorPayoutService } from './operator-payout.service';
@@ -177,7 +177,7 @@ export class RunningBalanceService {
       .groupBy(mpPours.farmerId, mpFarmers.name, mpFarmers.code, mpPours.nodeId);
     if (!rows.length) return [];
 
-    const owed = await this.outstandingFor(rows.map((r) => r.farmerId));
+    const owed = await this.outstandingFor(rows.map((r) => r.farmerId), period.end);
     return rows.map((r) => {
       const gross = round2(Number(r.gross));
       const outstanding = owed.get(r.farmerId) ?? zeroOutstanding();
@@ -243,14 +243,16 @@ export class RunningBalanceService {
     }).sort((a, b) => a.farmerName.localeCompare(b.farmerName));
   }
 
-  /** Per-bucket outstanding for a set of farmers, from one ledger sweep. */
-  private async outstandingFor(farmerIds: string[]): Promise<Map<string, Outstanding>> {
+  /** Per-bucket outstanding for a set of farmers, from one ledger sweep. With
+   *  `periodEnd`, only what a cycle ending that day may recover (see `dueBy`). */
+  private async outstandingFor(farmerIds: string[], periodEnd?: string): Promise<Map<string, Outstanding>> {
     const out = new Map<string, Outstanding>();
     const ids = [...new Set(farmerIds)];
     if (!ids.length) return out;
     const rows = await this.db.select({
       farmerId: mpFarmerLedger.farmerId, entryType: mpFarmerLedger.entryType,
       refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
+      occurredOn: mpFarmerLedger.occurredOn,
     }).from(mpFarmerLedger).where(and(
       eq(mpFarmerLedger.tenantId, this.tenantId), inArray(mpFarmerLedger.farmerId, ids),
     ));
@@ -260,7 +262,10 @@ export class RunningBalanceService {
       cur.push(r);
       byFarmer.set(r.farmerId, cur);
     }
-    for (const id of ids) out.set(id, foldOutstanding(byFarmer.get(id) ?? []));
+    for (const id of ids) {
+      const ledger = byFarmer.get(id) ?? [];
+      out.set(id, foldOutstanding(periodEnd ? dueBy(ledger, periodEnd) : ledger));
+    }
     return out;
   }
 

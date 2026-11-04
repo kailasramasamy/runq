@@ -984,6 +984,7 @@
   "farmerPaymentsSaleDue": "கொள்முதல் {amount}",
   "farmerPaymentsBought": "எங்களிடம் வாங்கியது",
   "farmerPaymentsEarlierPurchases": "முந்தைய கொள்முதல்கள்",
+  "farmerPaymentsCarriedNext": "அடுத்த பணத்திற்கு கொண்டு செல்லப்பட்டது",
   "farmerPaymentsSegSold": "விற்பனை",
   "farmerSaleNoneYet": "இந்த விவசாயிக்கு இதுவரை எதுவும் விற்கவில்லை",
   "farmerSaleKindMilk": "பால்",

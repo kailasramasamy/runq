@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foldOutstanding, ledgerBalance, waterfall, zeroOutstanding } from './farmer-ledger';
+import { dueBy, foldOutstanding, ledgerBalance, saleBalanceBefore, waterfall, zeroOutstanding } from './farmer-ledger';
 
 const row = (entryType: string, amount: number, refType: string | null = null) =>
   ({ entryType, refType, amount: String(amount) });
@@ -48,6 +48,61 @@ describe('foldOutstanding', () => {
 
   it('never reports a negative bucket', () => {
     expect(foldOutstanding([row('repayment', 100, 'advance')]).advance).toBe(0);
+  });
+});
+
+describe('dueBy', () => {
+  const dated = (entryType: string, amount: number, occurredOn: string, refType: string | null = null) =>
+    ({ ...row(entryType, amount, refType), occurredOn });
+
+  it('leaves debt dated after the period for the next cycle', () => {
+    expect(foldOutstanding(dueBy([
+      dated('farmer_sale', 5000, '2026-10-20'),
+      dated('farmer_sale', 8800, '2026-11-01'),
+      dated('advance_given', 1000, '2026-11-02'),
+    ], '2026-10-31'))).toEqual({ qualityRejection: 0, farmerSale: 5000, advance: 0, feedLoan: 0 });
+  });
+
+  it('still recovers unpaid debt from earlier periods', () => {
+    expect(foldOutstanding(dueBy([dated('farmer_sale', 300, '2026-09-10')], '2026-10-31')).farmerSale)
+      .toBe(300);
+  });
+
+  it('keeps a later-dated repayment, which has already been taken', () => {
+    expect(foldOutstanding(dueBy([
+      dated('farmer_sale', 500, '2026-10-20'),
+      dated('repayment', 200, '2026-11-15', 'farmer_sale'),
+    ], '2026-10-31')).farmerSale).toBe(300);
+  });
+
+  it('drops a later sale together with its reversal', () => {
+    expect(foldOutstanding(dueBy([
+      dated('farmer_sale', 500, '2026-10-20'),
+      dated('farmer_sale', 900, '2026-11-01'),
+      dated('adjustment', 900, '2026-11-01', 'farmer_sale'),
+    ], '2026-10-31')).farmerSale).toBe(500);
+  });
+});
+
+describe('saleBalanceBefore', () => {
+  const dated = (entryType: string, amount: number, occurredOn: string, refType: string | null = null) =>
+    ({ ...row(entryType, amount, refType), occurredOn });
+
+  it('stays at zero when an earlier cycle recovered ahead of its period', () => {
+    expect(saleBalanceBefore([
+      dated('farmer_sale', 110814, '2026-10-15'),
+      dated('farmer_sale', 3520, '2026-10-17'),
+      dated('repayment', 114334, '2026-10-15', 'farmer_sale'),
+    ], '2026-10-16')).toBe(0);
+  });
+
+  it('ignores other buckets, and this cycle\'s own recovery', () => {
+    expect(saleBalanceBefore([
+      dated('farmer_sale', 500, '2026-10-10'),
+      dated('adjustment', 100, '2026-10-10', 'farmer_sale'),
+      dated('repayment', 900, '2026-10-15', 'advance'),
+      dated('repayment', 400, '2026-10-31', 'farmer_sale'),
+    ], '2026-10-16')).toBe(400);
   });
 });
 
