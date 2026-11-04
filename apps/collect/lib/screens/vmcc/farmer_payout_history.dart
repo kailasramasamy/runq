@@ -10,6 +10,7 @@ import '../../theme/dhenu_icons.dart';
 import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
+import '../../widgets/sale_recovery_rows.dart';
 import '../../widgets/breakdown_bar.dart';
 import '../../widgets/dhenu_card.dart';
 import '../../widgets/dhenu_states.dart';
@@ -254,6 +255,7 @@ class _PayoutLineSheet extends StatelessWidget {
   final bool isPaid;
 
   String _deductionLabel(AppLocalizations l, String type) => switch (type) {
+        'farmer_sale' => l.farmerPaymentsBought,
         'advance' => l.farmerPaymentsDeductionAdvance,
         'cattle_feed_loan' => l.farmerPaymentsDeductionFeedLoan,
         _ => l.farmerPaymentsDeductionOther,
@@ -300,9 +302,18 @@ class _PayoutLineSheet extends StatelessWidget {
               const SizedBox(height: DhenuSpacing.sm),
               _caption(t, l.farmerPaymentsDeductions),
               for (final d in line.deductions)
-                _row(t, _deductionLabel(l, d.deductionType),
-                    '− ${rupees(d.amount)}',
-                    color: t.gradeC),
+                if (d.deductionType == 'farmer_sale'
+                    && line.periodStart != null && line.periodEnd != null)
+                  SaleRecoveryRows(
+                    farmerId: line.farmerId,
+                    periodStart: line.periodStart!, periodEnd: line.periodEnd!,
+                    recovered: d.amount,
+                    rowBuilder: (label, value, color) => _row(t, label, value, color: color),
+                  )
+                else
+                  _row(t, _deductionLabel(l, d.deductionType),
+                      '− ${rupees(d.amount)}',
+                      color: t.gradeC),
             ],
             Divider(height: DhenuSpacing.xl, color: t.hairline),
           ],

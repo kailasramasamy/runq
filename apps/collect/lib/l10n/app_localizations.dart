@@ -5794,6 +5794,12 @@ abstract class AppLocalizations {
   /// **'Earlier purchases'**
   String get farmerPaymentsEarlierPurchases;
 
+  /// No description provided for @farmerPaymentsCarriedNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Carried to next payment'**
+  String get farmerPaymentsCarriedNext;
+
   /// No description provided for @farmerPaymentsSegSold.
   ///
   /// In en, this message translates to:

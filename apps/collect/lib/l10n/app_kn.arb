@@ -984,6 +984,7 @@
   "farmerPaymentsSaleDue": "ಖರೀದಿಗಳು {amount}",
   "farmerPaymentsBought": "ನಮ್ಮಿಂದ ಖರೀದಿಸಿದ್ದು",
   "farmerPaymentsEarlierPurchases": "ಹಿಂದಿನ ಖರೀದಿಗಳು",
+  "farmerPaymentsCarriedNext": "ಮುಂದಿನ ಪಾವತಿಗೆ ಮುಂದೂಡಲಾಗಿದೆ",
   "farmerPaymentsSegSold": "ಮಾರಾಟ",
   "farmerSaleNoneYet": "ಈ ರೈತರಿಗೆ ಇನ್ನೂ ಏನೂ ಮಾರಿಲ್ಲ",
   "farmerSaleKindMilk": "ಹಾಲು",

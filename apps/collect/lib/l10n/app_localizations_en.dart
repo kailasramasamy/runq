@@ -3367,6 +3367,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get farmerPaymentsEarlierPurchases => 'Earlier purchases';
 
   @override
+  String get farmerPaymentsCarriedNext => 'Carried to next payment';
+
+  @override
   String get farmerPaymentsSegSold => 'Sold';
 
   @override

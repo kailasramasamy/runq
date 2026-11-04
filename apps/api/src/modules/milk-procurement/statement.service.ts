@@ -1,17 +1,17 @@
 import { and, eq, gte, isNull, lte, ne } from 'drizzle-orm';
 import {
   tenants, items, mpFarmerLedger, mpFarmerSales, mpPayoutCycles, mpPayoutDeductions, mpPayoutLines,
-  mpRejections, mpRejectionCharges,
+  mpPours, mpRejections, mpRejectionCharges,
 } from '@runq/db';
 import type { Db } from '@runq/db';
 import { FarmerService } from './farmer.service';
 import { PourService } from './pour.service';
-import { DEDUCTION_TYPES, foldOutstanding, waterfall } from './farmer-ledger';
+import { DEDUCTION_TYPES, dueBy, foldOutstanding, saleBalanceBefore, waterfall } from './farmer-ledger';
 import type { MpPrincipal } from './access-scope';
 import type {
-  PourStatementData, StatementPour, StatementDeduction, StatementSettlement,
+  PourStatementData, StatementPour, StatementDeduction, StatementRejection, StatementSettlement,
 } from './statement-template';
-import { REJECTION_LABEL } from './statement-template';
+import { rejectionReason } from './statement-template';
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -103,10 +103,13 @@ export class StatementService {
       period: { from, to, label: label ?? null },
       pours,
       byType: computeByType(pours),
-      rejections: refused.map((r) => ({
-        collectionDate: r.date, shift: r.shift, milkType: r.milkType,
-        qtyLitres: Number(r.qty), reason: r.reason,
-      })),
+      rejections: [
+        ...refused.map((r): StatementRejection => ({
+          collectionDate: r.date, shift: r.shift, milkType: r.milkType,
+          qtyLitres: Number(r.qty), reason: r.reason, notes: r.notes,
+        })),
+        ...await this.gateRefusals(farmerId, from, to),
+      ].sort((a, b) => a.collectionDate.localeCompare(b.collectionDate)),
       totals,
       settlement: await this.settlement(farmerId, from, to, totals.amount, refused),
       generatedAt: new Date().toISOString(),
@@ -124,7 +127,7 @@ export class StatementService {
   ): Promise<RefusedCharge[]> {
     const rows = await this.db.select({
       date: mpRejections.collectionDate, shift: mpRejections.shift,
-      milkType: mpRejections.milkType, reason: mpRejections.reason,
+      milkType: mpRejections.milkType, reason: mpRejections.reason, notes: mpRejections.notes,
       qty: mpRejectionCharges.qtyLitres, rate: mpRejectionCharges.ratePerLitre,
       amount: mpRejectionCharges.amount,
     }).from(mpRejectionCharges)
@@ -141,6 +144,33 @@ export class StatementService {
   }
 
   /**
+   * Milk refused at the gate carries no charge, because nothing was ever owed
+   * for it, so it never reaches `refusedCharges`. It still belongs on the farmer's
+   * statement. Only a refusal linked to one of their pours can be attributed: a
+   * gate row without a pour does not name a farmer.
+   */
+  private async gateRefusals(
+    farmerId: string, from: string, to: string,
+  ): Promise<StatementRejection[]> {
+    const rows = await this.db.select({
+      collectionDate: mpRejections.collectionDate, shift: mpRejections.shift,
+      milkType: mpRejections.milkType, qty: mpRejections.qtyLitres,
+      reason: mpRejections.reason, notes: mpRejections.notes,
+    }).from(mpRejections)
+      .innerJoin(mpPours, eq(mpRejections.subjectId, mpPours.id))
+      .where(and(
+        eq(mpRejections.tenantId, this.tenantId),
+        eq(mpRejections.stage, 'gate'),
+        eq(mpRejections.subjectType, 'pour'),
+        eq(mpPours.farmerId, farmerId),
+        isNull(mpRejections.reversedAt),
+        gte(mpRejections.collectionDate, from),
+        lte(mpRejections.collectionDate, to),
+      ));
+    return rows.map(({ qty, ...r }) => ({ ...r, qtyLitres: Number(qty) }));
+  }
+
+  /**
    * What the farmer is actually paid: milk value less whatever the cycle
    * recovers. Reads the generated payout line when there is one — those are the
    * settled figures — and falls back to a provisional run of the same waterfall
@@ -152,6 +182,12 @@ export class StatementService {
   ): Promise<StatementSettlement | null> {
     const saleLines = await this.saleDetail(farmerId, from, to);
     const rejectionLines = refused.map(refusalLine);
+    const ledger = await this.db.select({
+      entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
+      occurredOn: mpFarmerLedger.occurredOn,
+    }).from(mpFarmerLedger).where(and(
+      eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
+    const saleOpening = saleBalanceBefore(ledger, from);
     const [line] = await this.db.select({
       id: mpPayoutLines.id, gross: mpPayoutLines.grossAmount,
       deducted: mpPayoutLines.deductionTotal, net: mpPayoutLines.netAmount,
@@ -168,21 +204,17 @@ export class StatementService {
         type: mpPayoutDeductions.deductionType, amount: mpPayoutDeductions.amount,
       }).from(mpPayoutDeductions).where(eq(mpPayoutDeductions.payoutLineId, line.id));
       const deductions = rows.map((r) => withDetail(
-        { type: r.type, amount: Number(r.amount) }, saleLines, rejectionLines));
+        { type: r.type, amount: Number(r.amount) }, saleLines, rejectionLines, saleOpening));
       const totalDeductions = r2(Number(line.deducted));
       if (!totalDeductions) return null;
       return { gross: r2(Number(line.gross)), deductions, totalDeductions, net: r2(Number(line.net)), provisional: false };
     }
 
-    const ledger = await this.db.select({
-      entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
-    }).from(mpFarmerLedger).where(and(
-      eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
-    const taken = waterfall(foldOutstanding(ledger), gross);
+    const taken = waterfall(foldOutstanding(dueBy(ledger, to)), gross);
     if (!taken.total) return null;
     const deductions = DEDUCTION_TYPES
       .map(([bucket, type]) => withDetail(
-        { type, amount: taken[bucket] }, saleLines, rejectionLines))
+        { type, amount: taken[bucket] }, saleLines, rejectionLines, saleOpening))
       .filter((d) => d.amount > 0);
     return {
       gross: r2(gross), deductions, totalDeductions: taken.total,
@@ -216,7 +248,7 @@ export class StatementService {
 /** One refusal charged to this farmer, as both the listing and the deduction need it. */
 interface RefusedCharge {
   date: string; shift: 'am' | 'pm' | null; milkType: string | null;
-  reason: string; qty: string; rate: string; amount: string;
+  reason: string; notes: string | null; qty: string; rate: string; amount: string;
 }
 
 /** A refusal as a settlement detail line — the day and reason the money came off. */
@@ -224,7 +256,7 @@ function refusalLine(r: RefusedCharge): NonNullable<StatementDeduction['lines']>
   return {
     date: r.date, itemName: null, milkType: r.milkType, unit: 'L',
     qty: Number(r.qty), ratePerUnit: Number(r.rate), amount: Number(r.amount),
-    note: [REJECTION_LABEL[r.reason] ?? r.reason, r.shift?.toUpperCase()]
+    note: [rejectionReason(r.reason, r.notes), r.shift?.toUpperCase()]
       .filter(Boolean).join(' · '),
   };
 }
@@ -234,8 +266,9 @@ function withDetail(
   d: { type: string; amount: number },
   saleLines: StatementDeduction['lines'],
   rejectionLines: StatementDeduction['lines'],
+  saleOpening: number,
 ): StatementDeduction {
-  if (d.type === 'farmer_sale') return { ...d, lines: saleLines };
+  if (d.type === 'farmer_sale') return { ...d, lines: saleLines, openingBalance: saleOpening };
   if (d.type === 'quality_rejection') return { ...d, lines: rejectionLines };
   return d;
 }

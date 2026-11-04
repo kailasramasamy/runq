@@ -3379,6 +3379,10 @@ class AppLocalizationsTa extends AppLocalizations {
   String get farmerPaymentsEarlierPurchases => 'முந்தைய கொள்முதல்கள்';
 
   @override
+  String get farmerPaymentsCarriedNext =>
+      'அடுத்த பணத்திற்கு கொண்டு செல்லப்பட்டது';
+
+  @override
   String get farmerPaymentsSegSold => 'விற்பனை';
 
   @override

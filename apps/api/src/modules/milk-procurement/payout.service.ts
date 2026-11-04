@@ -16,7 +16,7 @@ import { computeDuePeriod } from './cycle-window';
 import { MpGlPoster } from './gl-poster';
 import { MpPrincipal, assertNodeAccess, assertFarmerAtNode } from './access-scope';
 import {
-  BUCKET_BY_DEDUCTION, DEDUCTION_TYPES, appendLedgerEntry, foldOutstanding,
+  BUCKET_BY_DEDUCTION, DEDUCTION_TYPES, appendLedgerEntry, dueBy, foldOutstanding,
   ledgerBalance, waterfall, zeroOutstanding, type Outstanding,
 } from './farmer-ledger';
 import { sendFarmerBillNotifications, directModeVmccIds } from './mp-bill-notify';
@@ -205,6 +205,7 @@ export class PayoutService {
   private ledgerRows(db: Db | Tx, farmerId: string) {
     return (db as Db).select({
       entryType: mpFarmerLedger.entryType, refType: mpFarmerLedger.refType, amount: mpFarmerLedger.amount,
+      occurredOn: mpFarmerLedger.occurredOn,
     }).from(mpFarmerLedger)
       .where(and(eq(mpFarmerLedger.tenantId, this.tenantId), eq(mpFarmerLedger.farmerId, farmerId)));
   }
@@ -314,7 +315,7 @@ export class PayoutService {
           periodStart: input.periodStart, periodEnd: input.periodEnd, status: 'open',
         }).returning({ id: mpPayoutCycles.id });
         for (const a of aggregates) {
-          const ded = await this.computeDeductions(a.farmerId, a.gross);
+          const ded = await this.computeDeductions(tx, a.farmerId, a.gross, input.periodEnd);
           const statementNo = await nextDocNo(tx, this.tenantId, 'statement', input.periodStart, 'STM');
           const [line] = await tx.insert(mpPayoutLines).values({
             tenantId: this.tenantId, payoutCycleId: cycle!.id, farmerId: a.farmerId,
@@ -575,7 +576,7 @@ export class PayoutService {
         }
         for (const a of aggregates) {
           if (frozen.has(a.farmerId)) continue;
-          await this.insertLine(tx, cycleId, cycle.periodStart, a);
+          await this.insertLine(tx, cycleId, cycle, a);
         }
         await this.updateCycleTotals(tx, cycleId);
       });
@@ -605,7 +606,7 @@ export class PayoutService {
       const fresh: MpPayoutLineRow[] = [];
       for (const a of aggregates) {
         if (paidFarmers.has(a.farmerId)) continue; // frozen — keep the paid line as-is
-        fresh.push(await this.insertLine(tx, cycleId, cycle.periodStart, a));
+        fresh.push(await this.insertLine(tx, cycleId, cycle, a));
       }
       const recovered = await this.postRepayments(tx, cycle, fresh);
       const newNet = fresh.reduce((s, l) => s + Number(l.netAmount), 0);
@@ -627,10 +628,11 @@ export class PayoutService {
 
   /** Insert one recomputed payout line (+ its deductions) from a pour aggregate. */
   private async insertLine(
-    tx: Tx, cycleId: string, periodStart: string, a: { farmerId: string; qty: number; gross: number; bonus: number },
+    tx: Tx, cycleId: string, period: { periodStart: string; periodEnd: string },
+    a: { farmerId: string; qty: number; gross: number; bonus: number },
   ): Promise<MpPayoutLineRow> {
-    const ded = await this.computeDeductionsTx(tx, a.farmerId, a.gross);
-    const statementNo = await nextDocNo(tx, this.tenantId, 'statement', periodStart, 'STM');
+    const ded = await this.computeDeductions(tx, a.farmerId, a.gross, period.periodEnd);
+    const statementNo = await nextDocNo(tx, this.tenantId, 'statement', period.periodStart, 'STM');
     const [line] = await tx.insert(mpPayoutLines).values({
       tenantId: this.tenantId, payoutCycleId: cycleId, farmerId: a.farmerId,
       qtyLitres: String(a.qty), grossAmount: String(a.gross), bonusAmount: String(a.bonus),
@@ -736,13 +738,9 @@ export class PayoutService {
     return n?.type === 'cc';
   }
 
-  private async computeDeductions(farmerId: string, gross: number) {
-    return waterfall(await this.outstandingByType(farmerId), gross);
-  }
-
-  /** Tx-aware deduction compute — used by rebuild, after old repayments are dropped in the same tx. */
-  private async computeDeductionsTx(tx: Tx, farmerId: string, gross: number) {
-    return waterfall(foldOutstanding(await this.ledgerRows(tx, farmerId)), gross);
+  /** What a cycle ending on `periodEnd` recovers. Reads inside the tx, so a rebuild sees its old repayments gone. */
+  private async computeDeductions(tx: Tx, farmerId: string, gross: number, periodEnd: string) {
+    return waterfall(foldOutstanding(dueBy(await this.ledgerRows(tx, farmerId), periodEnd)), gross);
   }
 
   private async insertDeductions(tx: Tx, lineId: string, ded: Outstanding) {

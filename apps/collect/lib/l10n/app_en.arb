@@ -2414,6 +2414,7 @@
   },
   "farmerPaymentsBought": "Bought from us",
   "farmerPaymentsEarlierPurchases": "Earlier purchases",
+  "farmerPaymentsCarriedNext": "Carried to next payment",
   "farmerPaymentsSegSold": "Sold",
   "farmerSaleNoneYet": "Nothing sold to this farmer yet",
   "farmerSaleKindMilk": "Bulk milk",

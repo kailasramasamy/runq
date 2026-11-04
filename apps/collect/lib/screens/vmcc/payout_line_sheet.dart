@@ -9,6 +9,7 @@ import '../../theme/dhenu_theme.dart';
 import '../../theme/dhenu_tokens.dart';
 import '../../utils/format.dart';
 import '../../widgets/primary_action.dart';
+import '../../widgets/sale_recovery_rows.dart';
 import '../../widgets/sheet_grabber.dart';
 import 'farmer_statement_share.dart';
 
@@ -138,7 +139,14 @@ class _PayoutLineSheetState extends ConsumerState<_PayoutLineSheet> {
       if (line.bonusAmount > 0)
         _row(t, l.payoutLineBonus, rupees(line.bonusAmount), color: t.gradeA, inset: true),
       for (final d in line.deductions)
-        _row(t, _deductionLabel(l, d.deductionType), '− ${rupees(d.amount)}', color: t.gradeC),
+        if (d.deductionType == 'farmer_sale')
+          SaleRecoveryRows(
+            farmerId: line.farmerId, periodStart: cycle.periodStart, periodEnd: cycle.periodEnd,
+            recovered: d.amount,
+            rowBuilder: (label, value, color) => _row(t, label, value, color: color),
+          )
+        else
+          _row(t, _deductionLabel(l, d.deductionType), '− ${rupees(d.amount)}', color: t.gradeC),
       // A total with no itemised rows behind it is worse than none: show the
       // lump sum only when the breakdown didn't arrive.
       if (line.deductions.isEmpty && line.deductionTotal > 0)
@@ -200,7 +208,6 @@ class _PayoutLineSheetState extends ConsumerState<_PayoutLineSheet> {
   }
 
   String _deductionLabel(AppLocalizations l, String type) => switch (type) {
-        'farmer_sale' => l.farmerPaymentsSold,
         'advance' => l.farmerPaymentsTypeAdvance,
         'cattle_feed_loan' => l.farmerPaymentsFeedLoan,
         _ => l.payoutLineOtherDeduction,

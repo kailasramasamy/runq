@@ -3353,6 +3353,9 @@ class AppLocalizationsKn extends AppLocalizations {
   String get farmerPaymentsEarlierPurchases => 'ಹಿಂದಿನ ಖರೀದಿಗಳು';
 
   @override
+  String get farmerPaymentsCarriedNext => 'ಮುಂದಿನ ಪಾವತಿಗೆ ಮುಂದೂಡಲಾಗಿದೆ';
+
+  @override
   String get farmerPaymentsSegSold => 'ಮಾರಾಟ';
 
   @override
