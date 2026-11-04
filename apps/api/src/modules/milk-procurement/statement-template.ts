@@ -235,6 +235,15 @@ function purchasesTable(lines: DeductionLine[]): string {
   </table>`;
 }
 
+/** What this deduction left unrecovered, to come off the farmer's next payment. */
+function carriedOn(d: StatementDeduction): number {
+  const lines = d.lines ?? [];
+  const opening = d.openingBalance ?? 0;
+  if (!lines.length && !opening) return 0;
+  const listed = lines.reduce((s, l) => s + l.amount, 0);
+  return Math.round((opening + listed - d.amount) * 100) / 100;
+}
+
 const settleRow = (label: string, sign: '−' | '+', amount: number): string =>
   `<tr><td>${esc(label)}</td><td class="right">${sign} ${inr(amount)}</td></tr>`;
 
@@ -247,7 +256,7 @@ function purchaseRows(d: StatementDeduction): string {
   const lines = d.lines ?? [];
   const opening = d.openingBalance ?? 0;
   const listed = lines.reduce((s, l) => s + l.amount, 0);
-  const carried = Math.round((opening + listed - d.amount) * 100) / 100;
+  const carried = carriedOn(d);
   return [
     lines.length ? settleRow(DEDUCTION_LABEL.farmer_sale!, '−', listed)
       + `<tr><td colspan="2" class="ded-cell">${purchasesTable(lines)}</td></tr>` : '',
@@ -279,7 +288,9 @@ function deductionRow(d: StatementDeduction): string {
  */
 function settlementSection(st: StatementSettlement | null): string {
   if (!st || st.totalDeductions <= 0) return '';
-  const rows = st.deductions.filter((d) => d.amount > 0).map(deductionRow).join('');
+  const shown = st.deductions.filter((d) => d.amount > 0);
+  const rows = shown.map(deductionRow).join('');
+  const carried = shown.reduce((s, d) => s + Math.max(carriedOn(d), 0), 0);
   return `<div class="section-title">Settlement</div>
     <table class="settle">
       <tbody>
@@ -290,6 +301,9 @@ function settlementSection(st: StatementSettlement | null): string {
         </tr>
       </tbody>
     </table>
+    ${carried >= 1
+      ? `<div class="note carry">Carry forward: <strong>${inr(carried)}</strong> will be adjusted against your next payment.</div>`
+      : ''}
     ${st.provisional
       ? '<div class="note">Deductions shown are pending recovery — they will be settled in this cycle\'s payout.</div>'
       : ''}`;
@@ -407,6 +421,7 @@ export const STYLE = `<style>
   .settle-net td { border-top: 2px solid #0F7A5A; border-bottom: none; font-weight: 700; }
   .note { font-size: 10px; color: #8a6d1f; background: #FDF6E3; border-radius: 6px;
     padding: 6px 10px; margin: -8px 0 16px; }
+  .note.carry { font-size: 11px; }
   .card { flex: 1; border: 1px solid #E9E7DF; border-radius: 8px; padding: 8px 10px; }
   .card-v { font-size: 15px; font-weight: 700; color: #14150F; font-variant-numeric: tabular-nums; }
   .card-l { font-size: 10px; color: #5B635C; margin-top: 2px; }

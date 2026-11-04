@@ -26,12 +26,14 @@ describe('statement purchases', () => {
     expect(out).toContain('Carried to your next payment');
     expect(out).toContain('+ ₹ 8,605.00');
     expect(out).not.toContain('− ₹ 79,395.00');
+    expect(out).toContain('Carry forward: <strong>₹ 8,605.00</strong> will be adjusted against your next payment');
   });
 
   it('adds no bridge rows when purchases are recovered in full', () => {
     const out = html(500, 0, [500]);
     expect(out).toContain('− ₹ 500.00');
     expect(out).not.toContain('Carried to your next payment');
+    expect(out).not.toContain('Carry forward');
   });
 
   it('names an earlier balance being recovered now', () => {
